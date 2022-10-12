@@ -26,7 +26,7 @@ def add_columns(arr, X, cols):
     ----------
     arr : record array
         The record array to add columns to.
-    X : 1- or 2-dimensional array
+    X : (list of) 1-dimensional array(s) or 2-dimensional array
         Columns to be added.
     cols : str or list of str
         Column names to be added.
@@ -38,7 +38,10 @@ def add_columns(arr, X, cols):
     """
     # Make sure cols is a list of str and X a 2D array
     cols = [cols] if isinstance(cols, str) else cols
-    X = X.reshape(-1, 1) if X.ndim == 1 else X
+    if isinstance(X, numpy.ndarray) and X.ndim == 1:
+        X = X.reshape(-1, 1)
+    if isinstance(X, list) and all(x.ndim == 1 for x in X):
+        X = numpy.vstack([X]).T
     if len(cols) != X.shape[1]:
         raise ValueError("Number of columns of `X` does not match `cols`.")
     if arr.size != X.shape[0]:
