@@ -14,3 +14,4 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 from .recarray_manip import (add_columns, rm_columns)
+from .transforms import cartesian_to_radec
