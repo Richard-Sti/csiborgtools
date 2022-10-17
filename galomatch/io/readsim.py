@@ -21,6 +21,8 @@ from os import listdir
 from os.path import (join, isfile)
 from tqdm import tqdm
 
+from ..utils import cols_to_structured
+
 
 F16 = numpy.float16
 F32 = numpy.float32
@@ -316,6 +318,41 @@ def read_clumps(n, simpath):
     for i, name in enumerate(dtype["names"]):
         out[name] = arr[:, i]
     return out
+
+
+def read_mmain(n, srcdir, fname="Mmain_{}.npy"):
+    """
+    Read `mmain` numpy arrays of central halos whose mass contains their
+    substracture contribution.
+
+    Parameters
+    ----------
+    n : int
+        The index of the initial conditions (IC) realisation.
+    srcdir : str
+        The path to the folder containing the files.
+    fname : str, optional
+        The file name convention.  By default `Mmain_{}.npy`, where the
+        substituted value is `n`.
+
+    Returns
+    -------
+    out : structured array
+        Array with the central halo information.
+    """
+    fpath = join(srcdir, fname.format(n))
+
+    arr = numpy.load(fpath)
+
+
+    cols = [("index", I64), ("peak_x", F64), ("peak_y", F64),
+            ("peak_z", F64), ("mass_cl", F64), ("sub_frac", F64)]
+    out = cols_to_structured(arr.shape[0], cols)
+    for i, name in enumerate(out.dtype.names):
+        out[name] = arr[:, i]
+
+    return out
+
 
 
 def convert_mass_cols(arr, cols):
