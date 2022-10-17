@@ -15,4 +15,6 @@
 
 from .readsim import (get_sim_path, open_particle, open_unbinding,
                       read_particle, read_clumpid, read_clumps,
+                      read_mmain,
                       convert_mass_cols, convert_position_cols, flip_cols)
+from .readobs import (read_planck2015)
