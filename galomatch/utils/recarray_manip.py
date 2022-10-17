@@ -17,6 +17,29 @@
 
 import numpy
 
+def cols_to_structured(N, cols):
+    """
+    Allocate a structured array from `cols`.
+
+    Parameters
+    ----------
+    N : int
+        Structured array size.
+    cols: list of tuples
+        Column names and dtypes. Each tuple must written as `(name, dtype)`.
+
+    Returns
+    -------
+    out : structured array
+        Initialised structured array.
+    """
+    if not isinstance(cols, list) and all(isinstance(c, tuple) for c in cols):
+        raise TypeError("`cols` must be a list of tuples.")
+
+    dtype = {"names": [col[0] for col in cols],
+             "formats": [col[1] for col in cols]}
+    return numpy.full(N, numpy.nan, dtype=dtype)
+
 
 def add_columns(arr, X, cols):
     """
