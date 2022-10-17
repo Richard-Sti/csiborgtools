@@ -311,11 +311,8 @@ def read_clumps(n, simpath):
             ("peak_x", F64), ("peak_y", F64), ("peak_z", F64),
             ("rho-", F64), ("rho+", F64), ("rho_av", F64),
             ("mass_cl", F64), ("relevance", F64)]
-    # Write to a structured array
-    dtype = {"names": [col[0] for col in cols],
-            "formats": [col[1] for col in cols]}
-    out = numpy.full(arr.shape[0], numpy.nan, dtype=dtype)
-    for i, name in enumerate(dtype["names"]):
+    out = cols_to_structured(arr.shape[0], cols)
+    for i, name in enumerate(out.dtype.names):
         out[name] = arr[:, i]
     return out
 
@@ -341,9 +338,7 @@ def read_mmain(n, srcdir, fname="Mmain_{}.npy"):
         Array with the central halo information.
     """
     fpath = join(srcdir, fname.format(n))
-
     arr = numpy.load(fpath)
-
 
     cols = [("index", I64), ("peak_x", F64), ("peak_y", F64),
             ("peak_z", F64), ("mass_cl", F64), ("sub_frac", F64)]
