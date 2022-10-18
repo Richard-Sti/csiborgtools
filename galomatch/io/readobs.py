@@ -16,7 +16,7 @@
 import numpy
 from astropy.io import fits
 
-from ..utils import add_columns
+from ..utils import (add_columns, cols_to_structured)
 
 
 def read_planck2015(fpath, dist_cosmo, max_comdist=None):
@@ -64,5 +64,34 @@ def read_planck2015(fpath, dist_cosmo, max_comdist=None):
     # Distance threshold
     if max_comdist is not None:
         out = out[out["COMDIST"] < max_comdist]
+
+    return out
+
+
+def read_2mpp(fpath):
+    """
+    Read in the 2M++ galaxy redshift catalogue [1], with the catalogue at [2].
+    Removes fake galaxies used to fill the zone of avoidance.
+
+    Parameters
+    ----------
+    fpath : str
+        File path to the catalogue.
+
+    Returns
+    -------
+    out : structured array
+        The catalogue.
+    """
+    # Read the catalogue and select non-fake galaxies
+    cat = numpy.genfromtxt(fpath, delimiter="|", )
+    cat = cat[cat[:, 12] == 0, :]
+
+    F64 = numpy.float64
+    cols = [("RA", F64), ("DEC", F64), ("Ksmag", F64)]
+    out = cols_to_structured(cat.shape[0], cols)
+    out["RA"] = cat[:, 1] - 180
+    out["DEC"] = cat[:, 2]
+    out["Ksmag"] = cat[:, 5]
 
     return out
