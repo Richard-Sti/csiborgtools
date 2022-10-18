@@ -13,5 +13,28 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
-from .match import brute_spatial_separation
-from .correlation import get_randoms_sphere
+import numpy
+
+
+def get_randoms_sphere(N, seed=42):
+    """
+    Generate random points on a sphere.
+
+    Parameters
+    ----------
+    N : int
+        Number of points.
+    seed : int
+        Random seed.
+
+    Returns
+    -------
+    ra : 1-dimensional array
+        Right ascension in :math:`[0, 360)` degrees.
+    dec : 1-dimensional array
+        Declination in :math:`[-90, 90]` degrees.
+    """
+    gen = numpy.random.default_rng(seed)
+    ra = gen.random(N) * 360
+    dec = numpy.rad2deg(numpy.arcsin(2 * (gen.random(N) - 0.5)))
+    return ra, dec
