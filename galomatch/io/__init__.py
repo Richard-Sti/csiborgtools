@@ -13,8 +13,8 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
-from .readsim import (get_sim_path, open_particle, open_unbinding,
-                      read_particle, read_clumpid, read_clumps,
+from .readsim import (get_csiborg_ids, get_sim_path, open_particle,
+                      open_unbinding, read_particle, read_clumpid, read_clumps,
                       read_mmain,
                       convert_mass_cols, convert_position_cols, flip_cols)
 from .readobs import (read_planck2015)

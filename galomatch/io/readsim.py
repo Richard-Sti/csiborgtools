@@ -19,6 +19,7 @@ import numpy
 from scipy.io import FortranFile
 from os import listdir
 from os.path import (join, isfile)
+from glob import glob
 from tqdm import tqdm
 
 from ..utils import cols_to_structured
@@ -32,6 +33,37 @@ I64 = numpy.int64
 little_h = 0.705
 BOXSIZE = 677.7 / little_h  # Mpc. Otherwise positions in [0, 1].
 BOXMASS = 3.749e19  # Msun
+
+
+def get_csiborg_ids(srcdir):
+    """
+    Get CSiBORG simulation IDs from the list of folders in `srcdir`.
+    Assumes that the folders look like `ramses_out_X` and extract the `X`
+    integer. Removes `5511` from the list of IDs.
+
+    Parameters
+    ----------
+    srcdir : string
+        The folder where CSiBORG simulations are stored.
+
+    Returns
+    -------
+    ids : 1-dimensional array
+        Array of CSiBORG simulation IDs.
+    """
+    files = glob(join(srcdir, "ramses_out*"))
+    # Select only file names
+    files = [f.split("/")[-1] for f in files]
+    # Remove files with inverted ICs
+    files = [f for f in files if "_inv" not in f]
+    # Remove the filename with _old
+    files = [f for f in files if "OLD" not in f]
+    ids = [int(f.split("_")[-1]) for f in files]
+    try:
+        ids.remove(5511)
+    except ValueError:
+        pass
+    return numpy.sort(ids)
 
 
 def get_sim_path(n, fname="ramses_out_{}", srcdir="/mnt/extraspace/hdesmond"):
