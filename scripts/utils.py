@@ -35,10 +35,12 @@ def load_mmain_convert(n):
     return arr
 
 
-def load_mmains(verbose=True):
+def load_mmains(N=None, verbose=True):
     from tqdm import tqdm
     ids = galomatch.io.get_csiborg_ids("/mnt/extraspace/hdesmond")
-    N = ids.size
+    N = ids.size if N is None else N
+    if N > ids.size:
+        raise ValueError("`N` cannot be larger than 101.")
     out = [None] * N
     iters = tqdm(range(N)) if verbose else range(N)
     for i in iters:
