@@ -118,3 +118,38 @@ def rm_columns(arr, cols):
         out[name] = arr[name]
 
     return out
+
+
+def list_to_ndarray(arrs, cols):
+    """
+    Convert a list of structured arrays of CSiBORG simulation catalogues to
+    an 3-dimensional array.
+
+    Parameters
+    ----------
+    arrs : list of structured arrays
+        List of CSiBORG catalogues.
+    cols : str or list of str
+        Columns to be extracted from the CSiBORG catalogues.
+
+    Returns
+    -------
+    out : 3-dimensional array
+        Catalogue array of shape `(n_realisations, n_samples, n_cols)`, where
+        `n_samples` is the maximum number of samples over the CSiBORG
+        catalogues.
+    """
+    if not isinstance(arrs, list):
+        raise TypeError("`arrs` must be a list of structured arrays.")
+    cols = [cols] if isinstance(cols, str) else cols
+
+    Narr  = len(arrs)
+    Nobj_max = max([arr.size for arr in arrs])
+    Ncol = len(cols)
+    # Preallocate the array and fill it
+    out = numpy.full((Narr, Nobj_max, Ncol), numpy.nan)
+    for i in range(Narr):
+        Nobj = arrs[i].size
+        for j in range(Ncol):
+            out[i, :Nobj, j] = arrs[i][cols[j]]
+    return out
