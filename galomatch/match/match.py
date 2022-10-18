@@ -18,7 +18,7 @@ from tqdm import tqdm
 from astropy.coordinates import SkyCoord
 
 
-def brute_separation(c1, c2, angular=False, N=None, verbose=False):
+def brute_spatial_separation(c1, c2, angular=False, N=None, verbose=False):
     """
     Calculate for each point in `c1` the `N` closest points in `c2`.
 
@@ -52,7 +52,7 @@ def brute_separation(c1, c2, angular=False, N=None, verbose=False):
 
     # Pre-allocate arrays
     sep = numpy.full((N1, N2), numpy.nan)
-    indxs = numpy.full((N1, N2), numpy.nan)
+    indxs = numpy.full((N1, N2), numpy.nan, dtype=int)
     iters = tqdm(range(N1)) if verbose else range(N1)
     for i in iters:
         if angular:
