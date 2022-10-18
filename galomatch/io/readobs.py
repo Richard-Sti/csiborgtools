@@ -19,13 +19,14 @@ from astropy.io import fits
 from ..utils import add_columns
 
 
-def read_planck2015(fpath, dist_cosmo):
+def read_planck2015(fpath, dist_cosmo, max_comdist=None):
     """
     Read the Planck 2nd Sunyaev-Zeldovich source catalogue [1]. The following
     is performed:
         - substracts 180 degrees from the right ascension,
         - removes clusters without a redshift estimate,
         - calculates the comoving distance with the provided cosmology.
+        - Converts `MSZ` from units of :math:`1e14 M_\odot` to :math:`M_\odot`
 
     Parameters
     ----------
@@ -33,6 +34,9 @@ def read_planck2015(fpath, dist_cosmo):
         Path to the source catalogue.
     dist_cosmo : `astropy.cosmology` object
         The cosmology to calculate cluster comoving distance from redshift.
+    max_comdist : float, optional
+        Maximum comoving distance threshold in units of :math:`\mathrm{MPc}`.
+        By default `None` and no threshold is applied.
 
     References
     ----------
@@ -53,6 +57,12 @@ def read_planck2015(fpath, dist_cosmo):
     out = out[out["REDSHIFT"] >= 0]
     # Add comoving distance
     dist = dist_cosmo.comoving_distance(out["REDSHIFT"]).value
-    out = add_columns(out, dist, "CDIST")
+    out = add_columns(out, dist, "COMDIST")
+    # Convert masses
+    for p in ("MSZ", "MSZ_ERR_UP", "MSZ_ERR_LOW"):
+        out[p] *= 1e14
+    # Distance threshold
+    if max_comdist is not None:
+        out = out[out["COMDIST"] < max_comdist]
 
     return out
