@@ -48,8 +48,6 @@ def cartesian_to_radec(arr, xpar="peak_x", ypar="peak_y", zpar="peak_z", degrees
     dist = numpy.sqrt(x**2 + y**2 + z**2)
     dec = numpy.arcsin(z / dist)
     ra = numpy.arctan2(y, x)
-    # Wrap around so that we have [0, 360] degrees
-    ra[ra < 0] += 2 * numpy.pi
 
     if degrees:
         dec = numpy.rad2deg(dec)
