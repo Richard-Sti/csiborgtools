@@ -52,3 +52,7 @@ def load_planck2015(max_comdist=214):
     fpath = ("/mnt/zfsusers/rstiskalek/galomatch/"
              + "data/HFI_PCCS_SZ-union_R2.08.fits")
     return galomatch.io.read_planck2015(fpath, cosmo, max_comdist)
+
+
+def load_2mpp():
+    return galomatch.io.read_2mpp("../data/2M++_galaxy_catalog.dat")
