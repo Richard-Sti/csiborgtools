@@ -23,7 +23,6 @@ def read_planck2015(fpath, dist_cosmo, max_comdist=None):
     """
     Read the Planck 2nd Sunyaev-Zeldovich source catalogue [1]. The following
     is performed:
-        - substracts 180 degrees from the right ascension,
         - removes clusters without a redshift estimate,
         - calculates the comoving distance with the provided cosmology.
         - Converts `MSZ` from units of :math:`1e14 M_\odot` to :math:`M_\odot`
@@ -52,8 +51,7 @@ def read_planck2015(fpath, dist_cosmo, max_comdist=None):
     out = numpy.full(data.size, numpy.nan, dtype=data.dtype.descr)
     for name in out.dtype.names:
         out[name] = data[name]
-    # Substract the RA and take only clusters with redshifts
-    out["RA"] -= 180
+    # Take only clusters with redshifts
     out = out[out["REDSHIFT"] >= 0]
     # Add comoving distance
     dist = dist_cosmo.comoving_distance(out["REDSHIFT"]).value
