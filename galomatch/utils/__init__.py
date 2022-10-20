@@ -15,4 +15,3 @@
 
 from .recarray_manip import (cols_to_structured, add_columns, rm_columns,  # noqa
                              list_to_ndarray, array_to_structured)  # noqa
-from .transforms import cartesian_to_radec  # noqa

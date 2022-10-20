@@ -53,9 +53,7 @@ def cartesian_to_radec(arr, xpar="peak_x", ypar="peak_y", zpar="peak_z"):
     # Make sure RA in the correct range
     ra[ra < 0] += 360
 
-#    # Goes from -90 to 90 only for x > 0; for x < 0 goes from 90 to 270
-#    ra[x < 0] += 180
-#    # For x > 0 make sure that RA is +ve so this segment is 270 to 360 deg
-#    ra[(x > 0) & (ra < 0)] += 360
-
     return dist, ra, dec
+
+
+
