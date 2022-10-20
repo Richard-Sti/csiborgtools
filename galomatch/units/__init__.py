@@ -13,4 +13,5 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
-from .transforms import cartesian_to_radec  # noqa
+from .transforms import (cartesian_to_radec, convert_mass_cols,  # noqa
+                         convert_position_cols)  # noqa

@@ -32,8 +32,8 @@ def load_mmain_convert(n):
     srcdir = "/users/hdesmond/Mmain"
     arr = galomatch.io.read_mmain(n, srcdir)
 
-    galomatch.io.convert_mass_cols(arr, "mass_cl")
-    galomatch.io.convert_position_cols(arr, ["peak_x", "peak_y", "peak_z"])
+    galomatch.utils.convert_mass_cols(arr, "mass_cl")
+    galomatch.utils.convert_position_cols(arr, ["peak_x", "peak_y", "peak_z"])
     galomatch.utils.flip_cols(arr, "peak_x", "peak_z")
 
     d, ra, dec = galomatch.utils.cartesian_to_radec(arr)

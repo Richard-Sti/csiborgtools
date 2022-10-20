@@ -20,6 +20,11 @@ Various coordinate transformations.
 import numpy
 
 
+little_h = 0.705
+BOXSIZE = 677.7 / little_h  # Mpc. Otherwise positions in [0, 1].
+BOXMASS = 3.749e19  # Msun
+
+
 def cartesian_to_radec(arr, xpar="peak_x", ypar="peak_y", zpar="peak_z"):
     r"""
     Extract `x`, `y`, and `z` coordinates from a record array `arr` and
@@ -56,3 +61,50 @@ def cartesian_to_radec(arr, xpar="peak_x", ypar="peak_y", zpar="peak_z"):
     ra[ra < 0] += 360
 
     return dist, ra, dec
+
+
+def convert_mass_cols(arr, cols):
+    r"""
+    Convert mass columns from box units to :math:`M_{\odot}`. `arr` is passed
+    by reference and is not explicitly returned back.
+
+    Parameters
+    ----------
+    arr : structured array
+        The array whose columns are to be converted.
+    cols : str or list of str
+        The mass columns to be converted.
+
+    Returns
+    -------
+    None
+    """
+    cols = [cols] if isinstance(cols, str) else cols
+    for col in cols:
+        arr[col] *= BOXMASS
+
+
+def convert_position_cols(arr, cols, zero_centered=True):
+    r"""
+    Convert position columns from box units to :math:`\mathrm{Mpc}`. `arr` is
+    passed by reference and is not explicitly returned back.
+
+    Parameters
+    ----------
+    arr : structured array
+        The array whose columns are to be converted.
+    cols : str or list of str
+        The mass columns to be converted.
+    zero_centered : bool, optional
+        Whether to translate the well-resolved origin in the centre of the
+        simulation to the :math:`(0, 0 , 0)` point. By default `True`.
+
+    Returns
+    -------
+    None
+    """
+    cols = [cols] if isinstance(cols, str) else cols
+    for col in cols:
+        arr[col] *= BOXSIZE
+        if zero_centered:
+            arr[col] -= BOXSIZE / 2
