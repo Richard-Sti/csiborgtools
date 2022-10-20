@@ -83,16 +83,22 @@ def read_2mpp(fpath):
     -------
     out : structured array
         The catalogue.
+
+    References
+    ----------
+    [1] The 2M++ galaxy redshift catalogue; Lavaux, Guilhem, Hudson, Michael J.
+    [2] https://cdsarc.cds.unistra.fr/viz-bin/cat/J/MNRAS/416/2840#/article
     """
     # Read the catalogue and select non-fake galaxies
     cat = numpy.genfromtxt(fpath, delimiter="|", )
     cat = cat[cat[:, 12] == 0, :]
 
     F64 = numpy.float64
-    cols = [("RA", F64), ("DEC", F64), ("Ksmag", F64)]
+    cols = [("RA", F64), ("DEC", F64), ("Ksmag", F64), ("ZCMB", F64)]
     out = cols_to_structured(cat.shape[0], cols)
     out["RA"] = cat[:, 1] - 180
     out["DEC"] = cat[:, 2]
     out["Ksmag"] = cat[:, 5]
+    out["ZCMB"] = cat[:, 7]
 
     return out
