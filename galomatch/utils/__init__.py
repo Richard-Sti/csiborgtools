@@ -14,4 +14,5 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 from .recarray_manip import (cols_to_structured, add_columns, rm_columns,  # noqa
-                             list_to_ndarray, array_to_structured)  # noqa
+                             list_to_ndarray, array_to_structured,  # noqa
+                             flip_cols)  # noqa

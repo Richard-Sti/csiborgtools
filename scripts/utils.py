@@ -34,7 +34,7 @@ def load_mmain_convert(n):
 
     galomatch.io.convert_mass_cols(arr, "mass_cl")
     galomatch.io.convert_position_cols(arr, ["peak_x", "peak_y", "peak_z"])
-    galomatch.io.flip_cols(arr, "peak_x", "peak_z")
+    galomatch.utils.flip_cols(arr, "peak_x", "peak_z")
 
     d, ra, dec = galomatch.utils.cartesian_to_radec(arr)
     arr = galomatch.utils.add_columns(arr, [d, ra, dec], ["dist", "ra", "dec"])

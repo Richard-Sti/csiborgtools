@@ -479,27 +479,3 @@ def convert_position_cols(arr, cols, zero_centered=True):
         arr[col] *= BOXSIZE
         if zero_centered:
             arr[col] -= BOXSIZE / 2
-
-
-def flip_cols(arr, col1, col2):
-    """
-    Flip values in columns `col1` and `col2`. `arr` is passed by reference and
-    is not explicitly returned back.
-
-
-    Parameters
-    ----------
-    arr : structured array
-        The array whose columns are to be converted.
-    col1 : str
-        The first column name.
-    col2 : str
-        The second column name.
-
-    Returns
-    -------
-    nothing
-    """
-    dum = numpy.copy(arr[col1])
-    arr[col1] = arr[col2]
-    arr[col2] = dum
