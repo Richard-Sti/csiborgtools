@@ -13,5 +13,5 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
-from .match import brute_spatial_separation
-from .correlation import (get_randoms_sphere, angular_tpcf)
+from .match import brute_spatial_separation  # noqa
+from .correlation import (get_randoms_sphere, angular_tpcf) # noqa

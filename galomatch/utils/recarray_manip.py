@@ -12,10 +12,13 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+"""
+Utilility functions for manipulation structured arrays.
+"""
 
-"""Utilility functions for manipulation structured arrays."""
 
 import numpy
+
 
 def cols_to_structured(N, cols):
     """
@@ -84,6 +87,7 @@ def add_columns(arr, X, cols):
 
     return out
 
+
 def rm_columns(arr, cols):
     """
     Remove columns `cols` from a record array `arr`. Creates a new array.
@@ -143,7 +147,7 @@ def list_to_ndarray(arrs, cols):
         raise TypeError("`arrs` must be a list of structured arrays.")
     cols = [cols] if isinstance(cols, str) else cols
 
-    Narr  = len(arrs)
+    Narr = len(arrs)
     Nobj_max = max([arr.size for arr in arrs])
     Ncol = len(cols)
     # Preallocate the array and fill it
