@@ -15,6 +15,9 @@
 
 """Notebook utility funnctions."""
 
+from tqdm import tqdm
+from astropy.cosmology import FlatLambdaCDM
+
 try:
     import galomatch
 except ModuleNotFoundError:
@@ -36,7 +39,6 @@ def load_mmain_convert(n):
 
 
 def load_mmains(N=None, verbose=True):
-    from tqdm import tqdm
     ids = galomatch.io.get_csiborg_ids("/mnt/extraspace/hdesmond")
     N = ids.size if N is None else N
     if N > ids.size:
@@ -49,7 +51,6 @@ def load_mmains(N=None, verbose=True):
 
 
 def load_planck2015(max_comdist=214):
-    from astropy.cosmology import FlatLambdaCDM
     cosmo = FlatLambdaCDM(H0=70.5, Om0=0.307, Tcmb0=2.728)
     fpath = ("/mnt/zfsusers/rstiskalek/galomatch/"
              + "data/HFI_PCCS_SZ-union_R2.08.fits")
