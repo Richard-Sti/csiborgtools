@@ -69,7 +69,7 @@ def read_planck2015(fpath, dist_cosmo, max_comdist=None):
     return out
 
 
-def read_2mpp(fpath):
+def read_2mpp(fpath, dist_cosmo):
     """
     Read in the 2M++ galaxy redshift catalogue [1], with the catalogue at [2].
     Removes fake galaxies used to fill the zone of avoidance.
@@ -89,16 +89,18 @@ def read_2mpp(fpath):
     [1] The 2M++ galaxy redshift catalogue; Lavaux, Guilhem, Hudson, Michael J.
     [2] https://cdsarc.cds.unistra.fr/viz-bin/cat/J/MNRAS/416/2840#/article
     """
+    from scipy.constants import c
     # Read the catalogue and select non-fake galaxies
     cat = numpy.genfromtxt(fpath, delimiter="|", )
     cat = cat[cat[:, 12] == 0, :]
 
     F64 = numpy.float64
-    cols = [("RA", F64), ("DEC", F64), ("Ksmag", F64), ("ZCMB", F64)]
+    cols = [("RA", F64), ("DEC", F64), ("Ksmag", F64), ("ZCMB", F64),
+            ("CDIST_CMB", F64)]
     out = cols_to_structured(cat.shape[0], cols)
-    out["RA"] = cat[:, 1] - 180
+    out["RA"] = cat[:, 1]
     out["DEC"] = cat[:, 2]
     out["Ksmag"] = cat[:, 5]
-    out["ZCMB"] = cat[:, 7]
-
+    out["ZCMB"] = cat[:, 7] / (c * 1e-3)
+    out["CDIST_CMB"] = dist_cosmo.comoving_distance(out["ZCMB"]).value
     return out
