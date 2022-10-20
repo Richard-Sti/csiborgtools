@@ -30,16 +30,20 @@ PI = 3.1415926535897932384626433
 
 class BoxUnits:
     """
-    TODO:
-        documentation and check this works with CSiBORG.
-        Why does boxsize look a bit different than from Harry
+    Box units class for converting between box and physical units.
+
+    Paramaters
+    ----------
+    Nsnap : int
+        Snapshot index.
+    simpath : str
+        Path to the simulation where its snapshot index folders are stored.
     """
 
     def __init__(self, Nsnap, simpath):
         """
-        TODO: docs
+        Read in the snapshot info file and set the units from it.
         """
-        # Read in the info file and set params as attributes
         info = read_info(Nsnap, simpath)
         pars = ["boxlen", "time", "aexp", "H0",
                 "omega_m", "omega_l", "omega_k", "omega_b",
@@ -50,7 +54,7 @@ class BoxUnits:
         self.h = self.H0 / 100
         self.cosmo = LambdaCDM(H0=self.H0, Om0=self.omega_m, Ode0=self.omega_l,
                                Tcmb0=2.725 * units.K, Ob0=self.omega_b)
-        # Fundamental constants in box units
+        # Constants in box units
         self.G = constants.G.cgs.value * (self.unit_d * self.unit_t ** 2)
         self.H0 = self.H0 * 1e5 / (1e3 * KPC_TO_CM) * self.unit_t
         self.c = constants.c.cgs.value * self.unit_t / self.unit_l
@@ -124,7 +128,7 @@ class BoxUnits:
         """
         unit_m = self.unit_d * self.unit_l**3
         m = mass * unit_m  # In cgs
-        m = mass / MSUNCGS
+        m = m / MSUNCGS
         return m
 
     def box2dens(self, density):
