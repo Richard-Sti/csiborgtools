@@ -72,7 +72,7 @@ def sphere_angular_tpcf(bins, RA1, DEC1, RA2=None, DEC2=None, nthreads=1,
     """
     Calculate the angular two-point correlation function. The coordinates must
     be provided in degrees. With the right ascension and degrees being
-    in range of :math:`[-180, 180]` and :math:`[-90, 90]` degrees, respectively.
+    in range of :math:`[-180, 180]` and :math:`[-90, 90]` degrees.
     If `RA2` and `DEC2` are provided cross-correlates the first data set with
     the second. Creates a uniformly sampled randoms on the surface of a sphere
     of size `Nmult` times the corresponding number of data points. Uses the
