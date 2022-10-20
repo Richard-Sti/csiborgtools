@@ -82,9 +82,28 @@ def get_sim_path(n, fname="ramses_out_{}", srcdir="/mnt/extraspace/hdesmond"):
     Returns
     -------
     path : str
-        The complete path to the `n`th CSiBORG simulation.
+        Path to the `n`th CSiBORG simulation.
     """
     return join(srcdir, fname.format(n))
+
+
+def get_snapshot_path(Nsnap, simpath):
+    """
+    Get a path to a CSiBORG IC realisation snapshot.
+
+    Parameters
+    ----------
+    Nsnap : int
+        Snapshot index.
+    simpath : str
+        Path to the CSiBORG IC realisation.
+
+    Returns
+    -------
+    snappath : str
+        Path to the CSiBORG IC realisation snapshot.
+    """
+    return join(simpath, "output_{}".format(str(Nsnap).zfill(5)))
 
 
 def open_particle(n, simpath, verbose=True):
@@ -109,7 +128,7 @@ def open_particle(n, simpath, verbose=True):
     """
     # Zeros filled snapshot number and the snapshot path
     nout = str(n).zfill(5)
-    snappath = join(simpath, "output_{}".format(nout))
+    snappath = get_snapshot_path(n, simpath)
     infopath = join(snappath, "info_{}.txt".format(nout))
 
     with open(infopath, "r") as f:
