@@ -157,3 +157,32 @@ def list_to_ndarray(arrs, cols):
         for j in range(Ncol):
             out[i, :Nobj, j] = arrs[i][cols[j]]
     return out
+
+
+def array_to_structured(arr, cols):
+    """
+    Create a structured array from a 2-dimensional array.
+
+    Parameters
+    ----------
+    arr : 2-dimensional array
+        Original array of shape `(n_samples, n_cols)`.
+    cols : list of str
+        Columns of the structured array
+
+    Returns
+    -------
+    out : structured array
+        The output structured array.
+    """
+    cols = [cols] if isinstance(cols, str) else cols
+    if arr.ndim != 2 and arr.shape[1] != len(cols):
+        raise TypeError("`arr` must be a 2-dimensional array of "
+                        "shape `(n_samples, n_cols)`.")
+
+    dtype = {"names": cols, "formats": [arr.dtype] * len(cols)}
+    out = numpy.full(arr.shape[0], numpy.nan, dtype=dtype)
+    for i, col in enumerate(cols):
+        out[col] = arr[:, i]
+
+    return out
