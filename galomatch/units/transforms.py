@@ -21,9 +21,11 @@ import numpy
 
 
 def cartesian_to_radec(arr, xpar="peak_x", ypar="peak_y", zpar="peak_z"):
-    """
+    r"""
     Extract `x`, `y`, and `z` coordinates from a record array `arr` and
-    calculate their spherical coordinates representation in degrees.
+    calculate the radial distance :math:`r` in coordinate units, right
+    ascension :math:`\mathrm{RA} \in [0, 360)` degrees and declination
+    :math:`\delta \in [-90, 90]` degrees.
 
     Parameters
     ----------
@@ -54,6 +56,3 @@ def cartesian_to_radec(arr, xpar="peak_x", ypar="peak_y", zpar="peak_z"):
     ra[ra < 0] += 360
 
     return dist, ra, dec
-
-
-
