@@ -20,11 +20,10 @@ Various coordinate transformations.
 import numpy
 
 
-def cartesian_to_radec(arr, xpar="peak_x", ypar="peak_y", zpar="peak_z",
-                       degrees=True):
+def cartesian_to_radec(arr, xpar="peak_x", ypar="peak_y", zpar="peak_z"):
     """
     Extract `x`, `y`, and `z` coordinates from a record array `arr` and
-    calculate their spherical coordinates representation.
+    calculate their spherical coordinates representation in degrees.
 
     Parameters
     ----------
@@ -36,8 +35,6 @@ def cartesian_to_radec(arr, xpar="peak_x", ypar="peak_y", zpar="peak_z",
         Name of the y coordinate in the record array.
     zpar : str, optional
         Name of the z coordinate in the record array.
-    degrees : bool, optional
-        Whether to return angles in degrees. By default `True`.
 
     Returns
     -------
@@ -51,11 +48,14 @@ def cartesian_to_radec(arr, xpar="peak_x", ypar="peak_y", zpar="peak_z",
     x, y, z = arr[xpar], arr[ypar], arr[zpar]
 
     dist = numpy.sqrt(x**2 + y**2 + z**2)
-    dec = numpy.arcsin(z / dist)
-    ra = numpy.arctan2(y, x)
+    dec = numpy.rad2deg(numpy.arcsin(z/dist))
+    ra = numpy.rad2deg(numpy.arctan2(y, x))
+    # Make sure RA in the correct range
+    ra[ra < 0] += 360
 
-    if degrees:
-        dec = numpy.rad2deg(dec)
-        ra = numpy.rad2deg(ra)
+#    # Goes from -90 to 90 only for x > 0; for x < 0 goes from 90 to 270
+#    ra[x < 0] += 180
+#    # For x > 0 make sure that RA is +ve so this segment is 270 to 360 deg
+#    ra[(x > 0) & (ra < 0)] += 360
 
     return dist, ra, dec
