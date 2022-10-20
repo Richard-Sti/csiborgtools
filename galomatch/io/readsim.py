@@ -106,6 +106,38 @@ def get_snapshot_path(Nsnap, simpath):
     return join(simpath, "output_{}".format(str(Nsnap).zfill(5)))
 
 
+def read_info(Nsnap, simpath):
+    """
+    Read CSiBORG simulation snapshot info.
+
+    Parameters
+    ----------
+    Nsnap : int
+        Snapshot index.
+    simpath : str
+        Path to the CSiBORG IC realisation.
+
+    Returns
+    -------
+    info : dict
+        Dictionary of info paramaters. Note that both keys and values are
+        strings.
+    """
+    # Open the info file
+    snappath = get_snapshot_path(Nsnap, simpath)
+    filename = join(snappath, "info_{}.txt".format(str(Nsnap).zfill(5)))
+    with open(filename, "r") as f:
+        info = f.read().split()
+    # Throw anything below ordering line out
+    info = numpy.asarray(info[:info.index("ordering")])
+    # Get indexes of lines with `=`. Indxs before/after be keys/vals
+    eqindxs = numpy.asarray([i for i in range(info.size) if info[i] == '='])
+
+    keys = info[eqindxs - 1]
+    vals = info[eqindxs + 1]
+    return {key: val for key, val in zip(keys, vals)}
+
+
 def open_particle(n, simpath, verbose=True):
     """
     Open particle files to a given CSiBORG simulation.
@@ -129,10 +161,8 @@ def open_particle(n, simpath, verbose=True):
     # Zeros filled snapshot number and the snapshot path
     nout = str(n).zfill(5)
     snappath = get_snapshot_path(n, simpath)
-    infopath = join(snappath, "info_{}.txt".format(nout))
+    ncpu = int(read_info(n, simpath)["ncpu"])
 
-    with open(infopath, "r") as f:
-        ncpu = int(f.readline().split()[-1])
     if verbose:
         print("Reading in output `{}` with ncpu = `{}`.".format(nout, ncpu))
 
@@ -155,6 +185,7 @@ def open_particle(n, simpath, verbose=True):
         # Read in this order
         ncpuloc = f.read_ints()
         if ncpuloc != ncpu:
+            infopath = join(snappath, "info_{}.txt".format(nout))
             raise ValueError("`ncpu = {}` of `{}` disagrees with `ncpu = {}` "
                              "of `{}`.".format(ncpu, infopath, ncpuloc, fpath))
         ndim = f.read_ints()
