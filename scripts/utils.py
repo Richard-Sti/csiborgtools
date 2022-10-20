@@ -15,7 +15,8 @@
 
 """Notebook utility funnctions."""
 
-from tqdm import tqdm
+import numpy
+from tqdm import trange
 from astropy.cosmology import FlatLambdaCDM
 
 try:
@@ -43,10 +44,17 @@ def load_mmains(N=None, verbose=True):
     N = ids.size if N is None else N
     if N > ids.size:
         raise ValueError("`N` cannot be larger than 101.")
+    # If N less than num of CSiBORG, then radomly choose
+    if N == ids.size:
+        choices = numpy.arange(N)
+    else:
+        choices = numpy.random.choice(ids.size, N, replace=False)
+
     out = [None] * N
-    iters = tqdm(range(N)) if verbose else range(N)
+    iters = trange(N) if verbose else range(N)
     for i in iters:
-        out[i] = load_mmain_convert(ids[i])
+        j = choices[i]
+        out[i] = load_mmain_convert(ids[j])
     return out
 
 
@@ -58,4 +66,5 @@ def load_planck2015(max_comdist=214):
 
 
 def load_2mpp():
-    return galomatch.io.read_2mpp("../data/2M++_galaxy_catalog.dat")
+    cosmo = FlatLambdaCDM(H0=70.5, Om0=0.307, Tcmb0=2.728)
+    return galomatch.io.read_2mpp("../data/2M++_galaxy_catalog.dat", cosmo)
