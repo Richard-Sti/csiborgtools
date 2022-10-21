@@ -389,7 +389,7 @@ def read_clumpid(Nsnap, simpath, verbose=True):
     return clumpid
 
 
-def read_clumps(Nsnap, simpath):
+def read_clumps(Nsnap, simpath, cols=None):
     """
     Read in a clump file `clump_Nsnap.dat`.
 
@@ -399,6 +399,8 @@ def read_clumps(Nsnap, simpath):
         The index of a redshift snapshot.
     simpath : str
         The complete path to the CSiBORG simulation.
+    cols : list of str, optional.
+        Columns to extract. By default `None` and all columns are extracted.
 
     Returns
     -------
@@ -413,14 +415,31 @@ def read_clumps(Nsnap, simpath):
         raise FileExistsError("Clump file `{}` does not exist.".format(fname))
 
     # Read in the clump array. This is how the columns must be written!
-    arr = numpy.genfromtxt(fname)
-    cols = [("index", I64), ("level", I64), ("parent", I64), ("ncell", F64),
-            ("peak_x", F64), ("peak_y", F64), ("peak_z", F64),
-            ("rho-", F64), ("rho+", F64), ("rho_av", F64),
-            ("mass_cl", F64), ("relevance", F64)]
-    out = cols_to_structured(arr.shape[0], cols)
-    for i, name in enumerate(out.dtype.names):
-        out[name] = arr[:, i]
+    data = numpy.genfromtxt(fname)
+    clump_cols = [("index", I64), ("level", I64), ("parent", I64),
+                  ("ncell", F64), ("peak_x", F64), ("peak_y", F64),
+                  ("peak_z", F64), ("rho-", F64), ("rho+", F64),
+                  ("rho_av", F64), ("mass_cl", F64), ("relevance", F64)]
+    out0 = cols_to_structured(data.shape[0], clump_cols)
+    for i, name in enumerate(out0.dtype.names):
+        out0[name] = data[:, i]
+    # If take all cols then return
+    if cols is None:
+        return out0
+    # Make sure we have a list
+    cols = [cols] if isinstance(cols, str) else cols
+    # Get the indxs of clump_cols to output
+    clump_names = [col[0] for col in clump_cols]
+    indxs = [None] * len(cols)
+    for i, col in enumerate(cols):
+        if col not in clump_names:
+            raise KeyError("...")
+        indxs[i] = clump_names.index(col)
+    # Make an array and fill it
+    out = cols_to_structured(out0.size, [clump_cols[i] for i in indxs])
+    for name in out.dtype.names:
+        out[name] = out0[name]
+
     return out
 
 
