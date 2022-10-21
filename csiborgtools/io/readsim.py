@@ -157,13 +157,13 @@ def read_info(Nsnap, simpath):
     return {key: val for key, val in zip(keys, vals)}
 
 
-def open_particle(n, simpath, verbose=True):
+def open_particle(Nsnap, simpath, verbose=True):
     """
     Open particle files to a given CSiBORG simulation.
 
     Parameters
     ----------
-    n : int
+    Nsnap : int
         The index of a redshift snapshot.
     simpath : str
         The complete path to the CSiBORG simulation.
@@ -178,9 +178,9 @@ def open_particle(n, simpath, verbose=True):
         Opened part files.
     """
     # Zeros filled snapshot number and the snapshot path
-    nout = str(n).zfill(5)
-    snappath = get_snapshot_path(n, simpath)
-    ncpu = int(read_info(n, simpath)["ncpu"])
+    nout = str(Nsnap).zfill(5)
+    snappath = get_snapshot_path(Nsnap, simpath)
+    ncpu = int(read_info(Nsnap, simpath)["ncpu"])
 
     if verbose:
         print("Reading in output `{}` with ncpu = `{}`.".format(nout, ncpu))
@@ -267,7 +267,7 @@ def nparts_to_start_ind(nparts):
     return numpy.hstack([[0], numpy.cumsum(nparts[:-1])])
 
 
-def read_particle(pars_extract, n, simpath, verbose=True):
+def read_particle(pars_extract, Nsnap, simpath, verbose=True):
     """
     Read particle files of a simulation at a given snapshot and return
     values of `pars_extract`.
@@ -276,7 +276,7 @@ def read_particle(pars_extract, n, simpath, verbose=True):
     ----------
     pars_extract : list of str
         Parameters to be extacted.
-    n : int
+    Nsnap : int
         The index of the redshift snapshot.
     simpath : str
         The complete path to the CSiBORG simulation.
@@ -289,7 +289,7 @@ def read_particle(pars_extract, n, simpath, verbose=True):
         The data read from the particle file.
     """
     # Open the particle files
-    nparts, partfiles = open_particle(n, simpath)
+    nparts, partfiles = open_particle(Nsnap, simpath)
     if verbose:
         print("Opened {} particle files.".format(nparts.size))
     ncpu = nparts.size
@@ -329,7 +329,7 @@ def read_particle(pars_extract, n, simpath, verbose=True):
     return out
 
 
-def open_unbinding(cpu, n, simpath):
+def open_unbinding(cpu, Nsnap, simpath):
     """
     Open particle files to a given CSiBORG simulation. Note that to be
     consistent CPU is incremented by 1.
@@ -338,7 +338,7 @@ def open_unbinding(cpu, n, simpath):
     ----------
     cpu : int
         The CPU index.
-    n : int
+    Nsnap : int
         The index of a redshift snapshot.
     simpath : str
         The complete path to the CSiBORG simulation.
@@ -348,7 +348,7 @@ def open_unbinding(cpu, n, simpath):
     unbinding : `scipy.io.FortranFile`
         The opened unbinding FortranFile.
     """
-    nout = str(n).zfill(5)
+    nout = str(Nsnap).zfill(5)
     cpu = str(cpu + 1).zfill(5)
     fpath = join(simpath, "output_{}".format(nout),
                  "unbinding_{}.out{}".format(nout, cpu))
@@ -356,13 +356,13 @@ def open_unbinding(cpu, n, simpath):
     return FortranFile(fpath)
 
 
-def read_clumpid(n, simpath, verbose=True):
+def read_clumpid(Nsnap, simpath, verbose=True):
     """
     Read clump IDs from unbinding files.
 
     Parameters
     ----------
-    n : int
+    Nsnap : int
         The index of a redshift snapshot.
     simpath : str
         The complete path to the CSiBORG simulation.
@@ -374,7 +374,7 @@ def read_clumpid(n, simpath, verbose=True):
     clumpid : 1-dimensional array
         The array of clump IDs.
     """
-    nparts, __ = open_particle(n, simpath, verbose)
+    nparts, __ = open_particle(Nsnap, simpath, verbose)
     start_ind = nparts_to_start_ind(nparts)
     ncpu = nparts.size
 
@@ -383,19 +383,19 @@ def read_clumpid(n, simpath, verbose=True):
     for cpu in iters:
         i = start_ind[cpu]
         j = nparts[cpu]
-        ff = open_unbinding(cpu, n, simpath)
+        ff = open_unbinding(cpu, Nsnap, simpath)
         clumpid[i:i + j] = ff.read_ints()
 
     return clumpid
 
 
-def read_clumps(n, simpath):
+def read_clumps(Nsnap, simpath):
     """
-    Read in a precomputed clump file `clump_N.dat`.
+    Read in a clump file `clump_Nsnap.dat`.
 
     Parameters
     ----------
-    n : int
+    Nsnap : int
         The index of a redshift snapshot.
     simpath : str
         The complete path to the CSiBORG simulation.
@@ -405,8 +405,9 @@ def read_clumps(n, simpath):
     out : structured array
         Structured array of the clumps.
     """
-    n = str(n).zfill(5)
-    fname = join(simpath, "output_{}".format(n), "clump_{}.dat".format(n))
+    Nsnap = str(Nsnap).zfill(5)
+    fname = join(simpath, "output_{}".format(Nsnap),
+                 "clump_{}.dat".format(Nsnap))
     # Check the file exists.
     if not isfile(fname):
         raise FileExistsError("Clump file `{}` does not exist.".format(fname))
