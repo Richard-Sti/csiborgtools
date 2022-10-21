@@ -378,7 +378,7 @@ def read_clumpid(Nsnap, simpath, verbose=True):
     start_ind = nparts_to_start_ind(nparts)
     ncpu = nparts.size
 
-    clumpid = numpy.full(numpy.sum(nparts), numpy.nan)
+    clumpid = numpy.full(numpy.sum(nparts), numpy.nan, dtype=int)
     iters = tqdm(range(ncpu)) if verbose else range(ncpu)
     for cpu in iters:
         i = start_ind[cpu]
