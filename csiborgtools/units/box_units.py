@@ -29,8 +29,10 @@ PI = 3.1415926535897932384626433
 
 
 class BoxUnits:
-    """
+    r"""
     Box units class for converting between box and physical units.
+
+    TODO: check factors of :math:`a` in mass and density transformations
 
     Paramaters
     ----------
@@ -62,7 +64,7 @@ class BoxUnits:
 
     def box2kpc(self, length):
         r"""
-        Convert length from box units to :math:`\mathrm{kpc}` (with
+        Convert length from box units to :math:`\mathrm{ckpc}` (with
         :math:`h=0.705`).
 
         Parameters
@@ -73,26 +75,26 @@ class BoxUnits:
         Returns
         -------
         length : foat
-            Length in :math:`\mathrm{kpc}`
+            Length in :math:`\mathrm{ckpc}`
         """
-        return length * self.unit_l / KPC_TO_CM
+        return length * self.unit_l / KPC_TO_CM / self.aexp
 
     def kpc2box(self, length):
         r"""
-        Convert length from :math:`\mathrm{kpc}` (with :math:`h=0.705`) to
+        Convert length from :math:`\mathrm{ckpc}` (with :math:`h=0.705`) to
         box units.
 
         Parameters
         ----------
         length : float
-            Length in :math:`\mathrm{kpc}`
+            Length in :math:`\mathrm{ckpc}`
 
         Returns
         -------
         length : foat
             Length in box units.
         """
-        return length / self.unit_l * KPC_TO_CM
+        return length / self.unit_l * KPC_TO_CM * self.aexp
 
     def solarmass2box(self, mass):
         r"""
