@@ -300,6 +300,8 @@ def read_particle(pars_extract, n, simpath, verbose=True):
     fnames = [fp[0] for fp in forder]
     fdtypes = [fp[1] for fp in forder]
     # Check there are no strange parameters
+    if isinstance(pars_extract, str):
+        pars_extract = [pars_extract]
     for p in pars_extract:
         if p not in fnames:
             raise ValueError("Undefined parameter `{}`. Must be one of `{}`."
