@@ -12,8 +12,9 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-
-"""Functions to read in the particle and clump files."""
+"""
+Functions to read in the particle and clump files.
+"""
 
 import numpy
 from scipy.io import FortranFile
@@ -82,6 +83,27 @@ def get_sim_path(n, fname="ramses_out_{}", srcdir="/mnt/extraspace/hdesmond"):
         Path to the `n`th CSiBORG simulation.
     """
     return join(srcdir, fname.format(n))
+
+
+def get_snapshots(simpath):
+    """
+    Get the list of snapshots for the given IC realisation.
+
+    Parameters
+    ----------
+    simpath : str
+        Path to the CSiBORG IC realisation.
+
+    Returns
+    -------
+    snapshots : 1-dimensional array
+        Array of snapshot IDs.
+    """
+    # Get all files in simpath that start with output_
+    snaps = glob(join(simpath, "output_*"))
+    # Take just the last _00XXXX from each file  and strip zeros
+    snaps = [int(snap.split('_')[-1].lstrip('0')) for snap in snaps]
+    return numpy.sort(snaps)
 
 
 def get_snapshot_path(Nsnap, simpath):
