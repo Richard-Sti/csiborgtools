@@ -358,7 +358,7 @@ def open_unbinding(cpu, Nsnap, simpath):
 
 def read_clumpid(Nsnap, simpath, verbose=True):
     """
-    Read clump IDs from unbinding files.
+    Read clump IDs of halos from unbinding files.
 
     Parameters
     ----------
