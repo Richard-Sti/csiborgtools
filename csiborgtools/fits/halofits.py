@@ -75,5 +75,22 @@ def distribute_halos(Njobs, clump_indxs):
     return start, start + Njobs_per_cpu
 
 
-def dump_particles():
-    pass
+def dump_particles(particles, clumps, clump_indxs, Njobs):
+    """
+    Save the data needed for each CPU so that it doesn't have to load
+    everything.
+    TODO: finish this stuff
+
+    Don't forget the halo index.
+    """
+    with_particles = clump_with_particles(clump_indxs, clumps["index"])
+
+    start, end = distribute_halos(Njobs, clump_indxs[with_particles])
+
+    for n in range(Njobs):
+        i = start[n]
+        j = end[n]
+
+        # The relevant clumps
+        clumps[i:j]
+        # Which particles belong to these clumps?
