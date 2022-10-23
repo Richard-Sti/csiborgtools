@@ -13,16 +13,16 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-What is life about?
+Halo profiles functions and posteriors.
 """
 
+
 import numpy
-# from ..io import open_particle
 
 
-def nfw_profile(r, Rs, rho0):
+class NFWProfile:
     r"""
-    The Navarro-Frenk-White (NFW) profile defined as
+    The Navarro-Frenk-White (NFW) density profile defined as
 
     .. math::
         \rho(r) = \frac{\rho_0}{x(1 + x)^2}
@@ -31,39 +31,264 @@ def nfw_profile(r, Rs, rho0):
 
     Parameters
     ----------
-    r : float
-        Radial distance :math:`r`.
     Rs : float
         Scale radius :math:`R_s`.
     rho0 : float
         NFW density parameter :math:`\rho_0`.
-
-    Returns
-    -------
-    density : float
-        Density of the NFW profile at :math:`r`.
     """
-    x = r / Rs
-    return rho0 / (x * (1 + x)**2)
+
+    def __init__(self):
+        pass
+
+    def profile(self, r, Rs, rho0):
+        r"""
+        Halo profile evaluated at :math:`r`.
+
+        Parameters
+        ----------
+        r : float or 1-dimensional array
+            Radial distance :math:`r`.
+        Rs : float
+            Scale radius :math:`R_s`.
+        rho0 : float
+            NFW density parameter :math:`\rho_0`.
+
+        Returns
+        -------
+        density : float or 1-dimensional array
+            Density of the NFW profile at :math:`r`.
+        """
+        x = r / Rs
+        return rho0 / (x * (1 + x)**2)
+
+    def logprofile(self, r, Rs, rho0):
+        r"""
+        Natural logarithm of the halo profile evaluated at :math:`r`.
+
+        Parameters
+        ----------
+        r : float or 1-dimensional array
+            Radial distance :math:`r`.
+        Rs : float
+            Scale radius :math:`R_s`.
+        rho0 : float
+            NFW density parameter :math:`\rho_0`.
+
+        Returns
+        -------
+        logdensity : float or 1-dimensional array
+            Logarithmic density of the NFW profile at :math:`r`.
+        """
+        x = r / Rs
+        return numpy.log(rho0) - numpy.log(x) - 2 * numpy.log(1 + x)
+
+    def enclosed_mass(self, r, Rs, rho0):
+        r"""
+        Enclosed mass  of a NFW profile in radius :math:`r`.
+
+        Parameters
+        ----------
+        r : float or 1-dimensional array
+            Radial distance :math:`r`.
+        Rs : float
+            Scale radius :math:`R_s`.
+        rho0 : float
+            NFW density parameter :math:`\rho_0`.
+
+        Returns
+        -------
+        M : float or 1-dimensional array
+            The enclosed mass.
+        """
+        x = r / Rs
+        out = numpy.log(1 + x) - x / (1 + x)
+        return 4 * numpy.pi * rho0 * Rs**3 * out
+
+    def bounded_enclosed_mass(self, rmin, rmax, Rs, rho0):
+        """
+        Calculate the enclosed mass between :math:`r_min <= r <= r_max`.
+
+        Parameters
+        ----------
+        rmin : float
+            The minimum radius.
+        rmax : float
+            The maximum radius.
+        Rs : float
+            Scale radius :math:`R_s`.
+        rho0 : float
+            NFW density parameter :math:`\rho_0`.
+
+        Returns
+        -------
+        M : float
+            The enclosed mass within the radial range.
+        """
+        return (self.enclosed_mass(rmax, Rs, rho0)
+                - self.enclosed_mass(rmin, Rs, rho0))
 
 
-def nfw_mass(r, Rs, rho0):
-    r"""
-    Enclosed mass  of a NFW profile in radius :math:`r`.
-
-    Parameters
-    ----------
-    r : float
-        Radial distance :math:`r`.
-    Rs : float
-        Scale radius :math:`R_s`.
-    rho0 : float
-        NFW density parameter :math:`\rho_0`.
-
-    Returns
-    -------
-    M : float
-        The enclosed mass.
+class NFWPosterior(NFWProfile):
     """
-    x = r / Rs
-    return 4 * numpy.pi * Rs**3 * rho0 * (numpy.log(1 + x) - r / (r + Rs))
+
+    TODO:
+        documentation
+        function to get rho0
+
+    """
+    _r = None
+    _rmin = None
+    _rmax = None
+    _logrmin = None
+    _logrmax = None
+    _inv_dlogrs = None
+
+    def __init__(self, r, m):
+        """
+        Set the `r` and `m`. Precalculate parts of the prior and likelihood.
+        """
+        # Initialise the NFW profile
+        super().__init__()
+        self.r = r
+        if not isinstance(m, numpy.ndarray) and m.size != self.r.size:
+            raise TypeError("`r` and `m` must be equal size 1-dim arrays.")
+        self.N = r.size
+        # Precalculate useful things
+        self.logMtot = numpy.log(numpy.sum(m))
+        gamma = 4 * numpy.pi * r**2 * m
+        self._ll0 = numpy.sum(numpy.log(gamma)) - self.N * self.logMtot
+
+    @property
+    def r(self):
+        """
+        Radial distance of particles.
+
+        Returns
+        -------
+        r : 1-dimensional array
+            Radial distance of particles.
+        """
+        return self._r
+
+    @r.setter
+    def r(self, r):
+        """Sets r and obtain rmin and rmax."""
+        if not isinstance(r, numpy.ndarray) and r.ndim == 1:
+            raise TypeError("`r` must be a 1-dimensional array.")
+        if not numpy.all(r > 0):
+            raise ValueError("`r` larger than zero.")
+        self.rmin = numpy.min(r)
+        self.rmax = numpy.max(r)
+        # Logs will be useful too
+        self._logrmin = numpy.log(self.rmin)
+        self._logrmax = numpy.log(self.rmax)
+        self._logprior_volume = numpy.log(self._logrmax - self._logrmin)
+        self._r = r
+
+    def rho0_from_logRs(self, logRs):
+        """
+        Obtain :math:`\rho_0` of the NFW profile from the integral constraint
+        on total mass. Calculated as the ratio between the total particle mass
+        and the enclosed NFW profile mass.
+
+        Parameters
+        ----------
+        logRs : float
+            Logarithmic scale factor in units matching the coordinates.
+
+        Returns
+        -------
+        rho0: float
+            The NFW density parameter.
+        """
+        Mtot = numpy.exp(self.logMtot)
+        Rs = numpy.exp(logRs)
+        Mnfw_norm = self.bounded_enclosed_mass(self.rmin, self.rmax, Rs, 1)
+        return Mtot / Mnfw_norm
+
+    def logprior(self, logRs):
+        r"""
+        Logarithmic uniform prior on :math:`\log R_{\rm s}`.
+
+        Parameters
+        ----------
+        logRs : float
+            Logarithmic scale factor in units matching the coordinates.
+
+        Returns
+        -------
+        ll : float
+            The logarithmic prior.
+        """
+        if not self._logrmin < logRs < self._logrmax:
+            return - numpy.infty
+        return - self._logprior_volume
+
+    def loglikelihood(self, logRs):
+        """
+        Logarithmic likelihood.
+
+        Parameters
+        ----------
+        logRs : float
+            Logarithmic scale factor in units matching the coordinates.
+
+        Returns
+        -------
+        ll : float
+            The logarithmic likelihood.
+        """
+        Rs = numpy.exp(logRs)
+        # Expected enclosed mass from a NFW
+        Mnfw = self.bounded_enclosed_mass(self.rmin, self.rmax, Rs, 1)
+        ll = self._ll0 + numpy.sum(self.logprofile(self.r, Rs, 1))
+        return ll - self.N * numpy.log(Mnfw)
+
+    def __call__(self, logRs):
+        """
+        Logarithmic posterior. Sum of the logarithmic prior and likelihood.
+
+        Parameters
+        ----------
+        logRs : float
+            Logarithmic scale factor in units matching the coordinates.
+
+        Returns
+        -------
+        ll : float
+            The logarithmic posterior.
+        """
+        lp = self.logprior(logRs)
+        if not numpy.isfinite(lp):
+            return - numpy.infty
+        return self.loglikelihood(logRs) + lp
+
+    @classmethod
+    def from_coords(cls, x, y, z, m, x0, y0, z0):
+        """
+        Initiate `NFWPosterior` from a set of Cartesian coordinates.
+
+        Parameters
+        ----------
+        x : 1-dimensional array
+            Particle coordinates along the x-axis.
+        y : 1-dimensional array
+            Particle coordinates along the y-axis.
+        z : 1-dimensional array
+            Particle coordinates along the z-axis.
+        m : 1-dimensional array
+            Particle masses.
+        x0 : float
+            Halo center coordinate along the x-axis.
+        y0 : float
+            Halo center coordinate along the y-axis.
+        z0 : float
+            Halo center coordinate along the z-axis.
+
+        Returns
+        -------
+        post : `NFWPosterior`
+            Initiated `NFWPosterior` instance.
+        """
+        r = numpy.sqrt((x - x0)**2 + (y - y0)**2 + (z - z0)**2)
+        return cls(r, m)
