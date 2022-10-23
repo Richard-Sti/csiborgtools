@@ -18,6 +18,7 @@ Halo profiles functions and posteriors.
 
 
 import numpy
+from scipy.stats import uniform
 
 
 class NFWProfile:
@@ -127,6 +128,71 @@ class NFWProfile:
         return (self.enclosed_mass(rmax, Rs, rho0)
                 - self.enclosed_mass(rmin, Rs, rho0))
 
+    def pdf(self, r, Rs, rmin, rmax):
+        r"""
+        The radial probability density function of the NFW profile calculated
+        as
+
+        .. math::
+            \frac{4\pi r^2 \rho(r)} {M(r_\min, r_\max)}
+
+        where :math:`M(r_\min, r_\max)` is the enclosed mass between
+        :math:`r_\min` and :math:`r_\max'. Note that the dependance on
+        :math:`\rho_0` is cancelled.
+
+        Parameters
+        ----------
+        r : float or 1-dimensional array
+            Radial distance :math:`r`.
+        Rs : float
+            Scale radius :math:`R_s`.
+        rmin : float
+            The minimum radius.
+        rmax : float
+            The maximum radius.
+
+        Returns
+        -------
+        pdf : float or 1-dimensional array
+            Probability density of the NFW profile at :math:`r`.
+        """
+
+        norm = self.bounded_enclosed_mass(rmin, rmax, Rs, 1)
+        return 4 * numpy.pi * r**2 * self.profile(r, Rs, 1) / norm
+
+    def rvs(self, rmin, rmax, Rs, N=1):
+        """
+        Generate random samples from the NFW profile via rejection sampling.
+
+        Parameters
+        ----------
+        rmin : float
+            The minimum radius.
+        rmax : float
+            The maximum radius.
+        Rs : float
+            Scale radius :math:`R_s`.
+        N : int, optional
+            Number of samples to generate. By default 1.
+
+        Returns
+        -------
+        samples : float or 1-dimensional array
+            Samples following the NFW profile.
+        """
+        gen = uniform(rmin, rmax-rmin)
+        samples = numpy.full(N, numpy.nan)
+        for i in range(N):
+            while True:
+                r = gen.rvs()
+                if self.pdf(r, Rs, rmin, rmax) > numpy.random.rand():
+                    samples[i] = r
+                    break
+
+        if N == 1:
+            return samples[0]
+        return samples
+
 
 class NFWPosterior(NFWProfile):
     r"""
@@ -147,6 +213,7 @@ class NFWPosterior(NFWProfile):
     _logrmin = None
     _logrmax = None
     _inv_dlogrs = None
+    _binsguess = 10
 
     def __init__(self, r, m):
         """
@@ -248,6 +315,22 @@ class NFWPosterior(NFWProfile):
         Mnfw = self.bounded_enclosed_mass(self.rmin, self.rmax, Rs, 1)
         ll = self._ll0 + numpy.sum(self.logprofile(self.r, Rs, 1))
         return ll - self.N * numpy.log(Mnfw)
+
+    @property
+    def initlogRs(self):
+        r"""
+        The most often occuring value of :math:`r` used as initial guess of
+        :math:`R_{\rm s}` since :math:`r^2 \rho(r)` peaks at
+        :math:`r = R_{\rm s}`.
+
+        Returns
+        -------
+        initlogRs : float
+            The initial guess of :math:`\log R_{\rm s}`.
+        """
+        bins = numpy.linspace(self.rmin, self.rmax, self._binsguess)
+        counts, edges = numpy.histogram(self.r, bins)
+        return numpy.log(edges[numpy.argmax(counts)])
 
     def __call__(self, logRs):
         """
