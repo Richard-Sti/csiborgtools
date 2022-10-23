@@ -21,9 +21,34 @@ import numpy
 from ..io import nparts_to_start_ind
 
 
+def clump_with_particles(particle_clumps, clump_indxs, verbose=True):
+    """
+    Count how many particles does each clump have.
+
+    Parameters
+    ----------
+    particle_clumps : 1-dimensional array
+        Array of particles' clump IDs.
+    clump_indxs : 1-dimensional array
+        Array of clump indices (not particles's clump IDs!).
+
+    Returns
+    -------
+    with_particles : 1-dimensional array
+        Array of whether a clump has any particles.
+    """
+    if verbose:
+        print("Determining unique particles' clump IDs...")
+    unique_particle_clumps = numpy.unique(particle_clumps)
+    if verbose:
+        print("Checking which clumps have particles...")
+    return numpy.isin(clump_indxs, unique_particle_clumps)
+
+
 def distribute_halos(Njobs, clump_indxs):
     """
-    Evenly distribute clump indices to CPUs.
+    Evenly distribute clump indices to CPUs. `clump_indxs` should be only of
+    the clumps that contain particles.
 
     Parameters
     ----------
@@ -48,3 +73,7 @@ def distribute_halos(Njobs, clump_indxs):
     Njobs_per_cpu[:Ntotal % Njobs] += 1
     start = nparts_to_start_ind(Njobs_per_cpu)
     return start, start + Njobs_per_cpu
+
+
+def dump_particles():
+    pass
