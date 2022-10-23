@@ -35,14 +35,16 @@ def distribute_halos(Njobs, clump_indxs):
     Returns
     -------
     start : 1-dimensional array
-        The starting index of each CPU.
+        The starting clump index of each CPU.
+    end: 1-dimensional array
+        The final clump index of each CPU.
     """
     # Make sure these are unique IDs
-    if clump_indxs.size > numpy.unique((clump_indxs)):
+    if clump_indxs.size > numpy.unique((clump_indxs)).size:
         raise ValueError("`clump_indxs` constains duplicate indices.")
     Ntotal = clump_indxs.size
     Njobs_per_cpu = numpy.ones(Njobs, dtype=int) * Ntotal // Njobs
     # Split the remainder Ntotal % Njobs among the CPU
     Njobs_per_cpu[:Ntotal % Njobs] += 1
     start = nparts_to_start_ind(Njobs_per_cpu)
-    return start
+    return start, start + Njobs_per_cpu
