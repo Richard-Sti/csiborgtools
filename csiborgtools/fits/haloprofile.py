@@ -129,12 +129,17 @@ class NFWProfile:
 
 
 class NFWPosterior(NFWProfile):
-    """
+    r"""
+    Posterior of for fitting the NFW profile in the range specified by the
+    closest and further particle. The likelihood is calculated as
 
-    TODO:
-        documentation
-        function to get rho0
+    .. math::
+        \frac{4\pi r^2 \rho(r)} {M(r_\min, r_\max)} \frac{m}{M / N}
 
+    where :math:`M(r_\min, r_\max)` is the enclosed mass between the closest
+    and further particle as expected from a NFW profile, :math:`m` is the
+    particle mass, :math:`M` is the sum of the particle masses and :math:`N`
+    is the number of particles.
     """
     _r = None
     _rmin = None
@@ -155,7 +160,7 @@ class NFWPosterior(NFWProfile):
         self.N = r.size
         # Precalculate useful things
         self.logMtot = numpy.log(numpy.sum(m))
-        gamma = 4 * numpy.pi * r**2 * m
+        gamma = 4 * numpy.pi * r**2 * m * self.N
         self._ll0 = numpy.sum(numpy.log(gamma)) - self.N * self.logMtot
 
     @property
