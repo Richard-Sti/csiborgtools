@@ -389,6 +389,28 @@ def read_clumpid(Nsnap, simpath, verbose=True):
     return clumpid
 
 
+def drop_zero_indx(clump_ids, particles):
+    """
+    Drop from `clump_ids` and `particles` entries whose clump index is 0.
+
+    Parameters
+    ----------
+    clump_ids : 1-dimensional array
+        Array of clump IDs.
+    particles : structured array
+        Array of the particle data.
+
+    Returns
+    -------
+    clump_ids : 1-dimensional array
+        The array of clump IDs after removing zero clump ID entries.
+    particles : structured array
+        The particle data after removing zero clump ID entries.
+    """
+    mask = clump_ids != 0
+    return clump_ids[mask], particles[mask]
+
+
 def read_clumps(Nsnap, simpath, cols=None):
     """
     Read in a clump file `clump_Nsnap.dat`.

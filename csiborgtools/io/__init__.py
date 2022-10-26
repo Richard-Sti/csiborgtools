@@ -16,5 +16,6 @@
 from .readsim import (get_csiborg_ids, get_sim_path, get_snapshots,  # noqa
                       get_snapshot_path, read_info, nparts_to_start_ind,  # noqa
                       open_particle, open_unbinding, read_particle,  # noqa
+                      drop_zero_indx,  # noqa
                       read_clumpid, read_clumps, read_mmain)  # noqa
 from .readobs import (read_planck2015, read_2mpp)  # noqa
