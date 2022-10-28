@@ -6,4 +6,4 @@
 
 
 ## Open questions
-- Get uncertainty on the fitted $R_{\rm s}$?
+- Get uncertainty on the fitted $R_{\rm s}$? If so get this directly from JAX.
