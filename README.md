@@ -1,7 +1,7 @@
 # CSiBORG analysis tools
 
 ## TODO
-- [ ] Read in as float32 instead of float16?
+- [x] Read in as float32 instead of float16? Especially positions.
 - [ ] Try to fit a halo.
 
 
