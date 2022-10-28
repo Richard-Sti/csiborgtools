@@ -294,8 +294,8 @@ def read_particle(pars_extract, Nsnap, simpath, verbose=True):
         print("Opened {} particle files.".format(nparts.size))
     ncpu = nparts.size
     # Order in which the particles are written in the FortranFile
-    forder = [("x", F16), ("y", F16), ("z", F16),
-              ("vx", F16), ("vy", F16), ("vz", F16),
+    forder = [("x", F32), ("y", F32), ("z", F32),
+              ("vx", F32), ("vy", F32), ("vz", F32),
               ("M", F32), ("ID", I32), ("level", I32)]
     fnames = [fp[0] for fp in forder]
     fdtypes = [fp[1] for fp in forder]
