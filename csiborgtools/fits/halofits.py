@@ -18,6 +18,7 @@ Tools for fitting the halos and distributing the jobs.
 
 
 import numpy
+from os import remove
 from os.path import join
 from tqdm import trange
 from ..io import nparts_to_start_ind
@@ -76,8 +77,8 @@ def distribute_halos(Nsplits, clumps):
     return numpy.vstack([start, start + Njobs_per_cpu]).T
 
 
-def dump_particles(particles, particle_clumps, clumps, Nsplits, dumpfolder,
-                   Nsim, Nsnap, verbose=True):
+def dump_split_particles(particles, particle_clumps, clumps, Nsplits,
+                         dumpfolder, Nsim, Nsnap, verbose=True):
     """
     Save the data needed for each split so that a process does not have to load
     everything. These clumps should already be only the ones with particles.
@@ -128,3 +129,38 @@ def dump_particles(particles, particle_clumps, clumps, Nsplits, dumpfolder,
     if tot != particle_clumps.size:
         raise RuntimeError("Num. of dumped particles `{}` does not particle "
                            "file size `{}`.".format(tot, particle_clumps.size))
+
+
+def load_split_particles(Nsplit, dumpfolder, Nsim, Nsnap, remove_split=False):
+    """
+    Load particles of a split saved by `dump_split_particles`.
+
+    Parameters
+    --------
+    Nsplit : int
+        Split index.
+    dumpfolder : str
+        Path to the folder where the splits were dumped.
+    Nsim : int
+        CSiBORG simulation index.
+    Nsnap : int
+        Snapshot index.
+    remove_split : bool, optional
+        Whether to remove the split file. By default `False`.
+
+    Returns
+    -------
+    particles : structured array
+        Particle array of this split.
+    clumps_indxs : 1-dimensional array
+        Array of particles' clump IDs of this split.
+    clumps : 1-dimensional array
+        Clumps belonging to this split.
+    """
+    fname = join(
+        dumpfolder, "out_{}_snap_{}_{}.npz".format(Nsim, Nsnap, Nsplit))
+    file = numpy.load(fname)
+    particles, clump_indxs, clumps = (file[f] for f in file.files)
+    if remove_split:
+        remove(fname)
+    return particles, clump_indxs, clumps
