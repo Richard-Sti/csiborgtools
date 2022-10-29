@@ -132,6 +132,36 @@ def dump_split_particles(particles, particle_clumps, clumps, Nsplits,
                            "file size `{}`.".format(tot, particle_clumps.size))
 
 
+def split_jobs(Njobs, Ncpu, shuffle=True):
+    """
+    Split `Njobs` amongst `Ncpu`.
+
+    Parameters
+    ----------
+    Njobs : int
+        Number of jobs.
+    Ncpu : int
+        Number of CPUs.
+    shuffle : bool, optional
+        Whether to shuffle the job ordering.
+
+    Returns
+    -------
+    jobs : list of lists of integers
+        Outer list of each CPU and inner lists for CPU's jobs.
+    """
+    njobs_per_cpu, njobs_remainder = divmod(Njobs, Ncpu)
+    jobs = numpy.arange(njobs_per_cpu * Ncpu).reshape((njobs_per_cpu, Ncpu)).T
+    if shuffle:
+        numpy.random.shuffle(jobs)
+
+    jobs = jobs.tolist()
+    for i in range(njobs_remainder):
+        jobs[i].append(njobs_per_cpu * Ncpu + i)
+
+    return jobs
+
+
 def load_split_particles(Nsplit, dumpfolder, Nsim, Nsnap, remove_split=False):
     """
     Load particles of a split saved by `dump_split_particles`.

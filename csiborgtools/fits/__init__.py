@@ -16,4 +16,4 @@
 from .haloprofile import (NFWProfile, NFWPosterior)  # noqa
 from .halofits  import (distribute_halos, clump_with_particles,  # noqa
                         dump_split_particles, load_split_particles,  # noqa
-                        Clump)  # noqa
+                        split_jobs, Clump)  # noqa
