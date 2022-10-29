@@ -5,6 +5,7 @@
 - [x] Try to fit a halo.
 - [ ] Sort out output after fitting halos.
 - [ ] Write a function that calculates M500.
+- [ ] Calculate the cross-correlation in CSiBORG. Should see the scale of the constraints?
 
 
 ## Open questions
