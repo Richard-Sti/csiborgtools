@@ -28,7 +28,7 @@ except ModuleNotFoundError:
     sys.path.append("../")
 
 
-Nsplits = 15
+Nsplits = 300
 dumpdir = "/mnt/extraspace/rstiskalek/csiborg/"
 
 
