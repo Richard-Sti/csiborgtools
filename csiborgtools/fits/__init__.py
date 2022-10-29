@@ -14,6 +14,6 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 from .haloprofile import (NFWProfile, NFWPosterior)  # noqa
-from .halofits  import (distribute_halos, clump_with_particles,  # noqa
-                        dump_split_particles, load_split_particles,  # noqa
-                        split_jobs, Clump)  # noqa
+from .halo  import (distribute_halos, clump_with_particles,  # noqa
+                    dump_split_particles, load_split_particles,  # noqa
+                    split_jobs, Clump)  # noqa
