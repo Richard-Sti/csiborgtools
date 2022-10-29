@@ -290,6 +290,18 @@ class Clump:
         self.r = numpy.sum(self.pos**2, axis=1)**0.5
 
     @property
+    def Npart(self):
+        """
+        Number of particles associated with this clump.
+
+        Returns
+        -------
+        Npart : int
+            Number of particles.
+        """
+        return self.r.size
+
+    @property
     def clump_pos(self):
         """
         Cartesian clump coordinates.
