@@ -19,3 +19,4 @@ from .readsim import (get_csiborg_ids, get_sim_path, get_snapshots,  # noqa
                       drop_zero_indx,  # noqa
                       read_clumpid, read_clumps, read_mmain)  # noqa
 from .readobs import (read_planck2015, read_2mpp)  # noqa
+from .outsim import (dump_split)  # noqa
