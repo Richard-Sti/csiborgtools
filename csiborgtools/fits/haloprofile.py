@@ -18,6 +18,7 @@ Halo profiles functions and posteriors.
 
 
 import numpy
+from scipy.optimize import minimize_scalar
 from scipy.stats import uniform
 from .halofits import Clump
 
@@ -390,13 +391,42 @@ class NFWPosterior(NFWProfile):
 
         Returns
         -------
-        ll : float
+        lpost : float
             The logarithmic posterior.
         """
         lp = self.logprior(logRs)
         if not numpy.isfinite(lp):
             return - numpy.infty
         return self.loglikelihood(logRs) + lp
+
+    def hamiltonian(self, logRs):
+        """
+        Negative logarithmic posterior (i.e. the Hamiltonian).
+
+        Parameters
+        ----------
+        logRs : float
+            Logarithmic scale factor in units matching the coordinates.
+
+        Returns
+        -------
+        neg_lpost : float
+        The Hamiltonian.
+        """
+        return - self(logRs)
+
+    def maxpost_logRs(self):
+        r"""
+        Maximum a-posterio estimate of the scale radius :math:`\log R_{\rm s}`.
+
+        Returns
+        -------
+        res : `scipy.optimize.OptimizeResult`
+            Optimisation result.
+        """
+        bounds = (self._logrmin, self._logrmax)
+        return minimize_scalar(
+            self.hamiltonian, bounds=bounds, method='bounded')
 
     @classmethod
     def from_coords(cls, x, y, z, m, x0, y0, z0):
