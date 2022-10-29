@@ -28,6 +28,9 @@ except ModuleNotFoundError:
     sys.path.append("../")
 
 
+Nsplits = 15
+
+
 def load_mmain_convert(n):
     srcdir = "/users/hdesmond/Mmain"
     arr = csiborgtools.io.read_mmain(n, srcdir)
