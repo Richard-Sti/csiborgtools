@@ -19,7 +19,6 @@ realisation must have been split in advance by `run_split_halos`.
 
 import numpy
 from os.path import join
-from tqdm import trange
 from mpi4py import MPI
 try:
     import csiborgtools
@@ -41,8 +40,6 @@ comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 nproc = comm.Get_size()
 
-print("I am rank {} out of nproc {}".format(rank, nproc))
-
 # Here will have to split the jobs.... Wait until we get the array
 jobs = csiborgtools.fits.split_jobs(utils.Nsplits, nproc)[rank]
 
@@ -53,7 +50,7 @@ dumpdir = utils.dumpdir
 Nsim = Nsims[0]
 
 for Nsplit in jobs:
-    print(Nsplit)
+    print("Rank {} working on {}.".format(rank, Nsplit))
     parts, part_clumps, clumps = csiborgtools.fits.load_split_particles(
         Nsplit, loaddir, Nsim, Nsnap)
 
@@ -63,7 +60,7 @@ for Nsplit in jobs:
     out = csiborgtools.utils.cols_to_structured(N, cols)
     out["index"] = clumps["index"]
 
-    for n in trange(N):
+    for n in range(N):
         # Pick clump and its particles
         xs = csiborgtools.fits.pick_single_clump(n, parts, part_clumps, clumps)
         clump = csiborgtools.fits.Clump.from_arrays(*xs)
