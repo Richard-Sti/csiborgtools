@@ -29,6 +29,7 @@ except ModuleNotFoundError:
 
 
 Nsplits = 15
+dumppath = "/mnt/extraspace/rstiskalek/csiborg/temp"
 
 
 def load_mmain_convert(n):
