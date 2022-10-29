@@ -13,447 +13,405 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-Halo profiles functions and posteriors.
+Tools for fitting the halos and distributing the jobs.
 """
 
 
 import numpy
-from scipy.optimize import minimize_scalar
-from scipy.stats import uniform
-from .halofits import Clump
+from os import remove
+from warnings import warn
+from os.path import join
+from tqdm import trange
+from ..io import nparts_to_start_ind
 
 
-class NFWProfile:
-    r"""
-    The Navarro-Frenk-White (NFW) density profile defined as
-
-    .. math::
-        \rho(r) = \frac{\rho_0}{x(1 + x)^2}
-
-    where :math:`x = r / R_s` with free parameters :math:`R_s, \rho_0`.
+def clump_with_particles(particle_clumps, clumps, verbose=True):
+    """
+    Count how many particles does each clump have.
 
     Parameters
     ----------
-    Rs : float
-        Scale radius :math:`R_s`.
-    rho0 : float
-        NFW density parameter :math:`\rho_0`.
+    particle_clumps : 1-dimensional array
+        Array of particles' clump IDs.
+    clumps : structured array
+        The clumps array.
+
+    Returns
+    -------
+    with_particles : 1-dimensional array
+        Array of whether a clump has any particles.
     """
-
-    def __init__(self):
-        pass
-
-    def profile(self, r, Rs, rho0):
-        r"""
-        Halo profile evaluated at :math:`r`.
-
-        Parameters
-        ----------
-        r : float or 1-dimensional array
-            Radial distance :math:`r`.
-        Rs : float
-            Scale radius :math:`R_s`.
-        rho0 : float
-            NFW density parameter :math:`\rho_0`.
-
-        Returns
-        -------
-        density : float or 1-dimensional array
-            Density of the NFW profile at :math:`r`.
-        """
-        x = r / Rs
-        return rho0 / (x * (1 + x)**2)
-
-    def logprofile(self, r, Rs, rho0):
-        r"""
-        Natural logarithm of the halo profile evaluated at :math:`r`.
-
-        Parameters
-        ----------
-        r : float or 1-dimensional array
-            Radial distance :math:`r`.
-        Rs : float
-            Scale radius :math:`R_s`.
-        rho0 : float
-            NFW density parameter :math:`\rho_0`.
-
-        Returns
-        -------
-        logdensity : float or 1-dimensional array
-            Logarithmic density of the NFW profile at :math:`r`.
-        """
-        x = r / Rs
-        return numpy.log(rho0) - numpy.log(x) - 2 * numpy.log(1 + x)
-
-    def enclosed_mass(self, r, Rs, rho0):
-        r"""
-        Enclosed mass  of a NFW profile in radius :math:`r`.
-
-        Parameters
-        ----------
-        r : float or 1-dimensional array
-            Radial distance :math:`r`.
-        Rs : float
-            Scale radius :math:`R_s`.
-        rho0 : float
-            NFW density parameter :math:`\rho_0`.
-
-        Returns
-        -------
-        M : float or 1-dimensional array
-            The enclosed mass.
-        """
-        x = r / Rs
-        out = numpy.log(1 + x) - x / (1 + x)
-        return 4 * numpy.pi * rho0 * Rs**3 * out
-
-    def bounded_enclosed_mass(self, rmin, rmax, Rs, rho0):
-        """
-        Calculate the enclosed mass between :math:`r_min <= r <= r_max`.
-
-        Parameters
-        ----------
-        rmin : float
-            The minimum radius.
-        rmax : float
-            The maximum radius.
-        Rs : float
-            Scale radius :math:`R_s`.
-        rho0 : float
-            NFW density parameter :math:`\rho_0`.
-
-        Returns
-        -------
-        M : float
-            The enclosed mass within the radial range.
-        """
-        return (self.enclosed_mass(rmax, Rs, rho0)
-                - self.enclosed_mass(rmin, Rs, rho0))
-
-    def pdf(self, r, Rs, rmin, rmax):
-        r"""
-        The radial probability density function of the NFW profile calculated
-        as
-
-        .. math::
-            \frac{4\pi r^2 \rho(r)} {M(r_\min, r_\max)}
-
-        where :math:`M(r_\min, r_\max)` is the enclosed mass between
-        :math:`r_\min` and :math:`r_\max'. Note that the dependance on
-        :math:`\rho_0` is cancelled.
-
-        Parameters
-        ----------
-        r : float or 1-dimensional array
-            Radial distance :math:`r`.
-        Rs : float
-            Scale radius :math:`R_s`.
-        rmin : float
-            The minimum radius.
-        rmax : float
-            The maximum radius.
-
-        Returns
-        -------
-        pdf : float or 1-dimensional array
-            Probability density of the NFW profile at :math:`r`.
-        """
-
-        norm = self.bounded_enclosed_mass(rmin, rmax, Rs, 1)
-        return 4 * numpy.pi * r**2 * self.profile(r, Rs, 1) / norm
-
-    def rvs(self, rmin, rmax, Rs, N=1):
-        """
-        Generate random samples from the NFW profile via rejection sampling.
-
-        Parameters
-        ----------
-        rmin : float
-            The minimum radius.
-        rmax : float
-            The maximum radius.
-        Rs : float
-            Scale radius :math:`R_s`.
-        N : int, optional
-            Number of samples to generate. By default 1.
-
-        Returns
-        -------
-        samples : float or 1-dimensional array
-            Samples following the NFW profile.
-        """
-        gen = uniform(rmin, rmax-rmin)
-        samples = numpy.full(N, numpy.nan)
-        for i in range(N):
-            while True:
-                r = gen.rvs()
-                if self.pdf(r, Rs, rmin, rmax) > numpy.random.rand():
-                    samples[i] = r
-                    break
-
-        if N == 1:
-            return samples[0]
-        return samples
+    if verbose:
+        print("Determining unique particles' clump IDs...")
+    unique_particle_clumps = numpy.unique(particle_clumps)
+    if verbose:
+        print("Checking which clumps have particles...")
+    return numpy.isin(clumps["index"], unique_particle_clumps)
 
 
-class NFWPosterior(NFWProfile):
-    r"""
-    Posterior of for fitting the NFW profile in the range specified by the
-    closest and further particle. The likelihood is calculated as
+def distribute_halos(Nsplits, clumps):
+    """
+    Evenly distribute clump indices to smaller splits. Clumps should only be
+    clumps that contain particles.
 
-    .. math::
-        \frac{4\pi r^2 \rho(r)} {M(r_\min, r_\max)} \frac{m}{M / N}
-
-    where :math:`M(r_\min, r_\max)` is the enclosed mass between the closest
-    and further particle as expected from a NFW profile, :math:`m` is the
-    particle mass, :math:`M` is the sum of the particle masses and :math:`N`
-    is the number of particles.
-
-    Paramaters
+    Parameters
     ----------
-    clump : `Clump`
-        Clump object containing the particles and clump information.
-    """
-    _clump = None
-    _N = None
-    _rmin = None
-    _rmax = None
-    _binsguess = 10
+    Nsplits : int
+        Number of splits.
+    clumps : structured array
+        The clumps array.
 
-    def __init__(self, clump):
-        # Initialise the NFW profile
-        super().__init__()
-        self.clump = clump
+    Returns
+    -------
+    splits : 2-dimensional array
+        Array of starting and ending indices of each CPU of shape `(Njobs, 2)`.
+    """
+    # Make sure these are unique IDs
+    indxs = clumps["index"]
+    if indxs.size > numpy.unique((indxs)).size:
+        raise ValueError("`clump_indxs` constains duplicate indices.")
+    Ntotal = indxs.size
+    Njobs_per_cpu = numpy.ones(Nsplits, dtype=int) * Ntotal // Nsplits
+    # Split the remainder Ntotal % Njobs among the CPU
+    Njobs_per_cpu[:Ntotal % Nsplits] += 1
+    start = nparts_to_start_ind(Njobs_per_cpu)
+    return numpy.vstack([start, start + Njobs_per_cpu]).T
+
+
+def dump_split_particles(particles, particle_clumps, clumps, Nsplits,
+                         dumpfolder, Nsim, Nsnap, verbose=True):
+    """
+    Save the data needed for each split so that a process does not have to load
+    everything. These clumps should already be only the ones with particles.
+
+    Parameters
+    ----------
+    particles : structured array
+        The particle array.
+    particle_clumps : 1-dimensional array
+        Array of particles' clump IDs.
+    clumps : structured array
+        The clumps array.
+    Nsplits : int
+        Number of times to split the clumps.
+    dumpfolder : str
+        Path to the folder where to dump the splits.
+    Nsim : int
+        CSiBORG simulation index.
+    Nsnap : int
+        Snapshot index.
+    verbose : bool, optional
+        Verbosity flag. By default `True`.
+
+    Returns
+    -------
+    None
+    """
+    if particles.size != particle_clumps.size:
+        raise ValueError("`particles` must correspond to `particle_clumps`.")
+    # The starting clump index of each split
+    splits = distribute_halos(Nsplits, clumps)
+    fname = join(dumpfolder, "out_{}_snap_{}_{}.npz")
+
+    iters = trange(Nsplits) if verbose else range(Nsplits)
+    tot = 0
+    for n in iters:
+        # Lower and upper array index of the clumps array
+        i, j = splits[n, :]
+        # Lower and upper clump index. Need - 1 not to take the last val.
+        ipart = clumps["index"][i]
+        jpart = clumps["index"][j - 1]
+        mask = (particle_clumps >= ipart) & (particle_clumps <= jpart)
+        # Dump it!
+        tot += mask.sum()
+        fout = fname.format(Nsim, Nsnap, n)
+        numpy.savez(fout, particles[mask], particle_clumps[mask], clumps[i:j])
+
+    if tot != particle_clumps.size:
+        raise RuntimeError("Num. of dumped particles `{}` does not particle "
+                           "file size `{}`.".format(tot, particle_clumps.size))
+
+
+def split_jobs(Njobs, Ncpu, shuffle=True):
+    """
+    Split `Njobs` amongst `Ncpu`.
+
+    Parameters
+    ----------
+    Njobs : int
+        Number of jobs.
+    Ncpu : int
+        Number of CPUs.
+    shuffle : bool, optional
+        Whether to shuffle the job ordering.
+
+    Returns
+    -------
+    jobs : list of lists of integers
+        Outer list of each CPU and inner lists for CPU's jobs.
+    """
+    njobs_per_cpu, njobs_remainder = divmod(Njobs, Ncpu)
+    jobs = numpy.arange(njobs_per_cpu * Ncpu).reshape((njobs_per_cpu, Ncpu)).T
+    if shuffle:
+        numpy.random.shuffle(jobs)
+
+    jobs = jobs.tolist()
+    for i in range(njobs_remainder):
+        jobs[i].append(njobs_per_cpu * Ncpu + i)
+
+    return jobs
+
+
+def load_split_particles(Nsplit, dumpfolder, Nsim, Nsnap, remove_split=False):
+    """
+    Load particles of a split saved by `dump_split_particles`.
+
+    Parameters
+    --------
+    Nsplit : int
+        Split index.
+    dumpfolder : str
+        Path to the folder where the splits were dumped.
+    Nsim : int
+        CSiBORG simulation index.
+    Nsnap : int
+        Snapshot index.
+    remove_split : bool, optional
+        Whether to remove the split file. By default `False`.
+
+    Returns
+    -------
+    particles : structured array
+        Particle array of this split.
+    clumps_indxs : 1-dimensional array
+        Array of particles' clump IDs of this split.
+    clumps : 1-dimensional array
+        Clumps belonging to this split.
+    """
+    fname = join(
+        dumpfolder, "out_{}_snap_{}_{}.npz".format(Nsim, Nsnap, Nsplit))
+    file = numpy.load(fname)
+    particles, clump_indxs, clumps = (file[f] for f in file.files)
+    if remove_split:
+        remove(fname)
+    return particles, clump_indxs, clumps
+
+
+class Clump:
+    """
+    A clump (halo) object to handle the particles and their clump's data.
+
+    Parameters
+    ----------
+    x : 1-dimensional array
+        Particle coordinates along the x-axis.
+    y : 1-dimensional array
+        Particle coordinates along the y-axis.
+    z : 1-dimensional array
+        Particle coordinates along the z-axis.
+    m : 1-dimensional array
+        Particle masses.
+    x0 : float
+        Clump center coordinate along the x-axis.
+    y0 : float
+        Clump center coordinate along the y-axis.
+    z0 : float
+        Clump center coordinate along the z-axis.
+    clump_mass : float
+        Mass of the clump.
+    vx : 1-dimensional array
+        Particle velocity along the x-axis.
+    vy : 1-dimensional array
+        Particle velocity along the y-axis.
+    vz : 1-dimensional array
+        Particle velocity along the z-axis.
+    """
+    _r = None
+    _pos = None
+    _clump_pos = None
+    _clump_mass = None
+    _vel = None
+
+    def __init__(self, x, y, z, m, x0, y0, z0, clump_mass=None,
+                 vx=None, vy=None, vz=None):
+        self.pos = (x, y, z, x0, y0, z0)
+        self.clump_pos = (x0, y0, z0)
+        self.clump_mass = clump_mass
+        self.vel = (vx, vy, vz)
+        self.m = m
 
     @property
-    def clump(self):
+    def pos(self):
         """
-        Clump object.
+        Cartesian particle coordinates centered at the clump.
 
         Returns
         -------
-        clump : `Clump`
-            The clump object.
+        pos : 2-dimensional array
+            Array of shape `(n_particles, 3)`.
         """
-        return self._clump
+        return self._pos
 
-    @clump.setter
-    def clump(self, clump):
-        """Sets `clump` and precalculates useful things."""
-        if not isinstance(clump, Clump):
-            raise TypeError(
-                "`clump` must be :py:class:`csiborgtools.fits.Clump` type. "
-                "Currently `{}`".format(type(clump)))
-        self._clump = clump
-        # Set here the rest of the radial info
-        self._rmin = numpy.min(self.r)
-        self._rmax = numpy.max(self.r)
-        self._logrmin = numpy.log(self.rmin)
-        self._logrmax = numpy.log(self.rmax)
-        self._logprior_volume = numpy.log(self._logrmax - self._logrmin)
-        self._N = self.r.size
-        # Precalculate useful things
-        self._logMtot = numpy.log(numpy.sum(self.clump.m))
-        gamma = 4 * numpy.pi * self.r**2 * self.clump.m * self.N
-        self._ll0 = numpy.sum(numpy.log(gamma)) - self.N * self._logMtot
+    @pos.setter
+    def pos(self, X):
+        """Sets `pos` and calculates radial distance."""
+        x, y, z, x0, y0, z0 = X
+        self._pos = numpy.vstack([x - x0, y - y0, z - z0]).T
+        self.r = numpy.sum(self.pos**2, axis=1)**0.5
+
+    @property
+    def clump_pos(self):
+        """
+        Cartesian clump coordinates.
+
+        Returns
+        -------
+        pos : 1-dimensional array
+            Array of shape `(3, )`.
+        """
+        return self._clump_pos
+
+    @clump_pos.setter
+    def clump_pos(self, pos):
+        """Sets `clump_pos`. Makes sure it is the correct shape."""
+        pos = numpy.asarray(pos)
+        if pos.shape != (3,):
+            raise TypeError("Invalid clump position `{}`".format(pos.shape))
+        self._clump_pos = pos
+
+    @property
+    def clump_mass(self):
+        """
+        Clump mass.
+
+        Returns
+        -------
+        mass : float
+            Clump mass.
+        """
+        return self._clump_mass
+
+    @clump_mass.setter
+    def clump_mass(self, mass):
+        """Sets `clump_mass`, making sure it is a float."""
+        if not isinstance(mass, float):
+            raise ValueError("`clump_mass` must be a float.")
+        self._clump_mass = mass
+
+    @property
+    def vel(self):
+        """
+        Cartesian particle velocities. Throws an error if they are not set.
+
+        Returns
+        -------
+        vel : 2-dimensional array
+            Array of shape (`n_particles, 3`).
+        """
+        if self._vel is None:
+            raise ValueError("Velocities `vel` have not been set.")
+        return self._vel
+
+    @vel.setter
+    def vel(self, V):
+        """Sets the particle velocities, making sure the shape is OK."""
+        if any(v is None for v in V):
+            warn("Particle velocities `vel` are not being set.")
+            return
+        vx, vy, vz = V
+        self._vel = numpy.vstack([vx, vy, vz]).T
+        if self.pos.shape != self.vel.shape:
+            raise ValueError("Different `pos` and `vel` arrays!")
+
+    @property
+    def m(self):
+        """
+        Particle masses.
+
+        Returns
+        -------
+        m : 1-dimensional array
+            Array of shape `(n_particles, )`.
+        """
+        return self._m
+
+    @m.setter
+    def m(self, m):
+        """Sets particle masses `m`, ensuring it is the right size."""
+        if not isinstance(m, numpy.ndarray) and m.size != self.r.size:
+            raise TypeError("`r` and `m` must be equal size 1-dim arrays.")
+        self._m = m
 
     @property
     def r(self):
         """
-        Radial distance of particles.
+        Radial distance of particles from the clump peak.
 
         Returns
         -------
         r : 1-dimensional array
-            Radial distance of particles.
+            Array of shape `(n_particles, )`
         """
-        return self.clump.r
+        return self._r
+
+    @r.setter
+    def r(self, r):
+        """Sets `r`. Again checks the shape."""
+        if not isinstance(r, numpy.ndarray) and r.ndim == 1:
+            raise TypeError("`r` must be a 1-dimensional array.")
+        if not numpy.all(r > 0):
+            raise ValueError("`r` larger than zero.")
+        self._r = r
 
     @property
-    def rmin(self):
+    def total_particle_mass(self):
         """
-        Minimum radial distance of a particle belonging to this clump.
+        Total mass of all particles.
 
         Returns
         -------
-        rmin : float
-            The minimum distance.
+        tot_mass : float
+            The summed mass.
         """
-        return self._rmin
+        return numpy.sum(self.m)
 
     @property
-    def rmax(self):
+    def mean_particle_pos(self):
         """
-        Maximum radial distance of a particle belonging to this clump.
+        Mean Cartesian particle coordinate. Not centered at the halo!
 
         Returns
         -------
-        rmin : float
-            The maximum distance.
+        pos : 1-dimensional array
+            Array of shape `(3, )`.
         """
-        return self._rmax
-
-    @property
-    def N(self):
-        """
-        The number of particles in this clump.
-
-        Returns
-        -------
-        N : int
-            Number of particles.
-        """
-        return self._N
-
-    def rho0_from_logRs(self, logRs):
-        """
-        Obtain :math:`\rho_0` of the NFW profile from the integral constraint
-        on total mass. Calculated as the ratio between the total particle mass
-        and the enclosed NFW profile mass.
-
-        Parameters
-        ----------
-        logRs : float
-            Logarithmic scale factor in units matching the coordinates.
-
-        Returns
-        -------
-        rho0: float
-            The NFW density parameter.
-        """
-        Mtot = numpy.exp(self._logMtot)
-        Rs = numpy.exp(logRs)
-        Mnfw_norm = self.bounded_enclosed_mass(self.rmin, self.rmax, Rs, 1)
-        return Mtot / Mnfw_norm
-
-    def logprior(self, logRs):
-        r"""
-        Logarithmic uniform prior on :math:`\log R_{\rm s}`.
-
-        Parameters
-        ----------
-        logRs : float
-            Logarithmic scale factor in units matching the coordinates.
-
-        Returns
-        -------
-        ll : float
-            The logarithmic prior.
-        """
-        if not self._logrmin < logRs < self._logrmax:
-            return - numpy.infty
-        return - self._logprior_volume
-
-    def loglikelihood(self, logRs):
-        """
-        Logarithmic likelihood.
-
-        Parameters
-        ----------
-        logRs : float
-            Logarithmic scale factor in units matching the coordinates.
-
-        Returns
-        -------
-        ll : float
-            The logarithmic likelihood.
-        """
-        Rs = numpy.exp(logRs)
-        # Expected enclosed mass from a NFW
-        Mnfw = self.bounded_enclosed_mass(self.rmin, self.rmax, Rs, 1)
-        ll = self._ll0 + numpy.sum(self.logprofile(self.r, Rs, 1))
-        return ll - self.N * numpy.log(Mnfw)
-
-    @property
-    def initlogRs(self):
-        r"""
-        The most often occuring value of :math:`r` used as initial guess of
-        :math:`R_{\rm s}` since :math:`r^2 \rho(r)` peaks at
-        :math:`r = R_{\rm s}`.
-
-        Returns
-        -------
-        initlogRs : float
-            The initial guess of :math:`\log R_{\rm s}`.
-        """
-        bins = numpy.linspace(self.rmin, self.rmax, self._binsguess)
-        counts, edges = numpy.histogram(self.r, bins)
-        return numpy.log(edges[numpy.argmax(counts)])
-
-    def __call__(self, logRs):
-        """
-        Logarithmic posterior. Sum of the logarithmic prior and likelihood.
-
-        Parameters
-        ----------
-        logRs : float
-            Logarithmic scale factor in units matching the coordinates.
-
-        Returns
-        -------
-        lpost : float
-            The logarithmic posterior.
-        """
-        lp = self.logprior(logRs)
-        if not numpy.isfinite(lp):
-            return - numpy.infty
-        return self.loglikelihood(logRs) + lp
-
-    def hamiltonian(self, logRs):
-        """
-        Negative logarithmic posterior (i.e. the Hamiltonian).
-
-        Parameters
-        ----------
-        logRs : float
-            Logarithmic scale factor in units matching the coordinates.
-
-        Returns
-        -------
-        neg_lpost : float
-        The Hamiltonian.
-        """
-        return - self(logRs)
-
-    def maxpost_logRs(self):
-        r"""
-        Maximum a-posterio estimate of the scale radius :math:`\log R_{\rm s}`.
-
-        Returns
-        -------
-        res : `scipy.optimize.OptimizeResult`
-            Optimisation result.
-        """
-        bounds = (self._logrmin, self._logrmax)
-        return minimize_scalar(
-            self.hamiltonian, bounds=bounds, method='bounded')
+        return numpy.mean(self.pos + self.clump_pos, axis=0)
 
     @classmethod
-    def from_coords(cls, x, y, z, m, x0, y0, z0):
+    def from_arrays(cls, particles, clump):
         """
-        Initiate `NFWPosterior` from a set of Cartesian coordinates.
+        Initialises `Halo` from `particles` containing the relevant particle
+        information and its `clump` information.
 
-        Parameters
+        Paramaters
         ----------
-        x : 1-dimensional array
-            Particle coordinates along the x-axis.
-        y : 1-dimensional array
-            Particle coordinates along the y-axis.
-        z : 1-dimensional array
-            Particle coordinates along the z-axis.
-        m : 1-dimensional array
-            Particle masses.
-        x0 : float
-            Halo center coordinate along the x-axis.
-        y0 : float
-            Halo center coordinate along the y-axis.
-        z0 : float
-            Halo center coordinate along the z-axis.
+        particles : structured array
+            Array of particles belonging to this clump. Must contain
+            `["x", "y", "z", "M"]` and optionally also `["vx", "vy", "vz"]`.
+        clump : array
+            A slice of a `clumps` array corresponding to this clump. Must
+            contain `["peak_x", "peak_y", "peak_z", "mass_cl"]`.
 
         Returns
         -------
-        post : `NFWPosterior`
-            Initiated `NFWPosterior` instance.
+        halo : `Halo`
+            An initialised halo object.
         """
-        r = numpy.sqrt((x - x0)**2 + (y - y0)**2 + (z - z0)**2)
-        return cls(r, m)
+        x, y, z, m = (particles[p] for p in ["x", "y", "z", "M"])
+        x0, y0, z0, cl_mass = (
+            clump[p] for p in ["peak_x", "peak_y", "peak_z", "mass_cl"])
+        try:
+            vx, vy, vz = (particles[p] for p in ["vx", "vy", "vz"])
+        except ValueError:
+            vx, vy, vz = None, None, None
+        return cls(x, y, z, m, x0, y0, z0, cl_mass, vx, vy, vz)
