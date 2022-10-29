@@ -19,6 +19,7 @@ Tools for fitting the halos and distributing the jobs.
 
 import numpy
 from os import remove
+from warnings import warn
 from os.path import join
 from tqdm import trange
 from ..io import nparts_to_start_ind
@@ -164,3 +165,223 @@ def load_split_particles(Nsplit, dumpfolder, Nsim, Nsnap, remove_split=False):
     if remove_split:
         remove(fname)
     return particles, clump_indxs, clumps
+
+
+class Halo:
+    """
+    A halo (clump) object to handle the particles and their clump's data.
+
+    Parameters
+    ----------
+    x : 1-dimensional array
+        Particle coordinates along the x-axis.
+    y : 1-dimensional array
+        Particle coordinates along the y-axis.
+    z : 1-dimensional array
+        Particle coordinates along the z-axis.
+    m : 1-dimensional array
+        Particle masses.
+    x0 : float
+        Clump center coordinate along the x-axis.
+    y0 : float
+        Clump center coordinate along the y-axis.
+    z0 : float
+        Clump center coordinate along the z-axis.
+    clump_mass : float
+        Mass of the clump.
+    vx : 1-dimensional array
+        Particle velocity along the x-axis.
+    vy : 1-dimensional array
+        Particle velocity along the y-axis.
+    vz : 1-dimensional array
+        Particle velocity along the z-axis.
+    """
+    _r = None
+    _pos = None
+    _clump_pos = None
+    _clump_mass = None
+    _vel = None
+
+    def __init__(self, x, y, z, m, x0, y0, z0, clump_mass=None,
+                 vx=None, vy=None, vz=None):
+        self.pos = (x, y, z, x0, y0, z0)
+        self.clump_pos = (x0, y0, z0)
+        self.clump_mass = clump_mass
+        self.vel = (vx, vy, vz)
+        self.m = m
+
+    @property
+    def pos(self):
+        """
+        Cartesian particle coordinates centered at the clump.
+
+        Returns
+        -------
+        pos : 2-dimensional array
+            Array of shape `(n_particles, 3)`.
+        """
+        return self._pos
+
+    @pos.setter
+    def pos(self, X):
+        """Sets `pos` and calculates radial distance."""
+        x, y, z, x0, y0, z0 = X
+        self._pos = numpy.vstack([x - x0, y - y0, z - z0]).T
+        self.r = numpy.sum(self.pos**2, axis=1)**0.5
+
+    @property
+    def clump_pos(self):
+        """
+        Cartesian clump coordinates.
+
+        Returns
+        -------
+        pos : 1-dimensional array
+            Array of shape `(3, )`.
+        """
+        return self._clump_pos
+
+    @clump_pos.setter
+    def clump_pos(self, pos):
+        """Sets `clump_pos`. Makes sure it is the correct shape."""
+        pos = numpy.asarray(pos)
+        if pos.shape != (3,):
+            raise TypeError("Invalid clump position `{}`".format(pos.shape))
+        self._clump_pos = pos
+
+    @property
+    def clump_mass(self):
+        """
+        Clump mass.
+
+        Returns
+        -------
+        mass : float
+            Clump mass.
+        """
+        return self._clump_mass
+
+    @clump_mass.setter
+    def clump_mass(self, mass):
+        """Sets `clump_mass`, making sure it is a float."""
+        if not isinstance(mass, float):
+            raise ValueError("`clump_mass` must be a float.")
+        self._clump_mass = mass
+
+    @property
+    def vel(self):
+        """
+        Cartesian particle velocities. Throws an error if they are not set.
+
+        Returns
+        -------
+        vel : 2-dimensional array
+            Array of shape (`n_particles, 3`).
+        """
+        if self._vel is None:
+            raise ValueError("Velocities `vel` have not been set.")
+        return self._vel
+
+    @vel.setter
+    def vel(self, V):
+        """Sets the particle velocities, making sure the shape is OK."""
+        if any(v is None for v in V):
+            warn("Particle velocities `vel` are not being set.")
+            return
+        vx, vy, vz = V
+        self._vel = numpy.vstack([vx, vy, vz]).T
+        if self.pos.shape != self.vel.shape:
+            raise ValueError("Different `pos` and `vel` arrays!")
+
+    @property
+    def m(self):
+        """
+        Particle masses.
+
+        Returns
+        -------
+        m : 1-dimensional array
+            Array of shape `(n_particles, )`.
+        """
+        return self._m
+
+    @m.setter
+    def m(self, m):
+        """Sets particle masses `m`, ensuring it is the right size."""
+        if not isinstance(m, numpy.ndarray) and m.size != self.r.size:
+            raise TypeError("`r` and `m` must be equal size 1-dim arrays.")
+        self._m = m
+
+    @property
+    def r(self):
+        """
+        Radial distance of particles from the clump peak.
+
+        Returns
+        -------
+        r : 1-dimensional array
+            Array of shape `(n_particles, )`
+        """
+        return self._r
+
+    @r.setter
+    def r(self, r):
+        """Sets `r`. Again checks the shape."""
+        if not isinstance(r, numpy.ndarray) and r.ndim == 1:
+            raise TypeError("`r` must be a 1-dimensional array.")
+        if not numpy.all(r > 0):
+            raise ValueError("`r` larger than zero.")
+        self._r = r
+
+    @property
+    def total_particle_mass(self):
+        """
+        Total mass of all particles.
+
+        Returns
+        -------
+        tot_mass : float
+            The summed mass.
+        """
+        return numpy.sum(self.m)
+
+    @property
+    def mean_particle_pos(self):
+        """
+        Mean Cartesian particle coordinate. Not centered at the halo!
+
+        Returns
+        -------
+        pos : 1-dimensional array
+            Array of shape `(3, )`.
+        """
+        return numpy.mean(self.pos + self.clump_pos, axis=0)
+
+    @classmethod
+    def from_arrays(cls, particles, clump):
+        """
+        Initialises `Halo` from `particles` containing the relevant particle
+        information and its `clump` information.
+
+        Paramaters
+        ----------
+        particles : structured array
+            Array of particles belonging to this clump. Must contain
+            `["x", "y", "z", "M"]` and optionally also `["vx", "vy", "vz"]`.
+        clump : array
+            A slice of a `clumps` array corresponding to this clump. Must
+            contain `["peak_x", "peak_y", "peak_z", "mass_cl"]`.
+
+        Returns
+        -------
+        halo : `Halo`
+            An initialised halo object.
+        """
+        x, y, z, m = (particles[p] for p in ["x", "y", "z", "M"])
+        x0, y0, z0, cl_mass = (
+            clump[p] for p in ["peak_x", "peak_y", "peak_z", "mass_cl"])
+        try:
+            vx, vy, vz = (particles[p] for p in ["vx", "vy", "vz"])
+        except ValueError:
+            vx, vy, vz = None, None, None
+        return cls(x, y, z, m, x0, y0, z0, cl_mass, vx, vy, vz)
