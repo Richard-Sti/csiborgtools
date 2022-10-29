@@ -19,6 +19,7 @@ Halo profiles functions and posteriors.
 
 import numpy
 from scipy.stats import uniform
+from .halofits import Clump
 
 
 class NFWProfile:
@@ -206,29 +207,54 @@ class NFWPosterior(NFWProfile):
     and further particle as expected from a NFW profile, :math:`m` is the
     particle mass, :math:`M` is the sum of the particle masses and :math:`N`
     is the number of particles.
+
+    Paramaters
+    ----------
+    clump : `Clump`
+        Clump object containing the particles and clump information.
     """
-    _r = None
+    _clump = None
+    _N = None
     _rmin = None
     _rmax = None
-    _logrmin = None
-    _logrmax = None
-    _inv_dlogrs = None
     _binsguess = 10
 
-    def __init__(self, r, m):
-        """
-        Set the `r` and `m`. Precalculate parts of the prior and likelihood.
-        """
+    def __init__(self, clump):
         # Initialise the NFW profile
         super().__init__()
-        self.r = r
-        if not isinstance(m, numpy.ndarray) and m.size != self.r.size:
-            raise TypeError("`r` and `m` must be equal size 1-dim arrays.")
-        self.N = r.size
+        self.clump = clump
+
+    @property
+    def clump(self):
+        """
+        Clump object.
+
+        Returns
+        -------
+        clump : `Clump`
+            The clump object.
+        """
+        return self._clump
+
+    @clump.setter
+    def clump(self, clump):
+        """Sets `clump` and precalculates useful things."""
+        if not isinstance(clump, Clump):
+            raise TypeError(
+                "`clump` must be :py:class:`csiborgtools.fits.Clump` type. "
+                "Currently `{}`".format(type(clump)))
+        self._clump = clump
+        # Set here the rest of the radial info
+        self._rmin = numpy.min(self.r)
+        self._rmax = numpy.max(self.r)
+        self._logrmin = numpy.log(self.rmin)
+        self._logrmax = numpy.log(self.rmax)
+        self._logprior_volume = numpy.log(self._logrmax - self._logrmin)
+        self._N = self.r.size
         # Precalculate useful things
-        self.logMtot = numpy.log(numpy.sum(m))
-        gamma = 4 * numpy.pi * r**2 * m * self.N
-        self._ll0 = numpy.sum(numpy.log(gamma)) - self.N * self.logMtot
+        self._logMtot = numpy.log(numpy.sum(self.clump.m))
+        gamma = 4 * numpy.pi * self.r**2 * self.clump.m * self.N
+        self._ll0 = numpy.sum(numpy.log(gamma)) - self.N * self._logMtot
 
     @property
     def r(self):
@@ -240,22 +266,43 @@ class NFWPosterior(NFWProfile):
         r : 1-dimensional array
             Radial distance of particles.
         """
-        return self._r
+        return self.clump.r
 
-    @r.setter
-    def r(self, r):
-        """Sets r and obtain rmin and rmax."""
-        if not isinstance(r, numpy.ndarray) and r.ndim == 1:
-            raise TypeError("`r` must be a 1-dimensional array.")
-        if not numpy.all(r > 0):
-            raise ValueError("`r` larger than zero.")
-        self.rmin = numpy.min(r)
-        self.rmax = numpy.max(r)
-        # Logs will be useful too
-        self._logrmin = numpy.log(self.rmin)
-        self._logrmax = numpy.log(self.rmax)
-        self._logprior_volume = numpy.log(self._logrmax - self._logrmin)
-        self._r = r
+    @property
+    def rmin(self):
+        """
+        Minimum radial distance of a particle belonging to this clump.
+
+        Returns
+        -------
+        rmin : float
+            The minimum distance.
+        """
+        return self._rmin
+
+    @property
+    def rmax(self):
+        """
+        Maximum radial distance of a particle belonging to this clump.
+
+        Returns
+        -------
+        rmin : float
+            The maximum distance.
+        """
+        return self._rmax
+
+    @property
+    def N(self):
+        """
+        The number of particles in this clump.
+
+        Returns
+        -------
+        N : int
+            Number of particles.
+        """
+        return self._N
 
     def rho0_from_logRs(self, logRs):
         """
@@ -273,7 +320,7 @@ class NFWPosterior(NFWProfile):
         rho0: float
             The NFW density parameter.
         """
-        Mtot = numpy.exp(self.logMtot)
+        Mtot = numpy.exp(self._logMtot)
         Rs = numpy.exp(logRs)
         Mnfw_norm = self.bounded_enclosed_mass(self.rmin, self.rmax, Rs, 1)
         return Mtot / Mnfw_norm
