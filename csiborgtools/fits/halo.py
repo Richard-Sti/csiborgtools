@@ -197,6 +197,36 @@ def load_split_particles(Nsplit, dumpfolder, Nsim, Nsnap, remove_split=False):
     return particles, clump_indxs, clumps
 
 
+def pick_single_clump(n, particles, particle_clumps, clumps):
+    """
+    Get particles belonging to the `n`th clump in `clumps` arrays.
+
+    Parameters
+    ----------
+    n : int
+        Clump position in `clumps` array. Not its halo finder index!
+    particles : structured array
+        Particle array.
+    particle_clumps : 1-dimensional array
+        Array of particles' clump IDs.
+    clumps : structured array
+        Array of clumps.
+
+    Returns
+    -------
+    sel_particles : structured array
+        Particles belonging to the requested clump.
+    sel_clump : array
+        A slice of a `clumps` array corresponding to this clump. Must
+        contain `["peak_x", "peak_y", "peak_z", "mass_cl"]`.
+    """
+    # Clump index on the nth position
+    k = clumps["index"][n]
+    # Mask of which particles belong to this clump
+    mask = particle_clumps == k
+    return particles[mask], clumps[n]
+
+
 class Clump:
     """
     A clump (halo) object to handle the particles and their clump's data.
