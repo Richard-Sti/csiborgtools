@@ -16,7 +16,9 @@
 Script to split particles into smaller files according to their clump
 membership for faster manipulation. Running this will require a lot of memory.
 """
+
 from tqdm import tqdm
+from os.path import join
 try:
     import csiborgtools
 except ModuleNotFoundError:
@@ -28,6 +30,7 @@ import utils
 Nsims = [9844]
 Nsnap = 1016
 partcols = ["x", "y", "z", "M", "level"]
+dumpdir = join(utils.dumpdir, "temp")
 
 for Nsim in tqdm(Nsims):
     simpath = csiborgtools.io.get_sim_path(Nsim)
@@ -46,7 +49,7 @@ for Nsim in tqdm(Nsims):
     clumps = clumps[with_particles]
     # Dump it!
     csiborgtools.fits.dump_split_particles(particles, particle_clumps, clumps,
-                                           utils.Nsplits, utils.dumppath, Nsim,
-                                           Nsnap, verbose=False)
+                                           utils.Nsplits, dumpdir, Nsim, Nsnap,
+                                           verbose=False)
 
 print("All finished!")
