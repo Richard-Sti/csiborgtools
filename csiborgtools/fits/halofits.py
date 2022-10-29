@@ -167,9 +167,9 @@ def load_split_particles(Nsplit, dumpfolder, Nsim, Nsnap, remove_split=False):
     return particles, clump_indxs, clumps
 
 
-class Halo:
+class Clump:
     """
-    A halo (clump) object to handle the particles and their clump's data.
+    A clump (halo) object to handle the particles and their clump's data.
 
     Parameters
     ----------
