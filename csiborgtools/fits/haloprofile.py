@@ -246,8 +246,10 @@ class NFWPosterior(NFWProfile):
                 "Currently `{}`".format(type(clump)))
         self._clump = clump
         # Set here the rest of the radial info
-        self._rmin = numpy.min(self.r)
         self._rmax = numpy.max(self.r)
+        # r_min could be zero if particle in the potential minimum.
+        # Set it to the closest particle that is at distance > 0
+        self._rmin = numpy.sort(self.r[self.r > 0])[0]
         self._logrmin = numpy.log(self.rmin)
         self._logrmax = numpy.log(self.rmax)
         self._logprior_volume = numpy.log(self._logrmax - self._logrmin)
