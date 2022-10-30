@@ -52,7 +52,7 @@ Nsim = Nsims[0]
 for Nsplit in jobs:
     print("Rank {} working on {}.".format(rank, Nsplit))
     parts, part_clumps, clumps = csiborgtools.fits.load_split_particles(
-        Nsplit, loaddir, Nsim, Nsnap, remove_split=True)
+        Nsplit, loaddir, Nsim, Nsnap, remove_split=False)
 
     N = clumps.size
     cols = [("index", I64), ("npart", I64), ("totpartmass", F64),
