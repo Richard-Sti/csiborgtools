@@ -3,11 +3,11 @@
 ## TODO :scroll:
 - [x] Read in as float32 instead of float16? Especially positions.
 - [x] Try to fit a halo.
-- [ ] Sort out output after fitting halos.
+- [x] Sort out output after fitting halos.
 - [ ] Write a function that calculates M500.
 - [ ] Calculate the cross-correlation in CSiBORG. Should see the scale of the constraints?
 - [x] Fully debug `dump_split_particles`
-- [ ] Fix so that only halos with a sufficient number of particles are fitted.
+- [x] Fix so that only halos with a sufficient number of particles are fitted.
 
 
 ## Open questions :bulb:
