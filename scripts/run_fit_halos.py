@@ -44,9 +44,8 @@ nproc = comm.Get_size()
 jobs = csiborgtools.fits.split_jobs(utils.Nsplits, nproc)[rank]
 
 
-loaddir = join(utils.dumpdir, "temp")
 dumpdir = utils.dumpdir
-
+loaddir = join(utils.dumpdir, "temp")
 Nsim = Nsims[0]
 
 for Nsplit in jobs:
@@ -81,4 +80,12 @@ for Nsplit in jobs:
 comm.Barrier()
 # Use the rank 0 to combine outputs for this CSiBORG realisation
 if rank == 0:
+    print("Collecting results!")
+    out_collected = csiborgtools.io.combine_splits(
+        utils.Nsplits, Nsim, Nsnap, utils.dumpdir, remove_splits=True,
+        verbose=False)
+    fname = join(utils.dumpdir, "ramses_out_{}_{}.npy"
+                 .format(str(Nsim).zfill(5), str(Nsnap).zfill(5)))
+    print("Saving results to `{}`.".format(fname))
+    numpy.save(fname, out_collected)
     print("All finished! See ya!")
