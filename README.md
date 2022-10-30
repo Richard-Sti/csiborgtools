@@ -1,13 +1,9 @@
 # CSiBORG analysis tools :dart:
 
 ## TODO :scroll:
-- [x] Read in as float32 instead of float16? Especially positions.
-- [x] Try to fit a halo.
-- [x] Sort out output after fitting halos.
-- [ ] Write a function that calculates M500.
+- [ ] Calculate $\left\{M_{\rm vir}, R_{\rm vir}, c\right\}$ from $\left\{R_s, \rho_0, \ldots \right\}$
+- [ ] Calculate $M_{\rm 500c}$ by sphere shrinking
 - [ ] Calculate the cross-correlation in CSiBORG. Should see the scale of the constraints?
-- [x] Fully debug `dump_split_particles`
-- [x] Fix so that only halos with a sufficient number of particles are fitted.
 
 
 ## Open questions :bulb:
