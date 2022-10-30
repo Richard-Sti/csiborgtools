@@ -43,10 +43,6 @@ for Nsim in tqdm(Nsims):
     # Drop all particles whose clump index is 0 (not assigned to any halo)
     particle_clumps, particles = csiborgtools.io.drop_zero_indx(
         particle_clumps, particles)
-    # Get only clumps that do have any particles
-    with_particles = csiborgtools.fits.clump_with_particles(particle_clumps,
-                                                            clumps)
-    clumps = clumps[with_particles]
     # Dump it!
     csiborgtools.fits.dump_split_particles(particles, particle_clumps, clumps,
                                            utils.Nsplits, dumpdir, Nsim, Nsnap,
