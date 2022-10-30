@@ -365,7 +365,6 @@ class Clump:
     def vel(self, V):
         """Sets the particle velocities, making sure the shape is OK."""
         if any(v is None for v in V):
-            warn("Particle velocities `vel` are not being set.")
             return
         vx, vy, vz = V
         self._vel = numpy.vstack([vx, vy, vz]).T
@@ -408,7 +407,7 @@ class Clump:
         """Sets `r`. Again checks the shape."""
         if not isinstance(r, numpy.ndarray) and r.ndim == 1:
             raise TypeError("`r` must be a 1-dimensional array.")
-        if not numpy.all(r > 0):
+        if not numpy.all(r >= 0):
             raise ValueError("`r` larger than zero.")
         self._r = r
 
