@@ -68,10 +68,11 @@ for Nsplit in jobs:
         out["totpartmass"][n] = clump.total_particle_mass
 
         # NFW profile fit
-        nfwpost = csiborgtools.fits.NFWPosterior(clump)
-        logRs = nfwpost.maxpost_logRs()
-        if logRs.success:
-            out["logRs"][n] = logRs.x
+        if clump.Npart > 10:
+            nfwpost = csiborgtools.fits.NFWPosterior(clump)
+            logRs = nfwpost.maxpost_logRs()
+            if logRs.success:
+                out["logRs"][n] = logRs.x
 
     csiborgtools.io.dump_split(out, Nsplit, Nsim, Nsnap, dumpdir)
 
