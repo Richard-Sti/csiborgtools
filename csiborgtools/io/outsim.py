@@ -16,8 +16,15 @@
 I/O functions for analysing the CSiBORG realisations.
 """
 
-from os.path import join
+
 import numpy
+from os.path import join
+from os import remove
+from tqdm import trange
+from .readsim import (get_sim_path, read_clumps)
+
+I64 = numpy.int64
+F64 = numpy.float64
 
 
 def dump_split(arr, Nsplit, Nsim, Nsnap, outdir):
@@ -47,10 +54,71 @@ def dump_split(arr, Nsplit, Nsim, Nsnap, outdir):
     numpy.save(fname, arr)
 
 
-def combine_split(Nsplits, Nsim, Nsnap, srcdir):
+def combine_splits(Nsplits, Nsim, Nsnap, outdir, cols_add, remove_splits=False,
+                   verbose=True):
     """
-    Figure out how many splits.
-    Get kind of array from the first split
-    Initi an empty array
+    Combine results of many splits saved from `dump_split`. Identifies to which
+    clump the clumps in the split correspond to by matching their index.
+    Returns an array that contains the original clump data along with the newly
+    calculated quantities.
+
+    Paramaters
+    ----------
+    Nsplits : int
+        The total number of clump splits.
+    Nsim : int
+        The CSiBORG realisation index.
+    Nsnap : int
+        The index of a redshift snapshot.
+    outdir : str
+        Directory where to save the new array.
+    cols_add : list of `(str, dtype)`
+        Colums to add. Must be formatted as, for example,
+        `[("npart", numpy.float64), ("totpartmass", numpy.float64)]`.
+    remove_splits : bool, optional
+        Whether to remove the splits files. By default `False`.
+    verbose : bool, optional
+        Verbosity flag. By default `True`.
+
+    Returns
+    -------
+    out : structured array
+        Clump array with appended results from the splits.
     """
-    pass
+    # Will be grabbing these columns from each split
+    cols_add = [("npart", I64), ("totpartmass", F64), ("logRs", F64),
+                ("rho0", F64)]
+    # Load clumps to see how many there are and will add to this array
+    simpath = get_sim_path(Nsim)
+    clumps = read_clumps(Nsnap, simpath, cols=None)
+    # Get the old + new dtypes and create an empty array
+    descr = clumps.dtype.descr + cols_add
+    out = numpy.full(clumps.size, numpy.nan, dtype=descr)
+    # Now put the old values into the array
+    for par in clumps.dtype.names:
+        out[par] = clumps[par]
+
+    # Filename of splits data
+    froot = "ramses_out_{}_{}".format(str(Nsim).zfill(5), str(Nsnap).zfill(5))
+    fname = join(outdir, froot + "_{}.npy")
+
+    # Iterate over splits and add to the output array
+    cols_add_names = [col[0] for col in cols_add]
+    iters = trange(Nsplits) if verbose else range(Nsplits)
+    for n in iters:
+        fnamesplit = fname.format(n)
+        arr = numpy.load(fnamesplit)
+
+        # Check that all halo indices from the split are in the clump file
+        if not numpy.alltrue(numpy.isin(arr["index"], out["index"])):
+            raise KeyError("....")
+        # Mask of where to put the values from the split
+        mask = numpy.isin(out["index"], arr["index"])
+        for par in cols_add_names:
+            out[par][mask] = arr[par]
+
+        # Now remove this split
+        if remove_splits:
+            remove(fnamesplit)
+
+    return out
