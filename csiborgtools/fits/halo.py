@@ -25,7 +25,7 @@ from tqdm import trange
 from ..io import nparts_to_start_ind
 
 
-def clump_with_particles(particle_clumps, clumps, verbose=True):
+def clump_with_particles(particle_clumps, clumps):
     """
     Count how many particles does each clump have.
 
@@ -41,12 +41,7 @@ def clump_with_particles(particle_clumps, clumps, verbose=True):
     with_particles : 1-dimensional array
         Array of whether a clump has any particles.
     """
-    if verbose:
-        print("Determining unique particles' clump IDs...")
-    unique_particle_clumps = numpy.unique(particle_clumps)
-    if verbose:
-        print("Checking which clumps have particles...")
-    return numpy.isin(clumps["index"], unique_particle_clumps)
+    return numpy.isin(clumps["index"], particle_clumps)
 
 
 def distribute_halos(Nsplits, clumps):
@@ -82,7 +77,7 @@ def dump_split_particles(particles, particle_clumps, clumps, Nsplits,
                          dumpfolder, Nsim, Nsnap, verbose=True):
     """
     Save the data needed for each split so that a process does not have to load
-    everything. These clumps should already be only the ones with particles.
+    everything.
 
     Parameters
     ----------
@@ -109,6 +104,13 @@ def dump_split_particles(particles, particle_clumps, clumps, Nsplits,
     """
     if particles.size != particle_clumps.size:
         raise ValueError("`particles` must correspond to `particle_clumps`.")
+    # Calculate which clumps have particles
+    with_particles = clump_with_particles(particle_clumps, clumps)
+    clumps = numpy.copy(clumps)[with_particles]
+    if verbose:
+        warn(r"There are {:.4f}% clumps that have identified particles."
+             .format(with_particles.sum() / with_particles.size * 100))
+
     # The starting clump index of each split
     splits = distribute_halos(Nsplits, clumps)
     fname = join(dumpfolder, "out_{}_snap_{}_{}.npz")
@@ -118,18 +120,28 @@ def dump_split_particles(particles, particle_clumps, clumps, Nsplits,
     for n in iters:
         # Lower and upper array index of the clumps array
         i, j = splits[n, :]
-        # Lower and upper clump index. Need - 1 not to take the last val.
-        ipart = clumps["index"][i]
-        jpart = clumps["index"][j - 1]
-        mask = (particle_clumps >= ipart) & (particle_clumps <= jpart)
+        # Clump indices in this split
+        indxs = clumps["index"][i:j]
+        hmin, hmax = indxs.min(), indxs.max()
+        mask = (particle_clumps >= hmin) & (particle_clumps <= hmax)
+        # Check number of clumps
+        npart_unique = numpy.unique(particle_clumps[mask]).size
+        if indxs.size > npart_unique:
+            raise RuntimeError(
+                "Split `{}` contains more unique clumps (`{}`) than there are "
+                "unique particles' clump indices (`{}`)after removing clumps "
+                "with no particles.".format(n, indxs.size, npart_unique))
         # Dump it!
         tot += mask.sum()
         fout = fname.format(Nsim, Nsnap, n)
         numpy.savez(fout, particles[mask], particle_clumps[mask], clumps[i:j])
 
-    if tot != particle_clumps.size:
-        raise RuntimeError("Num. of dumped particles `{}` does not particle "
-                           "file size `{}`.".format(tot, particle_clumps.size))
+    # There are particles whose clump ID is > 1 and have no counterpart in the
+    # clump file. Therefore can save fewer particles, depending on the cut.
+    if tot > particle_clumps.size:
+        raise RuntimeError(
+            "Num. of dumped particles `{}` is greater than the particle file "
+            "size `{}`.".format(tot, particle_clumps.size))
 
 
 def split_jobs(Njobs, Ncpu):
