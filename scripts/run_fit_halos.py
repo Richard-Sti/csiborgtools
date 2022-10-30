@@ -40,14 +40,15 @@ comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 nproc = comm.Get_size()
 
-# Here will have to split the jobs.... Wait until we get the array
-jobs = csiborgtools.fits.split_jobs(utils.Nsplits, nproc)[rank]
-
 
 dumpdir = utils.dumpdir
 loaddir = join(utils.dumpdir, "temp")
+cols_collect = [("npart", I64), ("totpartmass", F64), ("logRs", F64),
+                ("rho0", F64)]
+# NOTE later loop over sims too
 Nsim = Nsims[0]
 
+jobs = csiborgtools.fits.split_jobs(utils.Nsplits, nproc)[rank]
 for Nsplit in jobs:
     print("Rank {} working on {}.".format(rank, Nsplit))
     parts, part_clumps, clumps = csiborgtools.fits.load_split_particles(
@@ -82,8 +83,8 @@ comm.Barrier()
 if rank == 0:
     print("Collecting results!")
     out_collected = csiborgtools.io.combine_splits(
-        utils.Nsplits, Nsim, Nsnap, utils.dumpdir, remove_splits=True,
-        verbose=False)
+        utils.Nsplits, Nsim, Nsnap, utils.dumpdir, cols_collect,
+        remove_splits=True, verbose=False)
     fname = join(utils.dumpdir, "ramses_out_{}_{}.npy"
                  .format(str(Nsim).zfill(5), str(Nsnap).zfill(5)))
     print("Saving results to `{}`.".format(fname))
