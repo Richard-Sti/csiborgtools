@@ -56,7 +56,7 @@ for Nsplit in jobs:
 
     N = clumps.size
     cols = [("index", I64), ("npart", I64), ("totpartmass", F64),
-            ("logRs", F64)]
+            ("logRs", F64), ("rho0", F64)]
     out = csiborgtools.utils.cols_to_structured(N, cols)
     out["index"] = clumps["index"]
 
@@ -73,6 +73,7 @@ for Nsplit in jobs:
             logRs = nfwpost.maxpost_logRs()
             if logRs.success:
                 out["logRs"][n] = logRs.x
+                out["rho0"][n] = nfwpost.rho0_from_logRs(logRs.x)
 
     csiborgtools.io.dump_split(out, Nsplit, Nsim, Nsnap, dumpdir)
 
