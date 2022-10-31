@@ -40,6 +40,7 @@ class BoxUnits:
     simpath : str
         Path to the simulation where its snapshot index folders are stored.
     """
+    _cosmo = None
 
     def __init__(self, Nsnap, simpath):
         """
@@ -52,9 +53,21 @@ class BoxUnits:
         for par in pars:
             setattr(self, par, float(info[par]))
 
-        self.cosmo = LambdaCDM(H0=self.H0, Om0=self.omega_m,
-                               Ode0=self.omega_l, Tcmb0=2.725 * units.K,
-                               Ob0=self.omega_b)
+        self._cosmo = LambdaCDM(H0=self.H0, Om0=self.omega_m,
+                                Ode0=self.omega_l, Tcmb0=2.725 * units.K,
+                                Ob0=self.omega_b)
+
+    @property
+    def cosmo(self):
+        """
+        The  box cosmology.
+
+        Returns
+        -------
+        cosmo : `astropy.cosmology.LambdaCDM`
+            The CSiBORG cosmology.
+        """
+        return self._cosmo
 
     @property
     def box_G(self):
