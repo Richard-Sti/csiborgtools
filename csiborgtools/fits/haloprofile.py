@@ -43,7 +43,8 @@ class NFWProfile:
     def __init__(self):
         pass
 
-    def profile(self, r, Rs, rho0):
+    @staticmethod
+    def profile(r, Rs, rho0):
         r"""
         Halo profile evaluated at :math:`r`.
 
@@ -64,7 +65,8 @@ class NFWProfile:
         x = r / Rs
         return rho0 / (x * (1 + x)**2)
 
-    def logprofile(self, r, Rs, rho0):
+    @staticmethod
+    def logprofile(r, Rs, rho0):
         r"""
         Natural logarithm of the halo profile evaluated at :math:`r`.
 
@@ -85,7 +87,8 @@ class NFWProfile:
         x = r / Rs
         return numpy.log(rho0) - numpy.log(x) - 2 * numpy.log(1 + x)
 
-    def enclosed_mass(self, r, Rs, rho0):
+    @staticmethod
+    def enclosed_mass(r, Rs, rho0):
         r"""
         Enclosed mass  of a NFW profile in radius :math:`r`.
 
