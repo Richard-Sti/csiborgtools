@@ -270,6 +270,7 @@ class Clump:
     _clump_pos = None
     _clump_mass = None
     _vel = None
+    _Npart = None
 
     def __init__(self, x, y, z, m, x0, y0, z0, clump_mass=None,
                  vx=None, vy=None, vz=None):
@@ -299,6 +300,7 @@ class Clump:
         self._r = numpy.sum(self.pos**2, axis=1)**0.5
         self._rmin = numpy.min(self._r)
         self._rmax = numpy.max(self._r)
+        self._Npart = self._r.size
 
     @property
     def r(self):
@@ -346,7 +348,7 @@ class Clump:
         Npart : int
             Number of particles.
         """
-        return self.r.size
+        return self._Npart
 
     @property
     def clump_pos(self):
