@@ -72,7 +72,8 @@ class BoxUnits:
     @property
     def box_G(self):
         """
-        Gravitational constant :math:`G` in box units.
+        Gravitational constant :math:`G` in box units. Given everything else
+        it looks like `self.unit_t` is in seconds.
 
         Returns
         -------
@@ -91,7 +92,7 @@ class BoxUnits:
         H0 : float
             The Hubble constant.
         """
-        return self.H0 * 1e5 / (1e3 * KPC_TO_CM) * self.unit_t
+        return self.H0 * 1e5 / units.Mpc.to(units.cm) * self.unit_t
 
     @property
     def box_c(self):
@@ -121,7 +122,8 @@ class BoxUnits:
     def box2kpc(self, length):
         r"""
         Convert length from box units to :math:`\mathrm{ckpc}` (with
-        :math:`h=0.705`).
+        :math:`h=0.705`). It appears that `self.unit_l` must be in
+        :math:`\mathrm{cm}`.
 
         Parameters
         ----------
@@ -133,7 +135,7 @@ class BoxUnits:
         length : foat
             Length in :math:`\mathrm{ckpc}`
         """
-        return length * self.unit_l / KPC_TO_CM / self.aexp
+        return length * (self.unit_l / units.kpc.to(units.cm) / self.aexp)
 
     def kpc2box(self, length):
         r"""
@@ -150,7 +152,7 @@ class BoxUnits:
         length : foat
             Length in box units.
         """
-        return length / self.unit_l * KPC_TO_CM * self.aexp
+        return length / (self.unit_l / units.kpc.to(units.cm) / self.aexp)
 
     def solarmass2box(self, mass):
         r"""
@@ -166,11 +168,14 @@ class BoxUnits:
         mass : float
             Mass in box units.
         """
-        return mass / self.unit_d / (self.unit_l**3 / MSUNCGS)
+        Msuncgs = constants.M_sun.cgs.value  # Solar mass in grams
+        return mass / (self.unit_d * self.unit_l**3) * Msuncgs
 
     def box2solarmass(self, mass):
         r"""
         Convert mass from box units to :math:`M_\odot` (with :math:`h=0.705`).
+        It appears that `self.unit_d` is density in units of
+        :math:`\mathrm{g}/\mathrm{cm}^3`.
 
         Parameters
         ----------
@@ -182,7 +187,8 @@ class BoxUnits:
         mass : float
             Mass in :math:`M_\odot`.
         """
-        return mass * self.unit_d * self.unit_l**3 / MSUNCGS
+        Msuncgs = constants.M_sun.cgs.value  # Solar mass in grams
+        return mass * (self.unit_d * self.unit_l**3) / Msuncgs
 
     def box2dens(self, density):
         r"""
