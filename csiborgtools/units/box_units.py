@@ -16,7 +16,7 @@
 Simulation box unit transformations.
 """
 
-
+import numpy
 from astropy.cosmology import LambdaCDM
 from astropy import (constants, units)
 from ..io import read_info
@@ -25,7 +25,6 @@ from ..io import read_info
 # Conversion factors
 MSUNCGS = constants.M_sun.cgs.value
 KPC_TO_CM = 3.0856775814913673e+21
-PI = 3.1415926535897932384626433
 
 
 class BoxUnits:
@@ -53,14 +52,58 @@ class BoxUnits:
         for par in pars:
             setattr(self, par, float(info[par]))
 
-        self.h = self.H0 / 100
-        self.cosmo = LambdaCDM(H0=self.H0, Om0=self.omega_m, Ode0=self.omega_l,
-                               Tcmb0=2.725 * units.K, Ob0=self.omega_b)
-        # Constants in box units
-        self.G = constants.G.cgs.value * (self.unit_d * self.unit_t ** 2)
-        self.H0 = self.H0 * 1e5 / (1e3 * KPC_TO_CM) * self.unit_t
-        self.c = constants.c.cgs.value * self.unit_t / self.unit_l
-        self.rho_crit = 3 * self.H0 ** 2 / (8 * PI * self.G)
+        self.cosmo = LambdaCDM(H0=self.H0, Om0=self.omega_m,
+                               Ode0=self.omega_l, Tcmb0=2.725 * units.K,
+                               Ob0=self.omega_b)
+
+    @property
+    def box_G(self):
+        """
+        Gravitational constant :math:`G` in box units.
+
+        Returns
+        -------
+        G : float
+            The gravitational constant.
+        """
+        return constants.G.cgs.value * (self.unit_d * self.unit_t ** 2)
+
+    @property
+    def box_H0(self):
+        """
+        Present time Hubble constant :math:`H_0` in box units.
+
+        Returns
+        -------
+        H0 : float
+            The Hubble constant.
+        """
+        return self.H0 * 1e5 / (1e3 * KPC_TO_CM) * self.unit_t
+
+    @property
+    def box_c(self):
+        """
+        Speed of light in box units.
+
+        Returns
+        -------
+        c : float
+            The speed of light.
+        """
+        return constants.c.cgs.value * self.unit_t / self.unit_l
+
+    @property
+    def box_rhoc(self):
+        """
+        Critical density in box units.
+
+        Returns
+        -------
+        rhoc : float
+            The critical density.
+        """
+
+        return 3 * self.box_H0 ** 2 / (8 * numpy.pi * self.box_G)
 
     def box2kpc(self, length):
         r"""
