@@ -85,9 +85,6 @@ def combine_splits(Nsplits, Nsim, Nsnap, outdir, cols_add, remove_splits=False,
     out : structured array
         Clump array with appended results from the splits.
     """
-    # Will be grabbing these columns from each split
-    cols_add = [("npart", I64), ("totpartmass", F64), ("logRs", F64),
-                ("rho0", F64)]
     # Load clumps to see how many there are and will add to this array
     simpath = get_sim_path(Nsim)
     clumps = read_clumps(Nsnap, simpath, cols=None)
