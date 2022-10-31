@@ -23,7 +23,7 @@ from os.path import (join, isfile)
 from glob import glob
 from tqdm import tqdm
 
-from ..utils import cols_to_structured
+from ..utils import (cols_to_structured, add_columns)
 
 
 F16 = numpy.float16
@@ -495,3 +495,30 @@ def read_mmain(n, srcdir, fname="Mmain_{}.npy"):
         out[name] = arr[:, i]
 
     return out
+
+
+def merge_mmain_to_clumps(clumps, mmain):
+    """
+    Merge columns from the `mmain` files to the `clump` file, matches them
+    by their halo index while assuming that the indices `index` in both arrays
+    are sorted.
+
+    Parameters
+    ----------
+    clumps : structured array
+        Clumps structured array.
+    mmain : structured array
+        Parent halo array whose information is to be merged into `clumps`.
+
+    Returns
+    -------
+    out : structured array
+        Array with added columns.
+    """
+    X = numpy.full((clumps.size, 2), numpy.nan)
+    # Mask of which clumps have a mmain index
+    mask = numpy.isin(clumps["index"], mmain["index"])
+
+    X[mask, 0] = mmain["mass_cl"]
+    X[mask, 1] = mmain["sub_frac"]
+    return add_columns(clumps, X, ["mass_mmain", "sub_frac"])
