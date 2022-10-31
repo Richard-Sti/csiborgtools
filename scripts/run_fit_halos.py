@@ -44,7 +44,7 @@ nproc = comm.Get_size()
 dumpdir = utils.dumpdir
 loaddir = join(utils.dumpdir, "temp")
 cols_collect = [("npart", I64), ("totpartmass", F64), ("logRs", F64),
-                ("rho0", F64)]
+                ("rho0", F64), ("rmin", F64), ("rmax", F64)]
 # NOTE later loop over sims too
 Nsim = Nsims[0]
 
@@ -56,7 +56,7 @@ for Nsplit in jobs:
 
     N = clumps.size
     cols = [("index", I64), ("npart", I64), ("totpartmass", F64),
-            ("logRs", F64), ("rho0", F64)]
+            ("logRs", F64), ("rho0", F64), ("rmin", F64), ("rmax", F64)]
     out = csiborgtools.utils.cols_to_structured(N, cols)
     out["index"] = clumps["index"]
 
@@ -70,6 +70,8 @@ for Nsplit in jobs:
         # NFW profile fit
         if clump.Npart > 10:
             nfwpost = csiborgtools.fits.NFWPosterior(clump)
+            out["rmin"][n] = nfwpost.rmin
+            out["rmax"][n] = nfwpost.rmax
             logRs = nfwpost.maxpost_logRs()
             if logRs.success:
                 out["logRs"][n] = logRs.x
