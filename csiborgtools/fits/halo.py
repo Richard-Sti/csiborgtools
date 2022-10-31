@@ -264,6 +264,8 @@ class Clump:
         Particle velocity along the z-axis.
     """
     _r = None
+    _rmin = None
+    _rmax = None
     _pos = None
     _clump_pos = None
     _clump_mass = None
@@ -294,7 +296,45 @@ class Clump:
         """Sets `pos` and calculates radial distance."""
         x, y, z, x0, y0, z0 = X
         self._pos = numpy.vstack([x - x0, y - y0, z - z0]).T
-        self.r = numpy.sum(self.pos**2, axis=1)**0.5
+        self._r = numpy.sum(self.pos**2, axis=1)**0.5
+        self._rmin = numpy.min(self._r)
+        self._rmax = numpy.max(self._r)
+
+    @property
+    def r(self):
+        """
+        Radial distance of the particles from the clump peak.
+
+        Returns
+        -------
+        r : 1-dimensional array
+            Array of shape `(n_particles, )`.
+        """
+        return self._r
+
+    @property
+    def rmin(self):
+        """
+        The minimum radial distance of a particle.
+
+        Returns
+        -------
+        rmin : float
+            The minimum distance.
+        """
+        return self._rmin
+
+    @property
+    def rmax(self):
+        """
+        The maximum radial distance of a particle.
+
+        Returns
+        -------
+        rmin : float
+            The maximum distance.
+        """
+        return self._rmax
 
     @property
     def Npart(self):
@@ -391,27 +431,6 @@ class Clump:
         self._m = m
 
     @property
-    def r(self):
-        """
-        Radial distance of particles from the clump peak.
-
-        Returns
-        -------
-        r : 1-dimensional array
-            Array of shape `(n_particles, )`
-        """
-        return self._r
-
-    @r.setter
-    def r(self, r):
-        """Sets `r`. Again checks the shape."""
-        if not isinstance(r, numpy.ndarray) and r.ndim == 1:
-            raise TypeError("`r` must be a 1-dimensional array.")
-        if not numpy.all(r >= 0):
-            raise ValueError("`r` larger than zero.")
-        self._r = r
-
-    @property
     def total_particle_mass(self):
         """
         Total mass of all particles.
@@ -452,8 +471,8 @@ class Clump:
 
         Returns
         -------
-        halo : `Halo`
-            An initialised halo object.
+        clump : `Clump`
+            An initialised clump object.
         """
         x, y, z, m = (particles[p] for p in ["x", "y", "z", "M"])
         x0, y0, z0, cl_mass = (

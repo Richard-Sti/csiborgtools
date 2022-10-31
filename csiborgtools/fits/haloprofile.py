@@ -248,67 +248,19 @@ class NFWPosterior(NFWProfile):
                 "`clump` must be :py:class:`csiborgtools.fits.Clump` type. "
                 "Currently `{}`".format(type(clump)))
         self._clump = clump
-        # Set here the rest of the radial info
-        self._rmax = numpy.max(self.r)
-        # r_min could be zero if particle in the potential minimum.
-        # Set it to the closest particle that is at distance > 0
-        self._rmin = numpy.sort(self.r[self.r > 0])[0]
-        self._logrmin = numpy.log(self.rmin)
-        self._logrmax = numpy.log(self.rmax)
+        rmin = self.clump.rmin
+        if rmin > self.clump.rmin:
+            self._logrmin = numpy.log(self.clump.rmin)
+        else:
+            r = self.clump.r
+            self._logrmin = numpy.log(numpy.min(r[r > 0]))
+        self._logrmax = numpy.log(self.clump.rmax)
         self._logprior_volume = numpy.log(self._logrmax - self._logrmin)
-        self._N = self.r.size
         # Precalculate useful things
         self._logMtot = numpy.log(numpy.sum(self.clump.m))
-        gamma = 4 * numpy.pi * self.r**2 * self.clump.m * self.N
-        self._ll0 = numpy.sum(numpy.log(gamma)) - self.N * self._logMtot
-
-    @property
-    def r(self):
-        """
-        Radial distance of particles.
-
-        Returns
-        -------
-        r : 1-dimensional array
-            Radial distance of particles.
-        """
-        return self.clump.r
-
-    @property
-    def rmin(self):
-        """
-        Minimum radial distance of a particle belonging to this clump.
-
-        Returns
-        -------
-        rmin : float
-            The minimum distance.
-        """
-        return self._rmin
-
-    @property
-    def rmax(self):
-        """
-        Maximum radial distance of a particle belonging to this clump.
-
-        Returns
-        -------
-        rmin : float
-            The maximum distance.
-        """
-        return self._rmax
-
-    @property
-    def N(self):
-        """
-        The number of particles in this clump.
-
-        Returns
-        -------
-        N : int
-            Number of particles.
-        """
-        return self._N
+        N = self.clump.Npart
+        gamma = 4 * numpy.pi * self.clump.r**2 * self.clump.m * N
+        self._ll0 = numpy.sum(numpy.log(gamma)) - N * self._logMtot
 
     def rho0_from_logRs(self, logRs):
         """
@@ -328,7 +280,8 @@ class NFWPosterior(NFWProfile):
         """
         Mtot = numpy.exp(self._logMtot)
         Rs = numpy.exp(logRs)
-        Mnfw_norm = self.bounded_enclosed_mass(self.rmin, self.rmax, Rs, 1)
+        Mnfw_norm = self.bounded_enclosed_mass(self.clump.rmin,
+                                               self.clump.rmax, Rs, 1)
         return Mtot / Mnfw_norm
 
     def logprior(self, logRs):
@@ -365,9 +318,10 @@ class NFWPosterior(NFWProfile):
         """
         Rs = numpy.exp(logRs)
         # Expected enclosed mass from a NFW
-        Mnfw = self.bounded_enclosed_mass(self.rmin, self.rmax, Rs, 1)
-        ll = self._ll0 + numpy.sum(self.logprofile(self.r, Rs, 1))
-        return ll - self.N * numpy.log(Mnfw)
+        Mnfw = self.bounded_enclosed_mass(self.clump.rmin, self.clump.rmax,
+                                          Rs, 1)
+        ll = self._ll0 + numpy.sum(self.logprofile(self.clump.r, Rs, 1))
+        return ll - self.clump.Npart * numpy.log(Mnfw)
 
     @property
     def initlogRs(self):
@@ -381,8 +335,9 @@ class NFWPosterior(NFWProfile):
         initlogRs : float
             The initial guess of :math:`\log R_{\rm s}`.
         """
-        bins = numpy.linspace(self.rmin, self.rmax, self._binsguess)
-        counts, edges = numpy.histogram(self.r, bins)
+        bins = numpy.linspace(self.clump.rmin, self.clump.rmax,
+                              self._binsguess)
+        counts, edges = numpy.histogram(self.clump.r, bins)
         return numpy.log(edges[numpy.argmax(counts)])
 
     def __call__(self, logRs):
@@ -432,33 +387,3 @@ class NFWPosterior(NFWProfile):
         bounds = (self._logrmin, self._logrmax)
         return minimize_scalar(
             self.hamiltonian, bounds=bounds, method='bounded')
-
-    @classmethod
-    def from_coords(cls, x, y, z, m, x0, y0, z0):
-        """
-        Initiate `NFWPosterior` from a set of Cartesian coordinates.
-
-        Parameters
-        ----------
-        x : 1-dimensional array
-            Particle coordinates along the x-axis.
-        y : 1-dimensional array
-            Particle coordinates along the y-axis.
-        z : 1-dimensional array
-            Particle coordinates along the z-axis.
-        m : 1-dimensional array
-            Particle masses.
-        x0 : float
-            Halo center coordinate along the x-axis.
-        y0 : float
-            Halo center coordinate along the y-axis.
-        z0 : float
-            Halo center coordinate along the z-axis.
-
-        Returns
-        -------
-        post : `NFWPosterior`
-            Initiated `NFWPosterior` instance.
-        """
-        r = numpy.sqrt((x - x0)**2 + (y - y0)**2 + (z - z0)**2)
-        return cls(r, m)
