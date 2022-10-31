@@ -40,6 +40,7 @@ class BoxUnits:
     simpath : str
         Path to the simulation where its snapshot index folders are stored.
     """
+    _info = {}
     _cosmo = None
 
     def __init__(self, Nsnap, simpath):
@@ -47,12 +48,11 @@ class BoxUnits:
         Read in the snapshot info file and set the units from it.
         """
         info = read_info(Nsnap, simpath)
-        pars = ["boxlen", "time", "aexp", "H0",
-                "omega_m", "omega_l", "omega_k", "omega_b",
-                "unit_l", "unit_d", "unit_t"]
-        for par in pars:
-            setattr(self, par, float(info[par]))
-
+        names_extract = ["boxlen", "time", "aexp", "H0",
+                         "omega_m", "omega_l", "omega_k", "omega_b",
+                         "unit_l", "unit_d", "unit_t"]
+        for name in names_extract:
+            self._info.update({name: float(info[name])})
         self._cosmo = LambdaCDM(H0=self.H0, Om0=self.omega_m,
                                 Ode0=self.omega_l, Tcmb0=2.725 * units.K,
                                 Ob0=self.omega_b)
@@ -217,3 +217,6 @@ class BoxUnits:
             Density in box units.
         """
         return density / self.unit_d * MSUNCGS / (KPC_TO_CM * 1e-3)**3
+
+    def __getattr__(self, attr):
+        return self._info[attr]
