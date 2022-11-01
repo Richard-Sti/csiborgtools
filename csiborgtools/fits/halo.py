@@ -610,28 +610,28 @@ class Clump:
         return self.radius_enclosed_overdensity(500)
 
     @property
-    def M200(self):
+    def m200(self):
         r"""
         The mass enclosed within the :math:`R_{200c}` region, obtained from
         `self.r200`. Returns `numpy.nan` if the radius estimate fails.
 
         Returns
         -------
-        M200 : float
+        m200 : float
             The M200 mass
         """
         r200 = self.radius_enclosed_overdensity(200)
         return self.enclosed_spherical_mass(r200)
 
     @property
-    def M500(self):
+    def m500(self):
         r"""
         The mass enclosed within the :math:`R_{500c}` region, obtained from
         `self.r500`. Returns `numpy.nan` if the radius estimate fails.
 
         Returns
         -------
-        M500 : float
+        m500 : float
             The M500 mass
         """
         r500 = self.radius_enclosed_overdensity(500)
