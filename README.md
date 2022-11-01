@@ -1,12 +1,16 @@
-# CSiBORG analysis tools :dart:
+# CSiBORG tools
 
-## TODO :scroll:
+## :scroll: Short-term TODO
 - [ ] Calculate $M_{\rm vir}, R_{\rm vir}, c$ from $R_s, \rho_0, \ldots$
-- [ ] Calculate $M_{\rm 500c}$ by sphere shrinking
-- [ ] Calculate the cross-correlation in CSiBORG. Should see the scale of the constraints?
-- [ ] Improve file naming system
+- [ ] In `NFWPosterior` correct for the radius in which particles are fitted.
+- [x] Calculate $M_{\rm 500c}$ by sphere shrinking
 - [x] Change to log10 of the scale factor
 
 
-## Open questions :bulb:
+## :hourglass: Long-term TODO
+- [ ] Improve file naming system
+- [ ] Calculate the cross-correlation in CSiBORG. Should see the scale of the constraints?
+
+
+## :bulb: Open questions
 - Get uncertainty on the fitted $R_{\rm s}$? If so get this directly from JAX.
