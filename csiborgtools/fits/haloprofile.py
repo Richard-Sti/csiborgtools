@@ -201,16 +201,18 @@ class NFWProfile:
 
 class NFWPosterior(NFWProfile):
     r"""
-    Posterior of for fitting the NFW profile in the range specified by the
-    closest and further particle. The likelihood is calculated as
+    Posterior for fitting the NFW profile in the range specified by the
+    closest particle and the :math:`r_{200c}` radius. The likelihood is
+    calculated as
 
     .. math::
-        \frac{4\pi r^2 \rho(r)} {M(r_\min, r_\max)} \frac{m}{M / N}
+        \frac{4\pi r^2 \rho(r)} {M(r_{\min} r_{200c})} \frac{m}{M / N}
 
-    where :math:`M(r_\min, r_\max)` is the enclosed mass between the closest
-    and further particle as expected from a NFW profile, :math:`m` is the
-    particle mass, :math:`M` is the sum of the particle masses and :math:`N`
-    is the number of particles.
+    where :math:`M(r_{\min} r_{200c}))` is the NFW enclosed mass between the
+    closest particle and the :math:`r_{200c}` radius, :math:`m` is the particle
+    mass, :math:`M` is the sum of the particle masses and :math:`N` is the
+    number of particles. Calculated only using particles within the
+    above-mentioned range.
 
     Paramaters
     ----------
@@ -219,6 +221,11 @@ class NFWPosterior(NFWProfile):
     """
     _clump = None
     _binsguess = 10
+    _r = None
+    _Npart = None
+    _m = None
+    _rmin = None
+    _rmax = None
 
     def __init__(self, clump):
         # Initialise the NFW profile
@@ -228,7 +235,8 @@ class NFWPosterior(NFWProfile):
     @property
     def clump(self):
         """
-        Clump object.
+        Clump object containig all particles, i.e. ones beyond :math:`R_{200c}`
+        as well.
 
         Returns
         -------
@@ -236,6 +244,70 @@ class NFWPosterior(NFWProfile):
             The clump object.
         """
         return self._clump
+
+    @property
+    def r(self):
+        r"""
+        Radial distance of particles used to fit the NFW profile, i.e. the ones
+        whose radial distance is less than :math:`R_{\rm 200c}`.
+
+        Returns
+        -------
+        r : 1-dimensional array
+            Array of shape `(n_particles, )`.
+        """
+        return self._r
+
+    @property
+    def Npart(self):
+        r"""
+        Number of particles used to fit the NFW profile, i.e. the ones
+        whose radial distance is less than :math:`R_{\rm 200c}`.
+
+        Returns
+        -------
+        Npart : int
+            Number of particles.
+        """
+        return self._Npart
+
+    @property
+    def m(self):
+        r"""
+        Mass of particles used to fit the NFW profile, i.e. the ones
+        whose radial distance is less than :math:`R_{\rm 200c}`.
+
+        Returns
+        -------
+        r : 1-dimensional array
+            Array of shape `(n_particles, )`.
+        """
+        return self._m
+
+    @property
+    def rmin(self):
+        """
+        The minimum radial distance of a particle.
+
+        Returns
+        -------
+        rmin : float
+            The minimum distance.
+        """
+        return self._rmin
+
+    @property
+    def rmax(self):
+        r"""
+        The maximum radial distance used to fit the profile, here takem to be
+        the :math:`R_{\rm 200c}`.
+
+        Returns
+        -------
+        rmax : float
+            The R200c radius.
+        """
+        return self._rmax
 
     @clump.setter
     def clump(self, clump):
@@ -245,19 +317,28 @@ class NFWPosterior(NFWProfile):
                 "`clump` must be :py:class:`csiborgtools.fits.Clump` type. "
                 "Currently `{}`".format(type(clump)))
         self._clump = clump
+        # The minimum separation
         rmin = self.clump.rmin
-        if rmin > self.clump.rmin:
-            self._logrmin = numpy.log10(self.clump.rmin)
+        rmax = self.clump.r200
+        # Set the distances
+        self._rmin = rmin
+        self._rmax = rmax
+        # Set particles that will be used to fit the halo
+        mask_r200 = (self.clump.r >= rmin) & (self.clump.r <= rmax)
+        self._r = self.clump.r[mask_r200]
+        self._m = self.clump.m[mask_r200]
+        self._Npart = self._r.size
+        # Ensure that the minimum separation is > 0 for finite log
+        if self.rmin > 0:
+            self._logrmin = numpy.log10(self.rmin)
         else:
-            r = self.clump.r
-            self._logrmin = numpy.log10(numpy.min(r[r > 0]))
-        self._logrmax = numpy.log(self.clump.rmax)
+            self._logrmin = numpy.log10(numpy.min(self.r[self.r > 0]))
+        self._logrmax = numpy.log10(self.rmax)
         self._logprior_volume = numpy.log(self._logrmax - self._logrmin)
         # Precalculate useful things
-        self._logMtot = numpy.log(numpy.sum(self.clump.m))
-        N = self.clump.Npart
-        gamma = 4 * numpy.pi * self.clump.r**2 * self.clump.m * N
-        self._ll0 = numpy.sum(numpy.log(gamma)) - N * self._logMtot
+        self._logMtot = numpy.log(numpy.sum(self.m))
+        gamma = 4 * numpy.pi * self.r**2 * self.m * self.Npart
+        self._ll0 = numpy.sum(numpy.log(gamma)) - self.Npart * self._logMtot
 
     def rho0_from_logRs(self, logRs):
         r"""
@@ -276,8 +357,8 @@ class NFWPosterior(NFWProfile):
             The NFW density parameter.
         """
         Mtot = numpy.exp(self._logMtot)
-        Mnfw_norm = self.bounded_enclosed_mass(self.clump.rmin,
-                                               self.clump.rmax, 10**logRs, 1)
+        Mnfw_norm = self.bounded_enclosed_mass(self.rmin, self.rmax,
+                                               10**logRs, 1)
         return Mtot / Mnfw_norm
 
     def logprior(self, logRs):
@@ -314,10 +395,10 @@ class NFWPosterior(NFWProfile):
         """
         Rs = 10**logRs
         # Expected enclosed mass from a NFW
-        Mnfw = self.bounded_enclosed_mass(self.clump.rmin, self.clump.rmax,
+        Mnfw = self.bounded_enclosed_mass(self.rmin, self.rmax,
                                           Rs, 1)
-        ll = self._ll0 + numpy.sum(self.logprofile(self.clump.r, Rs, 1))
-        return ll - self.clump.Npart * numpy.log(Mnfw)
+        ll = self._ll0 + numpy.sum(self.logprofile(self.r, Rs, 1))
+        return ll - self.Npart * numpy.log(Mnfw)
 
     @property
     def initlogRs(self):
@@ -331,9 +412,9 @@ class NFWPosterior(NFWProfile):
         initlogRs : float
             The initial guess of :math:`\log R_{\rm s}`.
         """
-        bins = numpy.linspace(self.clump.rmin, self.clump.rmax,
+        bins = numpy.linspace(self.rmin, self.rmax,
                               self._binsguess)
-        counts, edges = numpy.histogram(self.clump.r, bins)
+        counts, edges = numpy.histogram(self.r, bins)
         return numpy.log(edges[numpy.argmax(counts)])
 
     def __call__(self, logRs):
