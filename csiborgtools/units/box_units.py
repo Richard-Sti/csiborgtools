@@ -22,11 +22,6 @@ from astropy import (constants, units)
 from ..io import read_info
 
 
-# Conversion factors
-MSUNCGS = constants.M_sun.cgs.value
-KPC_TO_CM = 3.0856775814913673e+21
-
-
 class BoxUnits:
     r"""
     Box units class for converting between box and physical units.
@@ -231,7 +226,8 @@ class BoxUnits:
         density : float
             Density in :math:`M_\odot / \mathrm{pc}^3`.
         """
-        return density * self._unit_d / MSUNCGS * (KPC_TO_CM * 1e-3)**3
+        Msuncgs = constants.M_sun.cgs.value  # Solar mass in grams
+        return density * self._unit_d / Msuncgs * (units.pc.to(units.cm))**3
 
     def dens2box(self, density):
         r"""
@@ -248,4 +244,5 @@ class BoxUnits:
         density : float
             Density in box units.
         """
-        return density / self._unit_d * MSUNCGS / (KPC_TO_CM * 1e-3)**3
+        Msuncgs = constants.M_sun.cgs.value  # Solar mass in grams
+        return density / self._unit_d * Msuncgs / (units.pc.to(units.cm))**3
