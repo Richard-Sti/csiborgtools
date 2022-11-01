@@ -48,11 +48,12 @@ class BoxUnits:
         Read in the snapshot info file and set the units from it.
         """
         info = read_info(Nsnap, simpath)
-        names_extract = ["boxlen", "time", "aexp", "H0",
-                         "omega_m", "omega_l", "omega_k", "omega_b",
-                         "unit_l", "unit_d", "unit_t"]
-        for name in names_extract:
-            self._info.update({name: float(info[name])})
+        pars = ["boxlen", "time", "aexp", "H0",
+                "omega_m", "omega_l", "omega_k", "omega_b",
+                "unit_l", "unit_d", "unit_t"]
+        for par in pars:
+            setattr(self, par, float(info[par]))
+
         self._cosmo = LambdaCDM(H0=self.H0, Om0=self.omega_m,
                                 Ode0=self.omega_l, Tcmb0=2.725 * units.K,
                                 Ob0=self.omega_b)
