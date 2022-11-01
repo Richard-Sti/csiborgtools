@@ -18,6 +18,7 @@ Tools for splitting the particles and a clump object.
 
 
 import numpy
+from scipy.optimize import minimize_scalar
 from os import remove
 from warnings import warn
 from os.path import join
@@ -483,7 +484,7 @@ class Clump:
         """
         return numpy.mean(self.pos + self.clump_pos, axis=0)
 
-    def enclosed_spherical_mass(self, rmax, rmin=0):
+    def enclosed_spherical_mass(self, rmax, rmin=None):
         """
         The enclosed spherical mass between two radii. All quantities remain
         in the box units.
@@ -493,14 +494,46 @@ class Clump:
         rmax : float
             The maximum radial distance.
         rmin : float, optional
-            The minimum radial distance. By default 0.
+            The minimum radial distance. By default the radial distance of the
+            closest particle.
 
         Returns
         -------
-        Menclosed : float
+        M_enclosed : float
             The enclosed mass.
         """
+        rmin = self.rmin if rmin is None else rmin
         return numpy.sum(self.m[(self.r >= rmin) & (self.r <= rmax)])
+
+    def enclosed_spherical_density(self, rmax, rmin=None):
+        """
+        The enclosed spherical density between two radii. All quantities
+        remain in box units.
+
+        Parameters
+        ----------
+        rmax : float
+            The maximum radial distance.
+        rmin : float, optional
+            The minimum radial distance. By default the radial distance of the
+            closest particle.
+
+        Returns
+        -------
+        rho_enclosed : float
+            The enclosed density.
+        """
+        rmin = self.rmin if rmin is None else rmin
+        M = self.enclosed_spherical_mass(rmax, rmin)
+        V = 4 * numpy.pi / 3 * (rmax**3 - rmin**3)
+        return M / V
+
+#    def radius_enclosed_overdensity(self, rmax, delta, rhoc, rmin=0):
+#        bounds = (self.rmin, rmax)
+#        return minimize_scalar(
+#            self.hamiltonian, bounds=bounds, method='bounded')
+#
+#        self.enclosed_spherical_density(rmax, rmin) - delta * rhoc
 
     @classmethod
     def from_arrays(cls, particles, clump):
