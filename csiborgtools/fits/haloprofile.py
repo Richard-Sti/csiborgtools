@@ -218,9 +218,6 @@ class NFWPosterior(NFWProfile):
         Clump object containing the particles and clump information.
     """
     _clump = None
-    _N = None
-    _rmin = None
-    _rmax = None
     _binsguess = 10
 
     def __init__(self, clump):
