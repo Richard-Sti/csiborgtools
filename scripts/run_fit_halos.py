@@ -45,7 +45,8 @@ dumpdir = utils.dumpdir
 loaddir = join(utils.dumpdir, "temp")
 cols_collect = [("npart", I64), ("totpartmass", F64), ("logRs", F64),
                 ("rho0", F64), ("rmin", F64), ("rmax", F64),
-                ("r200", F64), ("r500", F64), ("m200", F64), ("m500", F64)]
+                ("r200", F64), ("r178", F64), ("r500", F64),
+                ("m200", F64), ("m178", F64), ("m500", F64)]
 
 # NOTE later loop over sims too
 Nsim = Nsims[0]
@@ -59,7 +60,8 @@ for Nsplit in jobs:
     N = clumps.size
     cols = [("index", I64), ("npart", I64), ("totpartmass", F64),
             ("logRs", F64), ("rho0", F64), ("rmin", F64), ("rmax", F64),
-            ("r200", F64), ("r500", F64), ("m200", F64), ("m500", F64)]
+            ("r200", F64), ("r178", F64), ("r500", F64),
+            ("m200", F64), ("m178", F64), ("m500", F64)]
     out = csiborgtools.utils.cols_to_structured(N, cols)
     out["index"] = clumps["index"]
 
@@ -72,12 +74,16 @@ for Nsplit in jobs:
         out["rmax"][n] = clump.rmax
         out["totpartmass"][n] = clump.total_particle_mass
         out["r200"][n] = clump.r200
+        out["r178"][n] = clump.r178
         out["r500"][n] = clump.r500
         out["m200"][n] = clump.m200
+        out["m178"][n] = clump.m178
         out["m500"][n] = clump.m200
 
         # NFW profile fit
-        if clump.Npart > 10:
+        if clump.Npart > 10 and numpy.isfinite(out["r200"][n]):
+            # NOTE here it calculates the r200 again, but its fast so does not
+            # matter anyway.
             nfwpost = csiborgtools.fits.NFWPosterior(clump)
             logRs = nfwpost.maxpost_logRs()
             if not numpy.isnan(logRs):
