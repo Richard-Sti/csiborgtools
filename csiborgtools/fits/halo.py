@@ -254,14 +254,14 @@ class Clump:
         Clump center coordinate along the y-axis.
     z0 : float
         Clump center coordinate along the z-axis.
-    clump_mass : float
-        Mass of the clump.
-    vx : 1-dimensional array
-        Particle velocity along the x-axis.
-    vy : 1-dimensional array
-        Particle velocity along the y-axis.
-    vz : 1-dimensional array
-        Particle velocity along the z-axis.
+    clump_mass : float, optional
+        Mass of the clump. By default not set.
+    vx : 1-dimensional array, optional
+        Particle velocity along the x-axis. By default not set.
+    vy : 1-dimensional array, optional
+        Particle velocity along the y-axis. By default not set.
+    vz : 1-dimensional array, optional
+        Particle velocity along the z-axis. By default not set.
     """
     _r = None
     _rmin = None
@@ -380,12 +380,14 @@ class Clump:
         mass : float
             Clump mass.
         """
+        if self._clump_mass is None:
+            raise ValueError("Clump mass `clump_mass` has not been set.")
         return self._clump_mass
 
     @clump_mass.setter
     def clump_mass(self, mass):
         """Sets `clump_mass`, making sure it is a float."""
-        if not isinstance(mass, float):
+        if mass is not None and not isinstance(mass, float):
             raise ValueError("`clump_mass` must be a float.")
         self._clump_mass = mass
 
