@@ -596,6 +596,20 @@ class Clump:
         return self.radius_enclosed_overdensity(200)
 
     @property
+    def r178(self):
+        r"""
+        The radius at which the mean spherical density reaches 178 times
+        the critical density, :math:`R_{178c}`. Returns `numpy.nan` if the
+        estimate fails.
+
+        Returns
+        -------
+        r178 : float
+            The R178c radius
+        """
+        return self.radius_enclosed_overdensity(178)
+
+    @property
     def r500(self):
         r"""
         The radius at which the mean spherical density reaches 500 times
@@ -622,6 +636,22 @@ class Clump:
         """
         r200 = self.radius_enclosed_overdensity(200)
         return self.enclosed_spherical_mass(r200)
+
+    @property
+    def m178(self):
+        r"""
+        The mass enclosed within the :math:`R_{178c}` region, obtained from
+        `self.r178`. This is approximately the virial mass, though this notion
+        depends on the dynamical state of the clump. Returns `numpy.nan` if
+        the radius estimate fails.
+
+        Returns
+        -------
+        m178 : float
+            The M178 mass
+        """
+        r178 = self.radius_enclosed_overdensity(178)
+        return self.enclosed_spherical_mass(r178)
 
     @property
     def m500(self):
