@@ -9,8 +9,8 @@
 
 ## :hourglass: Long-term TODO
 - [ ] Improve file naming system
+- [ ] Calculate uncertainty on $R_{\rm s}$, switch to `JAX` and get gradients.
 - [ ] Calculate the cross-correlation in CSiBORG. Should see the scale of the constraints?
 
 
 ## :bulb: Open questions
-- Get uncertainty on the fitted $R_{\rm s}$? If so get this directly from JAX.
