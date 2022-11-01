@@ -528,12 +528,33 @@ class Clump:
         V = 4 * numpy.pi / 3 * (rmax**3 - rmin**3)
         return M / V
 
-#    def radius_enclosed_overdensity(self, rmax, delta, rhoc, rmin=0):
-#        bounds = (self.rmin, rmax)
-#        return minimize_scalar(
-#            self.hamiltonian, bounds=bounds, method='bounded')
-#
-#        self.enclosed_spherical_density(rmax, rmin) - delta * rhoc
+    def radius_enclosed_overdensity(self, delta, rhoc):
+        r"""
+        Radius of where the mean enclosed spherical density reaches a multiple
+        of the critical radius at a given redshift. Returns `numpy.nan` if the
+        fit does not converge. Note that `rhoc` must be in box units!
+
+        Parameters
+        ----------
+        delta : int or float
+            The :math:`\delta_{\rm x}` parameters where :math:`\mathrm{x}` is
+            the overdensity multiple.
+        rhoc : float
+            The critical density :math:`\rho_c`
+
+        Returns
+        -------
+        rx : float
+            The radius where the enclosed density reaches required value.
+        """
+        # Loss function to minimise
+        def loss(r):
+            return abs(self.enclosed_spherical_density(r, self.rmin)
+                       - delta * rhoc)
+
+        res = minimize_scalar(loss, bounds=(self.rmin, self.rmax),
+                              method='bounded')
+        return res.x if res.success else numpy.nan
 
     @classmethod
     def from_arrays(cls, particles, clump):
