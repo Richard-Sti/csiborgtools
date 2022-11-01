@@ -462,7 +462,7 @@ class Clump:
     def index(self, n):
         """Sets the halo index, making sure it is an integer."""
         if n is not None and not (isinstance(n, (int, numpy.int64)) and n > 0):
-            raise ValueError("Halo index `index` must be an integer > 0")
+            raise ValueError("Halo index `index` must be an integer > 0.")
         self._index = n
 
     @property
@@ -483,7 +483,7 @@ class Clump:
     def rhoc(self, rhoc):
         """Sets the critical density. Makes sure it is > 0."""
         if rhoc is not None and not rhoc > 0:
-            raise ValueError("Critical density `rho_c` must be > 0")
+            raise ValueError("Critical density `rho_c` must be > 0.")
         self._rhoc = rhoc
 
     @property
