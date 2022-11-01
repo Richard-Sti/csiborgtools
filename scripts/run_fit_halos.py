@@ -73,9 +73,9 @@ for Nsplit in jobs:
         if clump.Npart > 10:
             nfwpost = csiborgtools.fits.NFWPosterior(clump)
             logRs = nfwpost.maxpost_logRs()
-            if logRs.success:
-                out["logRs"][n] = logRs.x
-                out["rho0"][n] = nfwpost.rho0_from_logRs(logRs.x)
+            if not numpy.isnan(logRs):
+                out["logRs"][n] = logRs
+                out["rho0"][n] = nfwpost.rho0_from_logRs(logRs)
 
     csiborgtools.io.dump_split(out, Nsplit, Nsim, Nsnap, dumpdir)
 
