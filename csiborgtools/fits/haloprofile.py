@@ -356,31 +356,19 @@ class NFWPosterior(NFWProfile):
             return - numpy.infty
         return self.loglikelihood(logRs) + lp
 
-    def hamiltonian(self, logRs):
-        """
-        Negative logarithmic posterior (i.e. the Hamiltonian).
-
-        Parameters
-        ----------
-        logRs : float
-            Logarithmic scale factor in units matching the coordinates.
-
-        Returns
-        -------
-        neg_lpost : float
-        The Hamiltonian.
-        """
-        return - self(logRs)
-
     def maxpost_logRs(self):
         r"""
         Maximum a-posterio estimate of the scale radius :math:`\log R_{\rm s}`.
+        Returns the scale radius if the fit converged, otherwise `numpy.nan`.
 
         Returns
         -------
-        res : `scipy.optimize.OptimizeResult`
-            Optimisation result.
+        res : float
+            The scale radius.
         """
-        bounds = (self._logrmin, self._logrmax)
-        return minimize_scalar(
-            self.hamiltonian, bounds=bounds, method='bounded')
+        # Loss function to optimize
+        def loss(logRs):
+            return - self(logRs)
+        res = minimize_scalar(loss, bounds=(self._logrmin, self._logrmax),
+                              method='bounded')
+        return res.x if res.success else numpy.nan
