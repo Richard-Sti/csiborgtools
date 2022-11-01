@@ -5,6 +5,7 @@
 - [ ] Calculate $M_{\rm 500c}$ by sphere shrinking
 - [ ] Calculate the cross-correlation in CSiBORG. Should see the scale of the constraints?
 - [ ] Improve file naming system
+- [x] Change to log10 of the scale factor
 
 
 ## Open questions :bulb:
