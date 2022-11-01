@@ -236,7 +236,7 @@ def pick_single_clump(n, particles, particle_clumps, clumps):
 
 
 class Clump:
-    """
+    r"""
     A clump (halo) object to handle the particles and their clump's data.
 
     Parameters
@@ -265,6 +265,9 @@ class Clump:
         Particle velocity along the z-axis. By default not set.
     index : int, optional
         The halo finder index of this clump. By default not set.
+    rhoc : float, optional
+        The critical density :math:`\rho_c` at this snapshot in box units. By
+        default not set.
     """
     _r = None
     _rmin = None
@@ -275,15 +278,17 @@ class Clump:
     _vel = None
     _Npart = None
     _index = None
+    _rhoc = None
 
     def __init__(self, x, y, z, m, x0, y0, z0, clump_mass=None,
-                 vx=None, vy=None, vz=None, index=None):
+                 vx=None, vy=None, vz=None, index=None, rhoc=None):
         self.pos = (x, y, z, x0, y0, z0)
         self.clump_pos = (x0, y0, z0)
         self.clump_mass = clump_mass
         self.vel = (vx, vy, vz)
         self.m = m
         self.index = index
+        self.rhoc = rhoc
 
     @property
     def pos(self):
@@ -461,6 +466,27 @@ class Clump:
         self._index = n
 
     @property
+    def rhoc(self):
+        """
+        The critical density :math:`\rho_c` at this snapshot in box units.
+
+        Returns
+        -------
+        rhoc : float
+            The critical density.
+        """
+        if self._rhoc is None:
+            raise ValueError("The critical density `rhoc` has not been set.")
+        return self._rhoc
+
+    @rhoc.setter
+    def rhoc(self, rhoc):
+        """Sets the critical density. Makes sure it is > 0."""
+        if rhoc is not None and not rhoc > 0:
+            raise ValueError("Critical density `rho_c` must be > 0")
+        self._rhoc = rhoc
+
+    @property
     def total_particle_mass(self):
         """
         Total mass of all particles.
@@ -528,19 +554,18 @@ class Clump:
         V = 4 * numpy.pi / 3 * (rmax**3 - rmin**3)
         return M / V
 
-    def radius_enclosed_overdensity(self, delta, rhoc):
+    def radius_enclosed_overdensity(self, delta):
         r"""
         Radius of where the mean enclosed spherical density reaches a multiple
-        of the critical radius at a given redshift. Returns `numpy.nan` if the
-        fit does not converge. Note that `rhoc` must be in box units!
+        of the critical radius at a given redshift `self.rho_c`. Returns
+        `numpy.nan` if the fit does not converge. Note that `rhoc` must be in
+        box units!
 
         Parameters
         ----------
         delta : int or float
             The :math:`\delta_{\rm x}` parameters where :math:`\mathrm{x}` is
             the overdensity multiple.
-        rhoc : float
-            The critical density :math:`\rho_c`
 
         Returns
         -------
@@ -550,14 +575,14 @@ class Clump:
         # Loss function to minimise
         def loss(r):
             return abs(self.enclosed_spherical_density(r, self.rmin)
-                       - delta * rhoc)
+                       - delta * self.rhoc)
 
         res = minimize_scalar(loss, bounds=(self.rmin, self.rmax),
                               method='bounded')
         return res.x if res.success else numpy.nan
 
     @classmethod
-    def from_arrays(cls, particles, clump):
+    def from_arrays(cls, particles, clump, rhoc=None):
         """
         Initialises `Halo` from `particles` containing the relevant particle
         information and its `clump` information.
@@ -584,4 +609,4 @@ class Clump:
             vx, vy, vz = (particles[p] for p in ["vx", "vy", "vz"])
         except ValueError:
             vx, vy, vz = None, None, None
-        return cls(x, y, z, m, x0, y0, z0, cl_mass, vx, vy, vz, hindex)
+        return cls(x, y, z, m, x0, y0, z0, cl_mass, vx, vy, vz, hindex, rhoc)
