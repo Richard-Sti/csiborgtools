@@ -262,6 +262,8 @@ class Clump:
         Particle velocity along the y-axis. By default not set.
     vz : 1-dimensional array, optional
         Particle velocity along the z-axis. By default not set.
+    index : int, optional
+        The halo finder index of this clump. By default not set.
     """
     _r = None
     _rmin = None
@@ -271,14 +273,16 @@ class Clump:
     _clump_mass = None
     _vel = None
     _Npart = None
+    _index = None
 
     def __init__(self, x, y, z, m, x0, y0, z0, clump_mass=None,
-                 vx=None, vy=None, vz=None):
+                 vx=None, vy=None, vz=None, index=None):
         self.pos = (x, y, z, x0, y0, z0)
         self.clump_pos = (x0, y0, z0)
         self.clump_mass = clump_mass
         self.vel = (vx, vy, vz)
         self.m = m
+        self.index = index
 
     @property
     def pos(self):
@@ -435,6 +439,27 @@ class Clump:
         self._m = m
 
     @property
+    def index(self):
+        """
+        The halo finder clump index.
+
+        Returns
+        -------
+        hindex : int
+            The index.
+        """
+        if self._index is None:
+            raise ValueError("Halo index `hindex` has not been set.")
+        return self._index
+
+    @index.setter
+    def index(self, n):
+        """Sets the halo index, making sure it is an integer."""
+        if n is not None and not (isinstance(n, (int, numpy.int64)) and n > 0):
+            raise ValueError("Halo index `index` must be an integer > 0")
+        self._index = n
+
+    @property
     def total_particle_mass(self):
         """
         Total mass of all particles.
@@ -498,10 +523,11 @@ class Clump:
             An initialised clump object.
         """
         x, y, z, m = (particles[p] for p in ["x", "y", "z", "M"])
-        x0, y0, z0, cl_mass = (
-            clump[p] for p in ["peak_x", "peak_y", "peak_z", "mass_cl"])
+        x0, y0, z0, cl_mass, hindex = (
+            clump[p] for p in ["peak_x", "peak_y", "peak_z", "mass_cl",
+                               "index"])
         try:
             vx, vy, vz = (particles[p] for p in ["vx", "vy", "vz"])
         except ValueError:
             vx, vy, vz = None, None, None
-        return cls(x, y, z, m, x0, y0, z0, cl_mass, vx, vy, vz)
+        return cls(x, y, z, m, x0, y0, z0, cl_mass, vx, vy, vz, hindex)
