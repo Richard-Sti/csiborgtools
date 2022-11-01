@@ -456,6 +456,25 @@ class Clump:
         """
         return numpy.mean(self.pos + self.clump_pos, axis=0)
 
+    def enclosed_spherical_mass(self, rmax, rmin=0):
+        """
+        The enclosed spherical mass between two radii. All quantities remain
+        in the box units.
+
+        Parameters
+        ----------
+        rmax : float
+            The maximum radial distance.
+        rmin : float, optional
+            The minimum radial distance. By default 0.
+
+        Returns
+        -------
+        Menclosed : float
+            The enclosed mass.
+        """
+        return numpy.sum(self.m[(self.r >= rmin) & (self.r <= rmax)])
+
     @classmethod
     def from_arrays(cls, particles, clump):
         """
