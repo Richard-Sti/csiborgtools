@@ -52,11 +52,11 @@ class BoxUnits:
                 "omega_m", "omega_l", "omega_k", "omega_b",
                 "unit_l", "unit_d", "unit_t"]
         for par in pars:
-            setattr(self, par, float(info[par]))
+            setattr(self, "_" + par, float(info[par]))
 
-        self._cosmo = LambdaCDM(H0=self.H0, Om0=self.omega_m,
-                                Ode0=self.omega_l, Tcmb0=2.725 * units.K,
-                                Ob0=self.omega_b)
+        self._cosmo = LambdaCDM(H0=self._H0, Om0=self._omega_m,
+                                Ode0=self._omega_l, Tcmb0=2.725 * units.K,
+                                Ob0=self._omega_b)
 
     @property
     def cosmo(self):
@@ -71,6 +71,31 @@ class BoxUnits:
         return self._cosmo
 
     @property
+    def H0(self):
+        r"""
+        The Hubble parameter at the time of the snapshot
+        in :math:`\mathrm{Mpc} / \mathrm{km} / \mathrm{s}`.
+
+        Returns
+        -------
+        H0 : float
+            Hubble constant.
+        """
+        return self._H0
+
+    @property
+    def h(self):
+        r"""
+        The little 'h` parameter at the time of the snapshot.
+
+        Returns
+        -------
+        h : float
+            The little h
+        """
+        return self._H0 / 100
+
+    @property
     def box_G(self):
         """
         Gravitational constant :math:`G` in box units. Given everything else
@@ -81,7 +106,7 @@ class BoxUnits:
         G : float
             The gravitational constant.
         """
-        return constants.G.cgs.value * (self.unit_d * self.unit_t ** 2)
+        return constants.G.cgs.value * (self._unit_d * self._unit_t ** 2)
 
     @property
     def box_H0(self):
@@ -93,7 +118,7 @@ class BoxUnits:
         H0 : float
             The Hubble constant.
         """
-        return self.H0 * 1e5 / units.Mpc.to(units.cm) * self.unit_t
+        return self.H0 * 1e5 / units.Mpc.to(units.cm) * self._unit_t
 
     @property
     def box_c(self):
@@ -105,7 +130,7 @@ class BoxUnits:
         c : float
             The speed of light.
         """
-        return constants.c.cgs.value * self.unit_t / self.unit_l
+        return constants.c.cgs.value * self._unit_t / self._unit_l
 
     @property
     def box_rhoc(self):
@@ -136,7 +161,7 @@ class BoxUnits:
         length : foat
             Length in :math:`\mathrm{ckpc}`
         """
-        return length * (self.unit_l / units.kpc.to(units.cm) / self.aexp)
+        return length * (self._unit_l / units.kpc.to(units.cm) / self._aexp)
 
     def kpc2box(self, length):
         r"""
@@ -153,7 +178,7 @@ class BoxUnits:
         length : foat
             Length in box units.
         """
-        return length / (self.unit_l / units.kpc.to(units.cm) / self.aexp)
+        return length / (self._unit_l / units.kpc.to(units.cm) / self._aexp)
 
     def solarmass2box(self, mass):
         r"""
@@ -170,7 +195,7 @@ class BoxUnits:
             Mass in box units.
         """
         Msuncgs = constants.M_sun.cgs.value  # Solar mass in grams
-        return mass / (self.unit_d * self.unit_l**3) * Msuncgs
+        return mass / (self._unit_d * self._unit_l**3) * Msuncgs
 
     def box2solarmass(self, mass):
         r"""
@@ -189,7 +214,7 @@ class BoxUnits:
             Mass in :math:`M_\odot`.
         """
         Msuncgs = constants.M_sun.cgs.value  # Solar mass in grams
-        return mass * (self.unit_d * self.unit_l**3) / Msuncgs
+        return mass * (self._unit_d * self._unit_l**3) / Msuncgs
 
     def box2dens(self, density):
         r"""
@@ -206,7 +231,7 @@ class BoxUnits:
         density : float
             Density in :math:`M_\odot / \mathrm{pc}^3`.
         """
-        return density * self.unit_d / MSUNCGS * (KPC_TO_CM * 1e-3)**3
+        return density * self._unit_d / MSUNCGS * (KPC_TO_CM * 1e-3)**3
 
     def dens2box(self, density):
         r"""
@@ -223,7 +248,4 @@ class BoxUnits:
         density : float
             Density in box units.
         """
-        return density / self.unit_d * MSUNCGS / (KPC_TO_CM * 1e-3)**3
-
-    def __getattr__(self, attr):
-        return self._info[attr]
+        return density / self._unit_d * MSUNCGS / (KPC_TO_CM * 1e-3)**3
