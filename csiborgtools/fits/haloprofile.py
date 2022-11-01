@@ -247,10 +247,10 @@ class NFWPosterior(NFWProfile):
         self._clump = clump
         rmin = self.clump.rmin
         if rmin > self.clump.rmin:
-            self._logrmin = numpy.log(self.clump.rmin)
+            self._logrmin = numpy.log10(self.clump.rmin)
         else:
             r = self.clump.r
-            self._logrmin = numpy.log(numpy.min(r[r > 0]))
+            self._logrmin = numpy.log10(numpy.min(r[r > 0]))
         self._logrmax = numpy.log(self.clump.rmax)
         self._logprior_volume = numpy.log(self._logrmax - self._logrmin)
         # Precalculate useful things
@@ -260,7 +260,7 @@ class NFWPosterior(NFWProfile):
         self._ll0 = numpy.sum(numpy.log(gamma)) - N * self._logMtot
 
     def rho0_from_logRs(self, logRs):
-        """
+        r"""
         Obtain :math:`\rho_0` of the NFW profile from the integral constraint
         on total mass. Calculated as the ratio between the total particle mass
         and the enclosed NFW profile mass.
@@ -276,9 +276,8 @@ class NFWPosterior(NFWProfile):
             The NFW density parameter.
         """
         Mtot = numpy.exp(self._logMtot)
-        Rs = numpy.exp(logRs)
         Mnfw_norm = self.bounded_enclosed_mass(self.clump.rmin,
-                                               self.clump.rmax, Rs, 1)
+                                               self.clump.rmax, 10**logRs, 1)
         return Mtot / Mnfw_norm
 
     def logprior(self, logRs):
@@ -313,7 +312,7 @@ class NFWPosterior(NFWProfile):
         ll : float
             The logarithmic likelihood.
         """
-        Rs = numpy.exp(logRs)
+        Rs = 10**logRs
         # Expected enclosed mass from a NFW
         Mnfw = self.bounded_enclosed_mass(self.clump.rmin, self.clump.rmax,
                                           Rs, 1)
