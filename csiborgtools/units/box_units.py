@@ -26,8 +26,6 @@ class BoxUnits:
     r"""
     Box units class for converting between box and physical units.
 
-    TODO: check factors of :math:`a` in mass and density transformations
-
     Paramaters
     ----------
     Nsnap : int
@@ -35,7 +33,6 @@ class BoxUnits:
     simpath : str
         Path to the simulation where its snapshot index folders are stored.
     """
-    _info = {}
     _cosmo = None
 
     def __init__(self, Nsnap, simpath):
@@ -52,6 +49,7 @@ class BoxUnits:
         self._cosmo = LambdaCDM(H0=self._H0, Om0=self._omega_m,
                                 Ode0=self._omega_l, Tcmb0=2.725 * units.K,
                                 Ob0=self._omega_b)
+        self._Msuncgs = constants.M_sun.cgs.value  # Solar mass in grams
 
     @property
     def cosmo(self):
@@ -189,8 +187,7 @@ class BoxUnits:
         mass : float
             Mass in box units.
         """
-        Msuncgs = constants.M_sun.cgs.value  # Solar mass in grams
-        return mass / (self._unit_d * self._unit_l**3) * Msuncgs
+        return mass / (self._unit_d * self._unit_l**3) * self._Msuncgs
 
     def box2solarmass(self, mass):
         r"""
@@ -208,8 +205,7 @@ class BoxUnits:
         mass : float
             Mass in :math:`M_\odot`.
         """
-        Msuncgs = constants.M_sun.cgs.value  # Solar mass in grams
-        return mass * (self._unit_d * self._unit_l**3) / Msuncgs
+        return mass * (self._unit_d * self._unit_l**3) / self._Msuncgs
 
     def box2dens(self, density):
         r"""
@@ -226,8 +222,8 @@ class BoxUnits:
         density : float
             Density in :math:`M_\odot / \mathrm{pc}^3`.
         """
-        Msuncgs = constants.M_sun.cgs.value  # Solar mass in grams
-        return density * self._unit_d / Msuncgs * (units.pc.to(units.cm))**3
+        return (density * self._unit_d / self._Msuncgs
+                * (units.pc.to(units.cm))**3)
 
     def dens2box(self, density):
         r"""
@@ -244,5 +240,5 @@ class BoxUnits:
         density : float
             Density in box units.
         """
-        Msuncgs = constants.M_sun.cgs.value  # Solar mass in grams
-        return density / self._unit_d * Msuncgs / (units.pc.to(units.cm))**3
+        return (density / self._unit_d * self._Msuncgs
+                / (units.pc.to(units.cm))**3)
