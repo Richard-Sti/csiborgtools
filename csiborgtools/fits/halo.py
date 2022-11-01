@@ -581,6 +581,34 @@ class Clump:
                               method='bounded')
         return res.x if res.success else numpy.nan
 
+    @property
+    def r200(self):
+        r"""
+        Return the radius at which the mean spherical density reaches 200 times
+        the critical density, :math:`R_{200c}`. Returns `numpy.nan` if the
+        estimate fails.
+
+        Returns
+        -------
+        r200 : float
+            The R200c radius
+        """
+        return self.radius_enclosed_overdensity(200)
+
+    @property
+    def r500(self):
+        r"""
+        Return the radius at which the mean spherical density reaches 500 times
+        the critical density, :math:`R_{500c}`. Returns `numpy.nan` if the
+        estimate fails.
+
+        Returns
+        -------
+        r500 : float
+            The R500c radius
+        """
+        return self.radius_enclosed_overdensity(500)
+
     @classmethod
     def from_arrays(cls, particles, clump, rhoc=None):
         """
