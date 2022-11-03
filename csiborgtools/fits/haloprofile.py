@@ -18,9 +18,32 @@ Halo profiles functions and posteriors.
 
 
 import numpy
+from jax import numpy as jnumpy
+from jax import grad
 from scipy.optimize import minimize_scalar
 from scipy.stats import uniform
 from .halo import Clump
+
+
+def jax_switch(f1, f2, use_jax):
+    """
+    Return function `f1` if `use_jax` else return `f2`.
+
+    Parameters
+    ----------
+    f1 : function
+        The JAX function.
+    f2 : function
+        The non-JAX function.
+    use_jax : bool
+        Whether to use the JAX function.
+
+    Returns
+    -------
+    chosen_func : function
+        The chosen function.
+    """
+    return f1 if use_jax else f2
 
 
 class NFWProfile:
@@ -66,7 +89,7 @@ class NFWProfile:
         return rho0 / (x * (1 + x)**2)
 
     @staticmethod
-    def logprofile(r, Rs, rho0):
+    def logprofile(r, Rs, rho0, use_jax=False):
         r"""
         Natural logarithm of the halo profile evaluated at :math:`r`.
 
@@ -78,17 +101,20 @@ class NFWProfile:
             Scale radius :math:`R_s`.
         rho0 : float
             NFW density parameter :math:`\rho_0`.
+        use_jax : bool, optional
+            Whether to use `JAX` expressions. By default `False`.
 
         Returns
         -------
         logdensity : float or 1-dimensional array
             Logarithmic density of the NFW profile at :math:`r`.
         """
+        log = jax_switch(jnumpy.log, numpy.log, use_jax)
         x = r / Rs
-        return numpy.log(rho0) - numpy.log(x) - 2 * numpy.log(1 + x)
+        return log(rho0) - log(x) - 2 * log(1 + x)
 
     @staticmethod
-    def enclosed_mass(r, Rs, rho0):
+    def enclosed_mass(r, Rs, rho0, use_jax=False):
         r"""
         Enclosed mass  of a NFW profile in radius :math:`r`.
 
@@ -100,6 +126,8 @@ class NFWProfile:
             Scale radius :math:`R_s`.
         rho0 : float
             NFW density parameter :math:`\rho_0`.
+        use_jax : bool, optional
+            Whether to use `JAX` expressions. By default `False`.
 
         Returns
         -------
@@ -107,11 +135,11 @@ class NFWProfile:
             The enclosed mass.
         """
         x = r / Rs
-        out = numpy.log(1 + x) - x / (1 + x)
+        out = jax_switch(jnumpy.log, numpy.log, use_jax)(1 + x) - x / (1 + x)
         return 4 * numpy.pi * rho0 * Rs**3 * out
 
-    def bounded_enclosed_mass(self, rmin, rmax, Rs, rho0):
-        """
+    def bounded_enclosed_mass(self, rmin, rmax, Rs, rho0, use_jax=False):
+        r"""
         Calculate the enclosed mass between :math:`r_min <= r <= r_max`.
 
         Parameters
@@ -124,14 +152,16 @@ class NFWProfile:
             Scale radius :math:`R_s`.
         rho0 : float
             NFW density parameter :math:`\rho_0`.
+        use_jax : bool, optional
+            Whether to use `JAX` expressions. By default `False`.
 
         Returns
         -------
         M : float
             The enclosed mass within the radial range.
         """
-        return (self.enclosed_mass(rmax, Rs, rho0)
-                - self.enclosed_mass(rmin, Rs, rho0))
+        return (self.enclosed_mass(rmax, Rs, rho0, use_jax)
+                - self.enclosed_mass(rmin, Rs, rho0, use_jax))
 
     def pdf(self, r, Rs, rmin, rmax):
         r"""
@@ -379,7 +409,7 @@ class NFWPosterior(NFWProfile):
             return - numpy.infty
         return - self._logprior_volume
 
-    def loglikelihood(self, logRs):
+    def loglikelihood(self, logRs, use_jax=False):
         """
         Logarithmic likelihood.
 
@@ -387,6 +417,8 @@ class NFWPosterior(NFWProfile):
         ----------
         logRs : float
             Logarithmic scale factor in units matching the coordinates.
+        use_jax : bool, optional
+            Whether to use `JAX` expressions. By default `False`.
 
         Returns
         -------
@@ -394,11 +426,14 @@ class NFWPosterior(NFWProfile):
             The logarithmic likelihood.
         """
         Rs = 10**logRs
+        log = jnumpy.log if use_jax else numpy.log
         # Expected enclosed mass from a NFW
         Mnfw = self.bounded_enclosed_mass(self.rmin, self.rmax,
-                                          Rs, 1)
-        ll = self._ll0 + numpy.sum(self.logprofile(self.r, Rs, 1))
-        return ll - self.Npart * numpy.log(Mnfw)
+                                          Rs, 1, use_jax)
+        ll = jax_switch(jnumpy.sum, numpy.sum, use_jax)(self.logprofile(
+            self.r, Rs, 1, use_jax))
+        ll += self._ll0
+        return ll - self.Npart * log(Mnfw)
 
     @property
     def initlogRs(self):
@@ -417,7 +452,7 @@ class NFWPosterior(NFWProfile):
         counts, edges = numpy.histogram(self.r, bins)
         return numpy.log10(edges[numpy.argmax(counts)])
 
-    def __call__(self, logRs):
+    def __call__(self, logRs, use_jax=False):
         """
         Logarithmic posterior. Sum of the logarithmic prior and likelihood.
 
@@ -425,6 +460,8 @@ class NFWPosterior(NFWProfile):
         ----------
         logRs : float
             Logarithmic scale factor in units matching the coordinates.
+        use_jax : bool, optional
+            Whether to use `JAX` expressions. By default `False`.
 
         Returns
         -------
@@ -434,7 +471,37 @@ class NFWPosterior(NFWProfile):
         lp = self.logprior(logRs)
         if not numpy.isfinite(lp):
             return - numpy.infty
-        return self.loglikelihood(logRs) + lp
+        return self.loglikelihood(logRs, use_jax) + lp
+
+    def uncertainty_at_maxpost(self, logRs_max):
+        r"""
+        Calculate Gaussian approximation of the uncertainty at `logRs_max`, the
+        maximum a-posteriori esitmate. This is the square root of the negative
+        inverse 2nd derivate of the logarithimic posterior with respect to the
+        logarithm of the scale factor. This is only valid `logRs_max` is the
+        maximum of the posterior!
+
+        This uses `JAX`. The functions should be compiled but unless there is
+        a need for more speed this is fine as it is.
+
+        Parameters
+        ----------
+        logRs_max : float
+            Position :math:`\log R_{\rm s}` to evaluate the uncertainty. Must
+            be the maximum.
+
+        Returns
+        -------
+        uncertainty : float
+            The uncertainty calculated as outlined above.
+        """
+        def f(x):
+            return self(x, use_jax=True)
+
+        # Evaluate the second derivative
+        h = grad(grad(f))(logRs_max)
+        h = float(h)
+        return (- 1 / h)**0.5
 
     def maxpost_logRs(self):
         r"""
