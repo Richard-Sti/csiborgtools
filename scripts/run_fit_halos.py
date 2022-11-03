@@ -44,7 +44,7 @@ nproc = comm.Get_size()
 dumpdir = utils.dumpdir
 loaddir = join(utils.dumpdir, "temp")
 cols_collect = [("npart", I64), ("totpartmass", F64), ("logRs", F64),
-                ("rho0", F64), ("rmin", F64), ("rmax", F64),
+                ("rho0", F64), ("e_logRs", F64), ("rmin", F64), ("rmax", F64),
                 ("r200", F64), ("r178", F64), ("r500", F64),
                 ("m200", F64), ("m178", F64), ("m500", F64)]
 
@@ -59,7 +59,8 @@ for Nsplit in jobs:
 
     N = clumps.size
     cols = [("index", I64), ("npart", I64), ("totpartmass", F64),
-            ("logRs", F64), ("rho0", F64), ("rmin", F64), ("rmax", F64),
+            ("logRs", F64), ("e_logRs", F64), ("rho0", F64),
+            ("rmin", F64), ("rmax", F64),
             ("r200", F64), ("r178", F64), ("r500", F64),
             ("m200", F64), ("m178", F64), ("m500", F64)]
     out = csiborgtools.utils.cols_to_structured(N, cols)
@@ -85,9 +86,10 @@ for Nsplit in jobs:
             # NOTE here it calculates the r200 again, but its fast so does not
             # matter anyway.
             nfwpost = csiborgtools.fits.NFWPosterior(clump)
-            logRs = nfwpost.maxpost_logRs()
+            logRs, e_logRs = nfwpost.maxpost_logRs()
             if not numpy.isnan(logRs):
                 out["logRs"][n] = logRs
+                out["e_logRs"][n] = e_logRs
                 out["rho0"][n] = nfwpost.rho0_from_logRs(logRs)
 
     csiborgtools.io.dump_split(out, Nsplit, Nsim, Nsnap, dumpdir)
