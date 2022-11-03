@@ -5,7 +5,8 @@
 - [x] In `NFWPosterior` correct for the radius in which particles are fitted.
 - [x] Calculate $M_{\rm 500c}$ by sphere shrinking
 - [x] Change to log10 of the scale factor
-- [ ] Calculate uncertainty on $R_{\rm s}$, switch to `JAX` and get gradients.
+- [x] Calculate uncertainty on $R_{\rm s}$, switch to `JAX` and get gradients.
+- [ ] Run the code and obtain concentrations!
 
 
 ## :hourglass: Long-term TODO
