@@ -525,4 +525,4 @@ class NFWPosterior(NFWProfile):
                               method='bounded')
         if not res.success:
             return numpy.nan, numpy.nan
-        return res.x, self.uncertainty_at_maxpost(self.x)
+        return res.x, self.uncertainty_at_maxpost(res.x)
