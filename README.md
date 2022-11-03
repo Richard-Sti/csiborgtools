@@ -7,6 +7,7 @@
 - [x] Change to log10 of the scale factor
 - [x] Calculate uncertainty on $R_{\rm s}$, switch to `JAX` and get gradients.
 - [ ] Run the code and obtain concentrations!
+- [ ] Propagate uncertainty of $\log R_{\rm s}$ to concentration
 
 
 ## :hourglass: Long-term TODO
