@@ -514,10 +514,15 @@ class NFWPosterior(NFWProfile):
         -------
         res : float
             The scale radius.
+        uncertainty : float
+            The uncertainty on the scale radius. Calculated following
+            `self.uncertainty_at_maxpost`.
         """
         # Loss function to optimize
         def loss(logRs):
             return - self(logRs)
         res = minimize_scalar(loss, bounds=(self._logrmin, self._logrmax),
                               method='bounded')
-        return res.x if res.success else numpy.nan
+        if not res.success:
+            return numpy.nan, numpy.nan
+        return res.x, self.uncertainty_at_maxpost(self.x)
