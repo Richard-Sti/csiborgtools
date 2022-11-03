@@ -505,10 +505,16 @@ class NFWPosterior(NFWProfile):
             return numpy.nan
         return (- 1 / h)**0.5
 
-    def maxpost_logRs(self):
+    def maxpost_logRs(self, calc_err=False):
         r"""
         Maximum a-posterio estimate of the scale radius :math:`\log R_{\rm s}`.
         Returns the scale radius if the fit converged, otherwise `numpy.nan`.
+
+        Parameters
+        ----------
+        calc_err : bool, optional
+            Optional toggle to calculate the uncertainty on the scale radius.
+            By default false.
 
         Returns
         -------
@@ -525,4 +531,5 @@ class NFWPosterior(NFWProfile):
                               method='bounded')
         if not res.success:
             return numpy.nan, numpy.nan
-        return res.x, self.uncertainty_at_maxpost(res.x)
+        e_logRs = self.uncertainty_at_maxpost(res.x) if calc_err else numpy.nan
+        return res.x, e_logRs
