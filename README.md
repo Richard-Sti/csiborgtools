@@ -8,6 +8,7 @@
 - [x] Calculate uncertainty on $R_{\rm s}$, switch to `JAX` and get gradients.
 - [ ] Run the code and obtain concentrations!
 - [ ] Propagate uncertainty of $\log R_{\rm s}$ to concentration
+- [ ] Convert from box units when creating the final file
 
 
 ## :hourglass: Long-term TODO
