@@ -59,7 +59,7 @@ for Nsplit in jobs:
 
     N = clumps.size
     cols = [("index", I64), ("npart", I64), ("totpartmass", F64),
-            ("logRs", F64), ("e_logRs", F64), ("rho0", F64), ("conc", F64)
+            ("logRs", F64), ("e_logRs", F64), ("rho0", F64), ("conc", F64),
             ("rmin", F64), ("rmax", F64),
             ("r200", F64), ("r178", F64), ("r500", F64),
             ("m200", F64), ("m178", F64), ("m500", F64)]
