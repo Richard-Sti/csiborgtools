@@ -18,6 +18,7 @@ realisation must have been split in advance by `run_split_halos`.
 """
 
 import numpy
+from datetime import datetime
 from os.path import join
 from mpi4py import MPI
 try:
@@ -50,10 +51,13 @@ cols_collect = [("npart", I64), ("totpartmass", F64), ("logRs", F64),
 
 # NOTE later loop over sims too
 Nsim = Nsims[0]
+simpath = csiborgtools.io.get_sim_path(Nsim)
+box = csiborgtools.units.BoxUnits(Nsnap, simpath)
 
 jobs = csiborgtools.fits.split_jobs(utils.Nsplits, nproc)[rank]
-for Nsplit in jobs:
-    print("Rank {} working on {}.".format(rank, Nsplit))
+for icount, Nsplit in enumerate(jobs):
+    print("{}: rank {} working {} / {} jobs.".format(datetime.now(), rank,
+                                                     icount + 1, len(jobs)))
     parts, part_clumps, clumps = csiborgtools.fits.load_split_particles(
         Nsplit, loaddir, Nsim, Nsnap, remove_split=False)
 
@@ -69,7 +73,7 @@ for Nsplit in jobs:
     for n in range(N):
         # Pick clump and its particles
         xs = csiborgtools.fits.pick_single_clump(n, parts, part_clumps, clumps)
-        clump = csiborgtools.fits.Clump.from_arrays(*xs)
+        clump = csiborgtools.fits.Clump.from_arrays(*xs, rhoc=box.box_rhoc)
         out["npart"][n] = clump.Npart
         out["rmin"][n] = clump.rmin
         out["rmax"][n] = clump.rmax
