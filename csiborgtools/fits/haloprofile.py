@@ -501,6 +501,8 @@ class NFWPosterior(NFWProfile):
         # Evaluate the second derivative
         h = grad(grad(f))(logRs_max)
         h = float(h)
+        if not h < 0:
+            return numpy.nan
         return (- 1 / h)**0.5
 
     def maxpost_logRs(self):
