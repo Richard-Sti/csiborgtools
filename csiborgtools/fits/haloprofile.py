@@ -415,7 +415,7 @@ class NFWPosterior(NFWProfile):
         bins = numpy.linspace(self.rmin, self.rmax,
                               self._binsguess)
         counts, edges = numpy.histogram(self.r, bins)
-        return numpy.log(edges[numpy.argmax(counts)])
+        return numpy.log10(edges[numpy.argmax(counts)])
 
     def __call__(self, logRs):
         """
