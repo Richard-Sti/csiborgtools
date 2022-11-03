@@ -44,8 +44,8 @@ nproc = comm.Get_size()
 dumpdir = utils.dumpdir
 loaddir = join(utils.dumpdir, "temp")
 cols_collect = [("npart", I64), ("totpartmass", F64), ("logRs", F64),
-                ("rho0", F64), ("e_logRs", F64), ("rmin", F64), ("rmax", F64),
-                ("r200", F64), ("r178", F64), ("r500", F64),
+                ("rho0", F64), ("e_logRs", F64), ("conc", F64), ("rmin", F64),
+                ("rmax", F64), ("r200", F64), ("r178", F64), ("r500", F64),
                 ("m200", F64), ("m178", F64), ("m500", F64)]
 
 # NOTE later loop over sims too
@@ -59,7 +59,7 @@ for Nsplit in jobs:
 
     N = clumps.size
     cols = [("index", I64), ("npart", I64), ("totpartmass", F64),
-            ("logRs", F64), ("e_logRs", F64), ("rho0", F64),
+            ("logRs", F64), ("e_logRs", F64), ("rho0", F64), ("conc", F64)
             ("rmin", F64), ("rmax", F64),
             ("r200", F64), ("r178", F64), ("r500", F64),
             ("m200", F64), ("m178", F64), ("m500", F64)]
@@ -74,11 +74,11 @@ for Nsplit in jobs:
         out["rmin"][n] = clump.rmin
         out["rmax"][n] = clump.rmax
         out["totpartmass"][n] = clump.total_particle_mass
-        out["r200"][n] = clump.r200
         out["r178"][n] = clump.r178
+        out["r200"][n] = clump.r200
         out["r500"][n] = clump.r500
-        out["m200"][n] = clump.m200
         out["m178"][n] = clump.m178
+        out["m200"][n] = clump.m200
         out["m500"][n] = clump.m200
 
         # NFW profile fit
@@ -91,6 +91,7 @@ for Nsplit in jobs:
                 out["logRs"][n] = logRs
                 out["e_logRs"][n] = e_logRs
                 out["rho0"][n] = nfwpost.rho0_from_logRs(logRs)
+                out["conc"][n] = out["r178"][n] / 10**logRs
 
     csiborgtools.io.dump_split(out, Nsplit, Nsim, Nsnap, dumpdir)
 
