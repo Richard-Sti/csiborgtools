@@ -533,3 +533,28 @@ class NFWPosterior(NFWProfile):
             return numpy.nan, numpy.nan
         e_logRs = self.uncertainty_at_maxpost(res.x) if calc_err else numpy.nan
         return res.x, e_logRs
+
+
+def bic_criterion(maxlogpost, n_samples, n_params):
+    """
+    Bayesian information criterion [1].
+
+    Paramaters
+    ----------
+    maxlogpost : float
+        Maximum posterior estimate.
+    n_samples : int
+        Number of samples.
+    n_params : int
+        Number of parameters estimated by the model.
+
+    Returns
+    -------
+    bic : float
+        The BIC.
+
+    References
+    ----------
+    [1] https://en.wikipedia.org/wiki/Bayesian_information_criterion
+    """
+    return n_params * numpy.log(n_samples) - 2 * maxlogpost
