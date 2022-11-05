@@ -6,9 +6,11 @@
 - [x] Calculate $M_{\rm 500c}$ by sphere shrinking
 - [x] Change to log10 of the scale factor
 - [x] Calculate uncertainty on $R_{\rm s}$, switch to `JAX` and get gradients.
-- [ ] Run the code and obtain concentrations!
-- [ ] Propagate uncertainty of $\log R_{\rm s}$ to concentration
-- [ ] Convert from box units when creating the final file
+- [ ] Add functions for converting the output file to box units.
+- [ ] Verify the bulk flow of particles and the clump
+- [ ] Check why for some halos $M_{500c} > M_{200c}$
+- [x] Remove again BIC
+
 
 
 ## :hourglass: Long-term TODO
@@ -17,3 +19,4 @@
 
 
 ## :bulb: Open questions
+- Propagate uncertainty of $\log R_{\rm s}$ to concentration

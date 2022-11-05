@@ -83,7 +83,7 @@ for icount, Nsplit in enumerate(jobs):
         out["r500"][n] = clump.r500
         out["m178"][n] = clump.m178
         out["m200"][n] = clump.m200
-        out["m500"][n] = clump.m200
+        out["m500"][n] = clump.m500
 
         # NFW profile fit
         if clump.Npart > 10 and numpy.isfinite(out["r200"][n]):
