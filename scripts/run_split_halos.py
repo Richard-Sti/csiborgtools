@@ -29,7 +29,7 @@ import utils
 
 Nsims = [9844]
 Nsnap = 1016
-partcols = ["x", "y", "z", "M", "level"]
+partcols = ["x", "y", "z", "vx", "vy", "vz", "M", "level"]
 dumpdir = join(utils.dumpdir, "temp")
 
 for Nsim in tqdm(Nsims):
