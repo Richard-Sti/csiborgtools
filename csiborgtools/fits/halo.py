@@ -546,26 +546,6 @@ class Clump:
         """
         return 4 * numpy.pi / 3 * (rmax**3 - rmin**3)
 
-#    def enclosed_spherical_density(self, rmax, rmin=0):
-#        """
-#        Enclosed density within two radii.
-#
-#        Parameters
-#        ----------
-#        rmax : float
-#            The maximum radial distance.
-#        rmin : float, optional
-#            The minimum radial distance. By default 0.
-#
-#        Returns
-#        -------
-#        dens : float
-#            The enclosed spherical density.
-#        """
-#        mass = numpy.sum(self.m[order_particles[i:]])
-#        vol = self.enclosed_spherical_volume(self.r[ind], 0)
-#        density = mass / vol
-
     def spherical_overdensity_mass(self, delta, n_particles_min=10):
         r"""
         Spherical overdensity mass and radius. The mass is defined as the
@@ -615,7 +595,7 @@ class Clump:
                            + self.m[order_particles][0]
                            - numpy.cumsum(self.m[order_particles]))
         # Enclosed volumes at particle radii
-        volumes = 4 * numpy.pi / 3 * self.r[order_particles]**3
+        volumes = self.enclosed_spherical_volume(self.r[order_particles])
         densities = cummass_ordered / volumes
 
         # Pre-allocate arrays
