@@ -509,7 +509,7 @@ class Clump:
         """
         return numpy.mean(self.pos + self.clump_pos, axis=0)
 
-    def enclosed_spherical_mass(self, rmax, rmin=None):
+    def enclosed_spherical_mass(self, rmax, rmin=0):
         """
         The enclosed spherical mass between two radii. All quantities remain
         in the box units.
@@ -519,18 +519,16 @@ class Clump:
         rmax : float
             The maximum radial distance.
         rmin : float, optional
-            The minimum radial distance. By default the radial distance of the
-            closest particle.
+            The minimum radial distance. By default 0.
 
         Returns
         -------
         M_enclosed : float
             The enclosed mass.
         """
-        rmin = self.rmin if rmin is None else rmin
         return numpy.sum(self.m[(self.r >= rmin) & (self.r <= rmax)])
 
-    def enclosed_volume(self, rmax, rmin=None):
+    def enclosed_volume(self, rmax, rmin=0):
         """
         Enclosed volume within two radii.
 
@@ -539,18 +537,16 @@ class Clump:
         rmax : float
             The maximum radial distance.
         rmin : float, optional
-            The minimum radial distance. By default the radial distance of the
-            closest particle.
+            The minimum radial distance. By default 0.
 
         Returns
         -------
         vol : float
             The enclosed volume.
         """
-        rmin = self.rmin if rmin is None else rmin
         return 4 * numpy.pi / 3 * (rmax**3 - rmin**3)
 
-    def spherical_overdensity_mass(self, delta):
+    def spherical_overdensity_mass(self, delta, n_particles_min=10):
         r"""
         Spherical overdensity mass and radius. The mass is defined as the
         enclosed mass within a radius of where the mean enclosed spherical
@@ -568,6 +564,9 @@ class Clump:
         delta : list of int or float
             The :math:`\delta_{\rm x}` parameters where :math:`\mathrm{x}` is
             the overdensity multiple.
+        n_particles_min : int
+            The minimum number of enclosed particles for a radius to be
+            considered trustworthy.
 
         Returns
         -------
@@ -590,24 +589,30 @@ class Clump:
         # Density to aim for
         n_delta = delta.size
         target_density = delta * self.rhoc
-        # Pre-allocate arrays to the maximum values
-        rfound = numpy.ones_like(delta) * self.rmax
-        mfound = numpy.ones_like(rfound) * self.total_particle_mass
+        # Pre-allocate arrays
+        rfound = numpy.full_like(delta, numpy.nan)
+        mfound = numpy.full_like(rfound, numpy.nan)
 
         count = 0
         for i, ind in enumerate(order_particles):
             mass = numpy.sum(self.m[order_particles[i:]])
-            vol = self.enclosed_volume(self.r[ind], self.rmin)
+            vol = self.enclosed_volume(self.r[ind], 0)
             density = mass / vol
+
+            # If less than a few particles inside the radius stop search
+            if self.Npart - i < n_particles_min:
+                break
 
             q = order_delta[count]
             if density > target_density[q]:
+                print(i, "found")
                 rfound[q] = self.r[ind]
                 mfound[q] = mass
                 count += 1
 
             # Stop looping if all found
             if count == n_delta:
+                print(i, "breaking")
                 break
 
         # If only one delta return simply numbers
