@@ -18,7 +18,6 @@ Tools for splitting the particles and a clump object.
 
 
 import numpy
-from scipy.optimize import minimize_scalar
 from os import remove
 from warnings import warn
 from os.path import join
@@ -467,7 +466,7 @@ class Clump:
 
     @property
     def rhoc(self):
-        """
+        r"""
         The critical density :math:`\rho_c` at this snapshot in box units.
 
         Returns
@@ -531,10 +530,9 @@ class Clump:
         rmin = self.rmin if rmin is None else rmin
         return numpy.sum(self.m[(self.r >= rmin) & (self.r <= rmax)])
 
-    def enclosed_spherical_density(self, rmax, rmin=None):
+    def enclosed_volume(self, rmax, rmin=None):
         """
-        The enclosed spherical density between two radii. All quantities
-        remain in box units.
+        Enclosed volume within two radii.
 
         Parameters
         ----------
@@ -546,24 +544,28 @@ class Clump:
 
         Returns
         -------
-        rho_enclosed : float
-            The enclosed density.
+        vol : float
+            The enclosed volume.
         """
         rmin = self.rmin if rmin is None else rmin
-        M = self.enclosed_spherical_mass(rmax, rmin)
-        V = 4 * numpy.pi / 3 * (rmax**3 - rmin**3)
-        return M / V
+        return 4 * numpy.pi / 3 * (rmax**3 - rmin**3)
 
-    def radius_enclosed_overdensity(self, delta):
+    def spherical_overdensity_mass(self, delta):
         r"""
-        Radius of where the mean enclosed spherical density reaches a multiple
-        of the critical radius at a given redshift `self.rho_c`. Returns
-        `numpy.nan` if the fit does not converge. Note that `rhoc` must be in
-        box units!
+        Spherical overdensity mass and radius. The mass is defined as the
+        enclosed mass within a radius of where the mean enclosed spherical
+        density reaches a multiple of the critical radius at a given redshift
+        `self.rho_c`.
+
+        Starts from the furthest particle, working its way inside the halo
+        through an ordered list of particles. The corresponding values is the
+        radial distance of the first particle whose addition sufficiently
+        increases the mean density.
+
 
         Parameters
         ----------
-        delta : int or float
+        delta : list of int or float
             The :math:`\delta_{\rm x}` parameters where :math:`\mathrm{x}` is
             the overdensity multiple.
 
@@ -571,101 +573,48 @@ class Clump:
         -------
         rx : float
             The radius where the enclosed density reaches required value.
+        mx :  float
+            The corresponding spherical enclosed mass.
         """
-        # Loss function to minimise
-        def loss(r):
-            return abs(self.enclosed_spherical_density(r, self.rmin)
-                       - delta * self.rhoc)
+        # If single `delta` turn to list
+        delta = [delta] if isinstance(delta, (float, int)) else delta
+        # If given a list or tuple turn to array
+        _istlist = isinstance(delta, (list, tuple))
+        delta = numpy.asarray(delta, dtype=float) if _istlist else delta
 
-        res = minimize_scalar(loss, bounds=(self.rmin, self.rmax),
-                              method='bounded')
-        return res.x if res.success else numpy.nan
+        # Ordering of deltas
+        order_delta = numpy.argsort(delta)
+        # Sort the particles
+        order_particles = numpy.argsort(self.r)[::-1]
 
-    @property
-    def r200(self):
-        r"""
-        The radius at which the mean spherical density reaches 200 times
-        the critical density, :math:`R_{200c}`. Returns `numpy.nan` if the
-        estimate fails.
+        # Density to aim for & pre-allocate arrays
+        n_delta = delta.size
+        target_density = delta * self.rhoc
+        rfound = numpy.full_like(delta, numpy.nan)
+        mfound = numpy.full_like(rfound, numpy.nan)
 
-        Returns
-        -------
-        r200 : float
-            The R200c radius
-        """
-        return self.radius_enclosed_overdensity(200)
+        count = 0
+        for i, ind in enumerate(order_particles):
+            mass = numpy.sum(self.m[order_particles[i:]])
+            vol = self.enclosed_volume(self.r[ind], self.rmin)
+            density = mass / vol
 
-    @property
-    def r178(self):
-        r"""
-        The radius at which the mean spherical density reaches 178 times
-        the critical density, :math:`R_{178c}`. Returns `numpy.nan` if the
-        estimate fails.
+            q = order_delta[count]
+            if density > target_density[q]:
+                rfound[q] = self.r[ind]
+                mfound[q] = mass
+                count += 1
 
-        Returns
-        -------
-        r178 : float
-            The R178c radius
-        """
-        return self.radius_enclosed_overdensity(178)
+            # Stop looping if all found
+            if count == n_delta:
+                break
 
-    @property
-    def r500(self):
-        r"""
-        The radius at which the mean spherical density reaches 500 times
-        the critical density, :math:`R_{500c}`. Returns `numpy.nan` if the
-        estimate fails.
+        # If only one delta return simply numbers
+        if n_delta == 1:
+            rfound = rfound[0]
+            mfound = mfound[0]
 
-        Returns
-        -------
-        r500 : float
-            The R500c radius
-        """
-        return self.radius_enclosed_overdensity(500)
-
-    @property
-    def m200(self):
-        r"""
-        The mass enclosed within the :math:`R_{200c}` region, obtained from
-        `self.r200`. Returns `numpy.nan` if the radius estimate fails.
-
-        Returns
-        -------
-        m200 : float
-            The M200 mass
-        """
-        r200 = self.radius_enclosed_overdensity(200)
-        return self.enclosed_spherical_mass(r200)
-
-    @property
-    def m178(self):
-        r"""
-        The mass enclosed within the :math:`R_{178c}` region, obtained from
-        `self.r178`. This is approximately the virial mass, though this notion
-        depends on the dynamical state of the clump. Returns `numpy.nan` if
-        the radius estimate fails.
-
-        Returns
-        -------
-        m178 : float
-            The M178 mass
-        """
-        r178 = self.radius_enclosed_overdensity(178)
-        return self.enclosed_spherical_mass(r178)
-
-    @property
-    def m500(self):
-        r"""
-        The mass enclosed within the :math:`R_{500c}` region, obtained from
-        `self.r500`. Returns `numpy.nan` if the radius estimate fails.
-
-        Returns
-        -------
-        m500 : float
-            The M500 mass
-        """
-        r500 = self.radius_enclosed_overdensity(500)
-        return self.enclosed_spherical_mass(r500)
+        return rfound, mfound
 
     @classmethod
     def from_arrays(cls, particles, clump, rhoc=None):
