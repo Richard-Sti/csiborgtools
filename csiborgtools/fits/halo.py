@@ -528,7 +528,7 @@ class Clump:
         """
         return numpy.sum(self.m[(self.r >= rmin) & (self.r <= rmax)])
 
-    def enclosed_volume(self, rmax, rmin=0):
+    def enclosed_spherical_volume(self, rmax, rmin=0):
         """
         Enclosed volume within two radii.
 
@@ -545,6 +545,26 @@ class Clump:
             The enclosed volume.
         """
         return 4 * numpy.pi / 3 * (rmax**3 - rmin**3)
+
+#    def enclosed_spherical_density(self, rmax, rmin=0):
+#        """
+#        Enclosed density within two radii.
+#
+#        Parameters
+#        ----------
+#        rmax : float
+#            The maximum radial distance.
+#        rmin : float, optional
+#            The minimum radial distance. By default 0.
+#
+#        Returns
+#        -------
+#        dens : float
+#            The enclosed spherical density.
+#        """
+#        mass = numpy.sum(self.m[order_particles[i:]])
+#        vol = self.enclosed_spherical_volume(self.r[ind], 0)
+#        density = mass / vol
 
     def spherical_overdensity_mass(self, delta, n_particles_min=10):
         r"""
@@ -585,35 +605,33 @@ class Clump:
         order_delta = numpy.argsort(delta)
         # Sort the particles
         order_particles = numpy.argsort(self.r)[::-1]
-
         # Density to aim for
         n_delta = delta.size
         target_density = delta * self.rhoc
+
+        # The sum of particle masses, starting from the outside
+        # Adds the furtherst particle ensure that the 0th index is tot mass
+        cummass_ordered = (self.total_particle_mass
+                           + self.m[order_particles][0]
+                           - numpy.cumsum(self.m[order_particles]))
+        # Enclosed volumes at particle radii
+        volumes = 4 * numpy.pi / 3 * self.r[order_particles]**3
+        densities = cummass_ordered / volumes
+
         # Pre-allocate arrays
         rfound = numpy.full_like(delta, numpy.nan)
         mfound = numpy.full_like(rfound, numpy.nan)
 
-        count = 0
-        for i, ind in enumerate(order_particles):
-            mass = numpy.sum(self.m[order_particles[i:]])
-            vol = self.enclosed_volume(self.r[ind], 0)
-            density = mass / vol
+        for n in order_delta:
+            overdense_mask = densities > target_density[n]
 
-            # If less than a few particles inside the radius stop search
-            if self.Npart - i < n_particles_min:
-                break
-
-            q = order_delta[count]
-            if density > target_density[q]:
-                print(i, "found")
-                rfound[q] = self.r[ind]
-                mfound[q] = mass
-                count += 1
-
-            # Stop looping if all found
-            if count == n_delta:
-                print(i, "breaking")
-                break
+            # Enforce that we have at least several particles enclosed
+            if numpy.sum(overdense_mask) < n_particles_min:
+                continue
+            # The outermost particle radius where the overdensity is achieved
+            k = numpy.where(overdense_mask)[0][0]
+            rfound[n] = self.r[order_particles][k]
+            mfound[n] = cummass_ordered[k]
 
         # If only one delta return simply numbers
         if n_delta == 1:
