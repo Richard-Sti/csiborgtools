@@ -587,11 +587,12 @@ class Clump:
         # Sort the particles
         order_particles = numpy.argsort(self.r)[::-1]
 
-        # Density to aim for & pre-allocate arrays
+        # Density to aim for
         n_delta = delta.size
         target_density = delta * self.rhoc
-        rfound = numpy.full_like(delta, numpy.nan)
-        mfound = numpy.full_like(rfound, numpy.nan)
+        # Pre-allocate arrays to the maximum values
+        rfound = numpy.ones_like(delta) * self.rmax
+        mfound = numpy.ones_like(rfound) * self.total_particle_mass
 
         count = 0
         for i, ind in enumerate(order_particles):
