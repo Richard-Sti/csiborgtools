@@ -3,7 +3,8 @@
 ## :scroll: Short-term TODO
 - [ ] Add functions for converting the output file to box units.
 - [ ] Verify the bulk flow of particles and the clump
-- [ ] Check why for some halos $M_{500c} > M_{200c}$
+- [ ] Calculate catalogues for all realisations.
+- [x] Check why for some halos $M_{500c} > M_{200c}$
 
 
 
