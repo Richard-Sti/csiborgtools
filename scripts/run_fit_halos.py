@@ -44,10 +44,10 @@ nproc = comm.Get_size()
 
 dumpdir = utils.dumpdir
 loaddir = join(utils.dumpdir, "temp")
-cols_collect = [("npart", I64), ("totpartmass", F64), ("logRs", F64),
-                ("rho0", F64), ("e_logRs", F64), ("conc", F64), ("rmin", F64),
-                ("rmax", F64), ("r200", F64), ("r178", F64), ("r500", F64),
-                ("m200", F64), ("m178", F64), ("m500", F64)]
+cols_collect = [("npart", I64), ("totpartmass", F64), ("Rs", F64),
+                ("rho0", F64), ("conc", F64), ("rmin", F64),
+                ("rmax", F64), ("r200", F64), ("r500", F64),
+                ("m200", F64), ("m500", F64)]
 
 # NOTE later loop over sims too
 Nsim = Nsims[0]
@@ -63,10 +63,9 @@ for icount, Nsplit in enumerate(jobs):
 
     N = clumps.size
     cols = [("index", I64), ("npart", I64), ("totpartmass", F64),
-            ("logRs", F64), ("e_logRs", F64), ("rho0", F64), ("conc", F64),
+            ("Rs", F64), ("rho0", F64), ("conc", F64),
             ("rmin", F64), ("rmax", F64),
-            ("r200", F64), ("r178", F64), ("r500", F64),
-            ("m200", F64), ("m178", F64), ("m500", F64)]
+            ("r200", F64), ("r500", F64), ("m200", F64), ("m500", F64)]
     out = csiborgtools.utils.cols_to_structured(N, cols)
     out["index"] = clumps["index"]
 
@@ -78,24 +77,23 @@ for icount, Nsplit in enumerate(jobs):
         out["rmin"][n] = clump.rmin
         out["rmax"][n] = clump.rmax
         out["totpartmass"][n] = clump.total_particle_mass
-        out["r178"][n] = clump.r178
-        out["r200"][n] = clump.r200
-        out["r500"][n] = clump.r500
-        out["m178"][n] = clump.m178
-        out["m200"][n] = clump.m200
-        out["m500"][n] = clump.m500
+
+        # Spherical overdensity radii and masses
+        rs, ms = clump.spherical_overdensity_mass([200, 500])
+        out["r200"][n] = rs[0]
+        out["r500"][n] = rs[1]
+        out["m200"][n] = ms[0]
+        out["m500"][n] = ms[1]
 
         # NFW profile fit
         if clump.Npart > 10 and numpy.isfinite(out["r200"][n]):
-            # NOTE here it calculates the r200 again, but its fast so does not
-            # matter anyway.
             nfwpost = csiborgtools.fits.NFWPosterior(clump)
-            logRs, e_logRs = nfwpost.maxpost_logRs()
+            logRs, __ = nfwpost.maxpost_logRs()
+            Rs = 10**logRs
             if not numpy.isnan(logRs):
-                out["logRs"][n] = logRs
-                out["e_logRs"][n] = e_logRs
-                out["rho0"][n] = nfwpost.rho0_from_logRs(logRs)
-                out["conc"][n] = out["r178"][n] / 10**logRs
+                out["Rs"][n] = Rs
+                out["rho0"][n] = nfwpost.rho0_from_Rs(Rs)
+                out["conc"][n] = out["r200"][n] / Rs
 
     csiborgtools.io.dump_split(out, Nsplit, Nsim, Nsnap, dumpdir)
 
