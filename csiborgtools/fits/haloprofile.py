@@ -349,7 +349,7 @@ class NFWPosterior(NFWProfile):
         self._clump = clump
         # The minimum separation
         rmin = self.clump.rmin
-        rmax = self.clump.r200
+        rmax, __ = self.clump.spherical_overdensity_mass(200)
         # Set the distances
         self._rmin = rmin
         self._rmax = rmax
@@ -370,7 +370,7 @@ class NFWPosterior(NFWProfile):
         gamma = 4 * numpy.pi * self.r**2 * self.m * self.Npart
         self._ll0 = numpy.sum(numpy.log(gamma)) - self.Npart * self._logMtot
 
-    def rho0_from_logRs(self, logRs):
+    def rho0_from_Rs(self, Rs):
         r"""
         Obtain :math:`\rho_0` of the NFW profile from the integral constraint
         on total mass. Calculated as the ratio between the total particle mass
@@ -387,8 +387,7 @@ class NFWPosterior(NFWProfile):
             The NFW density parameter.
         """
         Mtot = numpy.exp(self._logMtot)
-        Mnfw_norm = self.bounded_enclosed_mass(self.rmin, self.rmax,
-                                               10**logRs, 1)
+        Mnfw_norm = self.bounded_enclosed_mass(self.rmin, self.rmax, Rs, 1)
         return Mtot / Mnfw_norm
 
     def logprior(self, logRs):
