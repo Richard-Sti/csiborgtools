@@ -18,6 +18,7 @@ Notebook utility functions.
 
 
 import numpy
+from os.path import join
 from tqdm import trange
 from astropy.cosmology import FlatLambdaCDM
 
@@ -64,6 +65,27 @@ def load_mmains(N=None, verbose=True):
         j = choices[i]
         out[i] = load_mmain_convert(ids[j])
     return out
+
+
+def load_processed(Nsim, Nsnap):
+    simpath = csiborgtools.io.get_sim_path(Nsim)
+    outfname = join(
+        dumpdir, "ramses_out_{}_{}.npy".format(str(Nsim).zfill(5),
+                                               str(Nsnap).zfill(5)))
+    data = numpy.load(outfname)
+    # Add mmain
+    mmain = csiborgtools.io.read_mmain(Nsim, "/mnt/zfsusers/hdesmond/Mmain")
+    data = csiborgtools.io.merge_mmain_to_clumps(data, mmain)
+    # Cut on numbre of particles and finite m200
+    data = data[(data["npart"] > 100) & numpy.isfinite(data["m200"])]
+
+    # Do unit conversion
+    boxunits = csiborgtools.units.BoxUnits(Nsnap, simpath)
+    convert_cols = ["m200", "m500", "totpartmass", "mass_mmain",
+                    "r200", "r500", "Rs", "rho0", "peak_x", "peak_y", "peak_z"]
+    data = csiborgtools.units.convert_from_boxunits(
+        data, convert_cols, boxunits)
+    return data
 
 
 def load_planck2015(max_comdist=214):
