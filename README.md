@@ -1,8 +1,9 @@
 # CSiBORG tools
 
 ## :scroll: Short-term TODO
-- [ ] Compare empirical $M_{500c}$ to the NFW expectation.
+- [x] Compare empirical $M_{500c}$ to the NFW expectation.
 - [ ] Calculate catalogues for all realisations.
+- [x] Add shortcut function for loading a catalogue
 
 
 ## :hourglass: Long-term TODO
