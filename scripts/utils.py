@@ -65,6 +65,12 @@ def load_planck2015(max_comdist=214):
     return csiborgtools.io.read_planck2015(fpath, cosmo, max_comdist)
 
 
+def load_mcxc(max_comdist=214):
+    cosmo = FlatLambdaCDM(H0=70.5, Om0=0.307, Tcmb0=2.728)
+    fpath = ("/mnt/zfsusers/rstiskalek/csiborgtools/data/mcxc.fits")
+    return csiborgtools.io.read_mcxc(fpath, cosmo, max_comdist)
+
+
 def load_2mpp():
     cosmo = FlatLambdaCDM(H0=70.5, Om0=0.307, Tcmb0=2.728)
     return csiborgtools.io.read_2mpp("../data/2M++_galaxy_catalog.dat", cosmo)
