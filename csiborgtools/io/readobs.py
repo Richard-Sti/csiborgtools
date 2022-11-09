@@ -18,8 +18,9 @@ Scripts to read in observation.
 
 import numpy
 from astropy.io import fits
-
 from ..utils import (add_columns, cols_to_structured)
+
+F64 = numpy.float64
 
 
 def read_planck2015(fpath, dist_cosmo, max_comdist=None):
@@ -37,17 +38,17 @@ def read_planck2015(fpath, dist_cosmo, max_comdist=None):
     dist_cosmo : `astropy.cosmology` object
         The cosmology to calculate cluster comoving distance from redshift.
     max_comdist : float, optional
-        Maximum comoving distance threshold in units of :math:`\mathrm{MPc}`.
+        Maximum comoving distance threshold in units of :math:`\mathrm{Mpc}`.
         By default `None` and no threshold is applied.
+
+    Returns
+    -------
+    out : structured array
+        The catalogue structured array.
 
     References
     ----------
     [1] https://heasarc.gsfc.nasa.gov/W3Browse/all/plancksz2.html
-
-    Returns
-    -------
-    out : `astropy.io.fits.FITS_rec`
-        The catalogue structured array.
     """
     data = fits.open(fpath)[1].data
     # Convert FITS to a structured array
@@ -63,6 +64,59 @@ def read_planck2015(fpath, dist_cosmo, max_comdist=None):
     for par in ("MSZ", "MSZ_ERR_UP", "MSZ_ERR_LOW"):
         out[par] *= 1e14
     # Distance threshold
+    if max_comdist is not None:
+        out = out[out["COMDIST"] < max_comdist]
+
+    return out
+
+
+def read_mcxc(fpath, cosmo, max_comdist=None):
+    r"""
+    Read the MCXC Meta-Catalog of X-Ray Detected Clusters of Galaxies
+    catalogue [1], with data description at [2] and download at [3].
+
+    Parameters
+    ----------
+    fpath : str
+        Path to the source catalogue obtained from [3]. Expected to be the fits
+        file.
+    cosmo : `astropy.cosmology` object
+        The cosmology to calculate cluster comoving distance from redshift and
+        convert their mass.
+    max_comdist : float, optional
+        Maximum comoving distance threshold in units of :math:`\mathrm{Mpc}`.
+        By default `None` and no threshold is applied.
+
+    Returns
+    -------
+    out : structured array
+        The catalogue structured array.
+
+    References
+    ----------
+    [1] https://arxiv.org/abs/1007.1916
+    [2] https://heasarc.gsfc.nasa.gov/W3Browse/rosat/mcxc.html
+    [3] https://cdsarc.cds.unistra.fr/viz-bin/cat/J/A+A/534/A109#/article
+    """
+    data = fits.open(fpath)[1].data
+    hdata = 0.7  # Little h of the catalogue
+
+    cols = [("RAdeg", F64), ("DEdeg", F64), ("z", F64),
+            ("L500", F64), ("M500", F64), ("R500", F64)]
+    out = cols_to_structured(data.size, cols)
+    for col in cols:
+        par = col[0]
+        out[par] = data[par]
+    # Get little h units to match the cosmology
+    out["L500"] *= (hdata / cosmo.h)**2
+    out["M500"] *= (hdata / cosmo.h)**2
+    # Get the 10s back in
+    out["L500"] *= 1e44  # ergs/s
+    out["M500"] *= 1e14  # Msun
+
+    dist = cosmo.comoving_distance(data["z"]).value
+    out = add_columns(out, dist, "COMDIST")
+
     if max_comdist is not None:
         out = out[out["COMDIST"] < max_comdist]
 
