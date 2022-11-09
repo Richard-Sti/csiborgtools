@@ -23,7 +23,7 @@ from ..utils import (add_columns, cols_to_structured)
 F64 = numpy.float64
 
 
-def read_planck2015(fpath, dist_cosmo, max_comdist=None):
+def read_planck2015(fpath, cosmo, max_comdist=None):
     r"""
     Read the Planck 2nd Sunyaev-Zeldovich source catalogue [1]. The following
     is performed:
@@ -35,8 +35,9 @@ def read_planck2015(fpath, dist_cosmo, max_comdist=None):
     ----------
     fpath : str
         Path to the source catalogue.
-    dist_cosmo : `astropy.cosmology` object
-        The cosmology to calculate cluster comoving distance from redshift.
+    cosmo : `astropy.cosmology` object
+        The cosmology to calculate cluster comoving distance from redshift and
+        convert their mass.
     max_comdist : float, optional
         Maximum comoving distance threshold in units of :math:`\mathrm{Mpc}`.
         By default `None` and no threshold is applied.
@@ -51,6 +52,7 @@ def read_planck2015(fpath, dist_cosmo, max_comdist=None):
     [1] https://heasarc.gsfc.nasa.gov/W3Browse/all/plancksz2.html
     """
     data = fits.open(fpath)[1].data
+    hdata = 0.7
     # Convert FITS to a structured array
     out = numpy.full(data.size, numpy.nan, dtype=data.dtype.descr)
     for name in out.dtype.names:
@@ -58,11 +60,12 @@ def read_planck2015(fpath, dist_cosmo, max_comdist=None):
     # Take only clusters with redshifts
     out = out[out["REDSHIFT"] >= 0]
     # Add comoving distance
-    dist = dist_cosmo.comoving_distance(out["REDSHIFT"]).value
+    dist = cosmo.comoving_distance(out["REDSHIFT"]).value
     out = add_columns(out, dist, "COMDIST")
     # Convert masses
     for par in ("MSZ", "MSZ_ERR_UP", "MSZ_ERR_LOW"):
         out[par] *= 1e14
+        out[par] *= (hdata / cosmo.h)**2
     # Distance threshold
     if max_comdist is not None:
         out = out[out["COMDIST"] < max_comdist]
@@ -74,6 +77,11 @@ def read_mcxc(fpath, cosmo, max_comdist=None):
     r"""
     Read the MCXC Meta-Catalog of X-Ray Detected Clusters of Galaxies
     catalogue [1], with data description at [2] and download at [3].
+
+    Note
+    ----
+    The exact mass conversion has non-trivial dependence on :math:`H(z)`, see
+    [1] for more details. However, this should be negligible.
 
     Parameters
     ----------
@@ -116,6 +124,7 @@ def read_mcxc(fpath, cosmo, max_comdist=None):
 
     dist = cosmo.comoving_distance(data["z"]).value
     out = add_columns(out, dist, "COMDIST")
+    out = add_columns(out, data["MCXC"], "name")
 
     if max_comdist is not None:
         out = out[out["COMDIST"] < max_comdist]
