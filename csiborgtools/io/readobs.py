@@ -18,6 +18,8 @@ Scripts to read in observation.
 
 import numpy
 from astropy.io import fits
+from astropy.coordinates import SkyCoord
+from astropy import units as u
 from ..utils import (add_columns, cols_to_structured)
 
 F64 = numpy.float64
@@ -102,7 +104,9 @@ def read_mcxc(fpath, cosmo, max_comdist=None):
 
     References
     ----------
-    [1] https://arxiv.org/abs/1007.1916
+    [1] The MCXC: a meta-catalogue of x-ray detected clusters of galaxies
+        (2011); Piffaretti, R. ;  Arnaud, M. ;  Pratt, G. W. ;  Pointecouteau,
+        E. ;  Melin, J. -B.
     [2] https://heasarc.gsfc.nasa.gov/W3Browse/rosat/mcxc.html
     [3] https://cdsarc.cds.unistra.fr/viz-bin/cat/J/A+A/534/A109#/article
     """
@@ -135,12 +139,17 @@ def read_mcxc(fpath, cosmo, max_comdist=None):
 def read_2mpp(fpath, dist_cosmo):
     """
     Read in the 2M++ galaxy redshift catalogue [1], with the catalogue at [2].
-    Removes fake galaxies used to fill the zone of avoidance.
+    Removes fake galaxies used to fill the zone of avoidance. Note that in
+    principle additional care should be taken for calculating the distance
+    to objects [3]. Currently calculated from the CMB redshift, so some
+    distance estimates may be negative..
 
     Parameters
     ----------
     fpath : str
         File path to the catalogue.
+    cosmo : `astropy.cosmology` object
+        The cosmology to calculate distance from redshift.
 
     Returns
     -------
@@ -151,21 +160,69 @@ def read_2mpp(fpath, dist_cosmo):
     ----------
     [1] The 2M++ galaxy redshift catalogue; Lavaux, Guilhem, Hudson, Michael J.
     [2] https://cdsarc.cds.unistra.fr/viz-bin/cat/J/MNRAS/416/2840#/article
+    [3] Improving NASA/IPAC Extragalactic Database Redshift Calculations
+        (2021); Anthony Carr and Tamara Davis
     """
     from scipy.constants import c
     # Read the catalogue and select non-fake galaxies
     cat = numpy.genfromtxt(fpath, delimiter="|", )
     cat = cat[cat[:, 12] == 0, :]
 
-    F64 = numpy.float64
     cols = [("RA", F64), ("DEC", F64), ("Ksmag", F64), ("ZCMB", F64),
-            ("CDIST_CMB", F64)]
+            ("DIST", F64)]
     out = cols_to_structured(cat.shape[0], cols)
     out["RA"] = cat[:, 1]
     out["DEC"] = cat[:, 2]
     out["Ksmag"] = cat[:, 5]
     out["ZCMB"] = cat[:, 7] / (c * 1e-3)
-    out["CDIST_CMB"] = dist_cosmo.comoving_distance(out["ZCMB"]).value
+    out["DIST"] = cat[:, 7] / dist_cosmo.H0
+    return out
+
+
+def read_2mpp_groups(fpath, dist_cosmo):
+    """
+    Read in the 2M++ galaxy group catalogue [1], with the catalogue at [2].
+    Note that the same caveats apply to the distance calculation as in
+    py:function:`read_2mpp`. See that function for more details.
+
+    Parameters
+    ----------
+    fpath : str
+        File path to the catalogue.
+    cosmo : `astropy.cosmology` object
+        The cosmology to calculate distance from redshift.
+
+    Returns
+    -------
+    out : structured array
+        The catalogue.
+
+    References
+    ----------
+    [1] The 2M++ galaxy redshift catalogue; Lavaux, Guilhem, Hudson, Michael J.
+    [2] https://cdsarc.cds.unistra.fr/viz-bin/cat/J/MNRAS/416/2840#/article
+    [3] Improving NASA/IPAC Extragalactic Database Redshift Calculations
+        (2021); Anthony Carr and Tamara Davis
+    """
+    cat = numpy.genfromtxt(fpath, delimiter="|", )
+
+    cols = [("RA", F64), ("DEC", F64), ("K2mag", F64), ("Rich", numpy.int64),
+            ("dist", F64), ("sigma", F64)]
+    out = cols_to_structured(cat.shape[0], cols)
+
+    out["K2mag"] = cat[:, 3]
+    out["Rich"] = cat[:, 4]
+    out["sigma"] = cat[:, 7]
+    out["dist"] = cat[:, 6] / dist_cosmo.H0
+
+    # Convert galactic coordinates to RA, dec
+    glon = cat[:, 1]
+    glat = cat[:, 2]
+    coords = SkyCoord(l=glon*u.degree, b=glat*u.degree, frame='galactic')
+    coords = coords.transform_to("icrs")
+    out["RA"] = coords.ra
+    out["DEC"] = coords.dec
+
     return out
 
 
