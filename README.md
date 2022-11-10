@@ -4,6 +4,7 @@
 - [x] Add the X-ray clusters
 - [x] Match the X-ray clusters to Planck
 - [ ] Calculate catalogues for all realisations.
+- [ ] Implement Max's halo matching
 
 
 ## :hourglass: Long-term TODO
