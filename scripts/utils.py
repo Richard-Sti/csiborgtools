@@ -86,3 +86,9 @@ def load_mcxc(max_comdist=214):
 def load_2mpp():
     cosmo = FlatLambdaCDM(H0=70.5, Om0=0.307, Tcmb0=2.728)
     return csiborgtools.io.read_2mpp("../data/2M++_galaxy_catalog.dat", cosmo)
+
+
+def load_2mpp_groups():
+    cosmo = FlatLambdaCDM(H0=70.5, Om0=0.307, Tcmb0=2.728)
+    return csiborgtools.io.read_2mpp_groups(
+        "../data/../data/2M++_group_catalog.dat", cosmo)
