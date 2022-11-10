@@ -3,8 +3,6 @@
 ## :scroll: Short-term TODO
 - [x] Add the X-ray clusters
 - [x] Match the X-ray clusters to Planck
-- [ ] Add the Abell catalogue
-- [ ] Model the Planck SZ selection function.
 - [ ] Calculate catalogues for all realisations.
 
 
@@ -15,3 +13,4 @@
 
 
 ## :bulb: Open questions
+- Completeness of clusters. Optical clusters catalogues are a bit of a mess..
