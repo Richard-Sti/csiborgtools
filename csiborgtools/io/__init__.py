@@ -19,5 +19,5 @@ from .readsim import (get_csiborg_ids, get_sim_path, get_snapshots,  # noqa
                       drop_zero_indx,  # noqa
                       read_clumpid, read_clumps, read_mmain,  # noqa
                       merge_mmain_to_clumps)  # noqa
-from .readobs import (read_planck2015, read_mcxc, read_2mpp, read_2mpp_groups, match_planck_to_mcxc)  # noqa
+from .readobs import (PlanckClusters, MCXCClusters, TwoMPPGalaxies, read_2mpp_groups, match_planck_to_mcxc)  # noqa
 from .outsim import (dump_split, combine_splits)  # noqa

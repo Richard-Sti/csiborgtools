@@ -50,6 +50,8 @@ class BaseSurvey:
     @property
     def cosmo(self):
         """Desired cosmology."""
+        if self._cosmo is None:
+            raise ValueError("`cosmo` is not set!")
         return self._cosmo
 
     @property
@@ -178,25 +180,16 @@ class MCXCClusters(BaseSurvey):
         self._data = data
 
 
-def read_2mpp(fpath, dist_cosmo):
+class TwoMPPGalaxies(BaseSurvey):
     """
-    Read in the 2M++ galaxy redshift catalogue [1], with the catalogue at [2].
-    Removes fake galaxies used to fill the zone of avoidance. Note that in
-    principle additional care should be taken for calculating the distance
-    to objects [3]. Currently calculated from the CMB redshift, so some
-    distance estimates may be negative..
+    The 2M++ galaxy redshift catalogue [1], with the catalogue at [2].
+    Removes fake galaxies used to fill the zone of avoidance. Note that the
+    stated redshift is in the CMB frame.
 
     Parameters
     ----------
     fpath : str
         File path to the catalogue.
-    cosmo : `astropy.cosmology` object
-        The cosmology to calculate distance from redshift.
-
-    Returns
-    -------
-    out : structured array
-        The catalogue.
 
     References
     ----------
@@ -205,39 +198,37 @@ def read_2mpp(fpath, dist_cosmo):
     [3] Improving NASA/IPAC Extragalactic Database Redshift Calculations
         (2021); Anthony Carr and Tamara Davis
     """
-    from scipy.constants import c
-    # Read the catalogue and select non-fake galaxies
-    cat = numpy.genfromtxt(fpath, delimiter="|", )
-    cat = cat[cat[:, 12] == 0, :]
 
-    cols = [("RA", F64), ("DEC", F64), ("Ksmag", F64), ("ZCMB", F64),
-            ("DIST", F64)]
-    out = cols_to_structured(cat.shape[0], cols)
-    out["RA"] = cat[:, 1]
-    out["DEC"] = cat[:, 2]
-    out["Ksmag"] = cat[:, 5]
-    out["ZCMB"] = cat[:, 7] / (c * 1e-3)
-    out["DIST"] = cat[:, 7] / dist_cosmo.H0
-    return out
+    def __init__(self, fpath):
+        self._set_data(fpath)
+
+    def _set_data(self, fpath):
+        """
+        Set the catalogue
+        """
+        from scipy.constants import c
+        # Read the catalogue and select non-fake galaxies
+        cat = numpy.genfromtxt(fpath, delimiter="|", )
+        cat = cat[cat[:, 12] == 0, :]
+        # Pre=allocate array and fillt it
+        cols = [("RA", F64), ("DEC", F64), ("Ksmag", F64), ("ZCMB", F64),
+                ("DIST", F64)]
+        data = cols_to_structured(cat.shape[0], cols)
+        data["RA"] = cat[:, 1]
+        data["DEC"] = cat[:, 2]
+        data["Ksmag"] = cat[:, 5]
+        data["ZCMB"] = cat[:, 7] / (c * 1e-3)
+        self._data = data
 
 
-def read_2mpp_groups(fpath, dist_cosmo):
+class TwoMPPGroups(BaseSurvey):
     """
-    Read in the 2M++ galaxy group catalogue [1], with the catalogue at [2].
-    Note that the same caveats apply to the distance calculation as in
-    py:function:`read_2mpp`. See that function for more details.
+    The 2M++ galaxy group catalogue [1], with the catalogue at [2].
 
     Parameters
     ----------
     fpath : str
         File path to the catalogue.
-    cosmo : `astropy.cosmology` object
-        The cosmology to calculate distance from redshift.
-
-    Returns
-    -------
-    out : structured array
-        The catalogue.
 
     References
     ----------
@@ -246,26 +237,31 @@ def read_2mpp_groups(fpath, dist_cosmo):
     [3] Improving NASA/IPAC Extragalactic Database Redshift Calculations
         (2021); Anthony Carr and Tamara Davis
     """
-    cat = numpy.genfromtxt(fpath, delimiter="|", )
 
-    cols = [("RA", F64), ("DEC", F64), ("K2mag", F64), ("Rich", numpy.int64),
-            ("dist", F64), ("sigma", F64)]
-    out = cols_to_structured(cat.shape[0], cols)
+    def __init__(self, fpath):
+        self._set_data(fpath)
 
-    out["K2mag"] = cat[:, 3]
-    out["Rich"] = cat[:, 4]
-    out["sigma"] = cat[:, 7]
-    out["dist"] = cat[:, 6] / dist_cosmo.H0
+    def _set_data(self, fpath):
+        """
+        Set the catalogue
+        """
+        cat = numpy.genfromtxt(fpath, delimiter="|", )
+        # Pre-allocate and fill the array
+        cols = [("RA", F64), ("DEC", F64), ("K2mag", F64),
+                ("Rich", numpy.int64), ("sigma", F64)]
+        data = cols_to_structured(cat.shape[0], cols)
+        data["K2mag"] = cat[:, 3]
+        data["Rich"] = cat[:, 4]
+        data["sigma"] = cat[:, 7]
 
-    # Convert galactic coordinates to RA, dec
-    glon = cat[:, 1]
-    glat = cat[:, 2]
-    coords = SkyCoord(l=glon*u.degree, b=glat*u.degree, frame='galactic')
-    coords = coords.transform_to("icrs")
-    out["RA"] = coords.ra
-    out["DEC"] = coords.dec
-
-    return out
+        # Convert galactic coordinates to RA, dec
+        glon = data[:, 1]
+        glat = data[:, 2]
+        coords = SkyCoord(l=glon*u.degree, b=glat*u.degree, frame='galactic')
+        coords = coords.transform_to("icrs")
+        data["RA"] = coords.ra
+        data["DEC"] = coords.dec
+        self._data = data
 
 
 def match_planck_to_mcxc(planck, mcxc):
@@ -274,7 +270,6 @@ def match_planck_to_mcxc(planck, mcxc):
     the index of the quoted Planck MCXC counterpart in the MCXC array. If not
     found throws an error. For this reason it may be better to make sure the
     MCXC catalogue reaches further.
-
 
     Parameters
     ----------
