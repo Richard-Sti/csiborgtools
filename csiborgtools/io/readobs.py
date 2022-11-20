@@ -112,6 +112,42 @@ class PlanckClusters(BaseSurvey):
             data = data["REDSHIFT" <= max_redshift]
         self._data = data
 
+    def match_to_mcxc(self, mcxc):
+        """
+        Return the MCXC catalogue indices of the Planck catalogue detections.
+        Finds the index of the quoted Planck MCXC counterpart in the MCXC
+        array. If not found throws an error. For this reason it may be better
+        to make sure the MCXC catalogue reaches further.
+
+        Parameters
+        ----------
+        mcxc : :py:class`MCXCClusters`
+            MCXC cluster object.
+
+        Returns
+        -------
+        indxs : list of int
+            Array of MCXC indices to match the Planck array. If no counterpart
+            is found returns `numpy.nan`.
+        """
+        if not isinstance(mcxc, MCXCClusters):
+            raise TypeError("`mcxc` must be `MCXCClusters` type.")
+
+        # Planck MCXC need to be decoded to str
+        planck_names = [name.decode() for name in self["MCXC"]]
+        mcxc_names = [name for name in mcxc["name"]]
+
+        indxs = [numpy.nan] * len(planck_names)
+        for i, name in enumerate(planck_names):
+            if name == "":
+                continue
+            if name in mcxc_names:
+                indxs[i] = mcxc_names.index(name)
+            else:
+                raise ValueError("Planck MCXC identifier `{}` not found in "
+                                 "the MCXC catalogue.".format(name))
+        return indxs
+
 
 class MCXCClusters(BaseSurvey):
     r"""
@@ -262,39 +298,3 @@ class TwoMPPGroups(BaseSurvey):
         data["RA"] = coords.ra
         data["DEC"] = coords.dec
         self._data = data
-
-
-def match_planck_to_mcxc(planck, mcxc):
-    """
-    Return the MCXC catalogue indices of the Planck catalogue detections. Finds
-    the index of the quoted Planck MCXC counterpart in the MCXC array. If not
-    found throws an error. For this reason it may be better to make sure the
-    MCXC catalogue reaches further.
-
-    Parameters
-    ----------
-    planck : structured array
-        The Planck cluster array.
-    mcxc : structured array
-        The MCXC cluster array.
-
-    Returns
-    -------
-    indxs : 1-dimensional array
-        The array of MCXC indices to match the Planck array. If no counterpart
-        is found returns `numpy.nan`.
-    """
-    # Planck MCXC need to be decoded to str
-    planck_names = [name.decode() for name in planck["MCXC"]]
-    mcxc_names = [name for name in mcxc["name"]]
-
-    indxs = [numpy.nan] * len(planck_names)
-    for i, name in enumerate(planck_names):
-        if name == "":
-            continue
-        if name in mcxc_names:
-            indxs[i] = mcxc_names.index(name)
-        else:
-            raise ValueError("Planck MCXC identifies `{}` not found in the "
-                             "MCXC catalogue.".format(name))
-    return indxs
