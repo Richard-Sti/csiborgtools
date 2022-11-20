@@ -24,23 +24,36 @@ from ..units import (BoxUnits, cartesian_to_radec)
 
 
 class HaloCatalogue:
-    """
+    r"""
     Processed halo catalogue, the data should be calculated in `run_fit_halos`.
 
     Parameters
     ----------
-
+    n_sim: int
+        Initial condition index.
+    n_snap: int
+        Snapshot index.
+    minimum_m500 : float, optional
+        The minimum :math:`M_{rm 500c} / M_\odot` mass. By default no
+        threshold.
+    dumpdir : str, optional
+        Path to where files from `run_fit_halos` are stored. By default
+        `/mnt/extraspace/rstiskalek/csiborg/`.
+    mmain_path : str, optional
+        Path to where mmain files are stored. By default
+        `/mnt/zfsusers/hdesmond/Mmain`.
     """
     _box = None
     _n_sim = None
     _n_snap = None
     _data = None
 
-    def __init__(self, n_sim, n_snap,
+    def __init__(self, n_sim, n_snap, minimum_m500=None,
                  dumpdir="/mnt/extraspace/rstiskalek/csiborg/",
                  mmain_path="/mnt/zfsusers/hdesmond/Mmain"):
         self._box = BoxUnits(n_snap, get_sim_path(n_sim))
-        self._set_data(n_sim, n_snap, dumpdir, mmain_path)
+        minimum_m500 = 0 if minimum_m500 is None else minimum_m500
+        self._set_data(n_sim, n_snap, dumpdir, mmain_path, minimum_m500)
         self._nsim = n_sim
         self._nsnap = n_snap
 
@@ -106,7 +119,7 @@ class HaloCatalogue:
         """
         return self._n_sim
 
-    def _set_data(self, n_sim, n_snap, dumpdir, mmain_path):
+    def _set_data(self, n_sim, n_snap, dumpdir, mmain_path, minimum_m500):
         """
         Loads the data, merges with mmain, does various coordinate transforms.
         """
@@ -128,6 +141,9 @@ class HaloCatalogue:
                         "r200", "r500", "Rs", "rho0",
                         "peak_x", "peak_y", "peak_z"]
         data = self.box.convert_from_boxunits(data, convert_cols)
+
+        # Cut on mass
+        data = data[data["m500"] > minimum_m500]
 
         # Now calculate spherical coordinates
         d, ra, dec = cartesian_to_radec(data)
