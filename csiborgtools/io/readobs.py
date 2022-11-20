@@ -26,7 +26,42 @@ from ..utils import (add_columns, cols_to_structured)
 F64 = numpy.float64
 
 
-class PlanckClusters:
+class BaseSurvey:
+    """
+    Base survey class with some methods that are common to all survey classes.
+    """
+    _data = None
+    _cosmo = None
+
+    @property
+    def data(self):
+        """
+        Cluster catalogue.
+
+        Returns
+        -------
+        cat : structured array
+            Catalogue.
+        """
+        if self._data is None:
+            raise ValueError("`data` is not set!")
+        return self._data
+
+    @property
+    def cosmo(self):
+        """Desired cosmology."""
+        return self._cosmo
+
+    @property
+    def keys(self):
+        """Catalogue keys."""
+        return self.data.dtype.names
+
+    def __getitem__(self, key):
+        return self._data[key]
+
+
+class PlanckClusters(BaseSurvey):
     r"""
     Planck 2nd Sunyaev-Zeldovich source catalogue [1]. Automatically removes
     clusters without a redshift estimate.
@@ -46,8 +81,6 @@ class PlanckClusters:
     ----------
     [1] https://heasarc.gsfc.nasa.gov/W3Browse/all/plancksz2.html
     """
-    _data = None
-    _cosmo = None
     _hdata = 0.7  # little h value of the data
 
     def __init__(self, fpath, cosmo=None, max_redshift=None):
@@ -56,18 +89,6 @@ class PlanckClusters:
         else:
             self._cosmo = cosmo
         self.set_data(fpath, max_redshift)
-
-    @property
-    def data(self):
-        """
-        Cluster catalogue.
-
-        Returns
-        -------
-        cat : structured array
-            Catalogue.
-        """
-        return self._data
 
     def set_data(self, fpath, max_redshift=None):
         """
@@ -89,24 +110,11 @@ class PlanckClusters:
             data = data["REDSHIFT" <= max_redshift]
         self._data = data
 
-    @property
-    def cosmo(self):
-        """Desired cosmology."""
-        return self._cosmo
 
-    @property
-    def keys(self):
-        """Catalogue keys."""
-        return self.data.dtype.names
-
-    def __getitem__(self, key):
-        return self._data[key]
-
-
-def read_mcxc(fpath, cosmo, max_comdist=None):
+class MCXCClusters(BaseSurvey):
     r"""
-    Read the MCXC Meta-Catalog of X-Ray Detected Clusters of Galaxies
-    catalogue [1], with data description at [2] and download at [3].
+    MCXC Meta-Catalog of X-Ray Detected Clusters of Galaxies catalogue [1],
+    with data description at [2] and download at [3].
 
     Note
     ----
@@ -118,17 +126,12 @@ def read_mcxc(fpath, cosmo, max_comdist=None):
     fpath : str
         Path to the source catalogue obtained from [3]. Expected to be the fits
         file.
-    cosmo : `astropy.cosmology` object
-        The cosmology to calculate cluster comoving distance from redshift and
-        convert their mass.
-    max_comdist : float, optional
-        Maximum comoving distance threshold in units of :math:`\mathrm{Mpc}`.
-        By default `None` and no threshold is applied.
-
-    Returns
-    -------
-    out : structured array
-        The catalogue structured array.
+    cosmo : `astropy.cosmology` object, optional
+        The cosmology to to convert cluster masses (to first order). By default
+        `FlatLambdaCDM(H0=70.5, Om0=0.307, Tcmb0=2.728)`.
+    max_redshift: float, optional
+        Maximum cluster redshift. By default `None` and no selection is
+        performed.
 
     References
     ----------
@@ -138,30 +141,41 @@ def read_mcxc(fpath, cosmo, max_comdist=None):
     [2] https://heasarc.gsfc.nasa.gov/W3Browse/rosat/mcxc.html
     [3] https://cdsarc.cds.unistra.fr/viz-bin/cat/J/A+A/534/A109#/article
     """
-    data = fits.open(fpath)[1].data
-    hdata = 0.7  # Little h of the catalogue
+    _hdata = 0.7  # Little h of the catalogue
 
-    cols = [("RAdeg", F64), ("DEdeg", F64), ("z", F64),
-            ("L500", F64), ("M500", F64), ("R500", F64)]
-    out = cols_to_structured(data.size, cols)
-    for col in cols:
-        par = col[0]
-        out[par] = data[par]
-    # Get little h units to match the cosmology
-    out["L500"] *= (hdata / cosmo.h)**2
-    out["M500"] *= (hdata / cosmo.h)**2
-    # Get the 10s back in
-    out["L500"] *= 1e44  # ergs/s
-    out["M500"] *= 1e14  # Msun
+    def __init__(self, fpath, cosmo=None, max_redshift=None):
+        if cosmo is None:
+            self._cosmo = FlatLambdaCDM(H0=70.5, Om0=0.307, Tcmb0=2.728)
+        else:
+            self._cosmo = cosmo
+        self._set_data(fpath, max_redshift)
 
-    dist = cosmo.comoving_distance(data["z"]).value
-    out = add_columns(out, dist, "COMDIST")
-    out = add_columns(out, data["MCXC"], "name")
+    def _set_data(self, fpath, max_redshift):
+        """
+        Set the catalogue, loads it and applies a maximum redshift cut.
+        """
+        cat = fits.open(fpath)[1].data
+        # Pre-allocate array and extract selected variables
+        cols = [("RAdeg", F64), ("DEdeg", F64), ("z", F64),
+                ("L500", F64), ("M500", F64), ("R500", F64)]
+        data = cols_to_structured(cat.size, cols)
+        for col in cols:
+            par = col[0]
+            data[par] = cat[par]
+        # Add the cluster names
+        data = add_columns(data, cat["MCXC"], "name")
 
-    if max_comdist is not None:
-        out = out[out["COMDIST"] < max_comdist]
+        # Get little h units to match the cosmology
+        data["L500"] *= (self._hdata / self.cosmo.h)**2
+        data["M500"] *= (self._hdata / self.cosmo.h)**2
+        # Get the 10s back in
+        data["L500"] *= 1e44  # ergs/s
+        data["M500"] *= 1e14  # Msun
 
-    return out
+        if max_redshift is not None:
+            data = data["z" <= max_redshift]
+
+        self._data = data
 
 
 def read_2mpp(fpath, dist_cosmo):
