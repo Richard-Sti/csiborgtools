@@ -19,60 +19,88 @@ Scripts to read in observation.
 import numpy
 from astropy.io import fits
 from astropy.coordinates import SkyCoord
+from astropy.cosmology import FlatLambdaCDM
 from astropy import units as u
 from ..utils import (add_columns, cols_to_structured)
 
 F64 = numpy.float64
 
 
-def read_planck2015(fpath, cosmo, max_comdist=None):
+class PlanckClusters:
     r"""
-    Read the Planck 2nd Sunyaev-Zeldovich source catalogue [1]. The following
-    is performed:
-        - removes clusters without a redshift estimate,
-        - calculates the comoving distance with the provided cosmology.
-        - Converts `MSZ` from units of :math:`1e14 M_\odot` to :math:`M_\odot`
+    Planck 2nd Sunyaev-Zeldovich source catalogue [1]. Automatically removes
+    clusters without a redshift estimate.
 
     Parameters
     ----------
     fpath : str
         Path to the source catalogue.
-    cosmo : `astropy.cosmology` object
-        The cosmology to calculate cluster comoving distance from redshift and
-        convert their mass.
-    max_comdist : float, optional
-        Maximum comoving distance threshold in units of :math:`\mathrm{Mpc}`.
-        By default `None` and no threshold is applied.
-
-    Returns
-    -------
-    out : structured array
-        The catalogue structured array.
+    cosmo : `astropy.cosmology` object, optional
+        Cosmology to convert masses (particularly :math:`H_0`). By default
+        `FlatLambdaCDM(H0=70.5, Om0=0.307, Tcmb0=2.728)`.
+    max_redshift: float, optional
+        Maximum cluster redshift. By default `None` and no selection is
+        performed.
 
     References
     ----------
     [1] https://heasarc.gsfc.nasa.gov/W3Browse/all/plancksz2.html
     """
-    data = fits.open(fpath)[1].data
-    hdata = 0.7
-    # Convert FITS to a structured array
-    out = numpy.full(data.size, numpy.nan, dtype=data.dtype.descr)
-    for name in out.dtype.names:
-        out[name] = data[name]
-    # Take only clusters with redshifts
-    out = out[out["REDSHIFT"] >= 0]
-    # Add comoving distance
-    dist = cosmo.comoving_distance(out["REDSHIFT"]).value
-    out = add_columns(out, dist, "COMDIST")
-    # Convert masses
-    for par in ("MSZ", "MSZ_ERR_UP", "MSZ_ERR_LOW"):
-        out[par] *= 1e14
-        out[par] *= (hdata / cosmo.h)**2
-    # Distance threshold
-    if max_comdist is not None:
-        out = out[out["COMDIST"] < max_comdist]
+    _data = None
+    _cosmo = None
+    _hdata = 0.7  # little h value of the data
 
-    return out
+    def __init__(self, fpath, cosmo=None, max_redshift=None):
+        if cosmo is None:
+            self._cosmo = FlatLambdaCDM(H0=70.5, Om0=0.307, Tcmb0=2.728)
+        else:
+            self._cosmo = cosmo
+        self.set_data(fpath, max_redshift)
+
+    @property
+    def data(self):
+        """
+        Cluster catalogue.
+
+        Returns
+        -------
+        cat : structured array
+            Catalogue.
+        """
+        return self._data
+
+    def set_data(self, fpath, max_redshift=None):
+        """
+        Set the catalogue, loads it and applies a maximum redshift cut.
+        """
+        cat = fits.open(fpath)[1].data
+        # Convert FITS to a structured array
+        data = numpy.full(cat.size, numpy.nan, dtype=cat.dtype.descr)
+        for name in cat.dtype.names:
+            data[name] = cat[name]
+        # Take only clusters with redshifts
+        data = data[data["REDSHIFT"] >= 0]
+        # Convert masses
+        for par in ("MSZ", "MSZ_ERR_UP", "MSZ_ERR_LOW"):
+            data[par] *= 1e14
+            data[par] *= (self._hdata / self.cosmo.h)**2
+        # Redshift cut
+        if max_redshift is not None:
+            data = data["REDSHIFT" <= max_redshift]
+        self._data = data
+
+    @property
+    def cosmo(self):
+        """Desired cosmology."""
+        return self._cosmo
+
+    @property
+    def keys(self):
+        """Catalogue keys."""
+        return self.data.dtype.names
+
+    def __getitem__(self, key):
+        return self._data[key]
 
 
 def read_mcxc(fpath, cosmo, max_comdist=None):
