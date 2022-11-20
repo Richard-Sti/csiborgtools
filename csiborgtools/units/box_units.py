@@ -329,65 +329,59 @@ class BoxUnits:
         return (density / self._unit_d * self._Msuncgs
                 / (units.Mpc.to(units.cm))**3)
 
+    def convert_from_boxunits(self, data, names):
+        r"""
+        Convert columns named `names` in array `data` from box units to
+        physical units, such that
+            - length -> :math:`Mpc`,
+            - mass -> :math:`M_\odot`,
+            - density -> :math:`M_\odot / \mathrm{Mpc}^3`.
 
-def convert_from_boxunits(data, names, boxunits):
-    r"""
-    Convert columns named `names` in array `data` from box units to physical
-    units, such that
-        - length -> :math:`Mpc`,
-        - mass -> :math:`M_\odot`,
-        - density -> :math:`M_\odot / \mathrm{Mpc}^3`.
-    Any other conversions are currently not implemented. Note that the array
-    is passed by reference and directly modified, even though it is also
-    explicitly returned. Additionally centres the box coordinates on the
-    observer, if they are being transformed.
+        Any other conversions are currently not implemented. Note that the
+        array is passed by reference and directly modified, even though it is
+        also explicitly returned. Additionally centres the box coordinates on
+        the observer, if they are being transformed.
 
-    Parameters
-    ----------
-    data : structured array
-        Input array.
-    names : list of str
-        Columns to be converted.
-    boxunits : `BoxUnits`
-        Box units class of the simulation and snapshot.
+        Parameters
+        ----------
+        data : structured array
+            Input array.
+        names : list of str
+            Columns to be converted.
 
-    Returns
-    -------
-    data : structured array
-        Input array with converted columns.
-    """
-    if not isinstance(boxunits, BoxUnits):
-        raise TypeError("`boxunits` must be of type `{}`. Currently `{}`."
-                        .format(BoxUnits, type(boxunits)))
-    names = [names] if isinstance(names, str) else names
+        Returns
+        -------
+        data : structured array
+            Input array with converted columns.
+        """
+        names = [names] if isinstance(names, str) else names
 
-    # Shortcut for the transform functions
-    transforms = {
-        "length": boxunits.box2mpc,
-        "mass": boxunits.box2solarmass,
-        "density": boxunits.box2dens
-        }
+        # Shortcut for the transform functions
+        transforms = {
+            "length": self.box2mpc,
+            "mass": self.box2solarmass,
+            "density": self.box2dens
+            }
 
-    for name in names:
-        # Check that the name is even in the array
-        if name not in data.dtype.names:
-            raise ValueError("Name `{}` is not in `data` array.".format(name))
+        for name in names:
+            # Check that the name is even in the array
+            if name not in data.dtype.names:
+                raise ValueError("Name `{}` not in `data` array.".format(name))
 
-        # Convert
-        found = False
-        for unittype, suppnames in CONV_NAME.items():
-            if name in suppnames:
-                data[name] = transforms[unittype](data[name])
-                found = True
-                continue
-        # If nothing found
-        if not found:
-            raise NotImplementedError(
-                "Conversion of `{}` is not defined.".format(name))
+            # Convert
+            found = False
+            for unittype, suppnames in CONV_NAME.items():
+                if name in suppnames:
+                    data[name] = transforms[unittype](data[name])
+                    found = True
+                    continue
+            # If nothing found
+            if not found:
+                raise NotImplementedError(
+                    "Conversion of `{}` is not defined.".format(name))
 
-        # Center at the observer
-        if name in ["peak_x", "peak_y", "peak_z"]:
-            data[name] -= transforms["length"](0.5)
-            data[name] -= (0.5)
+            # Center at the observer
+            if name in ["peak_x", "peak_y", "peak_z"]:
+                data[name] -= transforms["length"](0.5)
 
-    return data
+        return data
