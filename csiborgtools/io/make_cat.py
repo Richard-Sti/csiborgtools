@@ -19,6 +19,7 @@ Functions to read in the particle and clump files.
 import numpy
 from os.path import join
 from tqdm import trange
+from sklearn.neighbors import NearestNeighbors
 from .readsim import (get_sim_path, read_mmain, get_csiborg_ids,
                       get_maximum_snapshot)
 from ..utils import (flip_cols, add_columns)
@@ -49,6 +50,8 @@ class HaloCatalogue:
     _n_sim = None
     _n_snap = None
     _data = None
+    _knn = None
+    _positions = None
 
     def __init__(self, n_sim, n_snap, minimum_m500=None,
                  dumpdir="/mnt/extraspace/rstiskalek/csiborg/",
@@ -58,6 +61,10 @@ class HaloCatalogue:
         self._set_data(n_sim, n_snap, dumpdir, mmain_path, minimum_m500)
         self._nsim = n_sim
         self._nsnap = n_snap
+        # Initialise the KNN
+        knn = NearestNeighbors()
+        knn.fit(self.positions)
+        self._knn = knn
 
     @property
     def data(self):
@@ -150,6 +157,11 @@ class HaloCatalogue:
         # Now calculate spherical coordinates
         d, ra, dec = cartesian_to_radec(data)
         data = add_columns(data, [d, ra, dec], ["dist", "ra", "dec"])
+
+        # Pre-allocate the positions array
+        self._positions = numpy.vstack(
+            [data["peak_{}".format(p)] for p in ("x", "y", "z")]).T
+
         self._data = data
 
     def merge_mmain_to_clumps(self, clumps, mmain):
@@ -189,8 +201,33 @@ class HaloCatalogue:
             Array of shape `(n_halos, 3)`, where the latter axis represents
             `x`, `y` and `z`.
         """
-        return numpy.vstack(
-            [self["peak_{}".format(p)] for p in ("x", "y", "z")]).T
+        return self._positions
+
+    def knn_position(self, X, k):
+        """
+        Return `k` 3D nearest neighbours to positions specified by `X`.
+
+        Parameters
+        ----------
+        X : 2-dimensional array
+            Array of shape `(n_queries, 3)`, where the latter axis represents
+            `x`, `y` and `z`.
+        k : int
+            Number of nearest neighbours to search for.
+
+        Returns
+        -------
+        dist : 2-dimensional array
+            Array of 3D distances to the nearest neighbours of shape
+            `(n_queries, k)`.
+        knns : 2-dimensional array
+            Array of nearest neighbour indices linking to this catalog of
+            shape `(n_queries, k)`.
+        """
+        if not (X.ndim == 2 and X.shape[1] == 3):
+            raise TypeError("`X` must be an array of shape `(n_samples, 3)`.")
+        # Query the KNN
+        return self._knn.kneighbors(X, k)
 
     @property
     def keys(self):
@@ -210,7 +247,7 @@ class CombinedHaloCatalogue:
                  dumpdir="/mnt/extraspace/rstiskalek/csiborg/",
                  mmain_path="/mnt/zfsusers/hdesmond/Mmain", verbose=True):
         # Read simulations and their maximum snapshots
-        self._n_sims = get_csiborg_ids("/mnt/extraspace/hdesmond")[:1]
+        self._n_sims = get_csiborg_ids("/mnt/extraspace/hdesmond")[:2]
         n_snaps = [get_maximum_snapshot(get_sim_path(i)) for i in self._n_sims]
         self._n_snaps = numpy.asanyarray(n_snaps)
 
