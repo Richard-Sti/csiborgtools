@@ -69,6 +69,17 @@ def brute_spatial_separation(c1, c2, angular=False, N=None, verbose=False):
 
 
 class RealisationsMatcher:
+    """
+    A tool to match halos between IC realisations. Looks for halos 3D space
+    neighbours in all remaining IC realisations that are within some mass
+    range of it.
+
+
+    Parameters
+    ----------
+    cats : :py:class`csiborgtools.read.CombinedHaloCatalogue`
+        Combined halo catalogue to search.
+    """
     _cats = None
 
     def __init__(self, cats):
@@ -76,10 +87,21 @@ class RealisationsMatcher:
 
     @property
     def cats(self):
+        """
+        Combined catalogues.
+
+        Returns
+        -------
+        cats : :py:class`csiborgtools.read.CombinedHaloCatalogue`
+            Combined halo catalogue.
+        """
         return self._cats
 
     @cats.setter
     def cats(self, cats):
+        """
+        Sets `cats`, ensures that this is a `CombinedHaloCatalogue` object.
+        """
         if not isinstance(cats, CombinedHaloCatalogue):
             raise TypeError("`cats` must be of type `CombinedHaloCatalogue`.")
         self._cats = cats
