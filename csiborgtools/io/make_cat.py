@@ -247,7 +247,8 @@ class CombinedHaloCatalogue:
                  dumpdir="/mnt/extraspace/rstiskalek/csiborg/",
                  mmain_path="/mnt/zfsusers/hdesmond/Mmain", verbose=True):
         # Read simulations and their maximum snapshots
-        self._n_sims = get_csiborg_ids("/mnt/extraspace/hdesmond")[:2]
+        # NOTE remove this later
+        self._n_sims = get_csiborg_ids("/mnt/extraspace/hdesmond")[:5]
         n_snaps = [get_maximum_snapshot(get_sim_path(i)) for i in self._n_sims]
         self._n_snaps = numpy.asanyarray(n_snaps)
 
