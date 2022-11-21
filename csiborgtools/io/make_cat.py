@@ -203,31 +203,31 @@ class HaloCatalogue:
         """
         return self._positions
 
-    def knn_position(self, X, k):
+    def radius_neigbours(self, X, radius):
         """
-        Return `k` 3D nearest neighbours to positions specified by `X`.
+        Return sorted nearest neigbours within `radius` or `X`.
 
         Parameters
         ----------
         X : 2-dimensional array
             Array of shape `(n_queries, 3)`, where the latter axis represents
             `x`, `y` and `z`.
-        k : int
-            Number of nearest neighbours to search for.
+        radius : float
+            Limiting distance of neighbours.
 
         Returns
         -------
-        dist : 2-dimensional array
-            Array of 3D distances to the nearest neighbours of shape
-            `(n_queries, k)`.
-        knns : 2-dimensional array
-            Array of nearest neighbour indices linking to this catalog of
-            shape `(n_queries, k)`.
+        dist : list of 1-dimensional arrays
+            List of length `n_queries` whose elements are arrays of distances
+            to the nearest neighbours.
+        knns : list of 1-dimensional arrays
+            List of length `n_queries` whose elements are arrays of indices of
+            nearest neighbours in this catalogue.
         """
         if not (X.ndim == 2 and X.shape[1] == 3):
             raise TypeError("`X` must be an array of shape `(n_samples, 3)`.")
         # Query the KNN
-        return self._knn.kneighbors(X, k)
+        return self._knn.radius_neighbors(X, radius, sort_results=True)
 
     @property
     def keys(self):
@@ -266,7 +266,7 @@ class CombinedHaloCatalogue:
                  mmain_path="/mnt/zfsusers/hdesmond/Mmain", verbose=True):
         # Read simulations and their maximum snapshots
         # NOTE remove this later and take all cats
-        self._n_sims = get_csiborg_ids("/mnt/extraspace/hdesmond")[:5]
+        self._n_sims = get_csiborg_ids("/mnt/extraspace/hdesmond")[:3]
         n_snaps = [get_maximum_snapshot(get_sim_path(i)) for i in self._n_sims]
         self._n_snaps = numpy.asanyarray(n_snaps)
 
