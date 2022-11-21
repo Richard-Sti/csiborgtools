@@ -20,7 +20,7 @@ import numpy
 from scipy.interpolate import interp1d
 from astropy.cosmology import LambdaCDM
 from astropy import (constants, units)
-from ..io import read_info
+from ..read import read_info
 
 
 # Map of unit conversions
