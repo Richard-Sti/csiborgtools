@@ -144,7 +144,7 @@ class HaloCatalogue:
                         "peak_x", "peak_y", "peak_z"]
         data = self.box.convert_from_boxunits(data, convert_cols)
 
-        # Cut on mass
+        # Cut on mass. Note that this is in Msun
         data = data[data["m500"] > minimum_m500]
 
         # Now calculate spherical coordinates
@@ -179,6 +179,20 @@ class HaloCatalogue:
         return add_columns(clumps, X, ["mass_mmain", "sub_frac"])
 
     @property
+    def positions(self):
+        """
+        3D positions of halos.
+
+        Returns
+        -------
+        X : 2-dimensional array
+            Array of shape `(n_halos, 3)`, where the latter axis represents
+            `x`, `y` and `z`.
+        """
+        return numpy.vstack(
+            [self["peak_{}".format(p)] for p in ("x", "y", "z")]).T
+
+    @property
     def keys(self):
         """Catalogue keys."""
         return self.data.dtype.names
@@ -196,7 +210,7 @@ class CombinedHaloCatalogue:
                  dumpdir="/mnt/extraspace/rstiskalek/csiborg/",
                  mmain_path="/mnt/zfsusers/hdesmond/Mmain", verbose=True):
         # Read simulations and their maximum snapshots
-        self._n_sims = get_csiborg_ids("/mnt/extraspace/hdesmond")[:3]
+        self._n_sims = get_csiborg_ids("/mnt/extraspace/hdesmond")[:1]
         n_snaps = [get_maximum_snapshot(get_sim_path(i)) for i in self._n_sims]
         self._n_snaps = numpy.asanyarray(n_snaps)
 
