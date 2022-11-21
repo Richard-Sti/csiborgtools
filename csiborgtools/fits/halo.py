@@ -22,7 +22,7 @@ from os import remove
 from warnings import warn
 from os.path import join
 from tqdm import trange
-from ..io import nparts_to_start_ind
+from ..read import nparts_to_start_ind
 
 
 def clump_with_particles(particle_clumps, clumps):
