@@ -47,13 +47,13 @@ cols_collect = [("npart", I64), ("totpartmass", F64), ("Rs", F64),
                 ("rmax", F64), ("r200", F64), ("r500", F64),
                 ("m200", F64), ("m500", F64)]
 
-Nsims = csiborgtools.io.get_csiborg_ids("/mnt/extraspace/hdesmond")
+Nsims = csiborgtools.read.get_csiborg_ids("/mnt/extraspace/hdesmond")
 for i, Nsim in enumerate(Nsims):
     if rank == 0:
         print("{}: calculating {}th simulation.".format(datetime.now(), i))
 
-    simpath = csiborgtools.io.get_sim_path(Nsim)
-    Nsnap = csiborgtools.io.get_maximum_snapshot(simpath)
+    simpath = csiborgtools.read.get_sim_path(Nsim)
+    Nsnap = csiborgtools.read.get_maximum_snapshot(simpath)
     box = csiborgtools.units.BoxUnits(Nsnap, simpath)
 
     jobs = csiborgtools.fits.split_jobs(utils.Nsplits, nproc)[rank]
@@ -100,7 +100,7 @@ for i, Nsim in enumerate(Nsims):
                     out["rho0"][n] = nfwpost.rho0_from_Rs(Rs)
                     out["conc"][n] = out["r200"][n] / Rs
 
-        csiborgtools.io.dump_split(out, Nsplit, Nsim, Nsnap, dumpdir)
+        csiborgtools.read.dump_split(out, Nsplit, Nsim, Nsnap, dumpdir)
 
     # Wait until all jobs finished before moving to another simulation
     comm.Barrier()
@@ -108,7 +108,7 @@ for i, Nsim in enumerate(Nsims):
     # Use the rank 0 to combine outputs for this CSiBORG realisation
     if rank == 0:
         print("Collecting results!")
-        out_collected = csiborgtools.io.combine_splits(
+        out_collected = csiborgtools.read.combine_splits(
             utils.Nsplits, Nsim, Nsnap, utils.dumpdir, cols_collect,
             remove_splits=True, verbose=False)
         fname = join(utils.dumpdir, "ramses_out_{}_{}.npy"
