@@ -18,6 +18,6 @@ from .readsim import (get_csiborg_ids, get_sim_path, get_snapshots,  # noqa
                       open_particle, open_unbinding, read_particle,  # noqa
                       drop_zero_indx,  # noqa
                       read_clumpid, read_clumps, read_mmain)  # noqa
-from .make_cat import HaloCatalogue  # noqa
+from .make_cat import (HaloCatalogue, CombinedHaloCatalogue)  # noqa
 from .readobs import (PlanckClusters, MCXCClusters, TwoMPPGalaxies, TwoMPPGroups)  # noqa
 from .outsim import (dump_split, combine_splits)  # noqa
