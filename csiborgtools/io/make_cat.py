@@ -239,6 +239,24 @@ class HaloCatalogue:
 
 
 class CombinedHaloCatalogue:
+    r"""
+    A combined halo catalogue, containing `HaloCatalogue` for each IC
+    realisation at the latest redshift.
+
+    Parameters
+    ----------
+    minimum_m500 : float, optional
+        The minimum :math:`M_{rm 500c} / M_\odot` mass. By default no
+        threshold.
+    dumpdir : str, optional
+        Path to where files from `run_fit_halos` are stored. By default
+        `/mnt/extraspace/rstiskalek/csiborg/`.
+    mmain_path : str, optional
+        Path to where mmain files are stored. By default
+        `/mnt/zfsusers/hdesmond/Mmain`.
+    verbose : bool, optional
+        Verbosity flag for reading the catalogues.
+    """
     _n_sims = None
     _n_snaps = None
     _cats = None
@@ -247,7 +265,7 @@ class CombinedHaloCatalogue:
                  dumpdir="/mnt/extraspace/rstiskalek/csiborg/",
                  mmain_path="/mnt/zfsusers/hdesmond/Mmain", verbose=True):
         # Read simulations and their maximum snapshots
-        # NOTE remove this later
+        # NOTE remove this later and take all cats
         self._n_sims = get_csiborg_ids("/mnt/extraspace/hdesmond")[:5]
         n_snaps = [get_maximum_snapshot(get_sim_path(i)) for i in self._n_sims]
         self._n_snaps = numpy.asanyarray(n_snaps)
