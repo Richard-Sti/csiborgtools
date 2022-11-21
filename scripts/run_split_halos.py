@@ -34,7 +34,7 @@ comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 nproc = comm.Get_size()
 
-Nsims = csiborgtools.io.get_csiborg_ids("/mnt/extraspace/hdesmond")
+Nsims = csiborgtools.read.get_csiborg_ids("/mnt/extraspace/hdesmond")
 partcols = ["x", "y", "z", "vx", "vy", "vz", "M", "level"]
 dumpdir = join(utils.dumpdir, "temp")
 
@@ -43,16 +43,16 @@ for icount, sim_index in enumerate(jobs):
     print("{}: rank {} working {} / {} jobs.".format(datetime.now(), rank,
                                                      icount + 1, len(jobs)))
     Nsim = Nsims[sim_index]
-    simpath = csiborgtools.io.get_sim_path(Nsim)
-    Nsnap = csiborgtools.io.get_maximum_snapshot(simpath)
+    simpath = csiborgtools.read.get_sim_path(Nsim)
+    Nsnap = csiborgtools.read.get_maximum_snapshot(simpath)
     # Load the clumps, particles' clump IDs and particles.
-    clumps = csiborgtools.io.read_clumps(Nsnap, simpath)
-    particle_clumps = csiborgtools.io.read_clumpid(Nsnap, simpath,
-                                                   verbose=False)
-    particles = csiborgtools.io.read_particle(partcols, Nsnap, simpath,
-                                              verbose=False)
+    clumps = csiborgtools.read.read_clumps(Nsnap, simpath)
+    particle_clumps = csiborgtools.read.read_clumpid(Nsnap, simpath,
+                                                     verbose=False)
+    particles = csiborgtools.read.read_particle(partcols, Nsnap, simpath,
+                                                verbose=False)
     # Drop all particles whose clump index is 0 (not assigned to any halo)
-    particle_clumps, particles = csiborgtools.io.drop_zero_indx(
+    particle_clumps, particles = csiborgtools.read.drop_zero_indx(
         particle_clumps, particles)
     # Dump it!
     csiborgtools.fits.dump_split_particles(particles, particle_clumps, clumps,
