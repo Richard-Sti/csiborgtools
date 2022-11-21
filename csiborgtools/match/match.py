@@ -106,6 +106,22 @@ class RealisationsMatcher:
             raise TypeError("`cats` must be of type `CombinedHaloCatalogue`.")
         self._cats = cats
 
+    def search_sim_indices(self, n_sim):
+        """
+        Return indices of all other IC realisations but of `n_sim`.
+
+        Parameters
+        ----------
+        n_sim : int
+            IC realisation index of `self.cats` to be skipped.
+
+        Returns
+        -------
+        indxs : list of int
+            The remaining IC indices.
+        """
+        return [i for i in range(self.cats.N) if i != n_sim]
+
     def cross_knn_position_single(self, n_sim, nmult=5, dlogmass=2):
         r"""
         Find all neighbours within :math:`n_{\rm mult} R_{200c}` of halos in
@@ -131,15 +147,14 @@ class RealisationsMatcher:
             `dist`, which is the 3D distance to the halo whose neighbours are
             searched.
         """
-        N = self.cats.N  # Number of catalogues
         # R200c, M200c and positions of halos in `n_sim` IC realisation
         r200 = self.cats[n_sim]["r200"]
         logm200 = numpy.log10(self.cats[n_sim]["m200"])
         pos = self.cats[n_sim].positions
 
-        matches = [None] * (N - 1)
+        matches = [None] * (self.cats.N - 1)
         # Search for neighbours in the other simulations
-        for count, i in enumerate([i for i in range(N) if i != n_sim]):
+        for count, i in enumerate(self.search_sim_indices(n_sim)):
             dist, indxs = self.cats[i].radius_neigbours(pos, r200 * nmult)
             # Get rid of neighbors whose mass is too off
             for j, indx in enumerate(indxs):
