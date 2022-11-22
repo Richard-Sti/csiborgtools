@@ -44,14 +44,14 @@ def clump_with_particles(particle_clumps, clumps):
     return numpy.isin(clumps["index"], particle_clumps)
 
 
-def distribute_halos(Nsplits, clumps):
+def distribute_halos(n_splits, clumps):
     """
     Evenly distribute clump indices to smaller splits. Clumps should only be
     clumps that contain particles.
 
     Parameters
     ----------
-    Nsplits : int
+    n_splits : int
         Number of splits.
     clumps : structured array
         The clumps array.
@@ -59,22 +59,23 @@ def distribute_halos(Nsplits, clumps):
     Returns
     -------
     splits : 2-dimensional array
-        Array of starting and ending indices of each CPU of shape `(Njobs, 2)`.
+        Array of starting and ending indices of each CPU of shape
+        `(njobs, 2)`.
     """
     # Make sure these are unique IDs
     indxs = clumps["index"]
     if indxs.size > numpy.unique((indxs)).size:
         raise ValueError("`clump_indxs` constains duplicate indices.")
     Ntotal = indxs.size
-    Njobs_per_cpu = numpy.ones(Nsplits, dtype=int) * Ntotal // Nsplits
-    # Split the remainder Ntotal % Njobs among the CPU
-    Njobs_per_cpu[:Ntotal % Nsplits] += 1
-    start = ParticleReader.nparts_to_start_ind(Njobs_per_cpu)
-    return numpy.vstack([start, start + Njobs_per_cpu]).T
+    njobs_per_cpu = numpy.ones(n_splits, dtype=int) * Ntotal // n_splits
+    # Split the remainder Ntotal % njobs among the CPU
+    njobs_per_cpu[:Ntotal % n_splits] += 1
+    start = ParticleReader.nparts_to_start_ind(njobs_per_cpu)
+    return numpy.vstack([start, start + njobs_per_cpu]).T
 
 
-def dump_split_particles(particles, particle_clumps, clumps, Nsplits,
-                         dumpfolder, Nsim, Nsnap, verbose=True):
+def dump_split_particles(particles, particle_clumps, clumps, n_splits,
+                         paths, verbose=True):
     """
     Save the data needed for each split so that a process does not have to load
     everything.
@@ -87,14 +88,10 @@ def dump_split_particles(particles, particle_clumps, clumps, Nsplits,
         Array of particles' clump IDs.
     clumps : structured array
         The clumps array.
-    Nsplits : int
+    n_splits : int
         Number of times to split the clumps.
-    dumpfolder : str
-        Path to the folder where to dump the splits.
-    Nsim : int
-        CSiBORG simulation index.
-    Nsnap : int
-        Snapshot index.
+    paths : py:class`csiborgtools.read.CSiBORGPaths`
+        CSiBORG paths-handling object with set `n_sim` and `n_snap`.
     verbose : bool, optional
         Verbosity flag. By default `True`.
 
@@ -112,10 +109,10 @@ def dump_split_particles(particles, particle_clumps, clumps, Nsplits,
              .format(with_particles.sum() / with_particles.size * 100))
 
     # The starting clump index of each split
-    splits = distribute_halos(Nsplits, clumps)
-    fname = join(dumpfolder, "out_{}_snap_{}_{}.npz")
+    splits = distribute_halos(n_splits, clumps)
+    fname = join(paths.temp_dupdir, "out_{}_snap_{}_{}.npz")
 
-    iters = trange(Nsplits) if verbose else range(Nsplits)
+    iters = trange(n_splits) if verbose else range(n_splits)
     tot = 0
     for n in iters:
         # Lower and upper array index of the clumps array
@@ -133,7 +130,7 @@ def dump_split_particles(particles, particle_clumps, clumps, Nsplits,
                 "with no particles.".format(n, indxs.size, npart_unique))
         # Dump it!
         tot += mask.sum()
-        fout = fname.format(Nsim, Nsnap, n)
+        fout = fname.format(paths.n_sim, paths.n_snap, n)
         numpy.savez(fout, particles[mask], particle_clumps[mask], clumps[i:j])
 
     # There are particles whose clump ID is > 1 and have no counterpart in the
@@ -144,15 +141,15 @@ def dump_split_particles(particles, particle_clumps, clumps, Nsplits,
             "size `{}`.".format(tot, particle_clumps.size))
 
 
-def split_jobs(Njobs, Ncpu):
+def split_jobs(njobs, ncpu):
     """
-    Split `Njobs` amongst `Ncpu`.
+    Split `njobs` amongst `ncpu`.
 
     Parameters
     ----------
-    Njobs : int
+    njobs : int
         Number of jobs.
-    Ncpu : int
+    ncpu : int
         Number of CPUs.
 
     Returns
@@ -160,29 +157,25 @@ def split_jobs(Njobs, Ncpu):
     jobs : list of lists of integers
         Outer list of each CPU and inner lists for CPU's jobs.
     """
-    njobs_per_cpu, njobs_remainder = divmod(Njobs, Ncpu)
-    jobs = numpy.arange(njobs_per_cpu * Ncpu).reshape((njobs_per_cpu, Ncpu)).T
+    njobs_per_cpu, njobs_remainder = divmod(njobs, ncpu)
+    jobs = numpy.arange(njobs_per_cpu * ncpu).reshape((njobs_per_cpu, ncpu)).T
     jobs = jobs.tolist()
     for i in range(njobs_remainder):
-        jobs[i].append(njobs_per_cpu * Ncpu + i)
+        jobs[i].append(njobs_per_cpu * ncpu + i)
 
     return jobs
 
 
-def load_split_particles(Nsplit, dumpfolder, Nsim, Nsnap, remove_split=False):
+def load_split_particles(n_split, paths, remove_split=False):
     """
     Load particles of a split saved by `dump_split_particles`.
 
     Parameters
     --------
-    Nsplit : int
+    n_split : int
         Split index.
-    dumpfolder : str
-        Path to the folder where the splits were dumped.
-    Nsim : int
-        CSiBORG simulation index.
-    Nsnap : int
-        Snapshot index.
+    paths : py:class`csiborgtools.read.CSiBORGPaths`
+        CSiBORG paths-handling object with set `n_sim` and `n_snap`.
     remove_split : bool, optional
         Whether to remove the split file. By default `False`.
 
@@ -196,7 +189,8 @@ def load_split_particles(Nsplit, dumpfolder, Nsim, Nsnap, remove_split=False):
         Clumps belonging to this split.
     """
     fname = join(
-        dumpfolder, "out_{}_snap_{}_{}.npz".format(Nsim, Nsnap, Nsplit))
+        paths.temp_dumpdir, "out_{}_snap_{}_{}.npz".format(
+            paths.n_sim, paths.n_snap, n_split))
     file = numpy.load(fname)
     particles, clump_indxs, clumps = (file[f] for f in file.files)
     if remove_split:
