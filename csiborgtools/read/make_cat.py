@@ -122,7 +122,7 @@ class HaloCatalogue:
         """
         return self.paths.n_sim
 
-    def _set_data(self, paths, minimum_m500):
+    def _set_data(self, minimum_m500):
         """
         Loads the data, merges with mmain, does various coordinate transforms.
         """
