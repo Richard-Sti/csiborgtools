@@ -19,7 +19,7 @@ Functions to read in the particle and clump files.
 import numpy
 from scipy.io import FortranFile
 from os import listdir
-from os.path import (join, isfile)
+from os.path import (join, isfile, isdir)
 from glob import glob
 from tqdm import tqdm
 from ..utils import cols_to_structured
@@ -46,13 +46,25 @@ class CSiBORGPaths:
     srcdir : str, optional
         The file path to the folder where realisations of the ICs are stored.
         By default `/mnt/extraspace/hdesmond/`.
+    dumpdir : str, optional
+        Path to where files from `run_fit_halos` are stored. By default
+        `/mnt/extraspace/rstiskalek/csiborg/`.
+    mmain_path : str, optional
+        Path to where mmain files are stored. By default
+        `/mnt/zfsusers/hdesmond/Mmain`.
     """
     _srcdir = None
     _n_sim = None
     _n_snap = None
+    _dumpdir = None
+    _mmain_path = None
 
-    def __init__(self, srcdir="/mnt/extraspace/hdesmond/"):
-        self._srcdir = srcdir
+    def __init__(self, srcdir="/mnt/extraspace/hdesmond/",
+                 dumpdir="/mnt/extraspace/rstiskalek/csiborg/",
+                 mmain_path="/mnt/zfsusers/hdesmond/Mmain"):
+        self.srcdir = srcdir
+        self.dumpdir = dumpdir
+        self.mmain_path = mmain_path
 
     @property
     def srcdir(self):
@@ -64,6 +76,55 @@ class CSiBORGPaths:
         srcdir : int
         """
         return self._srcdir
+
+    @srcdir.setter
+    def srcdir(self, srcdir):
+        """
+        Set `srcdir`, check that the directory exists.
+        """
+        if not isdir(srcdir):
+            raise ValueError("Invalid directory `{}`!".format(srcdir))
+        self._srcdir = srcdir
+
+    @property
+    def dumpdir(self):
+        """
+        Folder where files from `run_fit_halos` are stored.
+
+        Returns
+        -------
+        dumpdir : str
+        """
+        return self._dumpdir
+
+    @dumpdir.setter
+    def dumpdir(self, dumpdir):
+        """
+        Set `dumpdir`, check that the directory exists.
+        """
+        if not isdir(dumpdir):
+            raise ValueError("Invalid directory `{}`!".format(dumpdir))
+        self._dumpdir = dumpdir
+
+    @property
+    def mmain_path(self):
+        """
+        Path where mmain files are stored.
+
+        Returns
+        -------
+        mmain_path : str
+        """
+        return self._mmain_path
+
+    @mmain_path.setter
+    def mmain_path(self, mmain_path):
+        """
+        Set `mmain_path`, check that the directory exists.
+        """
+        if not isdir(mmain_path):
+            raise ValueError("Invalid directory `{}`!".format(mmain_path))
+        self._mmain_path = mmain_path
 
     @property
     def n_sim(self):
@@ -289,7 +350,7 @@ class ParticleReader:
     Parameters
     ----------
     paths : py:class`csiborgtools.read.CSiBORGPaths`
-        CSiBORG path handling object.
+        CSiBORG paths-handling object with set `n_sim` and `n_snap`.
     """
     _paths = None
 
