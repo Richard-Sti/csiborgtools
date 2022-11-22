@@ -34,14 +34,13 @@ I64 = numpy.int64
 
 class CSiBORGPaths:
     """
-
+    Paths manager for CSiBORG IC realisations.
 
     Parameters
     ----------
     srcdir : str, optional
         The file path to the folder where realisations of the ICs are stored.
         By default `/mnt/extraspace/hdesmond/`.
-
     """
     _srcdir = None
 
