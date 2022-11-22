@@ -32,6 +32,11 @@ I32 = numpy.int32
 I64 = numpy.int64
 
 
+###############################################################################
+#                            Paths manager                                    #
+###############################################################################
+
+
 class CSiBORGPaths:
     """
     Paths manager for CSiBORG IC realisations.
@@ -43,6 +48,8 @@ class CSiBORGPaths:
         By default `/mnt/extraspace/hdesmond/`.
     """
     _srcdir = None
+    _n_sim = None
+    _n_snap = None
 
     def __init__(self, srcdir="/mnt/extraspace/hdesmond/"):
         self._srcdir = srcdir
@@ -57,6 +64,91 @@ class CSiBORGPaths:
         srcdir : int
         """
         return self._srcdir
+
+    @property
+    def n_sim(self):
+        """
+        The IC realisation index set by the user.
+
+        Returns
+        -------
+        n_sim : int
+        """
+        if self._n_sim is None:
+            raise ValueError(
+                "`self.n_sim` is not set! Either provide a value directly  "
+                "or set it using `self.set_info(...)`")
+        return self._n_sim
+
+    @n_sim.setter
+    def n_sim(self, n_sim):
+        """Set `n_sim`, ensure it is a valid simulation index."""
+        if n_sim not in self.ic_ids:
+            raise ValueError(
+                "`{}` is not a valid IC realisation index.".format(n_sim))
+        self._n_sim = n_sim
+
+    @property
+    def n_snap(self):
+        """
+        The snapshot index of a IC realisation set by the user.
+
+        Returns
+        -------
+        n_snap: int
+        """
+        if self._n_snap is None:
+            raise ValueError(
+                "`self.n_sim` is not set! Either provide a value directly  "
+                "or set it using `self.set_info(...)`")
+        return self._n_snap
+
+    @n_snap.setter
+    def n_snap(self, n_snap):
+        """Set `n_snap`."""
+        self._n_snap = n_snap
+
+    def set_info(self, n_sim, n_snap):
+        """
+        Convenience function for setting `n_sim` and `n_snap`.
+
+        Parameters
+        ----------
+        n_sim : int
+            CSiBORG IC realisation index.
+        n_snap : int
+            Snapshot index.
+        """
+        self.n_sim = n_sim
+        if n_snap not in self.get_snapshots(n_sim):
+            raise ValueError(
+                "Invalid snapshot number `{}` for IC realisation `{}`."
+                .format(n_snap, n_sim))
+        self.n_snap = n_snap
+
+    def reset_info(self):
+        """
+        Reset `self.n_sim` and `self.n_snap`.
+        """
+        self._n_sim = None
+        self._n_snap = None
+
+    def get_n_sim(self, n_sim):
+        """
+        Get `n_sim`. If `self.n_sim` return it, otherwise returns `n_sim`.
+        """
+        if n_sim is None:
+            return self.n_sim
+        return n_sim
+
+    def get_n_snap(self, n_snap):
+
+        """
+        Get `n_snap`. If `self.n_snap` return it, otherwise returns `n_snap`.
+        """
+        if n_snap is None:
+            return self.n_snap
+        return n_snap
 
     @property
     def ic_ids(self):
@@ -84,93 +176,123 @@ class CSiBORGPaths:
             pass
         return numpy.sort(ids)
 
-    def ic_path(self, n):
+    def ic_path(self, n_sim=None):
         """
-        Path to `n`th CSiBORG IC realisation.
+        Path to `n_sim`th CSiBORG IC realisation.
 
         Parameters
         ----------
-        n : int
-            The index of the initial conditions (IC) realisation.
+        n_sim : int, optional
+            The index of the initial conditions (IC) realisation. By default
+            `None` and the set value is attempted to be used.
 
         Returns
         -------
         path : str
         """
+        n_sim = self.get_n_sim(n_sim)
         fname = "ramses_out_{}"
-        return join(self.srcdir, fname.format(n))
+        return join(self.srcdir, fname.format(n_sim))
 
-    def get_snapshots(self, n):
+    def get_snapshots(self, n_sim=None):
         """
-        List of snapshots for the `n`th IC realisation.
+        List of snapshots for the `n_sim`th IC realisation.
 
         Parameters
         ----------
-        n : int
-            The index of the initial conditions (IC) realisation.
+        n_sim : int
+            The index of the initial conditions (IC) realisation. By default
+            `None` and the set value is attempted to be used.
 
         Returns
         -------
         snapshots : 1-dimensional array
             Array of snapshot IDs.
         """
-        simpath = self.ic_path(n)
+        n_sim = self.get_n_sim(n_sim)
+        simpath = self.ic_path(n_sim)
         # Get all files in simpath that start with output_
         snaps = glob(join(simpath, "output_*"))
         # Take just the last _00XXXX from each file  and strip zeros
         snaps = [int(snap.split('_')[-1].lstrip('0')) for snap in snaps]
         return numpy.sort(snaps)
 
-    def get_maximum_snapshot(self, n):
+    def get_maximum_snapshot(self, n_sim=None):
         """
-        Return the maximum snapshot of an IC realisation stored at `simpath`.
+        Return the maximum snapshot of an IC realisation.
 
         Parameters
         ----------
-        n : int
-            The index of the initial conditions (IC) realisation.
+        n_sim : int
+            The index of the initial conditions (IC) realisation. By default
+            `None` and the set value is attempted to be used.
 
         Returns
         -------
         maxsnap : float
             Maximum snapshot.
         """
-        return max(self.get_snapshots(n))
+        n_sim = self.get_n_sim(n_sim)
+        return max(self.get_snapshots(n_sim))
 
-    def get_minimum_snapshot(self, n):
+    def get_minimum_snapshot(self, n_sim=None):
         """
-        Return the maximum snapshot of an IC realisation stored at `simpath`.
+        Return the maximum snapshot of an IC realisation.
 
         Parameters
         ----------
-        n : int
-            The index of the initial conditions (IC) realisation.
+        n_sim : int
+            The index of the initial conditions (IC) realisation. By default
+            `None` and the set value is attempted to be used.
 
         Returns
         -------
         minsnap : float
             Minimum snapshot.
         """
-        return min(self.get_snapshots(n))
+        n_sim = self.get_n_sim(n_sim)
+        return min(self.get_snapshots(n_sim))
 
-    def snapshot_path(self, n_snap, n_sim):
+    def snapshot_path(self, n_snap=None, n_sim=None):
         """
         Path to a CSiBORG IC realisation snapshot.
 
         Parameters
         ----------
         n_snap : int
-            Snapshot index.
+            Snapshot index. By default `None` and the set value is attempted
+            to be used.
         n_sim : str
-            Corresponding CSiBORG IC realisation index.
+            Corresponding CSiBORG IC realisation index. By default `None` and
+            the set value is attempted to be used.
 
         Returns
         -------
         snappath : str
             Path to the CSiBORG IC realisation snapshot.
         """
+        n_snap = self.get_n_snap(n_snap)
+        n_sim = self.get_n_sim(n_sim)
         simpath = self.ic_path(n_sim)
         return join(simpath, "output_{}".format(str(n_snap).zfill(5)))
+
+
+###############################################################################
+#                          Fortran readers                                    #
+###############################################################################
+
+
+class ParticleReader:
+    _paths = None
+
+    def __init__(self, n_sim, n_snap, paths):
+        pass
+
+    @property
+    def paths(self):
+        pass
+
+
 
 
 def read_info(Nsnap, simpath):
