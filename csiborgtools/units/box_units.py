@@ -20,7 +20,7 @@ import numpy
 from scipy.interpolate import interp1d
 from astropy.cosmology import LambdaCDM
 from astropy import (constants, units)
-from ..read import read_info
+from ..read import ParticleReader
 
 
 # Map of unit conversions
@@ -38,18 +38,17 @@ class BoxUnits:
 
     Paramaters
     ----------
-    Nsnap : int
-        Snapshot index.
-    simpath : str
-        Path to the simulation where its snapshot index folders are stored.
+    paths : py:class`csiborgtools.read.CSiBORGPaths`
+        CSiBORG paths-handling object with set `n_sim` and `n_snap`.
     """
     _cosmo = None
 
-    def __init__(self, Nsnap, simpath):
+    def __init__(self, paths):
         """
         Read in the snapshot info file and set the units from it.
         """
-        info = read_info(Nsnap, simpath)
+        partreader = ParticleReader(paths)
+        info = partreader.read_info()
         pars = ["boxlen", "time", "aexp", "H0",
                 "omega_m", "omega_l", "omega_k", "omega_b",
                 "unit_l", "unit_d", "unit_t"]
