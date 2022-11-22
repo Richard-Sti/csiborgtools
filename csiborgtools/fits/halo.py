@@ -22,7 +22,7 @@ from os import remove
 from warnings import warn
 from os.path import join
 from tqdm import trange
-from ..read import nparts_to_start_ind
+from ..read import ParticleReader
 
 
 def clump_with_particles(particle_clumps, clumps):
@@ -69,7 +69,7 @@ def distribute_halos(Nsplits, clumps):
     Njobs_per_cpu = numpy.ones(Nsplits, dtype=int) * Ntotal // Nsplits
     # Split the remainder Ntotal % Njobs among the CPU
     Njobs_per_cpu[:Ntotal % Nsplits] += 1
-    start = nparts_to_start_ind(Njobs_per_cpu)
+    start = ParticleReader.nparts_to_start_ind(Njobs_per_cpu)
     return numpy.vstack([start, start + Njobs_per_cpu]).T
 
 
