@@ -46,20 +46,21 @@ cols_collect = [("npart", I64), ("totpartmass", F64), ("Rs", F64),
                 ("rho0", F64), ("conc", F64), ("rmin", F64),
                 ("rmax", F64), ("r200", F64), ("r500", F64),
                 ("m200", F64), ("m500", F64)]
+paths = csiborgtools.read.CSiBORGPaths()
 
-Nsims = csiborgtools.read.get_csiborg_ids("/mnt/extraspace/hdesmond")
-for i, Nsim in enumerate(Nsims):
+for i, n_sim in enumerate(paths.ic_ids):
     if rank == 0:
         print("{}: calculating {}th simulation.".format(datetime.now(), i))
+    # Correctly set the paths!
+    n_snap = paths.get_maximum_snapshot(n_sim)
+    paths.set_info(n_sim, n_snap)
 
-    simpath = csiborgtools.read.get_sim_path(Nsim)
-    Nsnap = csiborgtools.read.get_maximum_snapshot(simpath)
-    box = csiborgtools.units.BoxUnits(Nsnap, simpath)
+    box = csiborgtools.units.BoxUnits(paths)
 
-    jobs = csiborgtools.fits.split_jobs(utils.Nsplits, nproc)[rank]
-    for Nsplit in jobs:
+    jobs = csiborgtools.fits.split_jobs(utils.n_splits, nproc)[rank]
+    for n_split in jobs:
         parts, part_clumps, clumps = csiborgtools.fits.load_split_particles(
-            Nsplit, loaddir, Nsim, Nsnap, remove_split=False)
+            n_split, paths, n_snap, remove_split=False)
 
         N = clumps.size
         cols = [("index", I64), ("npart", I64), ("totpartmass", F64),
@@ -100,7 +101,7 @@ for i, Nsim in enumerate(Nsims):
                     out["rho0"][n] = nfwpost.rho0_from_Rs(Rs)
                     out["conc"][n] = out["r200"][n] / Rs
 
-        csiborgtools.read.dump_split(out, Nsplit, Nsim, Nsnap, dumpdir)
+        csiborgtools.read.dump_split(out, n_split, paths)
 
     # Wait until all jobs finished before moving to another simulation
     comm.Barrier()
@@ -108,11 +109,13 @@ for i, Nsim in enumerate(Nsims):
     # Use the rank 0 to combine outputs for this CSiBORG realisation
     if rank == 0:
         print("Collecting results!")
+        partreader = csiborgtools.read.ParticleReader(paths)
         out_collected = csiborgtools.read.combine_splits(
-            utils.Nsplits, Nsim, Nsnap, utils.dumpdir, cols_collect,
-            remove_splits=True, verbose=False)
-        fname = join(utils.dumpdir, "ramses_out_{}_{}.npy"
-                     .format(str(Nsim).zfill(5), str(Nsnap).zfill(5)))
+            utils.n_splits, paths, cols_collect, remove_splits=True,
+            verbose=False)
+        fname = join(paths.dumpdir, "ramses_out_{}_{}.npy"
+                     .format(str(paths.n_sim).zfill(5),
+                             str(paths.n_snap).zfill(5)))
         print("Saving results to `{}`.".format(fname))
         numpy.save(fname, out_collected)
 
