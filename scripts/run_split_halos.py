@@ -34,7 +34,7 @@ rank = comm.Get_rank()
 nproc = comm.Get_size()
 
 paths = csiborgtools.read.CSiBORGPaths()
-n_sims = paths.ic_ds[:1]
+n_sims = paths.ic_ids[:1]
 partcols = ["x", "y", "z", "vx", "vy", "vz", "M", "level"]
 
 jobs = csiborgtools.fits.split_jobs(len(n_sims), nproc)[rank]
