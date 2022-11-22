@@ -19,9 +19,9 @@ Functions to read in the particle and clump files.
 import numpy
 from os.path import join
 from tqdm import trange
+from copy import deepcopy
 from sklearn.neighbors import NearestNeighbors
-from .readsim import (get_sim_path, read_mmain, get_csiborg_ids,
-                      get_maximum_snapshot)
+from .readsim import read_mmain
 from ..utils import (flip_cols, add_columns)
 from ..units import (BoxUnits, cartesian_to_radec)
 
@@ -32,35 +32,23 @@ class HaloCatalogue:
 
     Parameters
     ----------
-    n_sim: int
-        Initial condition index.
-    n_snap: int
-        Snapshot index.
+    paths : py:class:`csiborgtools.read.CSiBORGPaths`
+        CSiBORG paths-handling object with set `n_sim` and `n_snap`.
     minimum_m500 : float, optional
         The minimum :math:`M_{rm 500c} / M_\odot` mass. By default no
         threshold.
-    dumpdir : str, optional
-        Path to where files from `run_fit_halos` are stored. By default
-        `/mnt/extraspace/rstiskalek/csiborg/`.
-    mmain_path : str, optional
-        Path to where mmain files are stored. By default
-        `/mnt/zfsusers/hdesmond/Mmain`.
     """
     _box = None
-    _n_sim = None
-    _n_snap = None
+    _paths = None
     _data = None
     _knn = None
     _positions = None
 
-    def __init__(self, n_sim, n_snap, minimum_m500=None,
-                 dumpdir="/mnt/extraspace/rstiskalek/csiborg/",
-                 mmain_path="/mnt/zfsusers/hdesmond/Mmain"):
-        self._box = BoxUnits(n_snap, get_sim_path(n_sim))
+    def __init__(self, paths, minimum_m500=None):
+        self._box = BoxUnits(paths)
         minimum_m500 = 0 if minimum_m500 is None else minimum_m500
-        self._set_data(n_sim, n_snap, dumpdir, mmain_path, minimum_m500)
-        self._nsim = n_sim
-        self._nsnap = n_snap
+        self._paths = paths
+        self._set_data(minimum_m500)
         # Initialise the KNN
         knn = NearestNeighbors()
         knn.fit(self.positions)
@@ -74,7 +62,6 @@ class HaloCatalogue:
         Returns
         -------
         cat : structured array
-            Catalogue.
         """
         if self._data is None:
             raise ValueError("`data` is not set!")
@@ -88,7 +75,6 @@ class HaloCatalogue:
         Returns
         -------
         box : :py:class:`csiborgtools.units.BoxUnits`
-            The box object.
         """
         return self._box
 
@@ -100,9 +86,19 @@ class HaloCatalogue:
         Returns
         -------
         cosmo : `astropy` cosmology object
-            Box cosmology.
         """
         return self.box.cosmo
+
+    @property
+    def paths(self):
+        """
+        The paths-handling object.
+
+        Returns
+        -------
+        paths : :py:class:`csiborgtools.read.CSiBORGPaths`
+        """
+        return self._paths
 
     @property
     def n_snap(self):
@@ -112,9 +108,8 @@ class HaloCatalogue:
         Returns
         -------
         n_snap : int
-            Snapshot ID.
         """
-        return self._n_snap
+        return self.paths.n_snap
 
     @property
     def n_sim(self):
@@ -124,21 +119,20 @@ class HaloCatalogue:
         Returns
         -------
         n_sim : int
-            The IC ID.
         """
-        return self._n_sim
+        return self.paths.n_sim
 
-    def _set_data(self, n_sim, n_snap, dumpdir, mmain_path, minimum_m500):
+    def _set_data(self, paths, minimum_m500):
         """
         Loads the data, merges with mmain, does various coordinate transforms.
         """
         # Load the processed data
         fname = "ramses_out_{}_{}.npy".format(
-            str(n_sim).zfill(5), str(n_snap).zfill(5))
-        data = numpy.load(join(dumpdir, fname))
+            str(self.n_sim).zfill(5), str(self.n_snap).zfill(5))
+        data = numpy.load(join(self.paths.dumpdir, fname))
 
         # Load the mmain file and add it to the data
-        mmain = read_mmain(n_sim, mmain_path)
+        mmain = read_mmain(self.n_sim, self.paths.mmain_path)
         data = self.merge_mmain_to_clumps(data, mmain)
         flip_cols(data, "peak_x", "peak_z")
 
@@ -245,15 +239,12 @@ class CombinedHaloCatalogue:
 
     Parameters
     ----------
+    paths : py:class`csiborgtools.read.CSiBORGPaths`
+        CSiBORG paths-handling object. Doest not have to have set set `n_sim`
+        and `n_snap`.
     minimum_m500 : float, optional
         The minimum :math:`M_{rm 500c} / M_\odot` mass. By default no
         threshold.
-    dumpdir : str, optional
-        Path to where files from `run_fit_halos` are stored. By default
-        `/mnt/extraspace/rstiskalek/csiborg/`.
-    mmain_path : str, optional
-        Path to where mmain files are stored. By default
-        `/mnt/zfsusers/hdesmond/Mmain`.
     verbose : bool, optional
         Verbosity flag for reading the catalogues.
     """
@@ -261,19 +252,18 @@ class CombinedHaloCatalogue:
     _n_snaps = None
     _cats = None
 
-    def __init__(self, minimum_m500=None,
-                 dumpdir="/mnt/extraspace/rstiskalek/csiborg/",
-                 mmain_path="/mnt/zfsusers/hdesmond/Mmain", verbose=True):
+    def __init__(self, paths, minimum_m500=None, verbose=True):
         # Read simulations and their maximum snapshots
         # NOTE remove this later and take all cats
-        self._n_sims = get_csiborg_ids("/mnt/extraspace/hdesmond")[:10]
-        n_snaps = [get_maximum_snapshot(get_sim_path(i)) for i in self._n_sims]
+        self._n_sims = paths.ic_ids[:10]
+        n_snaps = [paths.get_maximum_snapshot(i) for i in self._n_sims]
         self._n_snaps = numpy.asanyarray(n_snaps)
 
         cats = [None] * self.N
         for i in trange(self.N) if verbose else range(self.N):
-            cats[i] = HaloCatalogue(self._n_sims[i], self._n_snaps[i],
-                                    minimum_m500, dumpdir, mmain_path)
+            paths = deepcopy(paths)
+            paths.set_info(self.n_sims[i], self.n_snaps[i])
+            cats[i] = HaloCatalogue(paths, minimum_m500)
         self._cats = cats
 
     @property
