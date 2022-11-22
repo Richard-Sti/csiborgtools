@@ -18,7 +18,6 @@ membership for faster manipulation. Currently does this for the maximum
 snapshot of each simulation. Running this will require a lot of memory.
 """
 
-from os.path import join
 from mpi4py import MPI
 from datetime import datetime
 try:
@@ -34,29 +33,29 @@ comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 nproc = comm.Get_size()
 
-Nsims = csiborgtools.read.get_csiborg_ids("/mnt/extraspace/hdesmond")
+paths = csiborgtools.read.CSiBORGPaths()
+n_sims = paths.ic_ds[:1]
 partcols = ["x", "y", "z", "vx", "vy", "vz", "M", "level"]
-dumpdir = join(utils.dumpdir, "temp")
 
-jobs = csiborgtools.fits.split_jobs(len(Nsims), nproc)[rank]
+jobs = csiborgtools.fits.split_jobs(len(n_sims), nproc)[rank]
 for icount, sim_index in enumerate(jobs):
     print("{}: rank {} working {} / {} jobs.".format(datetime.now(), rank,
                                                      icount + 1, len(jobs)))
-    Nsim = Nsims[sim_index]
-    simpath = csiborgtools.read.get_sim_path(Nsim)
-    Nsnap = csiborgtools.read.get_maximum_snapshot(simpath)
+    n_sim = n_sims[sim_index]
+    n_snap = paths.get_maximum_snapshot(n_sim)
+    # Set paths and inifitalise a particle reader
+    paths.set_info(n_sim, n_snap)
+    partreader = csiborgtools.read.ParticleReader(paths)
     # Load the clumps, particles' clump IDs and particles.
-    clumps = csiborgtools.read.read_clumps(Nsnap, simpath)
-    particle_clumps = csiborgtools.read.read_clumpid(Nsnap, simpath,
-                                                     verbose=False)
-    particles = csiborgtools.read.read_particle(partcols, Nsnap, simpath,
-                                                verbose=False)
+    clumps = partreader.read_clumps()
+    particle_clumps = partreader.read_clumpid(verbose=False)
+    particles = partreader.read_particle(partcols, verbose=False)
     # Drop all particles whose clump index is 0 (not assigned to any halo)
-    particle_clumps, particles = csiborgtools.read.drop_zero_indx(
+    particle_clumps, particles = partreader.drop_zero_indx(
         particle_clumps, particles)
     # Dump it!
+    # NOTE this function still needs to be edited
     csiborgtools.fits.dump_split_particles(particles, particle_clumps, clumps,
-                                           utils.Nsplits, dumpdir, Nsim, Nsnap,
-                                           verbose=False)
+                                           utils.Nsplits, paths, verbose=False)
 
 print("All finished!")
