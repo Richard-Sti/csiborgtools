@@ -110,7 +110,7 @@ def dump_split_particles(particles, particle_clumps, clumps, n_splits,
 
     # The starting clump index of each split
     splits = distribute_halos(n_splits, clumps)
-    fname = join(paths.temp_dupdir, "out_{}_snap_{}_{}.npz")
+    fname = join(paths.temp_dumpdir, "out_{}_snap_{}_{}.npz")
 
     iters = trange(n_splits) if verbose else range(n_splits)
     tot = 0
