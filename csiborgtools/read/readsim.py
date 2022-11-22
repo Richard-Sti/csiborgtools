@@ -283,6 +283,14 @@ class CSiBORGPaths:
 
 
 class ParticleReader:
+    """
+    Tools to read in particle files alon with their corresponding clumps.
+
+    Parameters
+    ----------
+    paths : py:class`csiborgtools.read.CSiBORGPaths`
+        CSiBORG path handling object.
+    """
     _paths = None
 
     def __init__(self, paths):
