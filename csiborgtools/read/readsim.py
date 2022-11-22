@@ -32,113 +32,146 @@ I32 = numpy.int32
 I64 = numpy.int64
 
 
-def get_csiborg_ids(srcdir):
+class CSiBORGPaths:
     """
-    Get CSiBORG simulation IDs from the list of folders in `srcdir`.
-    Assumes that the folders look like `ramses_out_X` and extract the `X`
-    integer. Removes `5511` from the list of IDs.
+
 
     Parameters
     ----------
-    srcdir : string
-        The folder where CSiBORG simulations are stored.
-
-    Returns
-    -------
-    ids : 1-dimensional array
-        Array of CSiBORG simulation IDs.
-    """
-    files = glob(join(srcdir, "ramses_out*"))
-    # Select only file names
-    files = [f.split("/")[-1] for f in files]
-    # Remove files with inverted ICs
-    files = [f for f in files if "_inv" not in f]
-    # Remove the filename with _old
-    files = [f for f in files if "OLD" not in f]
-    ids = [int(f.split("_")[-1]) for f in files]
-    try:
-        ids.remove(5511)
-    except ValueError:
-        pass
-    return numpy.sort(ids)
-
-
-def get_sim_path(n, fname="ramses_out_{}", srcdir="/mnt/extraspace/hdesmond"):
-    """
-    Get a path to a CSiBORG simulation.
-
-    Parameters
-    ----------
-    n : int
-        The index of the initial conditions (IC) realisation.
-    fname : str, optional
-        The file name. By default `ramses_out_{}`, where `n` is the IC index.
     srcdir : str, optional
         The file path to the folder where realisations of the ICs are stored.
+        By default `/mnt/extraspace/hdesmond/`.
 
-    Returns
-    -------
-    path : str
-        Path to the `n`th CSiBORG simulation.
     """
-    return join(srcdir, fname.format(n))
+    _srcdir = None
 
+    def __init__(self, srcdir="/mnt/extraspace/hdesmond/"):
+        self._srcdir = srcdir
 
-def get_snapshots(simpath):
-    """
-    Get the list of snapshots for the given IC realisation.
+    @property
+    def srcdir(self):
+        """
+        Folder where CSiBORG simulations are stored.
 
-    Parameters
-    ----------
-    simpath : str
-        Path to the CSiBORG IC realisation.
+        Returns
+        -------
+        srcdir : int
+        """
+        return self._srcdir
 
-    Returns
-    -------
-    snapshots : 1-dimensional array
-        Array of snapshot IDs.
-    """
-    # Get all files in simpath that start with output_
-    snaps = glob(join(simpath, "output_*"))
-    # Take just the last _00XXXX from each file  and strip zeros
-    snaps = [int(snap.split('_')[-1].lstrip('0')) for snap in snaps]
-    return numpy.sort(snaps)
+    @property
+    def ic_ids(self):
+        """
+        CSiBORG initial condition (IC) simulation IDs from the list of folders
+        in `self.srcdir`. Assumes that the folders look like `ramses_out_X`
+        and extracts the `X` integer. Removes `5511` from the list of IDs.
 
+        Returns
+        -------
+        ids : 1-dimensional array
+            Array of CSiBORG simulation IDs.
+        """
+        files = glob(join(self.srcdir, "ramses_out*"))
+        # Select only file names
+        files = [f.split("/")[-1] for f in files]
+        # Remove files with inverted ICs
+        files = [f for f in files if "_inv" not in f]
+        # Remove the filename with _old
+        files = [f for f in files if "OLD" not in f]
+        ids = [int(f.split("_")[-1]) for f in files]
+        try:
+            ids.remove(5511)
+        except ValueError:
+            pass
+        return numpy.sort(ids)
 
-def get_maximum_snapshot(simpath):
-    """
-    Return the maximum snapshot of an IC realisation stored at `simpath`.
+    def ic_path(self, n):
+        """
+        Path to `n`th CSiBORG IC realisation.
 
-    Parameters
-    ----------
-    simpath : str
-        Path to the CSiBORG IC realisation.
+        Parameters
+        ----------
+        n : int
+            The index of the initial conditions (IC) realisation.
 
-    Returns
-    -------
-    maxsnap : float
-        The maximum snapshot.
-    """
-    return max(get_snapshots(simpath))
+        Returns
+        -------
+        path : str
+        """
+        fname = "ramses_out_{}"
+        return join(self.srcdir, fname.format(n))
 
+    def get_snapshots(self, n):
+        """
+        List of snapshots for the `n`th IC realisation.
 
-def get_snapshot_path(Nsnap, simpath):
-    """
-    Get a path to a CSiBORG IC realisation snapshot.
+        Parameters
+        ----------
+        n : int
+            The index of the initial conditions (IC) realisation.
 
-    Parameters
-    ----------
-    Nsnap : int
-        Snapshot index.
-    simpath : str
-        Path to the CSiBORG IC realisation.
+        Returns
+        -------
+        snapshots : 1-dimensional array
+            Array of snapshot IDs.
+        """
+        simpath = self.ic_path(n)
+        # Get all files in simpath that start with output_
+        snaps = glob(join(simpath, "output_*"))
+        # Take just the last _00XXXX from each file  and strip zeros
+        snaps = [int(snap.split('_')[-1].lstrip('0')) for snap in snaps]
+        return numpy.sort(snaps)
 
-    Returns
-    -------
-    snappath : str
-        Path to the CSiBORG IC realisation snapshot.
-    """
-    return join(simpath, "output_{}".format(str(Nsnap).zfill(5)))
+    def get_maximum_snapshot(self, n):
+        """
+        Return the maximum snapshot of an IC realisation stored at `simpath`.
+
+        Parameters
+        ----------
+        n : int
+            The index of the initial conditions (IC) realisation.
+
+        Returns
+        -------
+        maxsnap : float
+            Maximum snapshot.
+        """
+        return max(self.get_snapshots(n))
+
+    def get_minimum_snapshot(self, n):
+        """
+        Return the maximum snapshot of an IC realisation stored at `simpath`.
+
+        Parameters
+        ----------
+        n : int
+            The index of the initial conditions (IC) realisation.
+
+        Returns
+        -------
+        minsnap : float
+            Minimum snapshot.
+        """
+        return min(self.get_snapshots(n))
+
+    def snapshot_path(self, n_snap, n_sim):
+        """
+        Path to a CSiBORG IC realisation snapshot.
+
+        Parameters
+        ----------
+        n_snap : int
+            Snapshot index.
+        n_sim : str
+            Corresponding CSiBORG IC realisation index.
+
+        Returns
+        -------
+        snappath : str
+            Path to the CSiBORG IC realisation snapshot.
+        """
+        simpath = self.ic_path(n_sim)
+        return join(simpath, "output_{}".format(str(n_snap).zfill(5)))
 
 
 def read_info(Nsnap, simpath):
