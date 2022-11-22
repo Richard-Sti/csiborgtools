@@ -1,10 +1,9 @@
 # CSiBORG tools
 
 ## :scroll: Short-term TODO
-- [x] Add the X-ray clusters
-- [x] Match the X-ray clusters to Planck
-- [ ] Calculate catalogues for all realisations.
+- [ ] Find the distribution of particles in the first snapshot
 - [ ] Implement Max's halo matching
+- [ ] Implement a custom model for matchin galaxies to halos.
 
 
 ## :hourglass: Long-term TODO
