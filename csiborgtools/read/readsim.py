@@ -420,7 +420,6 @@ class ParticleReader:
         vals = info[eqs + 1]
         return {key: val for key, val in zip(keys, vals)}
 
-#    def open_particle(Nsnap, simpath, verbose=True):
     def open_particle(self, verbose=True):
         """
         Open particle files to a given CSiBORG simulation.
