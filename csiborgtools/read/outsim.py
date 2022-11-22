@@ -21,13 +21,12 @@ import numpy
 from os.path import join
 from os import remove
 from tqdm import trange
-from .readsim import (get_sim_path, read_clumps)
 
 I64 = numpy.int64
 F64 = numpy.float64
 
 
-def dump_split(arr, Nsplit, Nsim, Nsnap, outdir):
+def dump_split(arr, n_split, paths):
     """
     Dump an array from a split.
 
@@ -35,11 +34,13 @@ def dump_split(arr, Nsplit, Nsim, Nsnap, outdir):
     ----------
     arr : n-dimensional or structured array
         Array to be saved.
-    Nsplit : int
+    n_split: int
         The split index.
-    Nsim : int
+    paths : py:class`csiborgtools.read.CSiBORGPaths`
+        CSiBORG paths-handling object with set `n_sim` and `n_snap`.
+    n_sim : int
         The CSiBORG realisation index.
-    Nsnap : int
+    n_snap : int
         The index of a redshift snapshot.
     outdir : string
         Directory where to save the temporary files.
@@ -48,13 +49,14 @@ def dump_split(arr, Nsplit, Nsim, Nsnap, outdir):
     -------
     None
     """
-    Nsim = str(Nsim).zfill(5)
-    Nsnap = str(Nsnap).zfill(5)
-    fname = join(outdir, "ramses_out_{}_{}_{}.npy".format(Nsim, Nsnap, Nsplit))
+    n_sim = str(paths.n_sim).zfill(5)
+    n_snap = str(paths.n_snap).zfill(5)
+    fname = join(paths.temp_dumpdir, "ramses_out_{}_{}_{}.npy"
+                 .format(n_sim, n_snap, n_split))
     numpy.save(fname, arr)
 
 
-def combine_splits(Nsplits, Nsim, Nsnap, outdir, cols_add, remove_splits=False,
+def combine_splits(n_splits, part_reader, cols_add, remove_splits=False,
                    verbose=True):
     """
     Combine results of many splits saved from `dump_split`. Identifies to which
@@ -64,14 +66,10 @@ def combine_splits(Nsplits, Nsim, Nsnap, outdir, cols_add, remove_splits=False,
 
     Paramaters
     ----------
-    Nsplits : int
+    n_splits : int
         The total number of clump splits.
-    Nsim : int
-        The CSiBORG realisation index.
-    Nsnap : int
-        The index of a redshift snapshot.
-    outdir : str
-        Directory where to save the new array.
+    part_reader : py:class`csiborgtools.read.ParticleReadear`
+        CSiBORG particle reader.
     cols_add : list of `(str, dtype)`
         Colums to add. Must be formatted as, for example,
         `[("npart", numpy.float64), ("totpartmass", numpy.float64)]`.
@@ -86,8 +84,10 @@ def combine_splits(Nsplits, Nsim, Nsnap, outdir, cols_add, remove_splits=False,
         Clump array with appended results from the splits.
     """
     # Load clumps to see how many there are and will add to this array
-    simpath = get_sim_path(Nsim)
-    clumps = read_clumps(Nsnap, simpath, cols=None)
+    n_sim = part_reader.paths.n_sim
+    n_snap = part_reader.paths.n_snap
+    clumps = part_reader.read_clumps(cols=None)
+
     # Get the old + new dtypes and create an empty array
     descr = clumps.dtype.descr + cols_add
     out = numpy.full(clumps.size, numpy.nan, dtype=descr)
@@ -96,12 +96,13 @@ def combine_splits(Nsplits, Nsim, Nsnap, outdir, cols_add, remove_splits=False,
         out[par] = clumps[par]
 
     # Filename of splits data
-    froot = "ramses_out_{}_{}".format(str(Nsim).zfill(5), str(Nsnap).zfill(5))
-    fname = join(outdir, froot + "_{}.npy")
+    froot = "ramses_out_{}_{}".format(
+        str(n_sim).zfill(5), str(n_snap).zfill(5))
+    fname = join(part_reader.paths.dumpdir, froot + "_{}.npy")
 
     # Iterate over splits and add to the output array
     cols_add_names = [col[0] for col in cols_add]
-    iters = trange(Nsplits) if verbose else range(Nsplits)
+    iters = trange(n_splits) if verbose else range(n_splits)
     for n in iters:
         fnamesplit = fname.format(n)
         arr = numpy.load(fnamesplit)
