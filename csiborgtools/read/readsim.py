@@ -83,7 +83,7 @@ class CSiBORGPaths:
         Set `srcdir`, check that the directory exists.
         """
         if not isdir(srcdir):
-            raise ValueError("Invalid directory `{}`!".format(srcdir))
+            raise IOError("Invalid directory `{}`!".format(srcdir))
         self._srcdir = srcdir
 
     @property
@@ -97,13 +97,27 @@ class CSiBORGPaths:
         """
         return self._dumpdir
 
+    @property
+    def temp_dumpdir(self):
+        """
+        Temporary dumping directory.
+
+        Returns
+        -------
+        temp_dumpdir : str
+        """
+        fpath = join(self.dumpdir, "temp")
+        if not isdir(fpath):
+            raise IOError("Invalid directory `{}`!".format(fpath))
+        return fpath
+
     @dumpdir.setter
     def dumpdir(self, dumpdir):
         """
         Set `dumpdir`, check that the directory exists.
         """
         if not isdir(dumpdir):
-            raise ValueError("Invalid directory `{}`!".format(dumpdir))
+            raise IOError("Invalid directory `{}`!".format(dumpdir))
         self._dumpdir = dumpdir
 
     @property
@@ -123,7 +137,7 @@ class CSiBORGPaths:
         Set `mmain_path`, check that the directory exists.
         """
         if not isdir(mmain_path):
-            raise ValueError("Invalid directory `{}`!".format(mmain_path))
+            raise IOError("Invalid directory `{}`!".format(mmain_path))
         self._mmain_path = mmain_path
 
     @property
