@@ -22,7 +22,7 @@ from os import listdir
 from os.path import (join, isfile, isdir)
 from glob import glob
 from tqdm import tqdm
-from ..utils import cols_to_structured
+from ..utils import (cols_to_structured, extract_from_structured)
 
 
 F16 = numpy.float16
@@ -743,5 +743,60 @@ def read_mmain(n, srcdir, fname="Mmain_{}.npy"):
     out = cols_to_structured(arr.shape[0], cols)
     for i, name in enumerate(out.dtype.names):
         out[name] = arr[:, i]
+
+    return out
+
+
+def get_positions(n_sim, n_snap, get_clumpid, verbose=True,
+                  srcdir="/mnt/extraspace/hdesmond/"):
+    """
+    Shortcut to get particle IDs, positions, masses and optionally clump
+    indices.
+
+    Parameters
+    ----------
+    n_sim : int
+        CSiBORG IC realisation index.
+    n_snap : int
+        Snapshot index.
+    get_clumpid : bool
+        Whether to also return the clump indices.
+    verbose : bool, optional
+        Verbosity flag. By default `True`.
+    srcdir : str, optional
+        The file path to the folder where realisations of the ICs are stored.
+        By default `/mnt/extraspace/hdesmond/`.
+
+    Returns
+    -------
+    particle_ids : 1-dimensional array
+        Particle IDs of shape `(n_particles, )`.
+    particle_pos : 2-dimensional array
+        Particle box coordinates of shape `(n_particles, 3)`.
+    particle_mass : 1-dimensional array
+        Particle mass of shape `(n_particles, )`.
+    clump_ids : 1-dimensional array, optional
+        Particles' clump IDs of shape `(n_particles, )`. Returned only if
+        `get_clumpid` is `True`.
+    """
+    # Setup the paths
+    paths = CSiBORGPaths(srcdir)
+    paths.set_info(n_sim, n_snap)
+    # Extract particles
+    reader = ParticleReader(paths)
+    pars_extract = ["ID", "x", "y", "z", "M"]
+
+    # Read particles and unpack
+    particles = reader.read_particle(pars_extract, verbose)
+    pids = extract_from_structured(particles, "ID")
+    ppos = extract_from_structured(particles, ["x", "y", "z"])
+    pmass = extract_from_structured(particles, "M")
+    # Force early memory release
+    del particles
+
+    out = (pids, ppos, pmass)
+
+    if get_clumpid:
+        out += (reader.read_clumpid(verbose),)
 
     return out
