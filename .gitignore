@@ -11,3 +11,6 @@ csiborgtools/fits/_filenames.py
 csiborgtools/fits/analyse_voids_25.py
 scripts/*.sh
 scripts/*.out
+build/*
+.eggs/*
+csiborgtools.egg-info/*
