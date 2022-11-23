@@ -615,7 +615,7 @@ class ParticleReader:
 
     def read_clumpid(self, verbose=True):
         """
-        Read clump IDs of halos from unbinding files.
+        Read clump IDs of particles from unbinding files.
 
         Parameters
         ----------
