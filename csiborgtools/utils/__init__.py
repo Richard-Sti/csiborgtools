@@ -15,4 +15,4 @@
 
 from .recarray_manip import (cols_to_structured, add_columns, rm_columns,  # noqa
                              list_to_ndarray, array_to_structured,  # noqa
-                             flip_cols)  # noqa
+                             flip_cols, extract_from_structured)  # noqa

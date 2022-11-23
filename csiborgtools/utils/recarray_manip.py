@@ -209,3 +209,35 @@ def flip_cols(arr, col1, col2):
     dum = numpy.copy(arr[col1])
     arr[col1] = arr[col2]
     arr[col2] = dum
+
+
+def extract_from_structured(arr, cols):
+    """
+    Extract columns `cols` from a structured array. The  array dtype is set
+    to be that of the first column in `cols`.
+
+    Parameters
+    ----------
+    arr : structured array
+        Array from which to extract columns.
+    cols : list of str or str
+        Column to extract.
+
+    Returns
+    -------
+    out : 2- or 1-dimensional array
+        Array with shape `(n_particles, len(cols))`. If `len(cols)` is 1
+        flattens the array.
+    """
+    cols = [cols] if isinstance(cols, str) else cols
+    for col in cols:
+        if col not in arr.dtype.names:
+            raise ValueError("Invalid column `{}`!".format(col))
+    # Preallocate an array and populate it
+    out = numpy.zeros((arr.size, len(cols)), dtype=arr[cols[0]].dtype)
+    for i, col in enumerate(cols):
+        out[:, i] = arr[col]
+    # Optionally flatten
+    if len(cols) == 1:
+        return out.reshape(-1,)
+    return out
