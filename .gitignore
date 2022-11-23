@@ -14,3 +14,5 @@ scripts/*.out
 build/*
 .eggs/*
 csiborgtools.egg-info/*
+scripts/playground_*
+scripts/playground.ipynb
