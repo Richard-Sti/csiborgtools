@@ -13,10 +13,17 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
-module JuliaCSiBORGTools
 
-include("./particles_match.jl")
+"""
+    halo_parts(clumpid::Int, partids::Vector{<:Int}, clumpids::Vector{<:Int})
 
-export halo_parts
+Return particle IDs belonging to a given clump.
 
-end # module JuliaCSiBORGTools
+# Arguments
+- `clumpid::Integer`: the ID of the clump.
+- `partids::Vector{<:Integer}`: vector of shape `(n_particles,)` with the particle IDs.
+- `clumpids::Vector{<:Integer}`: vector of shape `(n_particles, )` with the particles' clump IDs.
+"""
+function halo_parts(clumpid::Integer, partids::Vector{<:Integer}, clumpids::Vector{<:Integer})
+    return partids[clumpids .== clumpid]
+end
