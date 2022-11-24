@@ -98,7 +98,7 @@ def combine_splits(n_splits, part_reader, cols_add, remove_splits=False,
     # Filename of splits data
     froot = "ramses_out_{}_{}".format(
         str(n_sim).zfill(5), str(n_snap).zfill(5))
-    fname = join(part_reader.paths.dumpdir, froot + "_{}.npy")
+    fname = join(part_reader.paths.temp_dumpdir, froot + "_{}.npy")
 
     # Iterate over splits and add to the output array
     cols_add_names = [col[0] for col in cols_add]
