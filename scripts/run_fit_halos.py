@@ -57,7 +57,7 @@ for i, n_sim in enumerate(paths.ic_ids):
 
     box = csiborgtools.units.BoxUnits(paths)
 
-    jobs = csiborgtools.fits.split_jobs(utils.n_splits, nproc)[rank]
+    jobs = csiborgtools.fits.split_jobs(utils.Nsplits, nproc)[rank]
     for n_split in jobs:
         parts, part_clumps, clumps = csiborgtools.fits.load_split_particles(
             n_split, paths, n_snap, remove_split=False)
@@ -111,7 +111,7 @@ for i, n_sim in enumerate(paths.ic_ids):
         print("Collecting results!")
         partreader = csiborgtools.read.ParticleReader(paths)
         out_collected = csiborgtools.read.combine_splits(
-            utils.n_splits, paths, cols_collect, remove_splits=True,
+            utils.Nsplits, paths, cols_collect, remove_splits=True,
             verbose=False)
         fname = join(paths.dumpdir, "ramses_out_{}_{}.npy"
                      .format(str(paths.n_sim).zfill(5),
