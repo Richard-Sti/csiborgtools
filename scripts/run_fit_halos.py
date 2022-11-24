@@ -80,9 +80,9 @@ for i, n_sim in enumerate(paths.ic_ids):
             out["rmin"][n] = clump.rmin
             out["rmax"][n] = clump.rmax
             out["totpartmass"][n] = clump.total_particle_mass
-            out["vx"] = numpy.average(clump.vel[:, 0], weights=clump.m)
-            out["vy"] = numpy.average(clump.vel[:, 1], weights=clump.m)
-            out["vz"] = numpy.average(clump.vel[:, 2], weights=clump.m)
+            out["vx"][n] = numpy.average(clump.vel[:, 0], weights=clump.m)
+            out["vy"][n] = numpy.average(clump.vel[:, 1], weights=clump.m)
+            out["vz"][n] = numpy.average(clump.vel[:, 2], weights=clump.m)
 
             # Spherical overdensity radii and masses
             rs, ms = clump.spherical_overdensity_mass([200, 500])
