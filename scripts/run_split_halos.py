@@ -54,7 +54,6 @@ for icount, sim_index in enumerate(jobs):
     particle_clumps, particles = partreader.drop_zero_indx(
         particle_clumps, particles)
     # Dump it!
-    # NOTE this function still needs to be edited
     csiborgtools.fits.dump_split_particles(particles, particle_clumps, clumps,
                                            utils.Nsplits, paths, verbose=False)
 
