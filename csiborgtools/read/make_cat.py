@@ -197,6 +197,18 @@ class HaloCatalogue:
         """
         return self._positions
 
+    @property
+    def velocities(self):
+        """
+        Cartesian velocities of halos.
+
+        Returns
+        -------
+        vel : 2-dimensional array
+            Array of shape `(n_halos, 3)`.
+        """
+        return numpy.vstack([self["v{}".format(p)] for p in ("x", "y", "z")]).T
+
     def radius_neigbours(self, X, radius):
         """
         Return sorted nearest neigbours within `radius` or `X`.
