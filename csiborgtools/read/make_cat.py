@@ -139,6 +139,17 @@ class HaloCatalogue:
         # Cut on number of particles and finite m200
         data = data[(data["npart"] > 100) & numpy.isfinite(data["m200"])]
 
+        # Calculate redshift
+        pos = [data["peak_{}".format(p)] - 0.5 for p in ("x", "y", "z")]
+        vel = [data["v{}".format(p)] for p in ("x", "y", "z")]
+        zpec = self.box.box2pecredshift(*vel, *pos)
+        zobs = self.box.box2obsredshift(*vel, *pos)
+        zcosmo = self.box.box2cosmoredshift(
+            sum(pos[i]**2 for i in range(3))**0.5)
+
+        data = add_columns(data, [zpec, zobs, zcosmo],
+                           ["zpec", "zobs", "zcosmo"])
+
         # Unit conversion
         convert_cols = ["m200", "m500", "totpartmass", "mass_mmain",
                         "r200", "r500", "Rs", "rho0",
