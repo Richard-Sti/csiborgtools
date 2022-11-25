@@ -3,7 +3,6 @@
 ## :scroll: Short-term TODO
 - [ ] Find the distribution of particles in the first snapshot
 - [ ] Make sure I am not taking halos outside of the well-resolved region.
-- [ ] Implement Max's halo matching
 - [ ] Implement a custom model for matchin galaxies to halos.
 
 
