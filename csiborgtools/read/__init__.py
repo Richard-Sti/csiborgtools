@@ -16,4 +16,4 @@
 from .readsim import (CSiBORGPaths, ParticleReader, read_mmain, get_positions)  # noqa
 from .make_cat import (HaloCatalogue, CombinedHaloCatalogue)  # noqa
 from .readobs import (PlanckClusters, MCXCClusters, TwoMPPGalaxies, TwoMPPGroups)  # noqa
-from .outsim import (dump_split, combine_splits)  # noqa
+from .outsim import (dump_split, combine_splits, make_ascii_powmes)  # noqa

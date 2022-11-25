@@ -18,9 +18,11 @@ I/O functions for analysing the CSiBORG realisations.
 
 
 import numpy
-from os.path import join
+from os.path import (join, dirname, basename, isfile)
 from os import remove
 from tqdm import trange
+from astropy.io import ascii
+from astropy.table import Table
 
 I64 = numpy.int64
 F64 = numpy.float64
@@ -120,3 +122,46 @@ def combine_splits(n_splits, part_reader, cols_add, remove_splits=False,
             remove(fnamesplit)
 
     return out
+
+
+def make_ascii_powmes(particles, fout, verbose=True):
+    """
+    Write an ASCII file with appropriate formatting for POWMES.
+
+    Parameters
+    ----------
+    particles : structured array
+        Array of particles.
+    fout : str
+        File path to store the ASCII file.
+    verbose : bool, optional
+        Verbosity flag. By default `True`.
+
+    Returns
+    -------
+    None
+    """
+    out = Table()
+    for p in ('x', 'y', 'z', 'M'):
+        out[p] = particles[p]
+    # If fout exists, remove
+    if isfile(fout):
+        remove(fout)
+
+    # Write the temporaty file
+    ftemp = join(dirname(fout), "_" + basename(fout))
+    if verbose:
+        print("Writing temporary file `{}`...".format(ftemp))
+    ascii.write(out, ftemp, overwrite=True, delimiter=",", fast_writer=True)
+
+    # Write to the first line the number of particles
+    if verbose:
+        print("Writing the full file `{}`...".format(fout))
+    with open(ftemp, 'r') as fread, open(fout, 'w') as fwrite:
+        fwrite.write(str(particles.size) + '\n')
+        for i, line in enumerate(fread):
+            if i == 0:
+                continue
+            fwrite.write(line)
+
+    remove(ftemp)
