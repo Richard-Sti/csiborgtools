@@ -70,7 +70,7 @@ class CSiBORGPaths:
         self.srcdir = srcdir
         self.dumpdir = dumpdir
         self.mmain_path = mmain_path
-        if n_sim is None or n_snap is None:
+        if n_sim is not None and n_snap is not None:
             self.set_info(n_sim, n_snap)
 
     @property
