@@ -219,6 +219,8 @@ class BoxUnits:
         r"""
         Convert the box comoving distance to cosmological redshift.
 
+        NOTE: this likely is already the observed redshift.
+
         Parameters
         ----------
         dist : float
@@ -235,8 +237,24 @@ class BoxUnits:
 
     def box2pecredshift(self, vx, vy, vz, px, py, pz, p0x=0, p0y=0, p0z=0):
         """
-        TODO: docs
+        Convert the box phase-space information to a peculiar redshift.
 
+        NOTE: there is some confusion about this.
+
+        Parameters
+        ----------
+        vx, vy, vz : 1-dimensional arrays
+            The Cartesian velocity components.
+        px, py, pz : 1-dimensional arrays
+            The Cartesian position vectors components.
+        p0x, p0y, p0z : floats
+            The centre of the box. By default 0, in which it is assumed that
+            the coordinates are already centred.
+
+        Returns
+        -------
+        pec_redshift : 1-dimensional array
+            The peculiar redshift.
         """
         # Peculiar velocity along the radial distance
         r = numpy.vstack([px - p0x, py - p0y, pz - p0z]).T
@@ -250,8 +268,24 @@ class BoxUnits:
 
     def box2obsredshift(self, vx, vy, vz, px, py, pz, p0x=0, p0y=0, p0z=0):
         """
-        TODO: docs
+        Convert the box phase-space information to an 'observed' redshift.
 
+        NOTE: there is some confusion about this.
+
+        Parameters
+        ----------
+        vx, vy, vz : 1-dimensional arrays
+            The Cartesian velocity components.
+        px, py, pz : 1-dimensional arrays
+            The Cartesian position vectors components.
+        p0x, p0y, p0z : floats
+            The centre of the box. By default 0, in which it is assumed that
+            the coordinates are already centred.
+
+        Returns
+        -------
+        obs_redshift : 1-dimensional array
+            The observed redshift.
         """
         r = numpy.vstack([px - p0x, py - p0y, pz - p0z]).T
         zcosmo = self.box2cosmoredshift(numpy.sum(r**2, axis=1)**0.5)
