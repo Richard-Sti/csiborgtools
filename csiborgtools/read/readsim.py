@@ -43,6 +43,10 @@ class CSiBORGPaths:
 
     Parameters
     ----------
+    n_sim : int, optional
+        CSiBORG IC realisation index. By default not set.
+    n_snap : int, optional
+        Snapshot index. By default not set.
     srcdir : str, optional
         The file path to the folder where realisations of the ICs are stored.
         By default `/mnt/extraspace/hdesmond/`.
@@ -59,12 +63,15 @@ class CSiBORGPaths:
     _dumpdir = None
     _mmain_path = None
 
-    def __init__(self, srcdir="/mnt/extraspace/hdesmond/",
+    def __init__(self, n_sim=None, n_snap=None,
+                 srcdir="/mnt/extraspace/hdesmond/",
                  dumpdir="/mnt/extraspace/rstiskalek/csiborg/",
                  mmain_path="/mnt/zfsusers/hdesmond/Mmain"):
         self.srcdir = srcdir
         self.dumpdir = dumpdir
         self.mmain_path = mmain_path
+        if n_sim is None or n_snap is None:
+            self.set_info(n_sim, n_snap)
 
     @property
     def srcdir(self):
