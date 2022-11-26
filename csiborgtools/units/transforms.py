@@ -19,39 +19,49 @@ Various coordinate transformations.
 import numpy
 
 
-def cartesian_to_radec(arr, xpar="peak_x", ypar="peak_y", zpar="peak_z"):
-    r"""
-    Extract `x`, `y`, and `z` coordinates from a record array `arr` and
-    calculate the radial distance :math:`r` in coordinate units, right
-    ascension :math:`\mathrm{RA} \in [0, 360)` degrees and declination
-    :math:`\delta \in [-90, 90]` degrees.
+def cartesian_to_radec(x, y, z):
+    """
+    Calculate the radial distance, right ascension in [0, 360) degrees and
+    declination [-90, 90] degrees. Note, the observer should be placed in the
+    middle of the box.
 
     Parameters
     ----------
-    arr : record array
-        Record array with the Cartesian coordinates.
-    xpar : str, optional
-        Name of the x coordinate in the record array.
-    ypar : str, optional
-        Name of the y coordinate in the record array.
-    zpar : str, optional
-        Name of the z coordinate in the record array.
-
+    x, y, z : 1-dimensional arrays
+        Cartesian coordinates.
     Returns
     -------
-    dist : 1-dimensional array
-        Radial distance.
-    ra : 1-dimensional array
-        Right ascension.
-    dec : 1-dimensional array
-        Declination.
+    dist, ra, dec : 1-dimensional arrays
+        Radial distance, right ascension and declination.
     """
-    x, y, z = arr[xpar], arr[ypar], arr[zpar]
-
     dist = numpy.sqrt(x**2 + y**2 + z**2)
     dec = numpy.rad2deg(numpy.arcsin(z/dist))
     ra = numpy.rad2deg(numpy.arctan2(y, x))
     # Make sure RA in the correct range
     ra[ra < 0] += 360
-
     return dist, ra, dec
+
+
+def radec_to_cartesian(dist, ra, dec, isdeg=True):
+    """
+    Convert distance, right ascension and declination to Cartesian coordinates.
+
+    Parameters
+    ----------
+    dist, ra, dec : 1-dimensional arrays
+        The spherical coordinates.
+    isdeg : bool, optional
+        Whether `ra` and `dec` are in degres. By default `True`.
+
+    Returns
+    -------
+    x, y, z : 1-dimensional arrays
+        Cartesian coordinates.
+    """
+    if isdeg:
+        ra = numpy.deg2rad(ra)
+        dec = numpy.deg2rad(dec)
+    x = dist * numpy.cos(dec) * numpy.cos(ra)
+    y = dist * numpy.cos(dec) * numpy.sin(ra)
+    z = dist * numpy.sin(dec)
+    return x, y, z
