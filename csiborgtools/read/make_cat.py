@@ -163,7 +163,9 @@ class HaloCatalogue:
         data = data[data["m500"] > min_m500]
 
         # Now calculate spherical coordinates
-        d, ra, dec = cartesian_to_radec(data)
+        d, ra, dec = cartesian_to_radec(
+            data["peak_x"], data["peak_y"], data["peak_z"])
+
         data = add_columns(data, [d, ra, dec], ["dist", "ra", "dec"])
 
         # Cut on separation
