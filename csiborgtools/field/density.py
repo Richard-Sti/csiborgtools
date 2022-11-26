@@ -17,6 +17,7 @@ import numpy
 import MAS_library as MASL
 import smoothing_library as SL
 from warnings import warn
+from ..units import radec_to_cartesian
 
 """
 TODO:
@@ -87,6 +88,13 @@ class DensityField:
             raise ValueError("Invalid `boxsize` of `{}`.".format(boxsize))
         self._boxsize = boxsize
 
+    @staticmethod
+    def _force_f32(x, name):
+        if x.dtype != numpy.float32:
+            warn("Converting `{}` to float32.".format(name))
+            x = x.astype(numpy.float32)
+        return x
+
     def density_field(self, grid, verbose=True):
         """
         Calculate the density field using a Pylians routine [1, 2]. Enforces
@@ -112,8 +120,8 @@ class DensityField:
         """
         pos = numpy.vstack([self.particles[p] for p in ('x', 'y', 'z')]).T
         pos *= self.boxsize
-        pos = pos.astype(numpy.float32)
-        weights = self.particles['M'].astype(numpy.float32)
+        pos = self._force_f32(pos, "pos")
+        weights = self._force_f32(self.particles['M'], 'M')
         MAS = "CIC"  # Cloud in cell
 
         # Pre-allocate and do calculations
@@ -147,12 +155,13 @@ class DensityField:
 
     def evaluate_field(self, pos, field):
         """
-        Evaluate the field at given positions.
+        Evaluate the field at Cartesian coordinates.
 
         Parameters
         ----------
         pos : 2-dimensional array of shape `(n_samples, 3)`
-            Positions to evaluate the density field.
+            Positions to evaluate the density field. The coordinates span range
+            of [0, boxsize].
         field : 3-dimensional array of shape `(grid, grid, grid)`
             The density field that is to be interpolated.
 
@@ -161,9 +170,33 @@ class DensityField:
         interp_field : 1-dimensional array of shape `(n_samples,).
             Interpolated field at `pos`.
         """
-        if pos.dtype != numpy.float32:
-            warn("Converting `pos` to float32.")
-            pos = pos.astype(numpy.float32)
+        self._force_f32(pos, "pos")
         density_interpolated = numpy.zeros(pos.shape[0], dtype=numpy.float32)
         MASL.CIC_interp(field, self.boxsize, pos, density_interpolated)
         return density_interpolated
+
+    def evaluate_sky(self, pos, field, isdeg):
+        """
+        Evaluate the field at given distance, right ascension and declination.
+
+        Parameters
+        ----------
+        pos : 2-dimensional array of shape `(n_samples, 3)`
+            Spherical coordinates to evaluate the field. Should be distance,
+            right ascension, declination, respectively.
+        field : 3-dimensional array of shape `(grid, grid, grid)`
+            The density field that is to be interpolated. Assumed to be defined
+            on a Cartesian grid.
+        isdeg : bool, optional
+            Whether `ra` and `dec` are in degres. By default `True`.
+
+        Returns
+        -------
+        interp_field : 1-dimensional array of shape `(n_samples,).
+            Interpolated field at `pos`.
+        """
+        self._force_f32(pos, "pos")
+        X = numpy.vstack(
+            radec_to_cartesian(*(pos[:, i] for i in range(3)), isdeg)).T
+
+        return self.evaluate_field(X, field)
