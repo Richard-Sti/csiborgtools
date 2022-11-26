@@ -25,7 +25,7 @@ TODO:
     [x] Smoothing of a density field.
     [ ] Potential calculation.
     [ ] Tidal field calculation.
-    [ ] Sky projection.
+    [x] Sky projection of a field.
 """
 
 
