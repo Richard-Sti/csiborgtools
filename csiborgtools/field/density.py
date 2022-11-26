@@ -15,11 +15,12 @@
 
 import numpy
 import MAS_library as MASL
+import smoothing_library as SL
 from warnings import warn
 
 """
 TODO:
-    [ ] Smoothing of a density field.
+    [x] Smoothing of a density field.
     [ ] Potential calculation.
     [ ] Tidal field calculation.
     [ ] Sky projection.
@@ -120,20 +121,29 @@ class DensityField:
         MASL.MA(pos, rho, self.boxsize, MAS, W=weights, verbose=verbose)
         return rho
 
-#       def smooth_field(self):
-#            import smoothing_library as SL
-#
-#            BoxSize = 75.0 #Mpc/h
-#            R       = 5.0  #Mpc.h
-#            grid    = field.shape[0]
-#            Filter  = 'Top-Hat'
-#            threads = 28
-#
-#            # compute FFT of the filter
-#            W_k = SL.FT_filter(BoxSize, R, grid, Filter, threads)
-#
-#            # smooth the field
-#            field_smoothed = SL.field_smoothing(field, W_k, threads)
+    def smooth_field(self, field, scale, threads=1):
+        """
+        Smooth a field with a Gaussian filter.
+
+        Parameters
+        ----------
+        field : 3-dimensional array of shape `(grid, grid, grid)`
+            The field to be smoothed.
+        scale : float
+            The smoothing scale of the Gaussian filter. Units must match that
+            of `self.boxsize`.
+        threads : int, optional
+            Number of threads. By default 1.
+
+        Returns
+        -------
+        smoothed_field : 3-dimensional array of shape `(grid, grid, grid)`
+        """
+        Filter = "Gaussian"
+        grid = field.shape[0]
+        # FFT of the filter
+        W_k = SL.FT_filter(self.boxsize, scale, grid, Filter, threads)
+        return SL.field_smoothing(field, W_k, threads)
 
     def evaluate_field(self, pos, field):
         """
