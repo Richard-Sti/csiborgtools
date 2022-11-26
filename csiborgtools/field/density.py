@@ -17,6 +17,14 @@ import numpy
 import MAS_library as MASL
 from warnings import warn
 
+"""
+TODO:
+    [ ] Smoothing of a density field.
+    [ ] Potential calculation.
+    [ ] Tidal field calculation.
+    [ ] Sky projection.
+"""
+
 
 class DensityField:
     """
