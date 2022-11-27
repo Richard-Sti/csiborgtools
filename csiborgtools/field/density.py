@@ -101,14 +101,6 @@ class DensityField:
         """
         return self._boxsize
 
-#    @boxsize.setter
-#    def boxsize(self, boxsize):
-#        """Sets boxsize, checking its a float."""
-#        boxsize = float(boxsize) if isinstance(boxsize, int) else boxsize
-#        if not isinstance(boxsize, float) and boxsize > 0:
-#            raise ValueError("Invalid `boxsize` of `{}`.".format(boxsize))
-#        self._boxsize = boxsize
-
     @staticmethod
     def _force_f32(x, name):
         if x.dtype != numpy.float32:
