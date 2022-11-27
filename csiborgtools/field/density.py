@@ -18,7 +18,7 @@ import MAS_library as MASL
 import smoothing_library as SL
 from warnings import warn
 from tqdm import trange
-from ..units import radec_to_cartesian
+from ..units import (BoxUnits, radec_to_cartesian)
 
 """
 TODO:
@@ -37,8 +37,8 @@ class DensityField:
     ----------
     particles : structured array
         Particle array. Must contain keys `['x', 'y', 'z', 'M']`.
-    boxsiez : float, optional
-        Size of the box. By default 1.
+    box : :py:class:`csiborgtools.units.BoxUnits`
+        The simulation box information and transformations.
 
     References
     ----------
@@ -46,10 +46,12 @@ class DensityField:
     """
     _particles = None
     _boxsize = None
+    _box = None
 
-    def __init__(self, particles, boxsize=1.):
+    def __init__(self, particles, box):
         self.particles = particles
-        self.boxsize = boxsize
+        self.box = box
+        self._boxsize = 1.
 
     @property
     def particles(self):
@@ -71,9 +73,27 @@ class DensityField:
         self._particles = particles
 
     @property
+    def box(self):
+        """
+        The simulation box information and transformations.
+
+        Returns
+        -------
+        box : :py:class:`csiborgtools.units.BoxUnits`
+        """
+        return self._box
+
+    @box.setter
+    def box(self, box):
+        """Set the simulation box."""
+        if not isinstance(box, BoxUnits):
+            raise TypeError("`box` must be `BoxUnits` instance.")
+        self._box = box
+
+    @property
     def boxsize(self):
         """
-        The boxsize.
+        Boxsize.
 
         Returns
         -------
@@ -81,13 +101,13 @@ class DensityField:
         """
         return self._boxsize
 
-    @boxsize.setter
-    def boxsize(self, boxsize):
-        """Sets boxsize, checking its a float."""
-        boxsize = float(boxsize) if isinstance(boxsize, int) else boxsize
-        if not isinstance(boxsize, float) and boxsize > 0:
-            raise ValueError("Invalid `boxsize` of `{}`.".format(boxsize))
-        self._boxsize = boxsize
+#    @boxsize.setter
+#    def boxsize(self, boxsize):
+#        """Sets boxsize, checking its a float."""
+#        boxsize = float(boxsize) if isinstance(boxsize, int) else boxsize
+#        if not isinstance(boxsize, float) and boxsize > 0:
+#            raise ValueError("Invalid `boxsize` of `{}`.".format(boxsize))
+#        self._boxsize = boxsize
 
     @staticmethod
     def _force_f32(x, name):
@@ -129,6 +149,30 @@ class DensityField:
         rho = numpy.zeros((grid, grid, grid), dtype=numpy.float32)
         MASL.MA(pos, rho, self.boxsize, MAS, W=weights, verbose=verbose)
         return rho
+
+    def potential_field(self, ngrid, verbose=True):
+        """
+        Calculate the potential field using Pylians routines.
+
+        Parameters
+        ----------
+        grid : int
+            The grid size.
+        verbose : float, optional
+            A verbosity flag. By default `True`.
+
+        Returns
+        -------
+        potential : 3-dimensional array of shape `(grid, grid, grid)`.
+            Potential field.
+        """
+        # Get the overdensity
+        delta = self.density_field(ngrid, verbose)
+        delta /= delta.mean()
+        delta -= 1
+        if verbose:
+            print("Calculating potential from the overdensity..")
+        return MASL.potential(delta, self.box._omega_m, self.box._aexp, "CIC")
 
     def smooth_field(self, field, scale, threads=1):
         """
