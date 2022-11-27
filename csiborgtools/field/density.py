@@ -20,14 +20,6 @@ from warnings import warn
 from tqdm import trange
 from ..units import (BoxUnits, radec_to_cartesian)
 
-"""
-TODO:
-    [x] Smoothing of a density field.
-    [ ] Potential calculation.
-    [ ] Tidal field calculation.
-    [x] Sky projection of a field.
-"""
-
 
 class DensityField:
     """
@@ -142,7 +134,30 @@ class DensityField:
         MASL.MA(pos, rho, self.boxsize, MAS, W=weights, verbose=verbose)
         return rho
 
-    def potential_field(self, ngrid, verbose=True):
+    def overdensity_field(self, grid, verbose=True):
+        r"""
+        Calculate the overdensity field using Pylians routines.
+        Defined as :math:`\rho/ <\rho> - 1`.
+
+        Parameters
+        ----------
+        grid : int
+            The grid size.
+        verbose : float, optional
+            A verbosity flag. By default `True`.
+
+        Returns
+        -------
+        overdensity : 3-dimensional array of shape `(grid, grid, grid)`.
+            Overdensity field.
+        """
+        # Get the overdensity
+        delta = self.density_field(grid, verbose)
+        delta /= delta.mean()
+        delta -= 1
+        return delta
+
+    def potential_field(self, grid, verbose=True):
         """
         Calculate the potential field using Pylians routines.
 
@@ -158,13 +173,31 @@ class DensityField:
         potential : 3-dimensional array of shape `(grid, grid, grid)`.
             Potential field.
         """
-        # Get the overdensity
-        delta = self.density_field(ngrid, verbose)
-        delta /= delta.mean()
-        delta -= 1
+        delta = self.overdensity_field(grid, verbose)
         if verbose:
             print("Calculating potential from the overdensity..")
         return MASL.potential(delta, self.box._omega_m, self.box._aexp, "CIC")
+
+    def tensor_field(self, grid, verbose=True):
+        """
+        Calculate the tidal tensor field.
+
+        Parameters
+        ----------
+        grid : int
+            The grid size.
+        verbose : float, optional
+            A verbosity flag. By default `True`.
+
+        Returns
+        -------
+        tidal_tensor : :py:class:`MAS_library.tidal_tensor`
+            Tidal tensor object, whose attributes `tidal_tensor.Tij` contain
+            the relevant tensor components.
+        """
+        delta = self.overdensity_field(grid, verbose)
+        return MASL.tidal_tensor(delta, self.box._omega_m, self.box._aexp,
+                                 "CIC")
 
     def smooth_field(self, field, scale, threads=1):
         """
