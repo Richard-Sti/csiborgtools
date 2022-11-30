@@ -43,6 +43,7 @@ dumpdir = utils.dumpdir
 loaddir = join(utils.dumpdir, "temp")
 cols_collect = [("npart", I64), ("totpartmass", F64), ("Rs", F64),
                 ("vx", F64), ("vy", F64), ("vz", F64),
+                ("Lx", F64), ("Ly", F64), ("Lz", F64),
                 ("rho0", F64), ("conc", F64), ("rmin", F64),
                 ("rmax", F64), ("r200", F64), ("r500", F64),
                 ("m200", F64), ("m500", F64), ("lambda200c", F64)]
@@ -66,6 +67,7 @@ for i, n_sim in enumerate(paths.ic_ids):
         cols = [("index", I64), ("npart", I64), ("totpartmass", F64),
                 ("Rs", F64), ("rho0", F64), ("conc", F64), ("lambda200c", F64),
                 ("vx", F64), ("vy", F64), ("vz", F64),
+                ("Lx", F64), ("Ly", F64), ("Lz", F64),
                 ("rmin", F64), ("rmax", F64),
                 ("r200", F64), ("r500", F64), ("m200", F64), ("m500", F64)]
         out = csiborgtools.utils.cols_to_structured(N, cols)
@@ -84,6 +86,7 @@ for i, n_sim in enumerate(paths.ic_ids):
             out["vx"][n] = numpy.average(clump.vel[:, 0], weights=clump.m)
             out["vy"][n] = numpy.average(clump.vel[:, 1], weights=clump.m)
             out["vz"][n] = numpy.average(clump.vel[:, 2], weights=clump.m)
+            out["Lx"][n], out["Ly"][n], out["Lz"][n] = clump.angular_momentum
 
             # Spherical overdensity radii and masses
             rs, ms = clump.spherical_overdensity_mass([200, 500])
