@@ -15,6 +15,7 @@
 
 import numpy
 import MAS_library as MASL
+import Pk_library as PKL
 import smoothing_library as SL
 from warnings import warn
 from tqdm import trange
@@ -220,6 +221,31 @@ class DensityField:
         delta = self.overdensity_field(grid, verbose)
         return MASL.grav_field_tensor(
             delta, self.box._omega_m, self.box._aexp, "CIC")
+
+    def auto_powerspectrum(self, grid, verbose=True):
+        """
+        Calculate the auto 1-dimensional power spectrum.
+
+        Parameters
+        ----------
+        grid : int
+            The grid size.
+        verbose : float, optional
+            A verbosity flag. By default `True`.
+
+        Returns
+        -------
+        k1d : 1-dimensional array of shape `(n_ks, )`
+            Wavenumber model.
+        Pk1d : 1-dimensional array of shape `(n_ks, )`
+            Power spectrum.
+        nmodes : 1-dimensional array of shape `(n_ks, )`
+            Number of modes.
+        """
+        delta = self.overdensity_field(grid, verbose)
+        Pk = PKL.Pk(delta, self.boxsize, axis=1, MAS="CIC", threads=1,
+                    verbose=verbose)
+        return Pk.k1D, Pk.Pk1D, Pk.Nmodes1D
 
     def smooth_field(self, field, scale, threads=1):
         """
