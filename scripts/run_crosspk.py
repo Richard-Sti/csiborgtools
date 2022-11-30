@@ -43,8 +43,6 @@ comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 nproc = comm.Get_size()
 
-# NOTE add a counter for the delta that the process previously processed
-
 paths = csiborgtools.read.CSiBORGPaths()
 ics = paths.ic_ids
 n_sims = len(ics)
