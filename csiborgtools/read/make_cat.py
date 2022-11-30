@@ -228,6 +228,18 @@ class HaloCatalogue:
         """
         return numpy.vstack([self["v{}".format(p)] for p in ("x", "y", "z")]).T
 
+    @property
+    def angmomentum(self):
+        """
+        Angular momentum of halos in the box coordinate system.
+
+        Returns
+        -------
+        angmom : 2-dimensional array
+            Array of shape `(n_halos, 3)`.
+        """
+        return numpy.vstack([self["L{}".format(p)] for p in ("x", "y", "z")]).T
+
     def radius_neigbours(self, X, radius):
         """
         Return sorted nearest neigbours within `radius` or `X`.
