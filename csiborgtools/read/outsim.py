@@ -19,6 +19,7 @@ I/O functions for analysing the CSiBORG realisations.
 
 import numpy
 from os.path import (join, dirname, basename, isfile)
+import gc
 from os import remove
 from tqdm import trange
 from astropy.io import ascii
@@ -154,6 +155,9 @@ def make_ascii_powmes(particles, fout, verbose=True):
     if verbose:
         print("Writing temporary file `{}`...".format(ftemp))
     ascii.write(out, ftemp, overwrite=True, delimiter=",", fast_writer=True)
+
+    del out
+    gc.collect()
 
     # Write to the first line the number of particles
     if verbose:
