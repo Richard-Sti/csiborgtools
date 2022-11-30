@@ -127,6 +127,7 @@ def combine_splits(n_splits, part_reader, cols_add, remove_splits=False,
 def make_ascii_powmes(particles, fout, verbose=True):
     """
     Write an ASCII file with appropriate formatting for POWMES.
+    This is an extremely memory inefficient implementation.
 
     Parameters
     ----------
