@@ -1,8 +1,9 @@
 # CSiBORG tools
 
 ## Short-term TODO
+- [ ] Calculate the cross-correlation with `Pylians`
 - [ ] Get `powmes` working and compare its power spectrum to `Pylians`.
-- [ ] Check alignment of the angular momentum
+- [x] Check alignment of the angular momentum
 - [x] Make sure I am not taking halos outside of the well-resolved region.
 - [x] Calculate the gravitational potential.
 - [x] Add the gravitational field calculation.
