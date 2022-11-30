@@ -110,7 +110,8 @@ for n in jobs:
                          "disagree by `{}`!".format(ics[i], ics[j], daexp))
 
     # Calculate the cross power spectrum
-    Pk = PKL.XPk([delta_i, delta_j], 1., axis=1, MAS=["CIC", "CIC"], threads=1)
+    Pk = PKL.XPk([delta_i, delta_j], 1., axis=1, MAS=["CIC", "CIC"], threads=1,
+                 verbose=False)
     joblib.dump(Pk, fout.format(ics[i], ics[j]))
 
 
@@ -119,7 +120,7 @@ comm.Barrier()
 if rank == 0:
     print("Cleaning up the temporary files...")
     for ic in ics:
-        remove(ftemp.format(ics[j], "delta") + ".npy")
-        remove(ftemp.format(ics[j], "Om0") + ".p")
+        remove(ftemp.format(ic, "delta") + ".npy")
+        remove(ftemp.format(ic, "Om0") + ".p")
 
     print("All finished!")
