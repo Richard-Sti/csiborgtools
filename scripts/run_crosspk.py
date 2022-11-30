@@ -45,7 +45,7 @@ rank = comm.Get_rank()
 nproc = comm.Get_size()
 
 paths = csiborgtools.read.CSiBORGPaths()
-ics = paths.ic_ids[:10]
+ics = paths.ic_ids
 n_sims = len(ics)
 
 # File paths
