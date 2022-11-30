@@ -44,16 +44,16 @@ rank = comm.Get_rank()
 nproc = comm.Get_size()
 
 paths = csiborgtools.read.CSiBORGPaths()
-ics = paths.ic_ids
+ics = paths.ic_ids[:10]
 n_sims = len(ics)
 
-
+# File paths
 ftemp = join(utils.dumpdir, "temp_crosspk", "out_{}_{}")
-fout = join(utils.dumpdir, "crosspk_{}_{}.p")
+fout = join(utils.dumpdir, "crosspk", "out_{}_{}.p")
 
 
 jobs = csiborgtools.fits.split_jobs(n_sims, nproc)[rank]
-for n in range(jobs):
+for n in jobs:
     print("Rank {}@{}: saving {}th delta.".format(rank, datetime.now(), n))
     # Set the paths
     n_sim = ics[n]
@@ -62,7 +62,7 @@ for n in range(jobs):
     reader = csiborgtools.read.ParticleReader(paths)
     box = csiborgtools.units.BoxUnits(paths)
     # Read particles
-    particles = reader.read_particle(["x", "y", "z", "M"])
+    particles = reader.read_particle(["x", "y", "z", "M"], verbose=False)
     # Calculate the overdensity field
     field = csiborgtools.field.DensityField(particles, box)
     delta = field.overdensity_field(args.grid, verbose=False)
