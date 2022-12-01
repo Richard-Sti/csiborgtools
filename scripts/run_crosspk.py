@@ -67,14 +67,22 @@ for n in jobs:
     # Calculate the overdensity field
     field = csiborgtools.field.DensityField(particles, box)
     delta = field.overdensity_field(args.grid, verbose=False)
+    aexp = box._aexp
+
+    # Try to clean up memory
+    del field, particles, box, reader
+    collect()
+
     # Dump the results
-    numpy.save(ftemp.format(n_sim, "delta") + ".npy", delta)
-    joblib.dump(box._aexp, ftemp.format(n_sim, "Om0") + ".p")
+    with open(ftemp.format(n_sim, "delta") + ".npy", "wb") as f:
+        numpy.save(f, delta)
+    joblib.dump(aexp, ftemp.format(n_sim, "Om0") + ".p")
+
+    # Try to clean up memory
+    del delta
+    collect()
 
 
-# Try to clean up memory and wait for all processes to finish
-del particles, delta
-collect()
 comm.Barrier()
 
 # Get off-diagonal elements and append the diagoal
@@ -93,7 +101,8 @@ for n in jobs:
         delta_i = prev_delta[1]
         aexp_i = prev_delta[2]
     else:
-        delta_i = numpy.load(ftemp.format(ics[i], "delta") + ".npy")
+        with open(ftemp.format(ics[i], "delta") + ".npy", "rb") as f:
+            delta_i = numpy.load(f)
         aexp_i = joblib.load(ftemp.format(ics[i], "Om0") + ".p")
         # Store in prev_delta
         prev_delta[0] = i
@@ -101,7 +110,8 @@ for n in jobs:
         prev_delta[2] = aexp_i
 
     # Get jth delta
-    delta_j = numpy.load(ftemp.format(ics[j], "delta") + ".npy")
+    with open(ftemp.format(ics[j], "delta") + ".npy", "rb") as f:
+        delta_j = numpy.load(f)
     aexp_j = joblib.load(ftemp.format(ics[j], "Om0") + ".p")
 
     # Verify the difference between the scale factors! Say more than 1%
@@ -111,8 +121,12 @@ for n in jobs:
                          "disagree by `{}`!".format(ics[i], ics[j], daexp))
 
     # Calculate the cross power spectrum
-    Pk = PKL.XPk([delta_i, delta_j], 1., axis=1, MAS=["CIC", "CIC"], threads=1)
+    Pk = PKL.XPk([delta_i, delta_j], 1., axis=1, MAS=["CIC", "CIC"], threads=1,
+                 verbose=False)
     joblib.dump(Pk, fout.format(ics[i], ics[j]))
+
+    del delta_i, delta_j, Pk
+    collect()
 
 
 # Clean up the temp files
