@@ -121,8 +121,7 @@ for n in jobs:
                          "disagree by `{}`!".format(ics[i], ics[j], daexp))
 
     # Calculate the cross power spectrum
-    Pk = PKL.XPk([delta_i, delta_j], 1., axis=1, MAS=["CIC", "CIC"], threads=1,
-                 verbose=False)
+    Pk = PKL.XPk([delta_i, delta_j], 1., axis=1, MAS=["CIC", "CIC"], threads=1)
     joblib.dump(Pk, fout.format(ics[i], ics[j]))
 
     del delta_i, delta_j, Pk
