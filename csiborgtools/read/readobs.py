@@ -477,8 +477,6 @@ class PlanckClusters(FitsSurvey):
 
     def match_to_mcxc(self, mcxc):
         """
-        TODO: this function is likely broken at the moment.
-
         Return the MCXC catalogue indices of the Planck catalogue detections.
         Finds the index of the quoted Planck MCXC counterpart in the MCXC
         array. If not found throws an error. For this reason it may be better
