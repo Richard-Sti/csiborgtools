@@ -16,7 +16,6 @@
 Scripts to read in observation.
 
 TODO:
-- [ ] Finish SDSS surv.
 - [ ] Improve the rest of this file
 
 """
@@ -497,9 +496,6 @@ class SDSS(FitsSurvey):
     SDSS data manipulations. Carries routines for ABSMAG, APPMAG, COL, DIST,
     MTOL.
 
-    TODO:
-    - [ ] masking
-
     Parameters
     ----------
     fpath : str
@@ -508,6 +504,9 @@ class SDSS(FitsSurvey):
     h : float
         Little h. By default `h = 1`. The catalogue assumes this value.
         The routine properties should take care of little h conversion.
+    fmask : py:func
+        A function whose argument is `SDSS` and returns a boolean array
+        indicating which samples to keep. By default `None`, i.e. no selection.
     """
 
     def __init__(self, fpath=None, h=1, fmask=None):
