@@ -493,8 +493,8 @@ class FitsSurvey(ABC):
 
 class SDSS(FitsSurvey):
     """
-    SDSS data manipulations. Carries routines for ABSMAG, APPMAG, COL, DIST,
-    MTOL.
+    SDSS data manipulations. Data obtained from [1]. Carries routines for
+    ABSMAG, APPMAG, COL, DIST, MTOL.
 
     Parameters
     ----------
@@ -507,6 +507,10 @@ class SDSS(FitsSurvey):
     fmask : py:func
         A function whose argument is `SDSS` and returns a boolean array
         indicating which samples to keep. By default `None`, i.e. no selection.
+
+    References
+    ----------
+    [1] https://www.sdss.org/dr13/manga/manga-target-selection/nsa/
     """
 
     def __init__(self, fpath=None, h=1, fmask=None):
