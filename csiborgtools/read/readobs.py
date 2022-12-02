@@ -22,7 +22,7 @@ TODO:
 """
 
 import numpy
-from abc import ABC
+from abc import ABC, abstractproperty
 from astropy.io import fits
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
@@ -324,6 +324,7 @@ class FitsSurvey(ABC):
     _file = None
     _h = None
     _routines = None
+    _selection_mask = None
 
     @property
     def file(self):
@@ -376,6 +377,49 @@ class FitsSurvey(ABC):
             arguments.
         """
         return self._routines
+
+    @abstractproperty
+    def size(self):
+        """
+        Number of samples in the catalogue.
+
+        Returns
+        -------
+        size : int
+        """
+        pass
+
+    @abstractproperty
+    def masked_size(self):
+        """
+        Number of masked samples in the catalogue.
+
+        Returns
+        -------
+        masked_size : int
+        """
+        pass
+
+    @property
+    def selection_mask(self):
+        """
+        Selection mask, generated with `fmask` when initialised.
+
+        Returns
+        -------
+        mask : 1-dimensional boolean array
+        """
+        return self._selection_mask
+
+    @selection_mask.setter
+    def selection_mask(self, mask):
+        """Sets the selection mask."""
+        if not (isinstance(mask, numpy.ndarray)
+                and mask.ndim == 1
+                and mask.dtype == bool):
+            raise TypeError("`selection_mask` must be a 1-dimensional boolean "
+                            "array. Check output of `fmask`.")
+        self._selection_mask = mask
 
     @property
     def fits_keys(self):
@@ -435,13 +479,17 @@ class FitsSurvey(ABC):
 
         if key in self.routine_keys:
             func, args = self.routines[key]
-            return func(*args)
+            out = func(*args)
         elif key in self.fits_keys:
             warn("Returning a FITS property. Be careful about little h!",
                  UserWarning)
-            return self.get_fitsitem(key)
+            out = self.get_fitsitem(key)
         else:
             raise KeyError("Unrecognised key `{}`.".format(key))
+
+        if self.selection_mask is None:
+            return out
+        return out[self.selection_mask]
 
 
 class SDSS(FitsSurvey):
@@ -462,7 +510,7 @@ class SDSS(FitsSurvey):
         The routine properties should take care of little h conversion.
     """
 
-    def __init__(self, fpath=None, h=1):
+    def __init__(self, fpath=None, h=1, fmask=None):
         if fpath is None:
             fpath = "/mnt/extraspace/rstiskalek/catalogs/nsa_v1_0_1.fits"
         self._file = fits.open(fpath, memmap=False)
@@ -508,6 +556,21 @@ class SDSS(FitsSurvey):
                 self.routines.update({key: val})
         # Set IN_DR7_LSS
         self.routines.update({"IN_DR7_LSS": (self._in_dr7_lss, ())})
+
+        # Add masking. Do this at the end!
+        if fmask is not None:
+            self.selection_mask = fmask(self)
+
+    @property
+    def size(self):
+        # Here pick some property that is in the catalogue..
+        return self.get_fitsitem("ZDIST").size
+
+    @property
+    def masked_size(self):
+        if self.selection_mask is None:
+            return self.size
+        return numpy.sum(self.selection_mask)
 
     def _absmag(self, photo, band):
         """
