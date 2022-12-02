@@ -16,7 +16,6 @@
 Notebook utility functions.
 """
 
-# import numpy
 # from os.path import join
 
 # try:
@@ -28,23 +27,6 @@ Notebook utility functions.
 
 Nsplits = 200
 dumpdir = "/mnt/extraspace/rstiskalek/csiborg/"
-
-
-def SDSSmask(cls):
-    """SDSS-like mask. Edit steps as needed."""
-    steps = [(lambda x: cls[x], ("IN_DR7_LSS",)),
-             (lambda x: cls[x] < 17.6, ("ELPETRO_APPMAG_r", )),
-             ]
-
-    out = None
-    # Loop over the steps and return a bool array
-    for i, step in enumerate(steps):
-        func, args = step
-        if i == 0:
-            out = func(*args)
-        else:
-            out = out & func(*args)
-    return out
 
 
 # Some chosen clusters
