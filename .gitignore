@@ -15,5 +15,5 @@ build/*
 .eggs/*
 csiborgtools.egg-info/*
 scripts/playground_*
-scripts/playground.ipynb
+scripts/*.ipynb
 Pylians3/*
