@@ -397,6 +397,35 @@ class FitsSurvey(ABC):
         """
         return self.routine_keys + self.fits_keys
 
+    def make_mask(self, steps):
+        """
+        Make a survey mask from a series of steps. Expected to look e.g. like
+
+        ```
+        def steps(cls):
+            return [(lambda x: cls[x], ("IN_DR7_LSS",)),
+                    (lambda x: cls[x] < 17.6, ("ELPETRO_APPMAG_r", )),
+                   ]
+        ```
+
+        Parameters
+        ----------
+        steps : list of steps
+
+        Returns
+        -------
+        mask : 1-dimensional boolean array
+        """
+        out = None
+        steps = steps(self)
+        for i, step in enumerate(steps):
+            func, args = step
+            if i == 0:
+                out = func(*args)
+            else:
+                out = out & func(*args)
+        return out
+
     def __getitem__(self, key):
         """
         Return values for this `key`. If in both return from `routine_keys`.
@@ -438,10 +467,14 @@ class PlanckClusters(FitsSurvey):
     h : float, optional
         Little h. By default `h = 0.7`. The catalogue assumes this value.
         The routine properties should take care of little h conversion.
-    fmask : py:func, optional
-        A function whose argument is `PlanckClusters` and returns a boolean
-        array indicating which samples to keep. By default `None`, i.e. no
-        selection.
+    sel_steps : py:function:
+        Steps to mask the survey. Expected to look for example like
+        ```
+        def steps(cls):
+            return [(lambda x: cls[x], ("IN_DR7_LSS",)),
+                    (lambda x: cls[x] < 17.6, ("ELPETRO_APPMAG_r", )),
+                   ]
+        ```
 
     References
     ----------
@@ -449,7 +482,7 @@ class PlanckClusters(FitsSurvey):
     """
     _hdata = 0.7  # little h value of the data
 
-    def __init__(self, fpath=None, h=0.7, fmask=None):
+    def __init__(self, fpath=None, h=0.7, sel_steps=None):
         if fpath is None:
             fpath = join("/mnt/extraspace/rstiskalek/catalogs/",
                          "HFI_PCCS_SZ-union_R2.08.fits")
@@ -462,8 +495,8 @@ class PlanckClusters(FitsSurvey):
             self._routines.update({key: (self._mass, (key,))})
 
         # Add masking. Do this at the end!
-        if fmask is not None:
-            self.selection_mask = fmask(self)
+        if sel_steps is not None:
+            self.selection_mask = self.make_mask(sel_steps)
 
     @property
     def size(self):
@@ -530,16 +563,20 @@ class SDSS(FitsSurvey):
     h : float, optional
         Little h. By default `h = 1`. The catalogue assumes this value.
         The routine properties should take care of little h conversion.
-    fmask : py:func, optional
-        A function whose argument is `SDSS` and returns a boolean array
-        indicating which samples to keep. By default `None`, i.e. no selection.
+    sel_steps : py:function:
+        Steps to mask the survey. Expected to look for example like
+        ```
+            steps = [(lambda x: cls[x], ("IN_DR7_LSS",)),
+                     (lambda x: cls[x] < 17.6, ("ELPETRO_APPMAG_r", )),
+                     ]
+        ```.
 
     References
     ----------
     [1] https://www.sdss.org/dr13/manga/manga-target-selection/nsa/
     """
 
-    def __init__(self, fpath=None, h=1, fmask=None):
+    def __init__(self, fpath=None, h=1, sel_steps=None):
         if fpath is None:
             fpath = "/mnt/extraspace/rstiskalek/catalogs/nsa_v1_0_1.fits"
         self._file = fits.open(fpath, memmap=False)
@@ -587,8 +624,8 @@ class SDSS(FitsSurvey):
         self.routines.update({"IN_DR7_LSS": (self._in_dr7_lss, ())})
 
         # Add masking. Do this at the end!
-        if fmask is not None:
-            self.selection_mask = fmask(self)
+        if sel_steps is not None:
+            self.selection_mask = self.make_mask(sel_steps)
 
     @property
     def size(self):
