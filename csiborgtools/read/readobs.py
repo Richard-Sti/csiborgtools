@@ -506,6 +506,8 @@ class SDSS(FitsSurvey):
                 key = "{}_MTOL_{}".format(photo, band)
                 val = (self._mtol, (photo, band))
                 self.routines.update({key: val})
+        # Set IN_DR7_LSS
+        self.routines.update({"IN_DR7_LSS": (self._in_dr7_lss, ())})
 
     def _absmag(self, photo, band):
         """
@@ -570,3 +572,9 @@ class SDSS(FitsSurvey):
         self._check_in_list(band, self._bands, "band")
         k = self._bands.index(band)
         return self.get_fitsitem("{}_MTOL".format(photo))[:, k] / self.h**2
+
+    def _in_dr7_lss(self):
+        """
+        Get `IN_DR7_LSS` and turn to a boolean array.
+        """
+        return self.get_fitsitem("IN_DR7_LSS").astype(bool)
