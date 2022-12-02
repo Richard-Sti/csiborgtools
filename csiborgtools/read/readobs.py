@@ -16,8 +16,8 @@
 Scripts to read in observation.
 
 TODO:
-- [ ] Improve the rest of this file
-
+- [ ] Move MCXC clusters to fits
+- [ ] Update file paths of text surveys (and MCXC) and move to extraspace
 """
 
 import numpy
