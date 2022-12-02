@@ -30,6 +30,23 @@ Nsplits = 200
 dumpdir = "/mnt/extraspace/rstiskalek/csiborg/"
 
 
+def SDSSmask(cls):
+    """SDSS-like mask. Edit steps as needed."""
+    steps = [(lambda x: cls[x], ("IN_DR7_LSS",)),
+             (lambda x: cls[x] < 17.6, ("ELPETRO_APPMAG_r", )),
+             ]
+
+    out = None
+    # Loop over the steps and return a bool array
+    for i, step in enumerate(steps):
+        func, args = step
+        if i == 0:
+            out = func(*args)
+        else:
+            out = out & func(*args)
+    return out
+
+
 # Some chosen clusters
 _coma = {"RA": (12 + 59/60 + 48.7 / 60**2) * 15,
          "DEC": 27 + 58 / 60 + 50 / 60**2,
