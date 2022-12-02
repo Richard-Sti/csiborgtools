@@ -14,6 +14,11 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 Scripts to read in observation.
+
+TODO:
+- [ ] Finish SDSS surv.
+- [ ] Improve the rest of this file
+
 """
 
 import numpy
@@ -441,6 +446,8 @@ class FitsSurvey(ABC):
 
 class SDSS(FitsSurvey):
     """
+    SDSS data manipulations. Carries routines for ABSMAG, APPMAG, COL, DIST,
+    MTOL.
 
     TODO:
     - [ ] masking
@@ -502,18 +509,18 @@ class SDSS(FitsSurvey):
 
     def _absmag(self, photo, band):
         """
-        TODO: docs
+        Get absolute magnitude of a given photometry and band. Converts to
+        the right little h.
         """
         self._check_in_list(photo, self._photos, "photometry")
         self._check_in_list(band, self._bands, "band")
-
         k = self._bands.index(band)
         mag = self.get_fitsitem("{}_ABSMAG".format(photo))[:, k]
         return mag + 5 * numpy.log10(self.h)
 
     def _kcorr(self, photo, band):
         """
-        TODO: docs
+        Get K-correction of a given photometry and band.
         """
         self._check_in_list(photo, self._photos, "photometry")
         self._check_in_list(band, self._bands, "band")
@@ -522,7 +529,7 @@ class SDSS(FitsSurvey):
 
     def _appmag(self, photo, band):
         """
-        TODO: docs
+        Get apparent magnitude of a given photometry and band.
         """
         lumdist = (1 + self.get_fitsitem("ZDIST")) * self._dist()
         absmag = self._absmag(photo, band)
@@ -531,26 +538,33 @@ class SDSS(FitsSurvey):
 
     def _colour(self, photo, band1, band2):
         """
-        TODO: docs
+        Get colour of a given photometry, i.e. `band1` - `band2` absolute
+        magnitude.
         """
         return self._absmag(photo, band1) - self._absmag(photo, band2)
 
     def _dist(self):
         """
-        TODO: docs
+        Get the corresponding distance estimate from `ZDIST`, which is defined
+        as:
+            "Distance estimate using pecular velocity model of Willick et al.
+            (1997), expressed as a redshift equivalent; multiply by c/H0 for
+            Mpc"
+
+        Converts little h.
         """
         return self.get_fitsitem("ZDIST") * constants.c * 1e-3 / (100 * self.h)
 
     def _solmass(self, photo):
         """
-        TODO: docs
+        Get solar mass of a given photometry. Converts little h.
         """
         self._check_in_list(photo, self._photos, "photometry")
         return self.get_fitsitem("{}_MASS".format(photo)) / self.h**2
 
     def _mtol(self, photo, band):
         """
-        TODO: docs
+        Get mass-to-light ratio of a given photometry. Converts little h.
         """
         self._check_in_list(photo, self._photos, "photometry")
         self._check_in_list(band, self._bands, "band")
