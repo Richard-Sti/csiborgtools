@@ -17,10 +17,13 @@ Scripts to read in observation.
 """
 
 import numpy
+from abc import ABC
 from astropy.io import fits
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
-from astropy import units as u
+from astropy import units
+from scipy import constants
+from warnings import warn
 from ..utils import (add_columns, cols_to_structured)
 
 F64 = numpy.float64
@@ -293,8 +296,263 @@ class TwoMPPGroups(BaseSurvey):
         # Convert galactic coordinates to RA, dec
         glon = data[:, 1]
         glat = data[:, 2]
-        coords = SkyCoord(l=glon*u.degree, b=glat*u.degree, frame='galactic')
+        coords = SkyCoord(l=glon*units.degree, b=glat*units.degree,
+                          frame='galactic')
         coords = coords.transform_to("icrs")
         data["RA"] = coords.ra
         data["DEC"] = coords.dec
         self._data = data
+
+
+###############################################################################
+#                The following do not inherit from `BaseSurvey`!              #
+###############################################################################
+
+
+class FitsSurvey(ABC):
+    """
+    Base class for extracting data from FITS files. Contains two sets of
+    keys: `routine_keys` and `fits_keys`. The former are user-defined
+    properties calculated from the FITS file data. Both are accesible via
+    `self[key]`.
+    """
+    _file = None
+    _h = None
+    _routines = None
+
+    @property
+    def file(self):
+        """
+        The survey FITS file.
+
+        Returns
+        -------
+        file : py:class:`astropy.io.fits.hdu.hdulist.HDUList`
+        """
+        if self._file is None:
+            raise ValueError("`file` is not set!")
+        return self._file
+
+    @property
+    def h(self):
+        """
+        Little h.
+
+        Returns
+        -------
+        h : float
+        """
+        return self._h
+
+    @h.setter
+    def h(self, h):
+        """Sets the little h."""
+        self._h = h
+
+    @staticmethod
+    def _check_in_list(member, members, kind):
+        """
+        Checks that `member` is a member of a list `members`, `kind` is a
+        member type name.
+        """
+        if member not in members:
+            raise ValueError("Unknown {} `{}`, must be one of `{}`."
+                             .format(kind, member, members))
+
+    @property
+    def routines(self):
+        """
+        Processing routines.
+
+        Returns
+        -------
+        routines : dict
+            Dictionary of routines. Keys are functions and values are their
+            arguments.
+        """
+        return self._routines
+
+    @property
+    def fits_keys(self):
+        """
+        Keys of the FITS file `self.file`.
+
+        Parameters
+        ----------
+        keys : list of str
+        """
+        return self.file[1].data.columns.names
+
+    @property
+    def routine_keys(self):
+        """
+        Routine keys.
+
+        Parameters
+        ----------
+        keys : list of str
+        """
+        return list(self.routines.keys())
+
+    def get_fitsitem(self, key):
+        """
+        Get a column `key` from the FITS file `self.file`.
+
+        Parameters
+        ----------
+        key : str
+
+        Returns
+        -------
+        col : 1-dimensional array
+        """
+        return self.file[1].data[key]
+
+    @property
+    def keys(self):
+        """
+        Routine and FITS keys.
+
+        Returns
+        -------
+        keys : list of str
+        """
+        return self.routine_keys + self.fits_keys
+
+    def __getitem__(self, key):
+        """
+        Return values for this `key`. If in both return from `routine_keys`.
+        """
+        # Check duplicates
+        if key in self.routine_keys and key in self.fits_keys:
+            warn("Key `{}` found in both `routine_keys` and `fits_keys`. "
+                 "Returning `routine_keys` value.".format(key), UserWarning)
+
+        if key in self.routine_keys:
+            func, args = self.routines[key]
+            return func(*args)
+        elif key in self.fits_keys:
+            warn("Returning a FITS property. Be careful about little h!",
+                 UserWarning)
+            return self.get_fitsitem(key)
+        else:
+            raise KeyError("Unrecognised key `{}`.".format(key))
+
+
+class SDSS(FitsSurvey):
+    """
+
+    TODO:
+    - [ ] masking
+
+    Parameters
+    ----------
+    fpath : str
+        Path to the FITS file.
+        By default `/mnt/extraspace/rstiskalek/catalogs/nsa_v1_0_1.fits`
+    h : float
+        Little h. By default `h = 1`. The catalogue assumes this value.
+        The routine properties should take care of little h conversion.
+    """
+
+    def __init__(self, fpath=None, h=1):
+        if fpath is None:
+            fpath = "/mnt/extraspace/rstiskalek/catalogs/nsa_v1_0_1.fits"
+        self._file = fits.open(fpath, memmap=False)
+        self.h = h
+
+        # Survey bands and photometries
+        self._bands = ['F', 'N', 'u', 'g', 'r', 'i', 'z']
+        self._photos = ["SERSIC", "ELPETRO"]
+
+        self._routines = {}
+        # Set ABSMAGroutines
+        for photo in self._photos:
+            for band in self._bands:
+                # ABSMAG
+                key = "{}_ABSMAG_{}".format(photo, band)
+                val = (self._absmag, (photo, band))
+                self.routines.update({key: val})
+        # Set APPMAG routines
+        for photo in self._photos:
+            for band in self._bands:
+                key = "{}_APPMAG_{}".format(photo, band)
+                val = (self._appmag, (photo, band))
+                self.routines.update({key: val})
+        # Set COL routines
+        for photo in self._photos:
+            for band1 in self._bands:
+                for band2 in self._bands:
+                    key = "{}_COL_{}{}".format(photo, band1, band2)
+                    val = (self._colour, (photo, band1, band2))
+                    self.routines.update({key: val})
+        # Set DIST routine
+        self.routines.update({"DIST": (self._dist, ())})
+        # Set MASS routines
+        for photo in self._photos:
+            key = "{}_MASS".format(photo)
+            val = (self._solmass, (photo,))
+            self.routines.update({key: val})
+        # Set MTOL
+        for photo in self._photos:
+            for band in self._bands:
+                key = "{}_MTOL_{}".format(photo, band)
+                val = (self._mtol, (photo, band))
+                self.routines.update({key: val})
+
+    def _absmag(self, photo, band):
+        """
+        TODO: docs
+        """
+        self._check_in_list(photo, self._photos, "photometry")
+        self._check_in_list(band, self._bands, "band")
+
+        k = self._bands.index(band)
+        mag = self.get_fitsitem("{}_ABSMAG".format(photo))[:, k]
+        return mag + 5 * numpy.log10(self.h)
+
+    def _kcorr(self, photo, band):
+        """
+        TODO: docs
+        """
+        self._check_in_list(photo, self._photos, "photometry")
+        self._check_in_list(band, self._bands, "band")
+        k = self._bands.index(band)
+        return self.get_fitsitem("{}_KCORRECT".format(photo))[:, k]
+
+    def _appmag(self, photo, band):
+        """
+        TODO: docs
+        """
+        lumdist = (1 + self.get_fitsitem("ZDIST")) * self._dist()
+        absmag = self._absmag(photo, band)
+        kcorr = self._kcorr(photo, band)
+        return absmag + 25 + 5 * numpy.log10(lumdist) + kcorr
+
+    def _colour(self, photo, band1, band2):
+        """
+        TODO: docs
+        """
+        return self._absmag(photo, band1) - self._absmag(photo, band2)
+
+    def _dist(self):
+        """
+        TODO: docs
+        """
+        return self.get_fitsitem("ZDIST") * constants.c * 1e-3 / (100 * self.h)
+
+    def _solmass(self, photo):
+        """
+        TODO: docs
+        """
+        self._check_in_list(photo, self._photos, "photometry")
+        return self.get_fitsitem("{}_MASS".format(photo)) / self.h**2
+
+    def _mtol(self, photo, band):
+        """
+        TODO: docs
+        """
+        self._check_in_list(photo, self._photos, "photometry")
+        self._check_in_list(band, self._bands, "band")
+        k = self._bands.index(band)
+        return self.get_fitsitem("{}_MTOL".format(photo))[:, k] / self.h**2
