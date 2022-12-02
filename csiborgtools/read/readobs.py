@@ -22,6 +22,7 @@ TODO:
 
 import numpy
 from abc import ABC, abstractproperty
+from os.path import join
 from astropy.io import fits
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
@@ -33,9 +34,14 @@ from ..utils import (add_columns, cols_to_structured)
 F64 = numpy.float64
 
 
-class BaseSurvey:
+###############################################################################
+#                           Text survey base class                            #
+###############################################################################
+
+
+class TextSurvey:
     """
-    Base survey class with some methods that are common to all survey classes.
+    Base survey class for extracting data from text files.
     """
     _data = None
     _cosmo = None
@@ -70,93 +76,12 @@ class BaseSurvey:
         return self._data[key]
 
 
-class PlanckClusters(BaseSurvey):
-    r"""
-    Planck 2nd Sunyaev-Zeldovich source catalogue [1]. Automatically removes
-    clusters without a redshift estimate.
-
-    Parameters
-    ----------
-    fpath : str
-        Path to the source catalogue.
-    cosmo : `astropy.cosmology` object, optional
-        Cosmology to convert masses (particularly :math:`H_0`). By default
-        `FlatLambdaCDM(H0=70.5, Om0=0.307, Tcmb0=2.728)`.
-    max_redshift: float, optional
-        Maximum cluster redshift. By default `None` and no selection is
-        performed.
-
-    References
-    ----------
-    [1] https://heasarc.gsfc.nasa.gov/W3Browse/all/plancksz2.html
-    """
-    _hdata = 0.7  # little h value of the data
-
-    def __init__(self, fpath, cosmo=None, max_redshift=None):
-        if cosmo is None:
-            self._cosmo = FlatLambdaCDM(H0=70.5, Om0=0.307, Tcmb0=2.728)
-        else:
-            self._cosmo = cosmo
-        self.set_data(fpath, max_redshift)
-
-    def set_data(self, fpath, max_redshift=None):
-        """
-        Set the catalogue, loads it and applies a maximum redshift cut.
-        """
-        cat = fits.open(fpath)[1].data
-        # Convert FITS to a structured array
-        data = numpy.full(cat.size, numpy.nan, dtype=cat.dtype.descr)
-        for name in cat.dtype.names:
-            data[name] = cat[name]
-        # Take only clusters with redshifts
-        data = data[data["REDSHIFT"] >= 0]
-        # Convert masses
-        for par in ("MSZ", "MSZ_ERR_UP", "MSZ_ERR_LOW"):
-            data[par] *= 1e14
-            data[par] *= (self._hdata / self.cosmo.h)**2
-        # Redshift cut
-        if max_redshift is not None:
-            data = data["REDSHIFT" <= max_redshift]
-        self._data = data
-
-    def match_to_mcxc(self, mcxc):
-        """
-        Return the MCXC catalogue indices of the Planck catalogue detections.
-        Finds the index of the quoted Planck MCXC counterpart in the MCXC
-        array. If not found throws an error. For this reason it may be better
-        to make sure the MCXC catalogue reaches further.
-
-        Parameters
-        ----------
-        mcxc : :py:class`MCXCClusters`
-            MCXC cluster object.
-
-        Returns
-        -------
-        indxs : list of int
-            Array of MCXC indices to match the Planck array. If no counterpart
-            is found returns `numpy.nan`.
-        """
-        if not isinstance(mcxc, MCXCClusters):
-            raise TypeError("`mcxc` must be `MCXCClusters` type.")
-
-        # Planck MCXC need to be decoded to str
-        planck_names = [name.decode() for name in self["MCXC"]]
-        mcxc_names = [name for name in mcxc["name"]]
-
-        indxs = [numpy.nan] * len(planck_names)
-        for i, name in enumerate(planck_names):
-            if name == "":
-                continue
-            if name in mcxc_names:
-                indxs[i] = mcxc_names.index(name)
-            else:
-                raise ValueError("Planck MCXC identifier `{}` not found in "
-                                 "the MCXC catalogue.".format(name))
-        return indxs
+###############################################################################
+#                             MCXC Clusters                                   #
+###############################################################################
 
 
-class MCXCClusters(BaseSurvey):
+class MCXCClusters(TextSurvey):
     r"""
     MCXC Meta-Catalog of X-Ray Detected Clusters of Galaxies catalogue [1],
     with data description at [2] and download at [3].
@@ -223,7 +148,12 @@ class MCXCClusters(BaseSurvey):
         self._data = data
 
 
-class TwoMPPGalaxies(BaseSurvey):
+###############################################################################
+#                              2M++ galaxies                                  #
+###############################################################################
+
+
+class TwoMPPGalaxies(TextSurvey):
     """
     The 2M++ galaxy redshift catalogue [1], with the catalogue at [2].
     Removes fake galaxies used to fill the zone of avoidance. Note that the
@@ -264,7 +194,12 @@ class TwoMPPGalaxies(BaseSurvey):
         self._data = data
 
 
-class TwoMPPGroups(BaseSurvey):
+###############################################################################
+#                             2M++ groups                                     #
+###############################################################################
+
+
+class TwoMPPGroups(TextSurvey):
     """
     The 2M++ galaxy group catalogue [1], with the catalogue at [2].
 
@@ -309,7 +244,7 @@ class TwoMPPGroups(BaseSurvey):
 
 
 ###############################################################################
-#                The following do not inherit from `BaseSurvey`!              #
+#                             FITS base class                                 #
 ###############################################################################
 
 
@@ -388,16 +323,11 @@ class FitsSurvey(ABC):
         """
         pass
 
-    @abstractproperty
+    @property
     def masked_size(self):
-        """
-        Number of masked samples in the catalogue.
-
-        Returns
-        -------
-        masked_size : int
-        """
-        pass
+        if self.selection_mask is None:
+            return self.size
+        return numpy.sum(self.selection_mask)
 
     @property
     def selection_mask(self):
@@ -491,6 +421,104 @@ class FitsSurvey(ABC):
         return out[self.selection_mask]
 
 
+###############################################################################
+#                            Planck clusters                                  #
+###############################################################################
+
+
+class PlanckClusters(FitsSurvey):
+    r"""
+    Planck 2nd Sunyaev-Zeldovich source catalogue [1].
+
+    Parameters
+    ----------
+    fpath : str, optional
+        Path to the FITS file. By default
+        `/mnt/extraspace/rstiskalek/catalogs/HFI_PCCS_SZ-union_R2.08.fits`.
+    h : float, optional
+        Little h. By default `h = 0.7`. The catalogue assumes this value.
+        The routine properties should take care of little h conversion.
+    fmask : py:func, optional
+        A function whose argument is `PlanckClusters` and returns a boolean
+        array indicating which samples to keep. By default `None`, i.e. no
+        selection.
+
+    References
+    ----------
+    [1] https://heasarc.gsfc.nasa.gov/W3Browse/all/plancksz2.html
+    """
+    _hdata = 0.7  # little h value of the data
+
+    def __init__(self, fpath=None, h=0.7, fmask=None):
+        if fpath is None:
+            fpath = join("/mnt/extraspace/rstiskalek/catalogs/",
+                         "HFI_PCCS_SZ-union_R2.08.fits")
+        self._file = fits.open(fpath)
+        self.h = h
+
+        self._routines = {}
+        # Set MSZ routines
+        for key in ("MSZ", "MSZ_ERR_UP", "MSZ_ERR_LOW"):
+            self._routines.update({key: (self._mass, (key,))})
+
+        # Add masking. Do this at the end!
+        if fmask is not None:
+            self.selection_mask = fmask(self)
+
+    @property
+    def size(self):
+        return self.get_fitsitem("MSZ").size
+
+    def _mass(self, key):
+        """
+        Get mass. Puts in units of 1e14 and converts little h.
+        """
+        return self.get_fitsitem(key) * 1e14 * (self._hdata / self.h)**2
+
+    def match_to_mcxc(self, mcxc):
+        """
+        TODO: this function is likely broken at the moment.
+
+        Return the MCXC catalogue indices of the Planck catalogue detections.
+        Finds the index of the quoted Planck MCXC counterpart in the MCXC
+        array. If not found throws an error. For this reason it may be better
+        to make sure the MCXC catalogue reaches further.
+
+        Parameters
+        ----------
+        mcxc : :py:class`MCXCClusters`
+            MCXC cluster object.
+
+        Returns
+        -------
+        indxs : list of int
+            Array of MCXC indices to match the Planck array. If no counterpart
+            is found returns `numpy.nan`.
+        """
+        if not isinstance(mcxc, MCXCClusters):
+            raise TypeError("`mcxc` must be `MCXCClusters` type.")
+
+        # Planck MCXC need to be decoded to str
+        planck_names = [name.decode() for name in self["MCXC"]]
+        mcxc_names = [name for name in mcxc["name"]]
+
+        indxs = [numpy.nan] * len(planck_names)
+        for i, name in enumerate(planck_names):
+            if name == "":
+                continue
+            if name in mcxc_names:
+                indxs[i] = mcxc_names.index(name)
+            else:
+                raise ValueError("Planck MCXC identifier `{}` not found in "
+                                 "the MCXC catalogue.".format(name))
+        return indxs
+
+
+###############################################################################
+#                              SDSS galaxies                                  #
+###############################################################################
+
+
 class SDSS(FitsSurvey):
     """
     SDSS data manipulations. Data obtained from [1]. Carries routines for
@@ -498,13 +526,13 @@ class SDSS(FitsSurvey):
 
     Parameters
     ----------
-    fpath : str
-        Path to the FITS file.
-        By default `/mnt/extraspace/rstiskalek/catalogs/nsa_v1_0_1.fits`
-    h : float
+    fpath : str, optional
+        Path to the FITS file. By default
+        `/mnt/extraspace/rstiskalek/catalogs/nsa_v1_0_1.fits`.
+    h : float, optional
         Little h. By default `h = 1`. The catalogue assumes this value.
         The routine properties should take care of little h conversion.
-    fmask : py:func
+    fmask : py:func, optional
         A function whose argument is `SDSS` and returns a boolean array
         indicating which samples to keep. By default `None`, i.e. no selection.
 
@@ -568,12 +596,6 @@ class SDSS(FitsSurvey):
     def size(self):
         # Here pick some property that is in the catalogue..
         return self.get_fitsitem("ZDIST").size
-
-    @property
-    def masked_size(self):
-        if self.selection_mask is None:
-            return self.size
-        return numpy.sum(self.selection_mask)
 
     def _absmag(self, photo, band):
         """
