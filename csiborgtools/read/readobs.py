@@ -456,7 +456,7 @@ class PlanckClusters(FitsSurvey):
 
         # Planck MCXC need to be decoded to str
         planck_names = [name.decode() for name in self["MCXC"]]
-        mcxc_names = [name for name in mcxc["name"]]
+        mcxc_names = [name for name in mcxc["MCXC"]]
 
         indxs = [numpy.nan] * len(planck_names)
         for i, name in enumerate(planck_names):
