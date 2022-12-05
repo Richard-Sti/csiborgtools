@@ -14,10 +14,6 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 Scripts to read in observation.
-
-TODO:
-- [ ] Move MCXC clusters to fits
-- [ ] Update file paths of text surveys (and MCXC) and move to extraspace
 """
 
 import numpy
@@ -88,8 +84,9 @@ class TwoMPPGalaxies(TextSurvey):
 
     Parameters
     ----------
-    fpath : str
-        File path to the catalogue.
+    fpath : str, optional.
+        File path to the catalogue. By default
+        `/mnt/extraspace/rstiskalek/catalogs/2M++_galaxy_catalog.dat`.
 
     References
     ----------
@@ -99,7 +96,10 @@ class TwoMPPGalaxies(TextSurvey):
         (2021); Anthony Carr and Tamara Davis
     """
 
-    def __init__(self, fpath):
+    def __init__(self, fpath=None):
+        if fpath is None:
+            fpath = join("/mnt/extraspace/rstiskalek/catalogs/"
+                         "2M++_galaxy_catalog.dat")
         self._set_data(fpath)
 
     def _set_data(self, fpath):
@@ -132,8 +132,9 @@ class TwoMPPGroups(TextSurvey):
 
     Parameters
     ----------
-    fpath : str
-        File path to the catalogue.
+    fpath : str, optional
+        File path to the catalogue. By default
+        `/mnt/extraspace/rstiskalek/catalogs/2M++_group_catalog.dat`
 
     References
     ----------
@@ -144,6 +145,9 @@ class TwoMPPGroups(TextSurvey):
     """
 
     def __init__(self, fpath):
+        if fpath is None:
+            fpath = join("/mnt/extraspace/rstiskalek/catalogs",
+                         "2M++_group_catalog.dat")
         self._set_data(fpath)
 
     def _set_data(self, fpath):
@@ -487,9 +491,9 @@ class MCXCClusters(FitsSurvey):
 
     Parameters
     ----------
-    fpath : str
+    fpath : str, optional
         Path to the source catalogue obtained from [3]. Expected to be the fits
-        file.
+        file. By default `/mnt/extraspace/rstiskalek/catalogs/mcxc.fits`.
     h : float, optional
         Little h. By default `h = 0.7`. The catalogue assumes this value.
         The routine properties should take care of little h conversion.
