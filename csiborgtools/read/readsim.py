@@ -596,6 +596,9 @@ class ParticleReader:
                     out[fname][i:i + j] = self.read_sp(fdtype, partfiles[cpu])
                 else:
                     dum[i:i + j] = self.read_sp(fdtype, partfiles[cpu])
+        # Close the fortran files
+        for partfile in partfiles:
+            partfile.close()
 
         return out
 
@@ -645,6 +648,8 @@ class ParticleReader:
             j = nparts[cpu]
             ff = self.open_unbinding(cpu)
             clumpid[i:i + j] = ff.read_ints()
+            # Close
+            ff.close()
 
         return clumpid
 
