@@ -25,11 +25,10 @@ from abc import ABC, abstractproperty
 from os.path import join
 from astropy.io import fits
 from astropy.coordinates import SkyCoord
-from astropy.cosmology import FlatLambdaCDM
 from astropy import units
 from scipy import constants
 from warnings import warn
-from ..utils import (add_columns, cols_to_structured)
+from ..utils import (cols_to_structured)
 
 F64 = numpy.float64
 
@@ -74,78 +73,6 @@ class TextSurvey:
 
     def __getitem__(self, key):
         return self._data[key]
-
-
-###############################################################################
-#                             MCXC Clusters                                   #
-###############################################################################
-
-
-class MCXCClusters(TextSurvey):
-    r"""
-    MCXC Meta-Catalog of X-Ray Detected Clusters of Galaxies catalogue [1],
-    with data description at [2] and download at [3].
-
-    Note
-    ----
-    The exact mass conversion has non-trivial dependence on :math:`H(z)`, see
-    [1] for more details. However, this should be negligible.
-
-    Parameters
-    ----------
-    fpath : str
-        Path to the source catalogue obtained from [3]. Expected to be the fits
-        file.
-    cosmo : `astropy.cosmology` object, optional
-        The cosmology to to convert cluster masses (to first order). By default
-        `FlatLambdaCDM(H0=70.5, Om0=0.307, Tcmb0=2.728)`.
-    max_redshift: float, optional
-        Maximum cluster redshift. By default `None` and no selection is
-        performed.
-
-    References
-    ----------
-    [1] The MCXC: a meta-catalogue of x-ray detected clusters of galaxies
-        (2011); Piffaretti, R. ;  Arnaud, M. ;  Pratt, G. W. ;  Pointecouteau,
-        E. ;  Melin, J. -B.
-    [2] https://heasarc.gsfc.nasa.gov/W3Browse/rosat/mcxc.html
-    [3] https://cdsarc.cds.unistra.fr/viz-bin/cat/J/A+A/534/A109#/article
-    """
-    _hdata = 0.7  # Little h of the catalogue
-
-    def __init__(self, fpath, cosmo=None, max_redshift=None):
-        if cosmo is None:
-            self._cosmo = FlatLambdaCDM(H0=70.5, Om0=0.307, Tcmb0=2.728)
-        else:
-            self._cosmo = cosmo
-        self._set_data(fpath, max_redshift)
-
-    def _set_data(self, fpath, max_redshift):
-        """
-        Set the catalogue, loads it and applies a maximum redshift cut.
-        """
-        cat = fits.open(fpath)[1].data
-        # Pre-allocate array and extract selected variables
-        cols = [("RAdeg", F64), ("DEdeg", F64), ("z", F64),
-                ("L500", F64), ("M500", F64), ("R500", F64)]
-        data = cols_to_structured(cat.size, cols)
-        for col in cols:
-            par = col[0]
-            data[par] = cat[par]
-        # Add the cluster names
-        data = add_columns(data, cat["MCXC"], "name")
-
-        # Get little h units to match the cosmology
-        data["L500"] *= (self._hdata / self.cosmo.h)**2
-        data["M500"] *= (self._hdata / self.cosmo.h)**2
-        # Get the 10s back in
-        data["L500"] *= 1e44  # ergs/s
-        data["M500"] *= 1e14  # Msun
-
-        if max_redshift is not None:
-            data = data["z" <= max_redshift]
-
-        self._data = data
 
 
 ###############################################################################
@@ -486,7 +413,7 @@ class PlanckClusters(FitsSurvey):
         if fpath is None:
             fpath = join("/mnt/extraspace/rstiskalek/catalogs/",
                          "HFI_PCCS_SZ-union_R2.08.fits")
-        self._file = fits.open(fpath)
+        self._file = fits.open(fpath, memmap=False)
         self.h = h
 
         self._routines = {}
@@ -503,9 +430,7 @@ class PlanckClusters(FitsSurvey):
         return self.get_fitsitem("MSZ").size
 
     def _mass(self, key):
-        """
-        Get mass. Puts in units of 1e14 and converts little h.
-        """
+        """Get mass. Puts in units of 1e14 and converts little h."""
         return self.get_fitsitem(key) * 1e14 * (self._hdata / self.h)**2
 
     def match_to_mcxc(self, mcxc):
@@ -544,6 +469,73 @@ class PlanckClusters(FitsSurvey):
                                  "the MCXC catalogue.".format(name))
         return indxs
 
+
+###############################################################################
+#                             MCXC Clusters                                   #
+###############################################################################
+
+
+class MCXCClusters(FitsSurvey):
+    r"""
+    MCXC Meta-Catalog of X-Ray Detected Clusters of Galaxies catalogue [1],
+    with data description at [2] and download at [3].
+
+    Note
+    ----
+    The exact mass conversion has non-trivial dependence on :math:`H(z)`, see
+    [1] for more details. However, this should be negligible.
+
+    Parameters
+    ----------
+    fpath : str
+        Path to the source catalogue obtained from [3]. Expected to be the fits
+        file.
+    h : float, optional
+        Little h. By default `h = 0.7`. The catalogue assumes this value.
+        The routine properties should take care of little h conversion.
+    sel_steps : py:function:
+        Steps to mask the survey. Expected to look for example like
+        ```
+            steps = [(lambda x: cls[x], ("IN_DR7_LSS",)),
+                     (lambda x: cls[x] < 17.6, ("ELPETRO_APPMAG_r", )),
+                     ]
+        ```.
+
+
+    References
+    ----------
+    [1] The MCXC: a meta-catalogue of x-ray detected clusters of galaxies
+        (2011); Piffaretti, R. ;  Arnaud, M. ;  Pratt, G. W. ;  Pointecouteau,
+        E. ;  Melin, J. -B.
+    [2] https://heasarc.gsfc.nasa.gov/W3Browse/rosat/mcxc.html
+    [3] https://cdsarc.cds.unistra.fr/viz-bin/cat/J/A+A/534/A109#/article
+    """
+    _hdata = 0.7  # Little h of the catalogue
+
+    def __init__(self, fpath=None, h=0.7, sel_steps=None):
+        if fpath is None:
+            fpath = "/mnt/extraspace/rstiskalek/catalogs/mcxc.fits"
+        self._file = fits.open(fpath, memmap=False)
+        self.h = h
+        # Set mass and luminosity routines
+        self._routines = {}
+        self._routines.update({"M500": (self._mass, ("M500",))})
+        self._routines.update({"L500": (self._lum, ("L500",))})
+
+        if sel_steps is not None:
+            self.selection_mask = self.make_mask(sel_steps)
+
+    @property
+    def size(self):
+        return self.get_fitsitem("M500").size
+
+    def _mass(self, key):
+        """Get mass. Put in units of 1e14 Msun back and convert little h."""
+        return self.get_fitsitem(key) * 1e14 * (self._hdata / self.h)**2
+
+    def _lum(self, key):
+        """Get luminosity. Puts back units to be in ergs/s"""
+        return self.get_fitsitem(key) * 1e44 * (self._hdata / self.h)**2
 
 ###############################################################################
 #                              SDSS galaxies                                  #
