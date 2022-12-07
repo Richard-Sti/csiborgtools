@@ -20,18 +20,27 @@ import smoothing_library as SL
 from warnings import warn
 from tqdm import trange
 from ..units import (BoxUnits, radec_to_cartesian)
+"""
+TODO:
+- [ ] Move away from box units.
+"""
 
 
 class DensityField:
-    """
+    r"""
     Density field calculations. Based primarily on routines of Pylians [1].
 
     Parameters
     ----------
     particles : structured array
-        Particle array. Must contain keys `['x', 'y', 'z', 'M']`.
+        Particle array. Must contain keys `['x', 'y', 'z', 'M']`. Particle
+        coordinates are assumed to be :math:`\in [0, 1]`.
     box : :py:class:`csiborgtools.units.BoxUnits`
         The simulation box information and transformations.
+    MAS : str, optional
+        Mass assignment scheme. Options are Options are: 'NGP' (nearest grid
+        point), 'CIC' (cloud-in-cell), 'TSC' (triangular-shape cloud), 'PCS'
+        (piecewise cubic spline).
 
     References
     ----------
@@ -40,11 +49,13 @@ class DensityField:
     _particles = None
     _boxsize = None
     _box = None
+    _MAS = None
 
-    def __init__(self, particles, box):
+    def __init__(self, particles, box, MAS="CIC"):
         self.particles = particles
         self.box = box
         self._boxsize = 1.
+        self.MAS = MAS
 
     @property
     def particles(self):
@@ -94,6 +105,26 @@ class DensityField:
         """
         return self._boxsize
 
+    @property
+    def MAS(self):
+        """
+        The mass-assignment scheme.
+
+        Returns
+        -------
+        MAS : str
+        """
+        return self._MAS
+
+    @MAS.setter
+    def MAS(self, MAS):
+        """Sets `self.MAS`."""
+        opts = ["NGP", "CIC", "TSC", "PCS"]
+        if MAS not in opts:
+            raise ValueError("Invalid MAS `{}`. Options are: `{}`."
+                             .format(MAS, opts))
+        self._MAS = MAS
+
     @staticmethod
     def _force_f32(x, name):
         if x.dtype != numpy.float32:
@@ -128,11 +159,10 @@ class DensityField:
         pos *= self.boxsize
         pos = self._force_f32(pos, "pos")
         weights = self._force_f32(self.particles['M'], 'M')
-        MAS = "CIC"  # Cloud in cell
 
         # Pre-allocate and do calculations
         rho = numpy.zeros((grid, grid, grid), dtype=numpy.float32)
-        MASL.MA(pos, rho, self.boxsize, MAS, W=weights, verbose=verbose)
+        MASL.MA(pos, rho, self.boxsize, self.MAS, W=weights, verbose=verbose)
         return rho
 
     def overdensity_field(self, grid, verbose=True):
@@ -177,7 +207,8 @@ class DensityField:
         delta = self.overdensity_field(grid, verbose)
         if verbose:
             print("Calculating potential from the overdensity..")
-        return MASL.potential(delta, self.box._omega_m, self.box._aexp, "CIC")
+        return MASL.potential(
+            delta, self.box._omega_m, self.box._aexp, self.MAS)
 
     def tensor_field(self, grid, verbose=True):
         """
@@ -197,8 +228,8 @@ class DensityField:
             the relevant tensor components.
         """
         delta = self.overdensity_field(grid, verbose)
-        return MASL.tidal_tensor(delta, self.box._omega_m, self.box._aexp,
-                                 "CIC")
+        return MASL.tidal_tensor(
+            delta, self.box._omega_m, self.box._aexp, self.MAS)
 
     def gravitational_field(self, grid, verbose=True):
         """
@@ -220,7 +251,7 @@ class DensityField:
         """
         delta = self.overdensity_field(grid, verbose)
         return MASL.grav_field_tensor(
-            delta, self.box._omega_m, self.box._aexp, "CIC")
+            delta, self.box._omega_m, self.box._aexp, self.MAS)
 
     def auto_powerspectrum(self, grid, verbose=True):
         """
@@ -235,17 +266,13 @@ class DensityField:
 
         Returns
         -------
-        k1d : 1-dimensional array of shape `(n_ks, )`
-            Wavenumber model.
-        Pk1d : 1-dimensional array of shape `(n_ks, )`
-            Power spectrum.
-        nmodes : 1-dimensional array of shape `(n_ks, )`
-            Number of modes.
+        pk : py:class`Pk_library.Pk`
+            Power spectrum object.
         """
         delta = self.overdensity_field(grid, verbose)
-        Pk = PKL.Pk(delta, self.boxsize, axis=1, MAS="CIC", threads=1,
-                    verbose=verbose)
-        return Pk.k1D, Pk.Pk1D, Pk.Nmodes1D
+        return PKL.Pk(
+            delta, self.boxsize, axis=1, MAS=self.MAS, threads=1,
+            verbose=verbose)
 
     def smooth_field(self, field, scale, threads=1):
         """
