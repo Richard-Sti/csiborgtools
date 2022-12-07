@@ -12,7 +12,9 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-
+"""
+Density field and cross-correlation calculations.
+"""
 import numpy
 import MAS_library as MASL
 import Pk_library as PKL
@@ -20,10 +22,6 @@ import smoothing_library as SL
 from warnings import warn
 from tqdm import trange
 from ..units import (BoxUnits, radec_to_cartesian)
-"""
-TODO:
-- [ ] Move away from box units.
-"""
 
 
 class DensityField:
