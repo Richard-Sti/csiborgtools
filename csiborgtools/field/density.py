@@ -34,7 +34,11 @@ class DensityField:
     ----------
     particles : structured array
         Particle array. Must contain keys `['x', 'y', 'z', 'M']`. Particle
-        coordinates are assumed to be :math:`\in [0, 1]`.
+        coordinates are assumed to be :math:`\in [0, 1]` or in box units
+        otherwise.
+    boxsize : float
+        Box length. Multiplies `particles` positions to fix the power spectum
+        units.
     box : :py:class:`csiborgtools.units.BoxUnits`
         The simulation box information and transformations.
     MAS : str, optional
@@ -51,10 +55,10 @@ class DensityField:
     _box = None
     _MAS = None
 
-    def __init__(self, particles, box, MAS="CIC"):
+    def __init__(self, particles, boxsize, box, MAS="CIC"):
         self.particles = particles
         self.box = box
-        self._boxsize = 1.
+        self.boxsize = boxsize
         self.MAS = MAS
 
     @property
@@ -77,6 +81,22 @@ class DensityField:
         self._particles = particles
 
     @property
+    def boxsize(self):
+        """
+        Box length. Determines the power spectrum units.
+
+        Returns
+        -------
+        boxsize : float
+        """
+        return self._boxsize
+
+    @boxsize.setter
+    def boxsize(self, boxsize):
+        """Set `self.boxsize`."""
+        self._boxsize = boxsize
+
+    @property
     def box(self):
         """
         The simulation box information and transformations.
@@ -93,17 +113,6 @@ class DensityField:
         if not isinstance(box, BoxUnits):
             raise TypeError("`box` must be `BoxUnits` instance.")
         self._box = box
-
-    @property
-    def boxsize(self):
-        """
-        Boxsize.
-
-        Returns
-        -------
-        boxsize : float
-        """
-        return self._boxsize
 
     @property
     def MAS(self):
