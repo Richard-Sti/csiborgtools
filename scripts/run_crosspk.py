@@ -19,6 +19,7 @@ IC realisations. Units are Mpc/h.
 TODO:
 - [x] Add smaller box support.
 - [x] Change file naming to reflect the half-width.
+- [x] There is still some bug! The Pk disagree with DarkSky
 - [ ] Test large and small box
 """
 from argparse import ArgumentParser
@@ -42,7 +43,7 @@ import utils
 
 parser = ArgumentParser()
 parser.add_argument("--grid", type=int)
-parser.add_argument("--halfwidth", type=float, default=1.)
+parser.add_argument("--halfwidth", type=float, default=0.5)
 args = parser.parse_args()
 
 # Get MPI things
@@ -74,7 +75,7 @@ for n in jobs:
     # Read particles
     particles = reader.read_particle(["x", "y", "z", "M"], verbose=False)
     # Halfwidth -- particle selection
-    if args.halfwidth is not None:
+    if args.halfwidth < 0.5:
         hw = args.halfwidth
         mask = ((0.5 - hw < particles['x']) & (particles['x'] < 0.5 + hw)
                 & (0.5 - hw < particles['y']) & (particles['y'] < 0.5 + hw)
@@ -87,6 +88,7 @@ for n in jobs:
 
         length = box.box2mpc(2 * hw) * box.h
     else:
+        mask = None
         length = box.box2mpc(1) * box.h
     # Calculate the overdensity field
     field = csiborgtools.field.DensityField(particles, length, box, MAS)
