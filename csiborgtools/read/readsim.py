@@ -249,6 +249,8 @@ class CSiBORGPaths:
         files = [f.split("/")[-1] for f in files]
         # Remove files with inverted ICs
         files = [f for f in files if "_inv" not in f]
+        # Remove the new files with z = 70 only
+        files = [f for f in files if "_new" not in f]
         # Remove the filename with _old
         files = [f for f in files if "OLD" not in f]
         ids = [int(f.split("_")[-1]) for f in files]
