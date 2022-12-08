@@ -14,7 +14,10 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 MPI script to calculate the matter cross power spectrum between CSiBORG
-IC realisations.
+IC realisations. Units are Mpc/h.
+
+TODO:
+- [ ] Add smaller box support.
 """
 from argparse import ArgumentParser
 import numpy
@@ -43,9 +46,10 @@ args = parser.parse_args()
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 nproc = comm.Get_size()
+MAS = "CIC"  # mass asignment scheme
 
 paths = csiborgtools.read.CSiBORGPaths()
-ics = paths.ic_ids
+ics = paths.ic_ids[:4]
 n_sims = len(ics)
 
 # File paths
@@ -64,8 +68,9 @@ for n in jobs:
     box = csiborgtools.units.BoxUnits(paths)
     # Read particles
     particles = reader.read_particle(["x", "y", "z", "M"], verbose=False)
+    length = box.box2mpc(1) * box.h
     # Calculate the overdensity field
-    field = csiborgtools.field.DensityField(particles, box)
+    field = csiborgtools.field.DensityField(particles, length, box, MAS)
     delta = field.overdensity_field(args.grid, verbose=False)
     aexp = box._aexp
 
@@ -76,7 +81,7 @@ for n in jobs:
     # Dump the results
     with open(ftemp.format(n_sim, "delta") + ".npy", "wb") as f:
         numpy.save(f, delta)
-    joblib.dump(aexp, ftemp.format(n_sim, "Om0") + ".p")
+    joblib.dump([aexp, length], ftemp.format(n_sim, "lengths") + ".p")
 
     # Try to clean up memory
     del delta
@@ -89,7 +94,7 @@ comm.Barrier()
 combs = [c for c in combinations(range(n_sims), 2)]
 for i in range(n_sims):
     combs.append((i, i))
-prev_delta = [-1, None, None]  # i, delta, aexp
+prev_delta = [-1, None, None, None]  # i, delta, aexp, length
 
 jobs = csiborgtools.fits.split_jobs(len(combs), nproc)[rank]
 for n in jobs:
@@ -100,28 +105,36 @@ for n in jobs:
     if prev_delta[0] == i:
         delta_i = prev_delta[1]
         aexp_i = prev_delta[2]
+        length_i = prev_delta[3]
     else:
         with open(ftemp.format(ics[i], "delta") + ".npy", "rb") as f:
             delta_i = numpy.load(f)
-        aexp_i = joblib.load(ftemp.format(ics[i], "Om0") + ".p")
+        aexp_i, length_i = joblib.load(ftemp.format(ics[i], "lengths") + ".p")
         # Store in prev_delta
         prev_delta[0] = i
         prev_delta[1] = delta_i
         prev_delta[2] = aexp_i
+        prev_delta[3] = length_i
 
     # Get jth delta
     with open(ftemp.format(ics[j], "delta") + ".npy", "rb") as f:
         delta_j = numpy.load(f)
-    aexp_j = joblib.load(ftemp.format(ics[j], "Om0") + ".p")
+    aexp_j, length_j = joblib.load(ftemp.format(ics[j], "lengths") + ".p")
 
     # Verify the difference between the scale factors! Say more than 1%
     daexp = abs((aexp_i - aexp_j) / aexp_i)
     if daexp > 0.01:
-        raise ValueError("Boxes {} and {} final snapshot scale factors "
-                         "disagree by `{}`!".format(ics[i], ics[j], daexp))
+        raise ValueError(
+            "Boxes {} and {} final snapshot scale factors disagree by "
+            "`{}` percent!".format(ics[i], ics[j], daexp * 100))
+    # Check how well the boxsizes agree
+    dlength = abs((length_i - length_j) / length_i)
+    if dlength > 0.001:
+        raise ValueError("Boxes {} and {} box sizes disagree by `{}` percent!"
+                         .format(ics[i], ics[j], dlength * 100))
 
     # Calculate the cross power spectrum
-    Pk = PKL.XPk([delta_i, delta_j], 1., axis=1, MAS=["CIC", "CIC"], threads=1)
+    Pk = PKL.XPk([delta_i, delta_j], 1., axis=1, MAS=[MAS, MAS], threads=1)
     joblib.dump(Pk, fout.format(ics[i], ics[j]))
 
     del delta_i, delta_j, Pk
@@ -134,6 +147,6 @@ if rank == 0:
     print("Cleaning up the temporary files...")
     for ic in ics:
         remove(ftemp.format(ic, "delta") + ".npy")
-        remove(ftemp.format(ic, "Om0") + ".p")
+        remove(ftemp.format(ic, "lengths") + ".p")
 
     print("All finished!")
