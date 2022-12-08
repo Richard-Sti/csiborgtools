@@ -17,7 +17,9 @@ MPI script to calculate the matter cross power spectrum between CSiBORG
 IC realisations. Units are Mpc/h.
 
 TODO:
-- [ ] Add smaller box support.
+- [x] Add smaller box support.
+- [x] Change file naming to reflect the half-width.
+- [ ] Test large and small box
 """
 from argparse import ArgumentParser
 import numpy
@@ -40,6 +42,7 @@ import utils
 
 parser = ArgumentParser()
 parser.add_argument("--grid", type=int)
+parser.add_argument("--halfwidth", type=float, default=1.)
 args = parser.parse_args()
 
 # Get MPI things
@@ -53,8 +56,10 @@ ics = paths.ic_ids[:4]
 n_sims = len(ics)
 
 # File paths
-ftemp = join(utils.dumpdir, "temp_crosspk", "out_{}_{}")
-fout = join(utils.dumpdir, "crosspk", "out_{}_{}.p")
+ftemp = join(utils.dumpdir, "temp_crosspk",
+             "out_{}_{}" + "_{}".format(args.halfwidth))
+fout = join(utils.dumpdir, "crosspk",
+            "out_{}_{}" + "_{}.p".format(args.halfwidth))
 
 
 jobs = csiborgtools.fits.split_jobs(n_sims, nproc)[rank]
@@ -68,14 +73,28 @@ for n in jobs:
     box = csiborgtools.units.BoxUnits(paths)
     # Read particles
     particles = reader.read_particle(["x", "y", "z", "M"], verbose=False)
-    length = box.box2mpc(1) * box.h
+    # Halfwidth -- particle selection
+    if args.halfwidth is not None:
+        hw = args.halfwidth
+        mask = ((0.5 - hw < particles['x']) & (particles['x'] < 0.5 + hw)
+                & (0.5 - hw < particles['y']) & (particles['y'] < 0.5 + hw)
+                & (0.5 - hw < particles['z']) & (particles['z'] < 0.5 + hw))
+        # Subselect the particles
+        particles = particles[mask]
+        # Rescale to range [0, 1]
+        for p in ('x', 'y', 'z'):
+            particles[p] = (particles[p] - 0.5 + hw) / (2 * hw)
+
+        length = box.box2mpc(2 * hw) * box.h
+    else:
+        length = box.box2mpc(1) * box.h
     # Calculate the overdensity field
     field = csiborgtools.field.DensityField(particles, length, box, MAS)
     delta = field.overdensity_field(args.grid, verbose=False)
     aexp = box._aexp
 
     # Try to clean up memory
-    del field, particles, box, reader
+    del field, particles, box, reader, mask
     collect()
 
     # Dump the results
@@ -134,7 +153,8 @@ for n in jobs:
                          .format(ics[i], ics[j], dlength * 100))
 
     # Calculate the cross power spectrum
-    Pk = PKL.XPk([delta_i, delta_j], 1., axis=1, MAS=[MAS, MAS], threads=1)
+    Pk = PKL.XPk([delta_i, delta_j], length_i, axis=1, MAS=[MAS, MAS],
+                 threads=1)
     joblib.dump(Pk, fout.format(ics[i], ics[j]))
 
     del delta_i, delta_j, Pk
