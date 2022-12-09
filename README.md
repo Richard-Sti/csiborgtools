@@ -7,7 +7,7 @@
 
 
 ## Short-term TODO
-- [ ] Add code to calculate the cross-correlation for resolved region only.
+- [x] Add code to calculate the cross-correlation for resolved region only.
 - [ ] Calculate the spectra for all 101 boxes and visualise them.
 - [ ] See about the $z=70$ particles.
 
