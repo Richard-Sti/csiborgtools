@@ -47,7 +47,7 @@ nproc = comm.Get_size()
 MAS = "CIC"  # mass asignment scheme
 
 paths = csiborgtools.read.CSiBORGPaths()
-ics = paths.ic_ids[:4]
+ics = paths.ic_ids
 n_sims = len(ics)
 
 # File paths
