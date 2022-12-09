@@ -15,12 +15,6 @@
 """
 MPI script to calculate the matter cross power spectrum between CSiBORG
 IC realisations. Units are Mpc/h.
-
-TODO:
-- [x] Add smaller box support.
-- [x] Change file naming to reflect the half-width.
-- [x] There is still some bug! The Pk disagree with DarkSky
-- [ ] Test large and small box
 """
 from argparse import ArgumentParser
 import numpy
