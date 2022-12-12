@@ -13,10 +13,11 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
-using Pkg: activate, build
-activate("../JuliaCSiBORGTools/")
+using Pkg: activate # , build
+activate("../jucsiborgtools")
+using Revise
 
-using JuliaCSiBORGTools
+using jucsiborgtools
 using NPZ: npzread
 using PyCall: pyimport
 csiborgtools = pyimport("csiborgtools")
