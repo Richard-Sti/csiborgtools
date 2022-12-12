@@ -17,3 +17,4 @@ csiborgtools.egg-info/*
 scripts/playground_*
 scripts/playground.ipynb
 Pylians3/*
+scripts/plot_correlation.ipynb
