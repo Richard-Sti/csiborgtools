@@ -508,15 +508,6 @@ class ParticleReader:
             print("Reading in output `{}` with ncpu = `{}`."
                   .format(nout, ncpu))
 
-#        # Check whether the unbinding file exists.
-#        snapdirlist = listdir(snappath)
-#        unbinding_file = "unbinding_{}.out00001".format(nout)
-#        if unbinding_file not in snapdirlist:
-#            raise FileNotFoundError(
-#                "Couldn't find `{}` in `{}`. Use mergertreeplot.py -h or "
-#                "--help to print help message."
-#                .format(unbinding_file, snappath))
-
         # First read the headers. Reallocate arrays and fill them.
         nparts = numpy.zeros(ncpu, dtype=int)
         partfiles = [None] * ncpu
