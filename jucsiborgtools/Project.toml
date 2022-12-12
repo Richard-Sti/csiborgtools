@@ -1,4 +1,4 @@
-name = "JuliaCSiBORGTools"
+name = "jucsiborgtools"
 uuid = "6ceada58-95f6-416f-bef9-d16b3bb7d5db"
 authors = ["rstiskalek <richard.stiskalek@protonmail.com>"]
 version = "0.1.0"
