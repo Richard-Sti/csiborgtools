@@ -260,6 +260,26 @@ class CSiBORGPaths:
             pass
         return numpy.sort(ids)
 
+    @property
+    def ic_ids_new(self):
+        """
+        ICs simulation IDs denoted as `new` with recoved :math:`z = 70`
+        particle information.
+
+        Returns
+        -------
+        ids : 1-dimensional array
+            Array of requested simulation IDs.
+        """
+        files = glob(join(self.srcdir, "ramses_out*"))
+        # Select only file names
+        files = [f.split("/")[-1] for f in files]
+        # Only _new files
+        files = [f for f in files if "_new" in f]
+        # Take the ICs
+        ids = [int(f.split("_")[2]) for f in files]
+        return numpy.sort(ids)
+
     def ic_path(self, n_sim=None):
         """
         Path to `n_sim`th CSiBORG IC realisation.
