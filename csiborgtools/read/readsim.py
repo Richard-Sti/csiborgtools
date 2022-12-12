@@ -18,7 +18,7 @@ Functions to read in the particle and clump files.
 
 import numpy
 from scipy.io import FortranFile
-# from os import listdir
+import gc
 from os.path import (join, isfile, isdir)
 from glob import glob
 from tqdm import tqdm
@@ -814,25 +814,19 @@ def read_mmain(n, srcdir, fname="Mmain_{}.npy"):
     return out
 
 
-def get_positions(n_sim, n_snap, get_clumpid, verbose=True,
-                  srcdir="/mnt/extraspace/hdesmond/"):
+def get_positions(paths, get_clumpid, verbose=True):
     """
     Shortcut to get particle IDs, positions, masses and optionally clump
     indices.
 
     Parameters
     ----------
-    n_sim : int
-        CSiBORG IC realisation index.
-    n_snap : int
-        Snapshot index.
+    paths : py:class`csiborgtools.read.CSiBORGPaths`
+        CSiBORG paths-handling object with set `n_sim` and `n_snap`.
     get_clumpid : bool
         Whether to also return the clump indices.
     verbose : bool, optional
         Verbosity flag. By default `True`.
-    srcdir : str, optional
-        The file path to the folder where realisations of the ICs are stored.
-        By default `/mnt/extraspace/hdesmond/`.
 
     Returns
     -------
@@ -846,9 +840,6 @@ def get_positions(n_sim, n_snap, get_clumpid, verbose=True,
         Particles' clump IDs of shape `(n_particles, )`. Returned only if
         `get_clumpid` is `True`.
     """
-    # Setup the paths
-    paths = CSiBORGPaths(srcdir)
-    paths.set_info(n_sim, n_snap)
     # Extract particles
     reader = ParticleReader(paths)
     pars_extract = ["ID", "x", "y", "z", "M"]
@@ -858,8 +849,10 @@ def get_positions(n_sim, n_snap, get_clumpid, verbose=True,
     pids = extract_from_structured(particles, "ID")
     ppos = extract_from_structured(particles, ["x", "y", "z"])
     pmass = extract_from_structured(particles, "M")
+
     # Force early memory release
     del particles
+    gc.collect()
 
     out = (pids, ppos, pmass)
 
