@@ -407,7 +407,6 @@ class CSiBORGPaths:
         Returns
         -------
         snappath : str
-            Path to the CSiBORG IC realisation snapshot.
         """
         n_snap = self.get_n_snap(n_snap)
         n_sim = self.get_n_sim(n_sim)
