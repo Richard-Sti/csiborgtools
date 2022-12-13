@@ -52,7 +52,7 @@ nsims = init_paths.ic_ids
 
 # Output files
 dumpdir = "/mnt/extraspace/rstiskalek/csiborg/initmatch"
-ftemp = join(dumpdir, "temp_{}_{}.npy")
+ftemp = join(dumpdir, "temp", "temp_{}_{}.npy")
 fperm = join(dumpdir, "clump_cm_{}.npy")
 
 for nsim in nsims:
