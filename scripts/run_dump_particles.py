@@ -118,7 +118,7 @@ for nsim in nsims:
             fout = join(clumpdumpdir, "clump_{}.npy".format(n))
             stdout.flush()
             with open(fout, "wb") as f:
-                numpy.save(f, part0[clump_ids == n])
+                numpy.save(f, x0)
 
     comm.Barrier()
     if rank == 0:
