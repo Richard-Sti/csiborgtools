@@ -131,9 +131,9 @@ for nsim in nsims:
         for n in unique_clumpids:
             with open(ftemp.format(nsim, n), 'rb') as f:
                 fin = numpy.load(f)
-            out['x'] = fin[0]
-            out['y'] = fin[1]
-            out['z'] = fin[2]
+            out['x'][n] = fin[0]
+            out['y'][n] = fin[1]
+            out['z'][n] = fin[2]
             remove(ftemp.format(nsim, n))
 
         print("Dumping CM files to .. `{}`.".format(fperm.format(n)))
