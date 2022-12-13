@@ -20,6 +20,7 @@ should be processed in smaller batches.
 """
 import numpy
 from datetime import datetime
+from os.path import join
 try:
     import csiborgtools
 except ModuleNotFoundError:
@@ -32,8 +33,9 @@ init_paths = csiborgtools.read.CSiBORGPaths(to_new=True)
 fin_paths = csiborgtools.read.CSiBORGPaths(to_new=False)
 nsims = init_paths.ic_ids
 
-fpart = "/mnt/extraspace/rstiskalek/csiborg/temp_initmatch/out_{}_{}_{}.npy"
-fclump = "/mnt/extraspace/rstiskalek/csiborg/temp_initmatch/out_{}_clumps.npy"
+dumpdir = "/mnt/extraspace/rstiskalek/csiborg/temp_initmatch_dump"
+fpart = join(dumpdir, "out_{}_{}_{}.npy")
+fclump = join(dumpdir, "out_{}_clumps.npy")
 pars = ["x", "y", "z", "M", "ID"]
 
 for nsim in nsims:
