@@ -21,7 +21,3 @@
 ## Open questions
 - What scaling of the search region? No reason for it to be a multiple of $R_{200c}$.
 - Begin extracting the DM environmental properties at galaxy positions?
-
-
-## Notes
-- New sims with part files in initial snapshot: `/mnt/extraspace/hdesmond/ramses_out_7468_new`. Also numbers 7588, 8020, 8452, 8836.
