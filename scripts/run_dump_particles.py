@@ -20,6 +20,9 @@ ID so that the index positions between the initial and final snapshots match.
 Don't forget to delete once used in Julia as these will take a lot of space
 (for all 100 simulations about 2TB), hence should be processed in smaller
 batches.
+
+TODO:
+- [ ] Check that the particle masses are equal when matched.
 """
 import numpy
 from datetime import datetime
