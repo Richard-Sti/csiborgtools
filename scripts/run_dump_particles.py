@@ -48,7 +48,6 @@ nsims = init_paths.ic_ids
 tempdumpdir = "/mnt/extraspace/rstiskalek/csiborg/temp_initmatch_dump"
 fpart = join(tempdumpdir, "out_{}_{}_{}.npy")
 fclump = join(tempdumpdir, "out_{}_clumps.npy")
-
 permdumpdir = "/mnt/extraspace/rstiskalek/csiborg/temp_initmatch"
 
 for nsim in nsims[:1]:
