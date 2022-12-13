@@ -14,9 +14,12 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 A script to dump particle positions at the final and initial snapshot in a
-format that is readable by Julia. Don't forget to delete once used in Julia as
-these will take a lot of space (for all 100 simulations about 2TB), hence
-should be processed in smaller batches.
+format that is readable by Julia. Sorts the particle array by their particle
+ID so that the index positions between the initial and final snapshots match.
+
+Don't forget to delete once used in Julia as these will take a lot of space
+(for all 100 simulations about 2TB), hence should be processed in smaller
+batches.
 """
 import numpy
 from datetime import datetime
@@ -47,8 +50,10 @@ for nsim in nsims:
     init_reader = csiborgtools.read.ParticleReader(init_paths)
     fin_reader = csiborgtools.read.ParticleReader(fin_paths)
 
-    # Read and dump the init particles
+    # Read and sort the particle files by their particle IDs
     particles = init_reader.read_particle(pars, verbose=False)
+    pid_order = numpy.argsort(particles["ID"])
+    particles = particles[pid_order, :]
     # Put to a nicer array
     out = numpy.full((particles.size, 4), numpy.nan, dtype=numpy.float32)
     for i, par in enumerate(pars[:-1]):
@@ -56,12 +61,16 @@ for nsim in nsims:
     # Dump the particles and particle IDs
     with open(fpart.format(nsim, "init", "part"), 'wb') as f:
         numpy.save(f, out)
-    # Rpeat for the particle IDs
+    # Repeat for the particle IDs
     with open(fpart.format(nsim, "init", "ID"), 'wb') as f:
         numpy.save(f, particles["ID"])
 
     # Now repeat for the final snapshot but also get clump IDs
     particles = fin_reader.read_particle(pars, verbose=False)
+    clump_ids = fin_reader.read_clumpid(verbose=False)
+    pid_order = numpy.argsort(particles["ID"])
+    particles = particles[pid_order, :]
+    clump_ids = clump_ids[pid_order]
     # Put to a nicer array
     out = numpy.full((particles.size, 4), numpy.nan, dtype=numpy.float32)
     for i, par in enumerate(pars[:-1]):
@@ -69,9 +78,9 @@ for nsim in nsims:
     # Dump the particles and particle IDs
     with open(fpart.format(nsim, "fin", "part"), 'wb') as f:
         numpy.save(f, out)
-    # Rpeat for the particle IDs
+    # Repeat for the particle IDs
     with open(fpart.format(nsim, "fin", "ID"), 'wb') as f:
         numpy.save(f, particles["ID"])
     # Clump IDs
     with open(fclump.format(nsim), 'wb') as f:
-        numpy.save(f, fin_reader.read_clumpid(verbose=False))
+        numpy.save(f, clump_ids)
