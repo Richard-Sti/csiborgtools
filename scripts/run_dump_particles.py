@@ -53,7 +53,7 @@ for nsim in nsims:
     # Read and sort the particle files by their particle IDs
     particles = init_reader.read_particle(pars, verbose=False)
     pid_order = numpy.argsort(particles["ID"])
-    particles = particles[pid_order, :]
+    particles = particles[pid_order]
     # Put to a nicer array
     out = numpy.full((particles.size, 4), numpy.nan, dtype=numpy.float32)
     for i, par in enumerate(pars[:-1]):
@@ -69,7 +69,7 @@ for nsim in nsims:
     particles = fin_reader.read_particle(pars, verbose=False)
     clump_ids = fin_reader.read_clumpid(verbose=False)
     pid_order = numpy.argsort(particles["ID"])
-    particles = particles[pid_order, :]
+    particles = particles[pid_order]
     clump_ids = clump_ids[pid_order]
     # Put to a nicer array
     out = numpy.full((particles.size, 4), numpy.nan, dtype=numpy.float32)
