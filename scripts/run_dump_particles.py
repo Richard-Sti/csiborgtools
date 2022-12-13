@@ -125,17 +125,19 @@ for nsim in nsims:
         print("Collecting CM files...")
         stdout.flush()
         # Collect the centre of masses and dump them
-        dtype = {"names": ['x', 'y', 'z'], "formats": [numpy.float32]*3}
+        dtype = {"names": ['x', 'y', 'z', "ID"],
+                 "formats": [numpy.float32] * 3 + [numpy.int32]}
         out = numpy.full(njobs, numpy.nan, dtype=dtype)
 
-        for n in unique_clumpids:
+        for i, n in enumerate(unique_clumpids):
             with open(ftemp.format(nsim, n), 'rb') as f:
                 fin = numpy.load(f)
-            out['x'][n] = fin[0]
-            out['y'][n] = fin[1]
-            out['z'][n] = fin[2]
+            out['x'][i] = fin[0]
+            out['y'][i] = fin[1]
+            out['z'][i] = fin[2]
+            out["ID"][i] = n
             remove(ftemp.format(nsim, n))
 
-        print("Dumping CM files to .. `{}`.".format(fperm.format(n)))
-        with open(fperm.format(n), 'wb') as f:
+        print("Dumping CM files to .. `{}`.".format(fperm.format(nsim)))
+        with open(fperm.format(nsim), 'wb') as f:
             numpy.save(f, out)
