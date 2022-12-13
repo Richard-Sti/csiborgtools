@@ -61,7 +61,7 @@ for nsim in nsims:
         stdout.flush()
     # Check that the output folder for this sim exists
     clumpdumpdir = join(dumpdir, "out_{}".format(nsim))
-    if rank == 0 and not isdir(clumpdumpdir):
+    if args.dump_clumps and rank == 0 and not isdir(clumpdumpdir):
         mkdir(clumpdumpdir)
 
     # Barrier to make sure we created the directory with the rank 0
