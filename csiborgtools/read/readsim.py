@@ -22,6 +22,7 @@ import gc
 from os.path import (join, isfile, isdir)
 from glob import glob
 from tqdm import tqdm
+from warnings import warn
 from ..utils import (cols_to_structured, extract_from_structured)
 
 
@@ -56,6 +57,9 @@ class CSiBORGPaths:
     mmain_path : str, optional
         Path to where mmain files are stored. By default
         `/mnt/zfsusers/hdesmond/Mmain`.
+    initmatch_path : str, optional
+        Path to where match between the first and final snapshot is stored. By
+        default `/mnt/extraspace/rstiskalek/csiborg/initmatch/`.
     to_new : bool, optional
         Whether the paths should point to `new` files, for example
         `ramses_out_8452_new`.
@@ -65,18 +69,28 @@ class CSiBORGPaths:
     _n_snap = None
     _dumpdir = None
     _mmain_path = None
+    _initmatch_path = None
     _to_new = None
 
-    def __init__(self, n_sim=None, n_snap=None,
-                 srcdir="/mnt/extraspace/hdesmond/",
-                 dumpdir="/mnt/extraspace/rstiskalek/csiborg/",
-                 mmain_path="/mnt/zfsusers/hdesmond/Mmain", to_new=False):
+    # NOTE deuglify this stuff
+    def __init__(self, n_sim=None, n_snap=None, srcdir=None, dumpdir=None,
+                 mmain_path=None, initmatch_path=None, to_new=False):
+        if srcdir is None:
+            srcdir = "/mnt/extraspace/hdesmond/"
         self.srcdir = srcdir
+        if dumpdir is None:
+            dumpdir = "/mnt/extraspace/rstiskalek/csiborg/"
         self.dumpdir = dumpdir
+        if mmain_path is None:
+            mmain_path = "/mnt/zfsusers/hdesmond/Mmain"
         self.mmain_path = mmain_path
+        if initmatch_path is None:
+            initmatch_path = "/mnt/extraspace/rstiskalek/csiborg/initmatch/"
+        self.initmatch_path = initmatch_path
         self.to_new = to_new
         if n_sim is not None and n_snap is not None:
             self.set_info(n_sim, n_snap)
+        # "/mnt/extraspace/rstiskalek/csiborg/initmatch/clump_cm_7468.npy"
 
     @property
     def srcdir(self):
@@ -151,6 +165,26 @@ class CSiBORGPaths:
         if not isdir(mmain_path):
             raise IOError("Invalid directory `{}`!".format(mmain_path))
         self._mmain_path = mmain_path
+
+    @property
+    def initmatch_path(self):
+        """
+        Path to where match between the first and final snapshot is stored.
+
+        Returns
+        -------
+        initmach_path : str
+        """
+        return self._initmatch_path
+
+    @initmatch_path.setter
+    def initmatch_path(self, initmatch_path):
+        """
+        Set `initmatch_path`, check that the directory exists.
+        """
+        if not isdir(initmatch_path):
+            raise IOError("Invalid directory `{}`!".format(initmatch_path))
+        self._initmatch_path = initmatch_path
 
     @property
     def to_new(self):
@@ -803,6 +837,33 @@ def read_mmain(n, srcdir, fname="Mmain_{}.npy"):
         out[name] = arr[:, i]
 
     return out
+
+
+def read_initcm(n, srcdir, fname="clump_cm_{}.npy"):
+    """
+    Read `clump_cm`, i.e. the center of mass of a clump at redshift z = 70.
+    If the file does not exist returns `None`.
+
+    Parameters
+    ----------
+    n : int
+        The index of the initial conditions (IC) realisation.
+    srcdir : str
+        The path to the folder containing the files.
+    fname : str, optional
+        The file name convention.  By default `clump_cm_{}.npy`, where the
+        substituted value is `n`.
+
+    Returns
+    -------
+    out : structured array
+    """
+    fpath = join(srcdir, fname.format(n))
+    try:
+        return numpy.load(fpath)
+    except FileNotFoundError:
+        warn("File {} does not exist.".format(fpath))
+        return None
 
 
 def get_positions(paths, get_clumpid, verbose=True):
