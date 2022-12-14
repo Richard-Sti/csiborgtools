@@ -14,7 +14,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 import numpy
-from tqdm import tqdm
+from tqdm import (tqdm, trange)
 from astropy.coordinates import SkyCoord
 from ..read import CombinedHaloCatalogue
 
@@ -152,12 +152,17 @@ class RealisationsMatcher:
             return out[0]
         return out
 
-    def cross_knn_position_single(self, n_sim, nmult=5, dlogmass=2,
-                                  verbose=True):
+    def cross_knn_position_single(self, n_sim, nmult=5, dlogmass=None,
+                                  search_initial=False, verbose=True):
         r"""
         Find all neighbours within :math:`n_{\rm mult} R_{200c}` of halos in
         the `nsim`th simulation. Also enforces that the neighbours'
         :math:`\log M_{200c}` be within `dlogmass` dex.
+
+        TODO:
+            - [ ] Investigate that potential bug.
+            - [ ] Add a handle to instead of nmult specify distance in Mpc?
+            - [ ] Update the search radius for `search_initial`
 
         Parameters
         ----------
@@ -168,7 +173,11 @@ class RealisationsMatcher:
             Multiple of :math:`R_{200c}` within which to return neighbours. By
             default 5.
         dlogmass : float, optional
-            Tolerance on mass logarithmic mass difference. By default 2 dex.
+            Tolerance on mass logarithmic mass difference. By default `None`.
+        search_initial : bool, optional
+            Whether to search the initial snapshot. By default `False`.
+        verbose : bool, optional
+            Iterator verbosity flag. By default `True`.
 
         Returns
         -------
@@ -178,10 +187,18 @@ class RealisationsMatcher:
             `dist`, which is the 3D distance to the halo whose neighbours are
             searched.
         """
+        # Make sure that for initial search dlogmass must be turned off
+        if search_initial and dlogmass is not None:
+            raise RuntimeError(
+                "`search_initial` must be `False` if `dlogmass`is not `None`.")
         # R200c, M200c and positions of halos in `n_sim` IC realisation
         r200 = self.cats[n_sim]["r200"]
         logm200 = numpy.log10(self.cats[n_sim]["m200"])
-        pos = self.cats[n_sim].positions
+        # Pick either the initial or final snapshot positions
+        if search_initial:
+            pos = self.cats[n_sim].positions0  # These are CM positions
+        else:
+            pos = self.cats[n_sim].positions
 
         matches = [None] * (self.cats.N - 1)
         # Verbose iterator
@@ -191,19 +208,23 @@ class RealisationsMatcher:
             iters = enumerate(self.search_sim_indices(n_sim))
         # Search for neighbours in the other simulations
         for count, i in iters:
-            dist, indxs = self.cats[i].radius_neigbours(pos, r200 * nmult)
+            dist, indxs = self.cats[i].radius_neigbours(pos, r200 * nmult,
+                                                        search_initial)
             # Get rid of neighbors whose mass is too off
-            for j, indx in enumerate(indxs):
-                match_logm200 = numpy.log10(self.cats[i][indx]["m200"])
-                mask = numpy.abs(match_logm200 - logm200[j]) < dlogmass
-                dist[j] = dist[j][mask]
-                indxs[j] = indx[mask]
+            if dlogmass is not None:
+                for j, indx in enumerate(indxs):
+                    match_logm200 = numpy.log10(self.cats[i][indx]["m200"])
+                    mask = numpy.abs(match_logm200 - logm200[j]) < dlogmass
+                    dist[j] = dist[j][mask]
+                    # NOTE is this a bug? indxs[j][mask]?
+                    indxs[j] = indx[mask]
             # Append as a composite array
             matches[count] = numpy.asarray([indxs, dist], dtype=object)
 
         return numpy.asarray(matches, dtype=object)
 
-    def cross_knn_position_all(self, nmult=5, dlogmass=2):
+    def cross_knn_position_all(self, nmult=5, dlogmass=None,
+                               search_initial=False, verbose=True):
         r"""
         Find all neighbours within :math:`n_{\rm mult} R_{200c}` of halos in
         all simulations listed in `self.cats`. Also enforces that the
@@ -215,7 +236,11 @@ class RealisationsMatcher:
             Multiple of :math:`R_{200c}` within which to return neighbours. By
             default 5.
         dlogmass : float, optional
-            Tolerance on mass logarithmic mass difference. By default 2 dex.
+            Tolerance on mass logarithmic mass difference. By default `None`.
+        search_initial : bool, optional
+            Whether to search the initial snapshot. By default `False`.
+        verbose : bool, optional
+            Iterator verbosity flag. By default `True`.
 
         Returns
         -------
@@ -226,6 +251,7 @@ class RealisationsMatcher:
         N = self.cats.N  # Number of catalogues
         matches = [None] * N
         # Loop over each catalogue
-        for i in range(N):
-            matches[i] = self.cross_knn_position_single(i, nmult, dlogmass)
+        for i in trange(N) if verbose else range(N):
+            matches[i] = self.cross_knn_position_single(i, nmult, dlogmass,
+                                                        search_initial)
         return matches
