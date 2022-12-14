@@ -38,15 +38,20 @@ class HaloCatalogue:
         threshold.
     max_dist : float, optional
         The maximum comoving distance of a halo. By default no upper limit.
+    make_knn_init : book, optional
+        Whether to initialise KNN search of the centres of mass of the initial
+        snapshot.
     """
     _box = None
     _paths = None
     _data = None
     _knn = None
+    _knn0 = None
     _positions = None
     _positions0 = None
 
-    def __init__(self, paths, min_m500=None, max_dist=None):
+    def __init__(self, paths, min_m500=None, max_dist=None,
+                 make_knn_init=False):
         self._box = BoxUnits(paths)
         min_m500 = 0 if min_m500 is None else min_m500
         max_dist = numpy.infty if max_dist is None else max_dist
@@ -56,6 +61,10 @@ class HaloCatalogue:
         knn = NearestNeighbors()
         knn.fit(self.positions)
         self._knn = knn
+        if make_knn_init:
+            knn0 = NearestNeighbors()
+            knn0.fit(self.positions0)
+            self._knn0 = knn0
 
     @property
     def data(self):
@@ -117,7 +126,7 @@ class HaloCatalogue:
     @property
     def n_sim(self):
         """
-        The initiali condition (IC) realisation ID.
+        The initial condition (IC) realisation ID.
 
         Returns
         -------
@@ -259,7 +268,7 @@ class HaloCatalogue:
     @property
     def positions0(self):
         r"""
-        3D positions of halos at :math:`z = 70`.
+        3D positions of halos in the initial snapshot.
 
         Returns
         -------
@@ -295,7 +304,7 @@ class HaloCatalogue:
         """
         return numpy.vstack([self["L{}".format(p)] for p in ("x", "y", "z")]).T
 
-    def radius_neigbours(self, X, radius):
+    def radius_neigbours(self, X, radius, search_initial=False):
         """
         Return sorted nearest neigbours within `radius` or `X`.
 
@@ -306,6 +315,8 @@ class HaloCatalogue:
             `x`, `y` and `z`.
         radius : float
             Limiting distance of neighbours.
+        search_initial : bool, optional
+            Whether to search the initial snapshot. By default `False`.
 
         Returns
         -------
@@ -319,7 +330,10 @@ class HaloCatalogue:
         if not (X.ndim == 2 and X.shape[1] == 3):
             raise TypeError("`X` must be an array of shape `(n_samples, 3)`.")
         # Query the KNN
-        return self._knn.radius_neighbors(X, radius, sort_results=True)
+        if search_initial:
+            return self._knn0.radius_neighbors(X, radius, sort_results=True)
+        else:
+            return self._knn.radius_neighbors(X, radius, sort_results=True)
 
     @property
     def keys(self):
