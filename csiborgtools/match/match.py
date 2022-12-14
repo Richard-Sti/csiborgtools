@@ -125,7 +125,7 @@ class RealisationsMatcher:
     def cosine_similarity(self, x, y):
         r"""
         Calculate the cosine similarity between two Cartesian vectors. Defined
-        as :math:`\Sum_{i} x_i y_{i} / (|x|  |y|)`.
+        as :math:`\Sum_{i} x_i y_{i} / (|x| * |y|)`.
 
         Parameters
         ----------
