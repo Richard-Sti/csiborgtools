@@ -207,7 +207,7 @@ class RealisationsMatcher:
             # Get rid of neighbors whose mass is too off
             if dlogmass is not None:
                 for j, indx in enumerate(indxs):
-                    match_logm200 = numpy.log10(self.cats[i][indx]["m200"])
+                    match_logm200 = numpy.log10(self.cats[i]["m200"][indx])
                     mask = numpy.abs(match_logm200 - logm200[j]) < dlogmass
                     dist[j] = dist[j][mask]
                     indxs[j] = indx[mask]
