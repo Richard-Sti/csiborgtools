@@ -161,8 +161,6 @@ class RealisationsMatcher:
 
         TODO:
             - [ ] Investigate that potential bug.
-            - [ ] Add a handle to instead of nmult specify distance in Mpc?
-            - [ ] Update the search radius for `search_initial`
 
         Parameters
         ----------
@@ -191,15 +189,14 @@ class RealisationsMatcher:
         if search_initial and dlogmass is not None:
             raise RuntimeError(
                 "`search_initial` must be `False` if `dlogmass`is not `None`.")
-        # R200c, M200c and positions of halos in `n_sim` IC realisation
-        r200 = self.cats[n_sim]["r200"]
+        # Radius, M200c and positions of halos in `n_sim` IC realisation
         logm200 = numpy.log10(self.cats[n_sim]["m200"])
-        # Pick either the initial or final snapshot positions
         if search_initial:
             pos = self.cats[n_sim].positions0  # These are CM positions
+            R = self.cats[n_sim].init_radius
         else:
             pos = self.cats[n_sim].positions
-
+            R = self.cats[n_sim]["r200"]
         matches = [None] * (self.cats.N - 1)
         # Verbose iterator
         if verbose:
@@ -208,7 +205,7 @@ class RealisationsMatcher:
             iters = enumerate(self.search_sim_indices(n_sim))
         # Search for neighbours in the other simulations
         for count, i in iters:
-            dist, indxs = self.cats[i].radius_neigbours(pos, r200 * nmult,
+            dist, indxs = self.cats[i].radius_neigbours(pos, R * nmult,
                                                         search_initial)
             # Get rid of neighbors whose mass is too off
             if dlogmass is not None:
