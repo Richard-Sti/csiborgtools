@@ -321,7 +321,6 @@ class HaloCatalogue:
         -------
         R : float
         """
-
         delta = self.box.box2mpc(1 / 2**11)
         return (3 * self["npart"] / (4 * numpy.pi))**(1/3) * delta
 
