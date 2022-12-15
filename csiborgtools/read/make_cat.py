@@ -40,7 +40,7 @@ class HaloCatalogue:
         The maximum comoving distance of a halo. By default no upper limit.
     make_knn_init : book, optional
         Whether to initialise KNN search of the centres of mass of the initial
-        snapshot.
+        snapshot. By default `False`.
     """
     _box = None
     _paths = None
@@ -382,6 +382,9 @@ class CombinedHaloCatalogue:
         threshold.
     max_dist : float, optional
         The maximum comoving distance of a halo. By default no upper limit.
+    make_knn_init : book, optional
+        Whether to initialise KNN search of the centres of mass of the initial
+        snapshot. By default `False`.
     verbose : bool, optional
         Verbosity flag for reading the catalogues.
     """
@@ -389,10 +392,12 @@ class CombinedHaloCatalogue:
     _n_snaps = None
     _cats = None
 
-    def __init__(self, paths, min_m500=None, max_dist=None, verbose=True):
+    def __init__(self, paths, min_m500=None, max_dist=None,
+                 make_knn_init=False, verbose=True):
         # Read simulations and their maximum snapshots
-        # NOTE remove this later and take all cats
-        self._n_sims = paths.ic_ids[:10]
+        # NOTE later change this back to all simulations
+        self._n_sims = [7468, 7588, 8020, 8452, 8836]
+#        self._n_sims = paths.ic_ids
         n_snaps = [paths.get_maximum_snapshot(i) for i in self._n_sims]
         self._n_snaps = numpy.asanyarray(n_snaps)
 
@@ -400,7 +405,7 @@ class CombinedHaloCatalogue:
         for i in trange(self.N) if verbose else range(self.N):
             paths = deepcopy(paths)
             paths.set_info(self.n_sims[i], self.n_snaps[i])
-            cats[i] = HaloCatalogue(paths, min_m500, max_dist)
+            cats[i] = HaloCatalogue(paths, min_m500, max_dist, make_knn_init)
         self._cats = cats
 
     @property
