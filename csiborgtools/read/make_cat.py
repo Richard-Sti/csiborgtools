@@ -255,7 +255,7 @@ class HaloCatalogue:
     @property
     def positions(self):
         """
-        3D positions of halos.
+        3D positions of halos in comoving units of Mpc.
 
         Returns
         -------
@@ -268,7 +268,7 @@ class HaloCatalogue:
     @property
     def positions0(self):
         r"""
-        3D positions of halos in the initial snapshot.
+        3D positions of halos in the initial snapshot in comoving units of Mpc.
 
         Returns
         -------
@@ -303,6 +303,27 @@ class HaloCatalogue:
             Array of shape `(n_halos, 3)`.
         """
         return numpy.vstack([self["L{}".format(p)] for p in ("x", "y", "z")]).T
+
+    @property
+    def init_radius(self):
+        r"""
+        A fiducial initial radius of particles that are identified as a single
+        halo in the final snapshot. Estimated to be
+
+        ..math:
+            R = (3 N / 4 \pi)^{1 / 3} * \Delta
+
+        where :math:`N` is the number of particles and `Delta` is the initial
+        inter-particular distance :math:`Delta = 1 / 2^{11}` in box units. The
+        output fiducial radius is in comoving units of Mpc.
+
+        Returns
+        -------
+        R : float
+        """
+
+        delta = self.box.box2mpc(1 / 2**11)
+        return (3 * self["npart"] / (4 * numpy.pi))**(1/3) * delta
 
     def radius_neigbours(self, X, radius, search_initial=False):
         """
