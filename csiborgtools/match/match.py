@@ -159,9 +159,6 @@ class RealisationsMatcher:
         the `nsim`th simulation. Also enforces that the neighbours'
         :math:`\log M_{200c}` be within `dlogmass` dex.
 
-        TODO:
-            - [ ] Investigate that potential bug.
-
         Parameters
         ----------
         n_sim : int
@@ -213,7 +210,6 @@ class RealisationsMatcher:
                     match_logm200 = numpy.log10(self.cats[i][indx]["m200"])
                     mask = numpy.abs(match_logm200 - logm200[j]) < dlogmass
                     dist[j] = dist[j][mask]
-                    # NOTE is this a bug? indxs[j][mask]?
                     indxs[j] = indx[mask]
             # Append as a composite array
             matches[count] = numpy.asarray([indxs, dist], dtype=object)
