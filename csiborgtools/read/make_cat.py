@@ -38,20 +38,15 @@ class HaloCatalogue:
         threshold.
     max_dist : float, optional
         The maximum comoving distance of a halo. By default no upper limit.
-    make_knn_init : book, optional
-        Whether to initialise KNN search of the centres of mass of the initial
-        snapshot. By default `False`.
     """
     _box = None
     _paths = None
     _data = None
     _knn = None
-    _knn0 = None
     _positions = None
     _positions0 = None
 
-    def __init__(self, paths, min_m500=None, max_dist=None,
-                 make_knn_init=False):
+    def __init__(self, paths, min_m500=None, max_dist=None):
         self._box = BoxUnits(paths)
         min_m500 = 0 if min_m500 is None else min_m500
         max_dist = numpy.infty if max_dist is None else max_dist
@@ -61,10 +56,6 @@ class HaloCatalogue:
         knn = NearestNeighbors()
         knn.fit(self.positions)
         self._knn = knn
-        if make_knn_init:
-            knn0 = NearestNeighbors()
-            knn0.fit(self.positions0)
-            self._knn0 = knn0
 
     @property
     def data(self):
@@ -324,7 +315,7 @@ class HaloCatalogue:
         delta = self.box.box2mpc(1 / 2**11)
         return (3 * self["npart"] / (4 * numpy.pi))**(1/3) * delta
 
-    def radius_neigbours(self, X, radius, search_initial=False):
+    def radius_neigbours(self, X, radius):
         """
         Return sorted nearest neigbours within `radius` or `X`.
 
@@ -335,8 +326,6 @@ class HaloCatalogue:
             `x`, `y` and `z`.
         radius : float
             Limiting distance of neighbours.
-        search_initial : bool, optional
-            Whether to search the initial snapshot. By default `False`.
 
         Returns
         -------
@@ -350,10 +339,7 @@ class HaloCatalogue:
         if not (X.ndim == 2 and X.shape[1] == 3):
             raise TypeError("`X` must be an array of shape `(n_samples, 3)`.")
         # Query the KNN
-        if search_initial:
-            return self._knn0.radius_neighbors(X, radius, sort_results=True)
-        else:
-            return self._knn.radius_neighbors(X, radius, sort_results=True)
+        return self._knn.radius_neighbors(X, radius, sort_results=True)
 
     @property
     def keys(self):
@@ -382,9 +368,6 @@ class CombinedHaloCatalogue:
         threshold.
     max_dist : float, optional
         The maximum comoving distance of a halo. By default no upper limit.
-    make_knn_init : book, optional
-        Whether to initialise KNN search of the centres of mass of the initial
-        snapshot. By default `False`.
     verbose : bool, optional
         Verbosity flag for reading the catalogues.
     """
@@ -392,8 +375,7 @@ class CombinedHaloCatalogue:
     _n_snaps = None
     _cats = None
 
-    def __init__(self, paths, min_m500=None, max_dist=None,
-                 make_knn_init=False, verbose=True):
+    def __init__(self, paths, min_m500=None, max_dist=None, verbose=True):
         # Read simulations and their maximum snapshots
         # NOTE later change this back to all simulations
         self._n_sims = [7468, 7588, 8020, 8452, 8836]
@@ -405,7 +387,7 @@ class CombinedHaloCatalogue:
         for i in trange(self.N) if verbose else range(self.N):
             paths = deepcopy(paths)
             paths.set_info(self.n_sims[i], self.n_snaps[i])
-            cats[i] = HaloCatalogue(paths, min_m500, max_dist, make_knn_init)
+            cats[i] = HaloCatalogue(paths, min_m500, max_dist)
         self._cats = cats
 
     @property
