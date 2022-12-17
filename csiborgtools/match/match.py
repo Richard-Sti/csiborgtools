@@ -259,3 +259,94 @@ def cosine_similarity(x, y):
     if out.size == 1:
         return out[0]
     return out
+
+
+class ParticleOverlap:
+    """
+    TODO: documentation
+
+    """
+    _bins = None
+
+    def __init__(self, bins):
+        self.bins = bins
+
+    @property
+    def bins(self):
+        """
+        The grid spacing. Assumed to be equal for all three dimensions. Units
+        ought to match the requested coordinates.
+
+        Returns
+        -------
+        bins : 1-dimensional array
+        """
+        return self._bins
+
+    @bins.setter
+    def bins(self, bins):
+        """Sets `bins`."""
+        bins = numpy.asarray(bins) if isinstance(bins, list) else bins
+        assert bins.ndim == 1, "`bins` must be a 1-dimensional array."
+        self._bins = bins
+
+    def assign_to_cell(self, x, y, z):
+        """
+        Assign particles specified by coordinates `x`, `y`, and `z` to grid
+        cells.
+
+        Parameters
+        ----------
+        x, y, z : 1-dimensional arrays
+            Positions of particles in the box.
+
+        Returns
+        -------
+        cells : 1-dimensional array
+            Cell ID of each particle.
+        """
+        assert x.ndim == 1 and x.size == y.size == z.size
+        xbin = numpy.digitize(x, self.bins)
+        ybin = numpy.digitize(y, self.bins)
+        zbin = numpy.digitize(z, self.bins)
+        N = self.bins.size
+
+        return xbin + ybin * N + zbin * N**2
+
+    def mass_overlap(self, clump1, clump2, cells1=None):
+        r"""
+        Calculate the particle, mass-weighted overlap between two halos.
+        Defined as
+
+        ..math::
+            (M_{u,1} + M_{u,2}) / (M_1 + M_2),
+
+        where :math:`M_{u, 1}` is the mass of particles of the first halo in
+        cells that are also present in the second halo and :math:`M_1` is the
+        total particle mass of the first halo.
+
+        Parameters
+        ----------
+        clump1, clump2 : structured arrays
+            Structured arrays corresponding to the two clumps. Should contain
+            keys `x`, `y`, `z` and `M`.
+        cells1 : 1-dimensional array, optional
+            Optionlaly precomputed cells of `clump1`. Be careful when using
+            this to ensure it matches `clump1`.
+
+        Returns
+        -------
+        overlap : float
+        """
+        # 1-dimensional cell ID of each particle in clump1 and clump2
+        if cells1 is None:
+            cells1 = self.assign_to_cell(*[clump1[p] for p in ('x', 'y', 'z')])
+        cells2 = self.assign_to_cell(*[clump2[p] for p in ('x', 'y', 'z')])
+        # Elementwise cells1 in cells2 and vice versa
+        m1 = numpy.isin(cells1, cells2)
+        m2 = numpy.isin(cells2, cells1)
+        # Summed shared mass and the total
+        interp = numpy.sum(clump1["M"][m1]) + numpy.sum(clump2["M"][m2])
+        mtot = numpy.sum(clump1["M"]) + numpy.sum(clump2["M"])
+
+        return interp / mtot
