@@ -378,7 +378,8 @@ class CombinedHaloCatalogue:
     def __init__(self, paths, min_m500=None, max_dist=None, verbose=True):
         # Read simulations and their maximum snapshots
         # NOTE later change this back to all simulations
-        self._n_sims = [7468, 7588, 8020, 8452, 8836]
+        # self._n_sims = [7468, 7588, 8020, 8452, 8836]
+        self._n_sims = [7468, 7588]
 #        self._n_sims = paths.ic_ids
         n_snaps = [paths.get_maximum_snapshot(i) for i in self._n_sims]
         self._n_snaps = numpy.asanyarray(n_snaps)
