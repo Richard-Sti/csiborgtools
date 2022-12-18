@@ -440,7 +440,7 @@ class CSiBORGPaths:
         path : str
         """
         cdir = join(self.dumpdir, "initmatch")
-        return join(cdir, "clump_{}_{}.p".format(nsim, "clump"))
+        return join(cdir, "clump_{}_{}.p".format(nsim, "particles"))
 
     def snapshot_path(self, n_snap=None, n_sim=None):
         """
