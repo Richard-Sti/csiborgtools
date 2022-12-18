@@ -440,7 +440,7 @@ class CSiBORGPaths:
         path : str
         """
         cdir = join(self.dumpdir, "initmatch")
-        return join(cdir, "clump_{}_{}.p".format(nsim, "particles"))
+        return join(cdir, "clump_{}_{}.npy".format(nsim, "particles"))
 
     def snapshot_path(self, n_snap=None, n_sim=None):
         """
@@ -856,7 +856,7 @@ def read_mmain(n, srcdir, fname="Mmain_{}.npy"):
     return out
 
 
-def read_initcm(n, srcdir, fname="clump_cm_{}.npy"):
+def read_initcm(n, srcdir, fname="clump_{}_cm.npy"):
     """
     Read `clump_cm`, i.e. the center of mass of a clump at redshift z = 70.
     If the file does not exist returns `None`.
