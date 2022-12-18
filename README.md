@@ -7,14 +7,12 @@
 
 
 ## Short-term TODO
-- [x] Add code to calculate the cross-correlation for resolved region only.
-- [ ] Calculate the spectra for all 101 boxes and visualise them.
-- [ ] See about the $z=70$ particles.
+- [ ] Save the $z = 70$ clumps as an array of arrays or a Python dictionary whose keys are the clump indices
+- [ ] Calculate the match. How much longer does this take? Worst case dump this on Glamdring.
+- [ ] Switch to CIC binning. This appears to be simply a matter of replacing a point-like particle with a cell and then assigning its mass to the appropriate grid cells. Sounds like some convolution operation?
 
 
 ## Long-term TODO
-- [ ] Calculate the cross-correlation in CSiBORG. Should see the scale of the constraints?
-- [ ] Find the distribution of particles in the first snapshot
 - [ ] Implement a custom model for matchin galaxies to halos.
 
 
