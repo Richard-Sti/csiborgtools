@@ -24,8 +24,8 @@ import numpy
 from datetime import datetime
 from mpi4py import MPI
 from distutils.util import strtobool
-from os.path import join, isdir
-from os import mkdir
+import joblib
+from os.path import join
 from os import remove
 from sys import stdout
 from gc import collect
@@ -51,21 +51,15 @@ fin_paths = csiborgtools.read.CSiBORGPaths(to_new=False)
 nsims = init_paths.ic_ids
 
 # Output files
-dumpdir = "/mnt/extraspace/rstiskalek/csiborg/initmatch"
-ftemp = join(dumpdir, "temp", "temp_{}_{}.npy")
-fperm = join(dumpdir, "clump_cm_{}.npy")
+dumpdir = "/mnt/extraspace/rstiskalek/csiborg/"
+ftemp = join(dumpdir, "temp_initmatch", "temp_{}_{}_{}.npy")
+fpermcm = join(dumpdir, "initmatch", "clump_{}_cm.npy")
+fpermpart = join(dumpdir, "initmatch", "clump_{}_particles.p")
 
 for nsim in nsims:
     if rank == 0:
         print("{}: reading simulation {}.".format(datetime.now(), nsim))
         stdout.flush()
-    # Check that the output folder for this sim exists
-    clumpdumpdir = join(dumpdir, "out_{}".format(nsim))
-    if args.dump_clumps and rank == 0 and not isdir(clumpdumpdir):
-        mkdir(clumpdumpdir)
-
-    # Barrier to make sure we created the directory with the rank 0
-    comm.Barrier()
 
     # Set the snapshot numbers
     init_paths.set_info(nsim, init_paths.get_minimum_snapshot(nsim))
@@ -111,14 +105,15 @@ for nsim in nsims:
         cm = numpy.asanyarray(
             [numpy.average(x0[p], weights=x0["M"]) for p in ('x', 'y', 'z')])
         # Dump the center of mass
-        with open(ftemp.format(nsim, n), 'wb') as f:
+        with open(ftemp.format(nsim, n, "cm"), 'wb') as f:
             numpy.save(f, cm)
         # Optionally dump the entire clump
         if args.dump_clumps:
-            fout = join(clumpdumpdir, "clump_{}.npy".format(n))
-            stdout.flush()
-            with open(fout, "wb") as f:
+            with open(ftemp.format(nsim, n, "clump"), "wb") as f:
                 numpy.save(f, x0)
+
+    del part0, clump_ids
+    collect()
 
     comm.Barrier()
     if rank == 0:
@@ -130,14 +125,29 @@ for nsim in nsims:
         out = numpy.full(njobs, numpy.nan, dtype=dtype)
 
         for i, n in enumerate(unique_clumpids):
-            with open(ftemp.format(nsim, n), 'rb') as f:
+            fpath = ftemp.format(nsim, n, "cm")
+            with open(fpath, 'rb') as f:
                 fin = numpy.load(f)
             out['x'][i] = fin[0]
             out['y'][i] = fin[1]
             out['z'][i] = fin[2]
             out["ID"][i] = n
-            remove(ftemp.format(nsim, n))
-
-        print("Dumping CM files to .. `{}`.".format(fperm.format(nsim)))
-        with open(fperm.format(nsim), 'wb') as f:
+            remove(fpath)
+        print("Dumping CM files to .. `{}`.".format(fpermcm.format(nsim)))
+        with open(fpermcm.format(nsim), 'wb') as f:
             numpy.save(f, out)
+
+        print("Collecting clump files...")
+        stdout.flush()
+        out = {}
+        for n in unique_clumpids:
+            fpath = ftemp.format(nsim, n, "clump")
+            with open(fpath, 'rb') as f:
+                fin = numpy.load(f)
+            out.update({n: fin})
+            remove(fpath)
+        print("Dumping clump files to .. `{}`.".format(fpermpart.format(nsim)))
+        joblib.dump(out, fpermpart.format(nsim))
+
+        del out
+        collect()
