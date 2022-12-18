@@ -139,12 +139,14 @@ for nsim in nsims:
         print("Collecting clump files...")
         stdout.flush()
         out = [None] * unique_clumpids.size
+        dtype = {"names": ["clump", "ID"], "formats": [object, numpy.int32]}
+        out = numpy.full(unique_clumpids.size, numpy.nan, dtype=dtype)
         for i, n in enumerate(unique_clumpids):
             fpath = ftemp.format(nsim, n, "clump")
             with open(fpath, 'rb') as f:
-                out[i] = numpy.load(f)
+                out["clump"][i] = numpy.load(f)
+            out["ID"][i] = n
             remove(fpath)
-        out = numpy.asarray(out, dtype=object)
         print("Dumping clump files to .. `{}`.".format(fpermpart.format(nsim)))
         with open(fpermpart.format(nsim), "wb") as f:
             numpy.save(f, out)
