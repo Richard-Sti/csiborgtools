@@ -24,7 +24,6 @@ import numpy
 from datetime import datetime
 from mpi4py import MPI
 from distutils.util import strtobool
-import joblib
 from os.path import join
 from os import remove
 from sys import stdout
@@ -54,7 +53,7 @@ nsims = init_paths.ic_ids
 dumpdir = "/mnt/extraspace/rstiskalek/csiborg/"
 ftemp = join(dumpdir, "temp_initmatch", "temp_{}_{}_{}.npy")
 fpermcm = join(dumpdir, "initmatch", "clump_{}_cm.npy")
-fpermpart = join(dumpdir, "initmatch", "clump_{}_particles.p")
+fpermpart = join(dumpdir, "initmatch", "clump_{}_particles.npy")
 
 for nsim in nsims:
     if rank == 0:
@@ -139,15 +138,16 @@ for nsim in nsims:
 
         print("Collecting clump files...")
         stdout.flush()
-        out = {}
-        for n in unique_clumpids:
+        out = [None] * unique_clumpids.size
+        for i, n in enumerate(unique_clumpids):
             fpath = ftemp.format(nsim, n, "clump")
             with open(fpath, 'rb') as f:
-                fin = numpy.load(f)
-            out.update({n: fin})
+                out[i] = numpy.load(f)
             remove(fpath)
+        out = numpy.asarray(out, dtype=object)
         print("Dumping clump files to .. `{}`.".format(fpermpart.format(nsim)))
-        joblib.dump(out, fpermpart.format(nsim))
+        with open(fpermpart.format(nsim), "wb") as f:
+            numpy.save(f, out)
 
         del out
         collect()
