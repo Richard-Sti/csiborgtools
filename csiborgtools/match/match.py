@@ -236,6 +236,7 @@ class RealisationsMatcher:
                     mask = numpy.abs(match_logmass - logmass[j]) < dlogmass
                     dist[j] = dist[j][mask]
                     indxs[j] = indx[mask]
+
             # Find distance to the between the initial CM
             dist0 = [numpy.asanyarray([], dtype=numpy.float64)] * dist.size
             if init_dist:
