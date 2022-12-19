@@ -7,9 +7,8 @@
 
 
 ## Short-term TODO
-- [ ] Save the $z = 70$ clumps as an array of arrays or a Python dictionary whose keys are the clump indices
-- [ ] Calculate the match. How much longer does this take? Worst case dump this on Glamdring.
-- [ ] Switch to CIC binning. This appears to be simply a matter of replacing a point-like particle with a cell and then assigning its mass to the appropriate grid cells. Sounds like some convolution operation?
+- [ ] Implement the CIC binning.
+- [ ] Write a script to perform the matching on a node.
 
 
 ## Long-term TODO
