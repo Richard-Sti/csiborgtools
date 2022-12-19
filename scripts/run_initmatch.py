@@ -144,7 +144,8 @@ for nsim in nsims:
         for i, n in enumerate(unique_clumpids):
             fpath = ftemp.format(nsim, n, "clump")
             with open(fpath, 'rb') as f:
-                out["clump"][i] = numpy.load(f)
+                fin = numpy.load(f)
+            out["clump"][i] = fin
             out["ID"][i] = n
             remove(fpath)
         print("Dumping clump files to .. `{}`.".format(fpermpart.format(nsim)))
