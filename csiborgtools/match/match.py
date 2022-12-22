@@ -196,9 +196,6 @@ class RealisationsMatcher:
             `overlap` is the overlap over the initial clumps, all respectively.
             The latter two are calculated only if `init_dist` or `overlap` is
             `True`.
-
-        TODO:
-        - [ ] Precalculate the mapping from halo index to clump array position
         """
         self._check_masskind(mass_kind)
         # Radius, mass and positions of halos in `n_sim` IC realisation
