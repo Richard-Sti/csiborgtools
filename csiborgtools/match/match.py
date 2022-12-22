@@ -495,7 +495,7 @@ class ParticleOverlap:
         return delta1, delta2
 
     @staticmethod
-    def overlap(delta1, delta2, overwrite=True):
+    def overlap(delta1, delta2):
         r"""
         Calculate the overlap between two density grids. Defined as
 
@@ -510,28 +510,18 @@ class ParticleOverlap:
         ----------
         delta1, delta2 : 3-dimensional arrays
             Density arrays.
-        overwrite: bool, optional
-            Whether to overwrite `delta1` and `delta2` with intermediate
-            calculations. By default `True`.
 
         Returns
         -------
         overlap : float
         """
-        # Count how many cells are occupied in both density fields
-        mass1 = numpy.einsum("ijk->", delta1)
-        mass2 = numpy.einsum("ijk->", delta2)
-
-        if not overwrite:
-            delta1 = numpy.copy(delta1)
-            delta2 = numpy.copy(delta2)
-
-        delta1 *= delta2
-        cross = numpy.einsum("ijk->", delta1)
-        delta2 = delta1 > 0
-        nboth = numpy.sum(delta2)
-#        print(nboth)
-        return nboth * cross / (mass1 * mass2)
+        mass1 = numpy.sum(delta1)
+        mass2 = numpy.sum(delta2)
+        # Cells where both fields are > 0
+        mask = (delta1 > 0) & (delta2 > 0)
+        # Note the factor of 0.5 to avoid double counting
+        intersect = 0.5 * numpy.sum(delta1[mask] + delta2[mask])
+        return intersect / (mass1 + mass2 - intersect)
 
     def __call__(self, clump1, clump2):
         """
