@@ -158,7 +158,8 @@ class RealisationsMatcher:
 
     def cross_knn_position_single(self, n_sim, nmult=5, dlogmass=None,
                                   mass_kind="totpartmass", init_dist=False,
-                                  overlap=False, verbose=True):
+                                  overlap=False, overlapper_kwargs={},
+                                  verbose=True):
         r"""
         Find all neighbours within :math:`n_{\rm mult} R_{200c}` of halos in
         the `nsim`th simulation. Also enforces that the neighbours'
@@ -185,6 +186,8 @@ class RealisationsMatcher:
             Whether to calculate overlap between clumps in the initial
             snapshot. By default `False`. Note that this operation is
             substantially slower.
+        overlapper_kwargs : dict, optional
+            Keyword arguments passed to `ParticleOverlapper`.
         verbose : bool, optional
             Iterator verbosity flag. By default `True`.
 
@@ -214,7 +217,7 @@ class RealisationsMatcher:
             paths = self.cats[0].paths
             with open(paths.clump0_path(self.cats.n_sims[n_sim]), "rb") as f:
                 clumps0 = numpy.load(f, allow_pickle=True)
-            overlapper = ParticleOverlap()
+            overlapper = ParticleOverlap(**overlapper_kwargs)
             cat2clumps0 = self._cat2clump_mapping(self.cats[n_sim]["index"],
                                                   clumps0["ID"])
 
@@ -264,16 +267,13 @@ class RealisationsMatcher:
 
                     # Get the clump and pre-calculate its cell assignment
                     cl0 = clumps0["clump"][match0]
-                    cl0_cells = overlapper.assign_to_cell(
-                        *(cl0[p] for p in ('x', 'y', 'z')))
                     dint = numpy.full(indxs[k].size, numpy.nan, numpy.float64)
 
                     # Loop over the ones we cross-correlate with
                     for ii, ind in enumerate(indxs[k]):
                         # Again which cross clump to this index
                         matchx = cat2clumpsx[ind]
-                        dint[ii] = overlapper.mass_overlap(
-                            cl0, clumpsx["clump"][matchx], cl0_cells)
+                        dint[ii] = overlapper(cl0, clumpsx["clump"][matchx])
 
                     cross[k] = dint
 
@@ -285,7 +285,8 @@ class RealisationsMatcher:
 
     def cross_knn_position_all(self, nmult=5, dlogmass=None,
                                mass_kind="totpartmass", init_dist=False,
-                               overlap=False, verbose=True):
+                               overlap=False, overlapper_kwargs={},
+                               verbose=True):
         r"""
         Find all neighbours within :math:`n_{\rm mult} R_{200c}` of halos in
         all simulations listed in `self.cats`. Also enforces that the
@@ -309,6 +310,8 @@ class RealisationsMatcher:
             Whether to calculate overlap between clumps in the initial
             snapshot. By default `False`. Note that this operation is
             substantially slower.
+        overlapper_kwargs : dict, optional
+            Keyword arguments passed to `ParticleOverlapper`.
         verbose : bool, optional
             Iterator verbosity flag. By default `True`.
 
@@ -324,7 +327,8 @@ class RealisationsMatcher:
         for i in trange(N) if verbose else range(N):
             matches[i] = self.cross_knn_position_single(
                 i, nmult, dlogmass, mass_kind=mass_kind, init_dist=init_dist,
-                overlap=overlap, verbose=verbose)
+                overlap=overlap, overlapper_kwargs=overlapper_kwargs,
+                verbose=verbose)
         return matches
 
 
