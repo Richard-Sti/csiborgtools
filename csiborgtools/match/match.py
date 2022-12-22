@@ -18,6 +18,7 @@ from math import ceil
 from tqdm import (tqdm, trange)
 from astropy.coordinates import SkyCoord
 import MAS_library as MASL
+import smoothing_library as SL
 from ..read import CombinedHaloCatalogue
 
 
@@ -455,7 +456,30 @@ class ParticleOverlap:
 
         return mins1, maxs1
 
-    def make_deltas(self, clump1, clump2):
+    def gaussian_filter(self, delta, scale):
+        """
+        Apply Gaussian filter to a field.
+
+        Parameters
+        ----------
+        delta : 3-dimensional array
+            Density field.
+        scale : float
+            The filtering scale. Careful, must be in box units (in which the
+            size of the box is 1).
+
+        Returns
+        -------
+        smoothed_delta : 3-dimensional array
+        """
+        grid = delta.shape[0]
+        # Rescale the scale to the smaller grid
+        scale /= grid * self.cellsize
+        # FFT of the filter
+        W_k = SL.FT_filter(1., scale, grid, "Gaussian", threads=1)
+        return SL.field_smoothing(delta, W_k, threads=1)
+
+    def make_deltas(self, clump1, clump2, smooth_scale=None):
         """
         Calculate density fields of two halos on a grid that encloses them.
 
@@ -464,6 +488,10 @@ class ParticleOverlap:
         clump1, clump2 : structurered arrays
             Structured arrays containing the particles of a given clump. Keys
             must include `x`, `y`, `z` and `M`.
+        smooth_scale : float, optional
+            Optional Gaussian smoothing scale to by applied to the fields. By
+            default no smoothing is applied. Careful, must be in box units (in
+            which the size of the box is 1).
 
         Returns
         -------
@@ -496,6 +524,10 @@ class ParticleOverlap:
         MASL.MA(X1, delta1, 1., self.MAS, verbose=False, W=clump1["M"])
         MASL.MA(X2, delta2, 1., self.MAS, verbose=False, W=clump2["M"])
 
+        if smooth_scale is not None:
+            delta1 = self.gaussian_filter(delta1, smooth_scale)
+            delta2 = self.gaussian_filter(delta2, smooth_scale)
+
         return delta1, delta2
 
     @staticmethod
@@ -520,7 +552,7 @@ class ParticleOverlap:
         intersect = 0.5 * numpy.sum(delta1[mask] + delta2[mask])
         return intersect / (mass1 + mass2 - intersect)
 
-    def __call__(self, clump1, clump2):
+    def __call__(self, clump1, clump2, smooth_scale=None):
         """
         Calculate overlap between `clump1` and `clump2`. See
         `self.overlap(...)` and `self.make_deltas(...)` for further
@@ -531,10 +563,14 @@ class ParticleOverlap:
         clump1, clump2 : structurered arrays
             Structured arrays containing the particles of a given clump. Keys
             must include `x`, `y`, `z` and `M`.
+        smooth_scale : float, optional
+            Optional Gaussian smoothing scale to by applied to the fields. By
+            default no smoothing is applied. Careful, must be in box units (in
+            which the size of the box is 1).
 
         Returns
         -------
         overlap : float
         """
-        delta1, delta2 = self.make_deltas(clump1, clump2)
+        delta1, delta2 = self.make_deltas(clump1, clump2, smooth_scale)
         return self.overlap(delta1, delta2)
