@@ -19,7 +19,6 @@ from math import ceil
 from tqdm import (tqdm, trange)
 from astropy.coordinates import SkyCoord
 import MAS_library as MASL
-import smoothing_library as SL
 from ..read import CombinedHaloCatalogue
 
 
@@ -379,14 +378,20 @@ class ParticleOverlap:
     cellsize : float, optional
         Cellsize in box units. By default :math:`1 / 2^11`, which matches the
         initial RAMSES grid resolution.
+    smooth_scale : float or integer, optional
+        Optional Gaussian smoothing scale to by applied to the fields. By
+        default no smoothing is applied. Otherwise the scale is to be
+        specified in the number of cells (i.e. in units of `self.cellsize`).
     MAS : str, optional
         The mass assignment scheme to a grid. By default `PCS`.
     """
     _cellsize = None
+    _smooth_scale = None
     _MAS = None
 
-    def __init__(self, cellsize=1/2**11, MAS="PCS"):
+    def __init__(self, cellsize=1/2**11, smooth_scale=None, MAS="PCS"):
         self.cellsize = cellsize
+        self.smooth_scale = smooth_scale
         self.MAS = MAS
 
     @property
@@ -405,6 +410,24 @@ class ParticleOverlap:
         """Sets `cellsize`."""
         assert cellsize > 0, "`cellsize` must be positive."
         self._cellsize = cellsize
+
+    @property
+    def smooth_scale(self):
+        """
+        The smoothing scale in units of `self.cellsize`. If not set `None`.
+
+        Returns
+        -------
+        smooth_scale : int or float
+        """
+        return self._smooth_scale
+
+    @smooth_scale.setter
+    def smooth_scale(self, smooth_scale):
+        """Sets `smooth_scale`."""
+        if smooth_scale is not None:
+            assert smooth_scale > 0
+            self._smooth_scale = smooth_scale
 
     @property
     def MAS(self):
@@ -457,49 +480,7 @@ class ParticleOverlap:
 
         return mins1, maxs1
 
-    def fd_gaussian_filter(self, delta, scale):
-        """
-        Apply a Fourier-space Gaussian filter to a field.
-
-        Parameters
-        ----------
-        delta : 3-dimensional array
-            Density field.
-        scale : float
-            The filtering scale. Careful, must be in box units (in which the
-            size of the box is 1).
-
-        Returns
-        -------
-        smoothed_delta : 3-dimensional array
-        """
-        grid = delta.shape[0]
-        # Rescale the scale to the smaller grid
-        scale /= grid * self.cellsize
-        print(scale)
-        # FFT of the filter
-        W_k = SL.FT_filter(1., scale, grid, "Top-Hat", threads=1)
-        return SL.field_smoothing(delta, W_k, threads=1)
-
-    def rd_gaussian_filter(self, delta, scale):
-        """
-        Apply a real-space Gaussian filter to a field.
-
-        Parameters
-        ----------
-        delta : 3-dimensional array
-            Density field.
-        scale : int
-            Isotropic filtering scale in number of pixels.
-
-        Returns
-        -------
-        smoothed_delta : 3-dimensional array
-        """
-        gaussian_filter(delta, scale, output=delta)
-        return delta
-
-    def make_deltas(self, clump1, clump2, smooth_scale=None):
+    def make_deltas(self, clump1, clump2):
         """
         Calculate density fields of two halos on a grid that encloses them.
 
@@ -508,12 +489,6 @@ class ParticleOverlap:
         clump1, clump2 : structurered arrays
             Structured arrays containing the particles of a given clump. Keys
             must include `x`, `y`, `z` and `M`.
-        smooth_scale : float or integer, optional
-            Optional Gaussian smoothing scale to by applied to the fields. By
-            default no smoothing is applied. If `smooth_scale` is an integer
-            applies a real-domain filter, otherwise a Fourier-domain filter.
-            In the latter case be careful, `smoth_scale` must be in box units
-            (in which the size of the box is 1).
 
         Returns
         -------
@@ -546,13 +521,9 @@ class ParticleOverlap:
         MASL.MA(X1, delta1, 1., self.MAS, verbose=False, W=clump1["M"])
         MASL.MA(X2, delta2, 1., self.MAS, verbose=False, W=clump2["M"])
 
-        if smooth_scale is not None:
-            if isinstance(smooth_scale, int):
-                delta1 = self.rd_gaussian_filter(delta1, smooth_scale)
-                delta2 = self.rd_gaussian_filter(delta2, smooth_scale)
-            else:
-                delta1 = self.fd_gaussian_filter(delta1, smooth_scale)
-                delta2 = self.fd_gaussian_filter(delta2, smooth_scale)
+        if self.smooth_scale is not None:
+            delta1 = gaussian_filter(delta1, self.smooth_scale, output=delta1)
+            delta2 = gaussian_filter(delta2, self.smooth_scale, output=delta2)
 
         return delta1, delta2
 
@@ -578,7 +549,7 @@ class ParticleOverlap:
         intersect = 0.5 * numpy.sum(delta1[mask] + delta2[mask])
         return intersect / (mass1 + mass2 - intersect)
 
-    def __call__(self, clump1, clump2, smooth_scale=None):
+    def __call__(self, clump1, clump2):
         """
         Calculate overlap between `clump1` and `clump2`. See
         `self.overlap(...)` and `self.make_deltas(...)` for further
@@ -589,16 +560,10 @@ class ParticleOverlap:
         clump1, clump2 : structurered arrays
             Structured arrays containing the particles of a given clump. Keys
             must include `x`, `y`, `z` and `M`.
-        smooth_scale : float or integer, optional
-            Optional Gaussian smoothing scale to by applied to the fields. By
-            default no smoothing is applied. If `smooth_scale` is an integer
-            applies a real-domain filter, otherwise a Fourier-domain filter.
-            In the latter case be careful, `smoth_scale` must be in box units
-            (in which the size of the box is 1).
 
         Returns
         -------
         overlap : float
         """
-        delta1, delta2 = self.make_deltas(clump1, clump2, smooth_scale)
+        delta1, delta2 = self.make_deltas(clump1, clump2)
         return self.overlap(delta1, delta2)
