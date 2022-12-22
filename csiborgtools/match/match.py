@@ -14,8 +14,10 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 import numpy
+from math import ceil
 from tqdm import (tqdm, trange)
 from astropy.coordinates import SkyCoord
+import MAS_library as MASL
 from ..read import CombinedHaloCatalogue
 
 
@@ -363,94 +365,189 @@ def cosine_similarity(x, y):
 
 
 class ParticleOverlap:
-    """
-    TODO:
-    - [ ] Class documentation
-    """
-    _bins = None
+    r"""
+    Class to calculate overlap between two halos from different simulations.
 
-    def __init__(self, bins=None):
-        if bins is None:
-            dx = 1 / 2**11
-            bins = numpy.arange(0, 1 + dx, dx)
-        self.bins = bins
+    Parameters
+    ----------
+    cellsize : float, optional
+        Cellsize in box units. By default :math:`1 / 2^11`, which matches the
+        initial RAMSES grid resolution.
+    MAS : str, optional
+        The mass assignment scheme to a grid. By default `PCS`.
+    """
+    _cellsize = None
+    _MAS = None
+
+    def __init__(self, cellsize=1/2**11, MAS="PCS"):
+        self.cellsize = cellsize
+        self.MAS = MAS
 
     @property
-    def bins(self):
+    def cellsize(self):
         """
-        The grid spacing. Assumed to be equal for all three dimensions. Units
-        ought to match the requested coordinates.
+        The grid cubical cell size.
 
         Returns
         -------
-        bins : 1-dimensional array
+        cellsize: 1-dimensional array
         """
-        return self._bins
+        return self._cellsize
 
-    @bins.setter
-    def bins(self, bins):
-        """Sets `bins`."""
-        bins = numpy.asarray(bins) if isinstance(bins, list) else bins
-        assert bins.ndim == 1, "`bins` must be a 1-dimensional array."
-        self._bins = bins
+    @cellsize.setter
+    def cellsize(self, cellsize):
+        """Sets `cellsize`."""
+        assert cellsize > 0, "`cellsize` must be positive."
+        self._cellsize = cellsize
 
-    def assign_to_cell(self, x, y, z):
+    @property
+    def MAS(self):
         """
-        Assign particles specified by coordinates `x`, `y`, and `z` to grid
-        cells.
+        Mass assignment scheme.
+
+        Returns
+        -------
+        MAS : str
+        """
+        return self._MAS
+
+    @MAS.setter
+    def MAS(self, MAS):
+        """
+        Set `MAS`, checking it's a good value.
+        """
+        assert MAS in ["NGP", "CIC", "TSC", "PCS"]
+        self._MAS = MAS
+
+    @staticmethod
+    def _minmax(X1, X2):
+        """
+        Calculate the minimum and maximum coordinates from both arrays.
 
         Parameters
         ----------
-        x, y, z : 1-dimensional arrays
-            Positions of particles in the box.
+        X1, X2 : 2-dimensional arrays of shape (n_samples, 3)
+            Cartesian coordinates of samples.
 
         Returns
         -------
-        cells : 1-dimensional array
-            Cell ID of each particle.
+        mins, maxs : 1-dimensional arrays
+            Arrays of minima and maxima.
         """
-        assert x.ndim == 1 and x.size == y.size == z.size
-        xbin = numpy.digitize(x, self.bins)
-        ybin = numpy.digitize(y, self.bins)
-        zbin = numpy.digitize(z, self.bins)
-        N = self.bins.size
+        # Calculate minimas for X1, X2
+        mins1 = numpy.min(X1, axis=0)
+        mins2 = numpy.min(X2, axis=0)
+        # Where X2 less than X1 replace the minima, we want min of both arrs
+        # and will return mins1!
+        m = mins2 < mins1
+        mins1[m] = mins2[m]
 
-        return xbin + ybin * N + zbin * N**2
+        # Repeat for maximas
+        maxs1 = numpy.max(X1, axis=0)
+        maxs2 = numpy.max(X2, axis=0)
+        # Where X2 less than X1 replace the minima, we want min of both arrs
+        m = maxs2 > maxs1
+        maxs1[m] = maxs2[m]
 
-    def mass_overlap(self, clump1, clump2, cells1=None):
+        return mins1, maxs1
+
+    def make_deltas(self, clump1, clump2):
+        """
+        Calculate density fields of two halos on a grid that encloses them.
+
+        Parameters
+        ----------
+        clump1, clump2 : structurered arrays
+            Structured arrays containing the particles of a given clump. Keys
+            must include `x`, `y`, `z` and `M`.
+
+        Returns
+        -------
+        delta1, delta2 : 3-dimensional arrays
+            Density arrays of `clump1` and `clump2`, respectively.
+        """
+        # Turn structured arrays to 2-dim arrs
+        X1 = numpy.vstack([clump1[p] for p in ('x', 'y', 'z')]).T
+        X2 = numpy.vstack([clump2[p] for p in ('x', 'y', 'z')]).T
+
+        # Calculate where to place box boundaries
+        mins, maxs = self._minmax(X1, X2)
+
+        # Rescale X1 and X2
+        X1 -= mins
+        X1 /= maxs - mins
+
+        X2 -= mins
+        X2 /= maxs - mins
+
+        # How many cells in a subcube along each direction
+        width = numpy.max(maxs - mins)
+        ncells = ceil(width / self.cellsize)
+
+        # Assign particles to the grid now
+        delta1 = numpy.zeros((ncells, ncells, ncells), dtype=numpy.float32)
+        delta2 = numpy.zeros_like(delta1)
+
+        # Now do MAS
+        MASL.MA(X1, delta1, 1., self.MAS, verbose=False, W=clump1["M"])
+        MASL.MA(X2, delta2, 1., self.MAS, verbose=False, W=clump2["M"])
+
+        return delta1, delta2
+
+    @staticmethod
+    def overlap(delta1, delta2, overwrite=True):
         r"""
-        Calculate the particle, mass-weighted overlap between two halos.
-        Defined as
+        Calculate the overlap between two density grids. Defined as
 
         ..math::
-            (M_{u,1} + M_{u,2}) / (M_1 + M_2),
+            N \Sum_i (m_i^{1} \times m_i^{2}) / (M1 \times M2),
 
-        where :math:`M_{u, 1}` is the mass of particles of the first halo in
-        cells that are also present in the second halo and :math:`M_1` is the
-        total particle mass of the first halo.
+        where :math:`m_i^{1}` is the mass in the :math:`i`-th cell of the first
+        density field, :math:`M1` is the total mass, etc. :math:`N` is the
+        number of grid cells with non-zero densities in both fields.
 
         Parameters
         ----------
-        clump1, clump2 : structured arrays
-            Structured arrays corresponding to the two clumps. Should contain
-            keys `x`, `y`, `z` and `M`.
-        cells1 : 1-dimensional array, optional
-            Optionlaly precomputed cells of `clump1`. Be careful when using
-            this to ensure it matches `clump1`.
+        delta1, delta2 : 3-dimensional arrays
+            Density arrays.
+        overwrite: bool, optional
+            Whether to overwrite `delta1` and `delta2` with intermediate
+            calculations. By default `True`.
 
         Returns
         -------
         overlap : float
         """
-        # 1-dimensional cell ID of each particle in clump1 and clump2
-        if cells1 is None:
-            cells1 = self.assign_to_cell(*[clump1[p] for p in ('x', 'y', 'z')])
-        cells2 = self.assign_to_cell(*[clump2[p] for p in ('x', 'y', 'z')])
-        # Elementwise cells1 in cells2 and vice versa
-        m1 = numpy.isin(cells1, cells2)
-        m2 = numpy.isin(cells2, cells1)
-        # Summed shared mass and the total
-        interp = numpy.sum(clump1["M"][m1]) + numpy.sum(clump2["M"][m2])
-        mtot = numpy.sum(clump1["M"]) + numpy.sum(clump2["M"])
+        # Count how many cells are occupied in both density fields
+        mass1 = numpy.einsum("ijk->", delta1)
+        mass2 = numpy.einsum("ijk->", delta2)
 
-        return interp / mtot
+        if not overwrite:
+            delta1 = numpy.copy(delta1)
+            delta2 = numpy.copy(delta2)
+
+        delta1 *= delta2
+        cross = numpy.einsum("ijk->", delta1)
+        delta2 = delta1 > 0
+        nboth = numpy.sum(delta2)
+#        print(nboth)
+        return nboth * cross / (mass1 * mass2)
+
+    def __call__(self, clump1, clump2):
+        """
+        Calculate overlap between `clump1` and `clump2`. See
+        `self.overlap(...)` and `self.make_deltas(...)` for further
+        information.
+
+        Parameters
+        ----------
+        clump1, clump2 : structurered arrays
+            Structured arrays containing the particles of a given clump. Keys
+            must include `x`, `y`, `z` and `M`.
+
+        Returns
+        -------
+        overlap : float
+        """
+        delta1, delta2 = self.make_deltas(clump1, clump2)
+        return self.overlap(delta1, delta2)
