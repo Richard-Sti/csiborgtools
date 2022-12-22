@@ -497,14 +497,7 @@ class ParticleOverlap:
     @staticmethod
     def overlap(delta1, delta2):
         r"""
-        Calculate the overlap between two density grids. Defined as
-
-        ..math::
-            N \Sum_i (m_i^{1} \times m_i^{2}) / (M1 \times M2),
-
-        where :math:`m_i^{1}` is the mass in the :math:`i`-th cell of the first
-        density field, :math:`M1` is the total mass, etc. :math:`N` is the
-        number of grid cells with non-zero densities in both fields.
+        Overlap between two density grids.
 
         Parameters
         ----------
