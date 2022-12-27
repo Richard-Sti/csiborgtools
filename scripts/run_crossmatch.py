@@ -52,9 +52,9 @@ for i in csiborgtools.fits.split_jobs(len(cat.n_sims), nproc)[rank]:
     n = cat.n_sims[i]
     print("{}: rank {} working on simulation `{}`."
           .format(datetime.now(), rank, n), flush=True)
-    # NOTE turn on overlap later
     out = matcher.cross_knn_position_single(
-        i, nmult=15, dlogmass=2, init_dist=True, overlap=True, verbose=False)
+        i, nmult=15, dlogmass=2, init_dist=True, overlap=True, verbose=False,
+        overlapper_kwargs={"smooth_scale": 0.5})
 
     # Dump the result
     with open(ftemp.format(n), "wb") as f:
