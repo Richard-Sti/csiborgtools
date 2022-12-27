@@ -82,9 +82,6 @@ class RealisationsMatcher:
     ----------
     cats : :py:class`csiborgtools.read.CombinedHaloCatalogue`
         Combined halo catalogue to search.
-    # NOTE add later
-#    dtype : dtype, optional
-#        Output precision. By default `numpy.float32`.
     """
     _cats = None
 
