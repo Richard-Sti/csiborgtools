@@ -240,8 +240,8 @@ class DensityField:
 
     def gravitational_field(self, grid, verbose=True):
         """
-        Calculate the gravitational tensor field. Note that this method is
-        only defined in fork of `Pylians`.
+        Calculate the gravitational vector field. Note that this method is
+        only defined in a fork of `Pylians`.
 
         Parameters
         ----------
