@@ -70,19 +70,10 @@ for n in jobs:
     particles = reader.read_particle(["x", "y", "z", "M"], verbose=False)
     # Halfwidth -- particle selection
     if args.halfwidth < 0.5:
-        hw = args.halfwidth
-        mask = ((0.5 - hw < particles['x']) & (particles['x'] < 0.5 + hw)
-                & (0.5 - hw < particles['y']) & (particles['y'] < 0.5 + hw)
-                & (0.5 - hw < particles['z']) & (particles['z'] < 0.5 + hw))
-        # Subselect the particles
-        particles = particles[mask]
-        # Rescale to range [0, 1]
-        for p in ('x', 'y', 'z'):
-            particles[p] = (particles[p] - 0.5 + hw) / (2 * hw)
-
-        length = box.box2mpc(2 * hw) * box.h  # Mpc/h
+        particles = csiborgtools.read.halfwidth_select(
+            args.halfwidth, particles)
+        length = box.box2mpc(2 * args.halfwidth) * box.h  # Mpc/h
     else:
-        mask = None
         length = box.box2mpc(1) * box.h  # Mpc/h
     # Calculate the overdensity field
     field = csiborgtools.field.DensityField(particles, length, box, MAS)
@@ -90,7 +81,7 @@ for n in jobs:
     aexp = box._aexp
 
     # Try to clean up memory
-    del field, particles, box, reader, mask
+    del field, particles, box, reader
     collect()
 
     # Dump the results
