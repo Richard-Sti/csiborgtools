@@ -80,10 +80,10 @@ for n in jobs:
         for p in ('x', 'y', 'z'):
             particles[p] = (particles[p] - 0.5 + hw) / (2 * hw)
 
-        length = box.box2mpc(2 * hw) * box.h
+        length = box.box2mpc(2 * hw) * box.h  # Mpc/h
     else:
         mask = None
-        length = box.box2mpc(1) * box.h
+        length = box.box2mpc(1) * box.h  # Mpc/h
     # Calculate the overdensity field
     field = csiborgtools.field.DensityField(particles, length, box, MAS)
     delta = field.overdensity_field(args.grid, verbose=False)
