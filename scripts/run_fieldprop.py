@@ -45,7 +45,8 @@ nproc = comm.Get_size()
 # Galaxy positions
 survey = "SDSS"
 survey = utils.surveys[survey]()()
-pos = [survey[p] for p in ("DIST", "RA", "DEC")]
+pos = numpy.vstack([survey[p] for p in ("DIST", "RA", "DEC")]).T
+pos = pos.astype(numpy.float32)
 
 # File paths
 ftemp = join(utils.dumpdir, "temp_fields", "out_" + survey.name + "{}.npy")
