@@ -13,7 +13,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-MPI script to run the CSiBORG realisations matcher.
+MPI script to evaluate field properties at the galaxy positions.
 
 NOTE:
 - The script has *not* been tested.
@@ -60,7 +60,7 @@ ics = paths.ic_ids
 n_sims = len(ics)
 
 for n in csiborgtools.fits.split_jobs(n_sims, nproc)[rank]:
-    print("Rank {}@{}: saving {}th delta.".format(rank, datetime.now(), n),
+    print("Rank {}@{}: working on {}th IC.".format(rank, datetime.now(), n),
           flush=True)
     # Set the paths
     n_sim = ics[n]
@@ -112,10 +112,9 @@ if rank == 0:
             fin = numpy.load(f, allow_pickle=True)
             for name in dtype["names"]:
                 out["delta"][i, ...] = fin["delta"]
-
         # Remove the temporary file
         remove(ftemp.format(n_sim))
 
-    print("Saving results to `{}`.".format(fperm))
+    print("Saving results to `{}`.".format(fperm), flush=True)
     with open(fperm, "wb") as f:
         numpy.save(f, out)
