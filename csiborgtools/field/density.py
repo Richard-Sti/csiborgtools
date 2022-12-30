@@ -319,16 +319,16 @@ class DensityField:
 
         Returns
         -------
-        interp_field : 1-dimensional array of shape `(n_fields, n_samples,).
-            Interpolated field at `pos`.
+        interp_field : (list of) 1-dimensional array of shape `(n_samples,).
+            Interpolated fields at `pos`.
         """
         self._force_f32(pos, "pos")
 
-        shape = (len(field), pos.shape[0])
-        density_interpolated = numpy.zeros(shape, dtype=numpy.float32)
+        interp_field = [numpy.zeros(pos.shape[0], dtype=numpy.float32)
+                        for __ in range(len(field))]
         for i, f in enumerate(field):
-            MASL.CIC_interp(f, self.boxsize, pos, density_interpolated[i, ...])
-        return density_interpolated
+            MASL.CIC_interp(f, self.boxsize, pos, interp_field[i])
+        return interp_field
 
     def evaluate_sky(self, *field, pos, isdeg=True):
         """
@@ -348,8 +348,8 @@ class DensityField:
 
         Returns
         -------
-        interp_field : 1-dimensional array of shape `(n_field, n_samples,).
-            Interpolated field at `pos`.
+        interp_field : (list of) 1-dimensional array of shape `(n_samples,).
+            Interpolated fields at `pos`.
         """
         self._force_f32(pos, "pos")
         X = numpy.vstack(
@@ -358,6 +358,23 @@ class DensityField:
         # Place the observer at the center of the box
         X += 0.5 * self.boxsize
         return self.evaluate_field(*field, pos=X)
+
+    @staticmethod
+    def gravitational_field_norm(gx, gy, gz):
+        """
+        Calculate the norm (magnitude) of a gravitational field.
+
+        Parameters
+        ----------
+        gx, gy, gz : 1-dimensional arrays of shape `(n_samples,)`
+            Gravitational field components.
+
+        Returns
+        -------
+        g : 1-dimensional array of shape `(n_samples,)`
+            Gravitational field norm.
+        """
+        return numpy.sqrt(gx * gx + gy * gy + gz * gz)
 
     def make_sky_map(self, ra, dec, field, dist_marg, isdeg=True,
                      verbose=True):
@@ -408,3 +425,5 @@ class DensityField:
             out[i] = numpy.sum(self.evaluate_sky(field, pos_loop, isdeg)[0, :])
 
         return out
+
+
