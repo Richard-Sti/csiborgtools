@@ -376,6 +376,38 @@ class DensityField:
         """
         return numpy.sqrt(gx * gx + gy * gy + gz * gz)
 
+    @staticmethod
+    def tensor_field_eigvals(T00, T01, T02, T11, T12, T22):
+        """
+        Calculate the eigenvalues of a symmetric tensor field. Note that the
+        eigenvalues are not sorted.
+
+        Parameters
+        ----------
+        T00, T01, T02, T11, T12, T22 : 1-dim arrays of shape `(n_samples,)`
+            Tensor field upper components evaluated for each sample.
+
+        Returns
+        -------
+        eigvals : 2-dimensional array of shape `(n_samples, 3)`
+            Eigenvalues of each sample.
+        """
+        n_samples = T00.size
+        # Fill array of shape `(n_samples, 3, 3)` to calculate eigvals
+        Teval = numpy.full((n_samples, 3, 3), numpy.nan, dtype=numpy.float32)
+        Teval[:, 0, 0] = T00
+        Teval[:, 0, 1] = T01
+        Teval[:, 0, 2] = T02
+        Teval[:, 1, 1] = T11
+        Teval[:, 1, 2] = T12
+        Teval[:, 2, 2] = T22
+
+        # Calculate the eigenvalues
+        eigvals = numpy.full((n_samples, 3), numpy.nan, dtype=numpy.float32)
+        for i in range(n_samples):
+            eigvals[i, :] = numpy.linalg.eigvalsh(Teval[i, ...], 'U')
+        return eigvals
+
     def make_sky_map(self, ra, dec, field, dist_marg, isdeg=True,
                      verbose=True):
         """
@@ -425,5 +457,3 @@ class DensityField:
             out[i] = numpy.sum(self.evaluate_sky(field, pos_loop, isdeg)[0, :])
 
         return out
-
-
