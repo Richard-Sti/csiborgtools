@@ -95,6 +95,7 @@ class TwoMPPGalaxies(TextSurvey):
     [3] Improving NASA/IPAC Extragalactic Database Redshift Calculations
         (2021); Anthony Carr and Tamara Davis
     """
+    name = "2M++_galaxies"
 
     def __init__(self, fpath=None):
         if fpath is None:
@@ -143,6 +144,7 @@ class TwoMPPGroups(TextSurvey):
     [3] Improving NASA/IPAC Extragalactic Database Redshift Calculations
         (2021); Anthony Carr and Tamara Davis
     """
+    name = "2M++_groups"
 
     def __init__(self, fpath):
         if fpath is None:
@@ -411,6 +413,7 @@ class PlanckClusters(FitsSurvey):
     ----------
     [1] https://heasarc.gsfc.nasa.gov/W3Browse/all/plancksz2.html
     """
+    name = "Planck_clusters"
     _hdata = 0.7  # little h value of the data
 
     def __init__(self, fpath=None, h=0.7, sel_steps=None):
@@ -514,6 +517,7 @@ class MCXCClusters(FitsSurvey):
     [2] https://heasarc.gsfc.nasa.gov/W3Browse/rosat/mcxc.html
     [3] https://cdsarc.cds.unistra.fr/viz-bin/cat/J/A+A/534/A109#/article
     """
+    name = "MCXC"
     _hdata = 0.7  # Little h of the catalogue
 
     def __init__(self, fpath=None, h=0.7, sel_steps=None):
@@ -571,6 +575,7 @@ class SDSS(FitsSurvey):
     ----------
     [1] https://www.sdss.org/dr13/manga/manga-target-selection/nsa/
     """
+    name = "SDSS"
 
     def __init__(self, fpath=None, h=1, sel_steps=None):
         if fpath is None:
