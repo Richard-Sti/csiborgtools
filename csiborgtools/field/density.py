@@ -217,27 +217,6 @@ class DensityField:
         return MASL.potential(
             delta, self.box._omega_m, self.box._aexp, self.MAS)
 
-    def tensor_field(self, grid, verbose=True):
-        """
-        Calculate the tidal tensor field.
-
-        Parameters
-        ----------
-        grid : int
-            The grid size.
-        verbose : float, optional
-            A verbosity flag. By default `True`.
-
-        Returns
-        -------
-        tidal_tensor : :py:class:`MAS_library.tidal_tensor`
-            Tidal tensor object, whose attributes `tidal_tensor.Tij` contain
-            the relevant tensor components.
-        """
-        delta = self.overdensity_field(grid, verbose)
-        return MASL.tidal_tensor(
-            delta, self.box._omega_m, self.box._aexp, self.MAS)
-
     def gravitational_field(self, grid, verbose=True):
         """
         Calculate the gravitational vector field. Note that this method is
@@ -258,6 +237,27 @@ class DensityField:
         """
         delta = self.overdensity_field(grid, verbose)
         return MASL.grav_field_tensor(
+            delta, self.box._omega_m, self.box._aexp, self.MAS)
+
+    def tensor_field(self, grid, verbose=True):
+        """
+        Calculate the tidal tensor field.
+
+        Parameters
+        ----------
+        grid : int
+            The grid size.
+        verbose : float, optional
+            A verbosity flag. By default `True`.
+
+        Returns
+        -------
+        tidal_tensor : :py:class:`MAS_library.tidal_tensor`
+            Tidal tensor object, whose attributes `tidal_tensor.Tij` contain
+            the relevant tensor components.
+        """
+        delta = self.overdensity_field(grid, verbose)
+        return MASL.tidal_tensor(
             delta, self.box._omega_m, self.box._aexp, self.MAS)
 
     def auto_powerspectrum(self, grid, verbose=True):
