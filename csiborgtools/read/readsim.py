@@ -18,12 +18,11 @@ Functions to read in the particle and clump files.
 
 import numpy
 from scipy.io import FortranFile
-import gc
 from os.path import (join, isfile, isdir)
 from glob import glob
 from tqdm import tqdm
 from warnings import warn
-from ..utils import (cols_to_structured, extract_from_structured)
+from ..utils import (cols_to_structured)
 
 
 F16 = numpy.float16
@@ -881,3 +880,33 @@ def read_initcm(n, srcdir, fname="clump_{}_cm.npy"):
     except FileNotFoundError:
         warn("File {} does not exist.".format(fpath))
         return None
+
+
+def halfwidth_select(hw, particles):
+    """
+    Select particles that in a cube of size `2 hw`, centered at the origin.
+    Note that this directly modifies the original array and throws away
+    particles outside the central region.
+
+    Parameters
+    ----------
+    hw : float
+        Central region halfwidth.
+    particles : structured array
+        Particle array with keys `x`, `y`, `z`.
+
+    Returns
+    -------
+    particles : structured array
+        The modified particle array.
+    """
+    assert 0 < hw < 0.5
+    mask = ((0.5 - hw < particles['x']) & (particles['x'] < 0.5 + hw)
+            & (0.5 - hw < particles['y']) & (particles['y'] < 0.5 + hw)
+            & (0.5 - hw < particles['z']) & (particles['z'] < 0.5 + hw))
+    # Subselect the particles
+    particles = particles[mask]
+    # Rescale to range [0, 1]
+    for p in ('x', 'y', 'z'):
+        particles[p] = (particles[p] - 0.5 + hw) / (2 * hw)
+    return particles
