@@ -18,11 +18,11 @@ Notebook utility functions.
 
 # from os.path import join
 
-# try:
-#     import csiborgtools
-# except ModuleNotFoundError:
-#     import sys
-#     sys.path.append("../")
+try:
+    import csiborgtools
+except ModuleNotFoundError:
+    import sys
+    sys.path.append("../")
 
 
 Nsplits = 200
@@ -39,3 +39,25 @@ _virgo = {"RA": (12 + 27 / 60) * 15,
           "COMDIST": 16.5}
 
 specific_clusters = {"Coma": _coma, "Virgo": _virgo}
+
+
+###############################################################################
+#                                 Surveys                                     #
+###############################################################################
+
+
+class SDSS:
+    name = "SDSS"
+
+    @staticmethod
+    def steps(cls):
+        return [(lambda x: cls[x], ("IN_DR7_LSS",)),
+                (lambda x: cls[x] < 17.6, ("ELPETRO_APPMAG_r", )),
+                (lambda x: cls[x] < 155, ("DIST", ))
+                ]
+
+    def __call__(self):
+        return csiborgtools.read.SDSS(h=1, sel_steps=self.steps)
+
+
+surveys = {"SDSS": SDSS}
