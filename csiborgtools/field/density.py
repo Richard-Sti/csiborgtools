@@ -379,8 +379,8 @@ class DensityField:
     @staticmethod
     def tensor_field_eigvals(T00, T01, T02, T11, T12, T22):
         """
-        Calculate the eigenvalues of a symmetric tensor field. Note that the
-        eigenvalues are not sorted.
+        Calculate the eigenvalues of a symmetric tensor field. Eigenvalues are
+        sorted in increasing order.
 
         Parameters
         ----------
@@ -406,6 +406,8 @@ class DensityField:
         eigvals = numpy.full((n_samples, 3), numpy.nan, dtype=numpy.float32)
         for i in range(n_samples):
             eigvals[i, :] = numpy.linalg.eigvalsh(Teval[i, ...], 'U')
+            eigvals[i, :] = numpy.sort(eigvals[i, :])
+
         return eigvals
 
     def make_sky_map(self, ra, dec, field, dist_marg, isdeg=True,
