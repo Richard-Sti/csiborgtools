@@ -47,8 +47,6 @@ specific_clusters = {"Coma": _coma, "Virgo": _virgo}
 
 
 class SDSS:
-    name = "SDSS"
-
     @staticmethod
     def steps(cls):
         return [(lambda x: cls[x], ("IN_DR7_LSS",)),
