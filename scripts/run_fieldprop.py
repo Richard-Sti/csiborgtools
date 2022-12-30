@@ -43,13 +43,13 @@ rank = comm.Get_rank()
 nproc = comm.Get_size()
 
 # Galaxy positions
-surv = utils.SDSS()()
-kind = "SDSS"
-pos = [surv[p] for p in ("DIST", "RA", "DEC")]
+survey = "SDSS"
+survey = utils.surveys[survey]()()
+pos = [survey[p] for p in ("DIST", "RA", "DEC")]
 
 # File paths
-ftemp = join(utils.dumpdir, "temp_fields", "out_" + kind + "{}.npy")
-fperm = join(utils.dumpdir, "fields", "out_{}.npy".format(kind))
+ftemp = join(utils.dumpdir, "temp_fields", "out_" + survey.name + "{}.npy")
+fperm = join(utils.dumpdir, "fields", "out_{}.npy".format(survey.name))
 
 # Edit depending on what is calculated
 dtype = {"names": ["delta"], "formats": [numpy.float32]}
