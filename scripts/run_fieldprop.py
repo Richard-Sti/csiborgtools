@@ -17,6 +17,7 @@ MPI script to evaluate field properties at the galaxy positions.
 
 NOTE:
 - Calculate for the entire box or just for a smaller region?
+- Add argparser for different options.
 """
 import numpy
 from datetime import datetime
