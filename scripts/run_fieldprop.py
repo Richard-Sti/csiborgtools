@@ -22,7 +22,6 @@ NOTE:
 import numpy
 from datetime import datetime
 from mpi4py import MPI
-from gc import collect
 from os.path import join
 from os import remove
 try:
@@ -33,7 +32,7 @@ except ModuleNotFoundError:
     import csiborgtools
 import utils
 
-halfwidth = 0.2
+halfwidth = 0.5
 MAS = "CIC"
 grid = 256
 
@@ -49,7 +48,7 @@ pos = numpy.vstack([survey[p] for p in ("DIST", "RA", "DEC")]).T
 pos = pos.astype(numpy.float32)
 
 # File paths
-ftemp = join(utils.dumpdir, "temp_fields", "out_" + survey.name + "{}.npy")
+ftemp = join(utils.dumpdir, "temp_fields", "out_" + survey.name + "_{}.npy")
 fperm = join(utils.dumpdir, "fields", "out_{}.npy".format(survey.name))
 
 # Edit depending on what is calculated
@@ -57,7 +56,7 @@ dtype = {"names": ["delta"], "formats": [numpy.float32]}
 
 # CSiBORG simulation paths
 paths = csiborgtools.read.CSiBORGPaths()
-ics = paths.ic_ids
+ics = paths.ic_ids[:3]
 n_sims = len(ics)
 
 for n in csiborgtools.fits.split_jobs(n_sims, nproc)[rank]:
@@ -84,11 +83,12 @@ for n in csiborgtools.fits.split_jobs(n_sims, nproc)[rank]:
     out = numpy.full(pos.shape[0], numpy.nan, dtype=dtype)
 
     # Calculate the overdensity field and interpolate at galaxy positions
-    delta = field.overdensity_field(grid, verbose=False)
-    delta = field.evaluate_sky(delta, pos=pos, isdeg=True)
-    out["delta"] = delta
-    del delta
-    collect()
+    feval = field.overdensity_field(grid, verbose=False)
+    out["delta"] = field.evaluate_sky(feval, pos=pos, isdeg=True)[0]
+
+    # Potential
+    feval = field.potential_field(grid, verbose=False)
+    out["phi"] = field.evaluate_sky(feval, pos=pos, isdeg=True)[0]
 
     # Calculate the remaining fields
     # ...
@@ -98,21 +98,19 @@ for n in csiborgtools.fits.split_jobs(n_sims, nproc)[rank]:
     with open(ftemp.format(n_sim), "wb") as f:
         numpy.save(f, out)
 
-    del out
-    collect()
-
 # Wait for all ranks to finish
 comm.Barrier()
 if rank == 0:
     print("Collecting files...", flush=True)
 
-    out = numpy.full((len(n_sims), pos.shape[0]), numpy.nan, dtype=dtype)
+    out = numpy.full((n_sims, pos.shape[0]), numpy.nan, dtype=dtype)
 
-    for i, n_sim in enumerate(n_sims):
+    for n in range(n_sims):
+        n_sim = ics[n]
         with open(ftemp.format(n_sim), "rb") as f:
             fin = numpy.load(f, allow_pickle=True)
             for name in dtype["names"]:
-                out["delta"][i, ...] = fin["delta"]
+                out["delta"][n, ...] = fin["delta"]
         # Remove the temporary file
         remove(ftemp.format(n_sim))
 
