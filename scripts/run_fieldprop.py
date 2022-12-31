@@ -52,7 +52,7 @@ ftemp = join(utils.dumpdir, "temp_fields", "out_" + survey.name + "_{}.npy")
 fperm = join(utils.dumpdir, "fields", "out_{}.npy".format(survey.name))
 
 # Edit depending on what is calculated
-dtype = {"names": ["delta"], "formats": [numpy.float32]}
+dtype = {"names": ["delta", "phi"], "formats": [numpy.float32] * 2}
 
 # CSiBORG simulation paths
 paths = csiborgtools.read.CSiBORGPaths()
