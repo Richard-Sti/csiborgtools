@@ -18,7 +18,7 @@
 
 ### TODO
 - [ ] Add gradient and Hessian of the overdensity field.
-- [ ] Write a script to smoothen an overdensity field, calculate the derived fields and evaluate them at the galaxy positions.
+- [x] Write a script to smoothen an overdensity field, calculate the derived fields and evaluate them at the galaxy positions.
 
 
 ### Questions
