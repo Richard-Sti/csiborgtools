@@ -139,7 +139,7 @@ class DensityField:
             x = x.astype(numpy.float32)
         return x
 
-    def density_field(self, grid, verbose=True):
+    def density_field(self, grid, smooth_scale=None, verbose=True):
         """
         Calculate the density field using a Pylians routine [1, 2]. Enforces
         float32 precision.
@@ -148,6 +148,9 @@ class DensityField:
         ----------
         grid : int
             The grid size.
+        smooth_scale : float, optional
+            Scale to smoothen the density field, in units matching
+            `self.boxsize`. By default `None`, i.e. no smoothing is applied.
         verbose : float, optional
             A verbosity flag. By default `True`.
 
@@ -170,9 +173,11 @@ class DensityField:
         # Pre-allocate and do calculations
         rho = numpy.zeros((grid, grid, grid), dtype=numpy.float32)
         MASL.MA(pos, rho, self.boxsize, self.MAS, W=weights, verbose=verbose)
+        if smooth_scale is not None:
+            rho = self.smooth_field(rho, smooth_scale)
         return rho
 
-    def overdensity_field(self, grid, verbose=True):
+    def overdensity_field(self, grid, smooth_scale=None, verbose=True):
         r"""
         Calculate the overdensity field using Pylians routines.
         Defined as :math:`\rho/ <\rho> - 1`.
@@ -181,6 +186,9 @@ class DensityField:
         ----------
         grid : int
             The grid size.
+        smooth_scale : float, optional
+            Scale to smoothen the density field, in units matching
+            `self.boxsize`. By default `None`, i.e. no smoothing is applied.
         verbose : float, optional
             A verbosity flag. By default `True`.
 
@@ -190,12 +198,12 @@ class DensityField:
             Overdensity field.
         """
         # Get the overdensity
-        delta = self.density_field(grid, verbose)
+        delta = self.density_field(grid, smooth_scale, verbose)
         delta /= delta.mean()
         delta -= 1
         return delta
 
-    def potential_field(self, grid, verbose=True):
+    def potential_field(self, grid, smooth_scale=None, verbose=True):
         """
         Calculate the potential field using Pylians routines.
 
@@ -203,6 +211,9 @@ class DensityField:
         ----------
         grid : int
             The grid size.
+        smooth_scale : float, optional
+            Scale to smoothen the original density field, in units matching
+            `self.boxsize`. By default `None`, i.e. no smoothing is applied.
         verbose : float, optional
             A verbosity flag. By default `True`.
 
@@ -211,13 +222,13 @@ class DensityField:
         potential : 3-dimensional array of shape `(grid, grid, grid)`.
             Potential field.
         """
-        delta = self.overdensity_field(grid, verbose)
+        delta = self.overdensity_field(grid, smooth_scale, verbose)
         if verbose:
             print("Calculating potential from the overdensity..")
         return MASL.potential(
             delta, self.box._omega_m, self.box._aexp, self.MAS)
 
-    def gravitational_field(self, grid, verbose=True):
+    def gravitational_field(self, grid, smooth_scale=None, verbose=True):
         """
         Calculate the gravitational vector field. Note that this method is
         only defined in a fork of `Pylians`.
@@ -226,6 +237,9 @@ class DensityField:
         ----------
         grid : int
             The grid size.
+        smooth_scale : float, optional
+            Scale to smoothen the original density field, in units matching
+            `self.boxsize`. By default `None`, i.e. no smoothing is applied.
         verbose : float, optional
             A verbosity flag. By default `True`.
 
@@ -235,11 +249,11 @@ class DensityField:
             Tidal tensor object, whose attributes `grav_field_tensor.gi`
             contain the relevant tensor components.
         """
-        delta = self.overdensity_field(grid, verbose)
+        delta = self.overdensity_field(grid, smooth_scale, verbose)
         return MASL.grav_field_tensor(
             delta, self.box._omega_m, self.box._aexp, self.MAS)
 
-    def tensor_field(self, grid, verbose=True):
+    def tensor_field(self, grid, smooth_scale=None, verbose=True):
         """
         Calculate the tidal tensor field.
 
@@ -247,6 +261,9 @@ class DensityField:
         ----------
         grid : int
             The grid size.
+        smooth_scale : float, optional
+            Scale to smoothen the original density field, in units matching
+            `self.boxsize`. By default `None`, i.e. no smoothing is applied.
         verbose : float, optional
             A verbosity flag. By default `True`.
 
@@ -256,11 +273,11 @@ class DensityField:
             Tidal tensor object, whose attributes `tidal_tensor.Tij` contain
             the relevant tensor components.
         """
-        delta = self.overdensity_field(grid, verbose)
+        delta = self.overdensity_field(grid, smooth_scale, verbose)
         return MASL.tidal_tensor(
             delta, self.box._omega_m, self.box._aexp, self.MAS)
 
-    def auto_powerspectrum(self, grid, verbose=True):
+    def auto_powerspectrum(self, grid, smooth_scale, verbose=True):
         """
         Calculate the auto 1-dimensional power spectrum.
 
@@ -268,6 +285,9 @@ class DensityField:
         ----------
         grid : int
             The grid size.
+        smooth_scale : float, optional
+            Scale to smoothen the original density field, in units matching
+            `self.boxsize`. By default `None`, i.e. no smoothing is applied.
         verbose : float, optional
             A verbosity flag. By default `True`.
 
@@ -276,7 +296,7 @@ class DensityField:
         pk : py:class`Pk_library.Pk`
             Power spectrum object.
         """
-        delta = self.overdensity_field(grid, verbose)
+        delta = self.overdensity_field(grid, smooth_scale, verbose)
         return PKL.Pk(
             delta, self.boxsize, axis=1, MAS=self.MAS, threads=1,
             verbose=verbose)
