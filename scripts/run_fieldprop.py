@@ -16,7 +16,6 @@
 MPI script to evaluate field properties at the galaxy positions.
 
 NOTE:
-- The script has *not* been tested.
 - Calculate for the entire box or just for a smaller region?
 """
 import numpy
@@ -56,7 +55,7 @@ dtype = {"names": ["delta", "phi"], "formats": [numpy.float32] * 2}
 
 # CSiBORG simulation paths
 paths = csiborgtools.read.CSiBORGPaths()
-ics = paths.ic_ids[:3]
+ics = paths.ic_ids[:10]
 n_sims = len(ics)
 
 for n in csiborgtools.fits.split_jobs(n_sims, nproc)[rank]:
@@ -110,7 +109,7 @@ if rank == 0:
         with open(ftemp.format(n_sim), "rb") as f:
             fin = numpy.load(f, allow_pickle=True)
             for name in dtype["names"]:
-                out["delta"][n, ...] = fin["delta"]
+                out[name][n, ...] = fin[name]
         # Remove the temporary file
         remove(ftemp.format(n_sim))
 
