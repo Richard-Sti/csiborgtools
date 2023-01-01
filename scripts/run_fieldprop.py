@@ -14,12 +14,8 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 MPI script to evaluate field properties at the galaxy positions.
-
-NOTE:
-- Calculate for the entire box or just for a smaller region?
-- Add argparser for different options.
-- In the argparser add options to smoothen the field.
 """
+from argparse import ArgumentParser
 import numpy
 from datetime import datetime
 from mpi4py import MPI
@@ -33,9 +29,15 @@ except ModuleNotFoundError:
     import csiborgtools
 import utils
 
-halfwidth = 0.5
-MAS = "CIC"
-grid = 256
+parser = ArgumentParser()
+parser.add_argument("--survey", type=str, choices=["SDSS"])
+parser.add_argument("--grid", type=int)
+parser.add_argument("--MAS", type=str, choices=["NGP", "CIC", "TSC", "PCS"])
+parser.add_argument("--halfwidth", type=float)
+parser.add_argument("--smooth_scale", type=float, default=None)
+args = parser.parse_args()
+# Smooth scale of 0 means no smoothing. Note that this is in Mpc/h
+args.smooth_scale = None if args.smooth_scale == 0 else args.smooth_scale
 
 # Get MPI things
 comm = MPI.COMM_WORLD
@@ -43,21 +45,22 @@ rank = comm.Get_rank()
 nproc = comm.Get_size()
 
 # Galaxy positions
-survey = "SDSS"
-survey = utils.surveys[survey]()()
+survey = utils.surveys[args.survey]()()
 pos = numpy.vstack([survey[p] for p in ("DIST", "RA", "DEC")]).T
 pos = pos.astype(numpy.float32)
 
 # File paths
-ftemp = join(utils.dumpdir, "temp_fields", "out_" + survey.name + "_{}.npy")
-fperm = join(utils.dumpdir, "fields", "out_{}.npy".format(survey.name))
+fname = "out_{}_{}_{}_{}_{}".format(
+    survey.name, args.grid, args.MAS, args.halfwidth, args.smooth_scale)
+ftemp = join(utils.dumpdir, "temp_fields", fname + "_{}.npy")
+fperm = join(utils.dumpdir, "fields", fname + ".npy")
 
 # Edit depending on what is calculated
 dtype = {"names": ["delta", "phi"], "formats": [numpy.float32] * 2}
 
 # CSiBORG simulation paths
 paths = csiborgtools.read.CSiBORGPaths()
-ics = paths.ic_ids[:10]
+ics = paths.ic_ids
 n_sims = len(ics)
 
 for n in csiborgtools.fits.split_jobs(n_sims, nproc)[rank]:
@@ -73,22 +76,24 @@ for n in csiborgtools.fits.split_jobs(n_sims, nproc)[rank]:
 
     # Read particles and select a subset of them
     particles = reader.read_particle(["x", "y", "z", "M"], verbose=False)
-    if halfwidth < 0.5:
-        particles = csiborgtools.read.halfwidth_select(halfwidth, particles)
-        length = box.box2mpc(2 * halfwidth) * box.h  # Mpc/h
+    if args.halfwidth < 0.5:
+        particles = csiborgtools.read.halfwidth_select(
+            args.halfwidth, particles)
+        length = box.box2mpc(2 * args.halfwidth) * box.h  # Mpc/h
     else:
         length = box.box2mpc(1) * box.h  # Mpc/h
 
     # Initialise the field object and output array
-    field = csiborgtools.field.DensityField(particles, length, box, MAS)
+    field = csiborgtools.field.DensityField(particles, length, box, args.MAS)
     out = numpy.full(pos.shape[0], numpy.nan, dtype=dtype)
 
     # Calculate the overdensity field and interpolate at galaxy positions
-    feval = field.overdensity_field(grid, verbose=False)
+    feval = field.overdensity_field(args.grid, args.smooth_scale,
+                                    verbose=False)
     out["delta"] = field.evaluate_sky(feval, pos=pos, isdeg=True)[0]
 
     # Potential
-    feval = field.potential_field(grid, verbose=False)
+    feval = field.potential_field(args.grid, args.smooth_scale, verbose=False)
     out["phi"] = field.evaluate_sky(feval, pos=pos, isdeg=True)[0]
 
     # Calculate the remaining fields
