@@ -255,13 +255,8 @@ class RealisationsMatcher:
                 with open(paths.clump0_path(self.cats.n_sims[i]), 'rb') as f:
                     clumpsx = numpy.load(f, allow_pickle=True)
 
-                # Switch overlapper resolution if halo outside well-def region
-                is_high = self.cats[n_sim]["dist"] < 155.5 / 0.705
-                overlapper.cellsize = 1 / 2**11 if is_high else 1 / 2**8
-
                 cat2clumpsx = self._cat2clump_mapping(self.cats[i]["index"],
                                                       clumpsx["ID"])
-
                 # Loop only over halos that have neighbours
                 with_neigbours = numpy.where([ii.size > 0 for ii in indxs])[0]
                 for k in tqdm(with_neigbours) if verbose else with_neigbours:
