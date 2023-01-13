@@ -444,3 +444,34 @@ class CombinedHaloCatalogue:
             raise ValueError("Catalogue count is {}, requested catalogue {}."
                              .format(self.N, n))
         return self.cats[n]
+
+
+def concatenate_clumps(clumps):
+    """
+    Concatenate a list of clumps to a single array containing all particles.
+
+    Parameters
+    ----------
+    clumps : list of structured arrays
+
+    Returns
+    -------
+    particles : structured array
+    """
+    # Count how large array will be needed
+    N = 0
+    for clump, __ in clumps:
+        N += clump.size
+    # Pre-allocate array
+    dtype = {"names": ['x', 'y', 'z', "M"], "formats": [numpy.float32] * 4}
+    particles = numpy.full(N, numpy.nan, dtype)
+
+    # Fill it one clump by another
+    start = 0
+    for clump, __ in clumps:
+        end = start + clump.size
+        for p in ('x', 'y', 'z', 'M'):
+            particles[p][start:end] = clump[p]
+        start = end
+
+    return particles
