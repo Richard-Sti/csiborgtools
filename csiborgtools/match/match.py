@@ -384,14 +384,10 @@ class ParticleOverlap:
     _inv_clength = None
     _smooth_scale = None
     _clength = None
-    _ncells = None
 
     def __init__(self, inv_clength=2**11, smooth_scale=None):
         self.inv_clength = inv_clength
         self.smooth_scale = smooth_scale
-
-        self._clength = 1 / self.inv_clength
-        self._ncells = int(inv_clength)
 
     @property
     def inv_clength(self):
@@ -410,6 +406,8 @@ class ParticleOverlap:
         assert inv_clength > 0, "`inv_clength` must be positive."
         assert isinstance(inv_clength, int), "`inv_clength` must be integer."
         self._inv_clength = int(inv_clength)
+        # Also set the inverse and number of cells
+        self._clength = 1 / self.inv_clength
 
     @property
     def smooth_scale(self):
@@ -443,7 +441,34 @@ class ParticleOverlap:
         """
         return numpy.floor(pos * self.inv_clength).astype(int)
 
-    def make_delta(self, clump, subbox=False):
+    def smooth_highres(self, delta):
+        """
+        Smooth the central region of a full box density field.
+
+        Parameters
+        ----------
+        delta : 3-dimensional array
+
+        Returns
+        -------
+        smooth_delta : 3-dimensional arrray
+        """
+        if self.smooth_scale is None:
+            raise ValueError("`smooth_scale` is not set!")
+        msg = "Shape of `delta` must match the entire box."
+        assert delta.shape == (self._inv_clength,)*3, msg
+
+        # Subselect only the high-resolution region
+        start = self._inv_clength // 4
+        end = start * 3
+        highres = delta[start:end, start:end, start:end]
+        # Smoothen it
+        gaussian_filter(highres, self.smooth_scale, output=highres)
+        # Put things back into the original array
+        delta[start:end, start:end, start:end] = highres
+        return delta
+
+    def make_delta(self, clump, subbox=False, to_smooth=True):
         """
         Calculate a NGP density field of a halo on a cubic grid.
 
@@ -454,6 +479,8 @@ class ParticleOverlap:
         subbox : bool, optional
             Whether to calculate the density field on a grid strictly enclosing
             the clump.
+        to_smooth : bool, optional
+            Explicit control over whether to smooth. By default `True`.
 
         Returns
         -------
@@ -474,7 +501,7 @@ class ParticleOverlap:
         delta = numpy.zeros((ncells,) * 3, dtype=numpy.float32)
         fill_delta(delta, xcell, ycell, zcell, clump['M'])
 
-        if self.smooth_scale is not None:
+        if to_smooth and self.smooth_scale is not None:
             gaussian_filter(delta, self.smooth_scale, output=delta)
         return delta
 
@@ -493,6 +520,8 @@ class ParticleOverlap:
         -------
         delta1, delta2 : 3-dimensional arrays
             Density arrays of `clump1` and `clump2`, respectively.
+        cellmins : len-3 tuple
+            Tuple of left-most cell ID in the full box.
         """
         coords = ('x', 'y', 'z')
         xcell1, ycell1, zcell1 = (self.pos2cell(clump1[p]) for p in coords)
@@ -502,6 +531,7 @@ class ParticleOverlap:
         xmin = min(numpy.min(xcell1), numpy.min(xcell2))
         ymin = min(numpy.min(ycell1), numpy.min(ycell2))
         zmin = min(numpy.min(zcell1), numpy.min(zcell2))
+        cellmins = (xmin, ymin, zmin)
         # Maximum cell number of the two halos along each dimension
         xmax = max(numpy.max(xcell1), numpy.max(xcell2))
         ymax = max(numpy.max(ycell1), numpy.max(ycell2))
@@ -527,17 +557,23 @@ class ParticleOverlap:
         if self.smooth_scale is not None:
             gaussian_filter(delta1, self.smooth_scale, output=delta1)
             gaussian_filter(delta2, self.smooth_scale, output=delta2)
-        return delta1, delta2
+        return delta1, delta2, cellmins
 
     @staticmethod
-    def overlap(delta1, delta2):
+    def overlap(delta1, delta2, cellmins, delta2_full):
         r"""
-        Overlap between two density grids.
+        Overlap between two clumps whose density fields are evaluated on the
+        same grid.
 
         Parameters
         ----------
         delta1, delta2 : 3-dimensional arrays
-            Density arrays.
+            Clumps density fields.
+        cellmins : len-3 tuple
+            Tuple of left-most cell ID in the full box.
+        delta2_full : 3-dimensional array
+            Density field of the whole box calculated with particles assigned
+            to halos at zero redshift.
 
         Returns
         -------
@@ -545,13 +581,10 @@ class ParticleOverlap:
         """
         mass1 = numpy.sum(delta1)
         mass2 = numpy.sum(delta2)
-        # Cells where both fields are > 0
-        mask = (delta1 > 0) & (delta2 > 0)
-        # Note the factor of 0.5 to avoid double counting
-        intersect = 0.5 * numpy.sum(delta1[mask] + delta2[mask])
+        intersect = calc_intersect(delta1, delta2, cellmins, delta2_full)
         return intersect / (mass1 + mass2 - intersect)
 
-    def __call__(self, clump1, clump2):
+    def __call__(self, clump1, clump2, delta2_full):
         """
         Calculate overlap between `clump1` and `clump2`. See
         `self.overlap(...)` and `self.make_deltas(...)` for further
@@ -562,19 +595,25 @@ class ParticleOverlap:
         clump1, clump2 : structurered arrays
             Structured arrays containing the particles of a given clump. Keys
             must include `x`, `y`, `z` and `M`.
+        cellmins : len-3 tuple
+            Tuple of left-most cell ID in the full box.
+        delta2_full : 3-dimensional array
+            Density field of the whole box calculated with particles assigned
+            to halos at zero redshift.
 
         Returns
         -------
         overlap : float
         """
-        delta1, delta2 = self.make_deltas(clump1, clump2)
-        return self.overlap(delta1, delta2)
+        delta1, delta2, cellmins = self.make_deltas(clump1, clump2)
+        return self.overlap(delta1, delta2, cellmins, delta2_full)
 
 
 @jit(nopython=True)
 def fill_delta(delta, xcell, ycell, zcell, weights):
     """
-    Fill array delta at the specified indices with their weights.
+    Fill array delta at the specified indices with their weights. This is a JIT
+    implementation.
 
     Parameters
     ----------
@@ -591,3 +630,43 @@ def fill_delta(delta, xcell, ycell, zcell, weights):
     """
     for i in range(xcell.size):
         delta[xcell[i], ycell[i], zcell[i]] += weights[i]
+
+
+@jit(nopython=True)
+def calc_intersect(delta1, delta2, cellmins, delta2_full):
+    """
+    Calculate weighted intersect between two density fields.
+
+    Parameters
+    ----------
+    delta1, delta2 : 3-dimensional arrays
+        Density fields of `clump1` and `clump2`, respectively.
+    cellmins : len-3 tuple
+        Tuple of left-most cell ID in the full box.
+    delta2_full : 3-dimensional array
+        Density field of the whole box calculated with particles assigned to
+        halos at zero redshift.
+
+    Returns
+    -------
+    intersect : float
+    """
+    imax, jmax, kmax = delta1.shape
+
+    intersect = 0.
+    for i in range(imax):
+        ii = cellmins[0] + i
+        for j in range(jmax):
+            jj = cellmins[1] + j
+            for k in range(kmax):
+                kk = cellmins[2] + k
+                # Unpack the densities of the clumps
+                cell1, cell2 = delta1[i, j, k], delta2[i, j, k]
+                # If both are zero then skip
+                if not (cell1 > 0 and cell2 > 0):
+                    continue
+
+                weight = cell2 / delta2_full[ii, jj, kk]
+                intersect += 0.5 * weight * (cell1 + cell2)
+
+    return intersect
