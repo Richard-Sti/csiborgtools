@@ -386,6 +386,9 @@ class ParticleOverlap:
     inv_clength : float, optional
         Inverse cell length in box units. By default :math:`2^11`, which
         matches the initial RAMSES grid resolution.
+    nshift : int, optional
+        Number of cells by which to shift the subbox from the outside-most
+        cell containing a particle. By default 5.
     smooth_scale : float or integer, optional
         Optional Gaussian smoothing scale to by applied to the fields. By
         default no smoothing is applied. Otherwise the scale is to be
@@ -394,10 +397,12 @@ class ParticleOverlap:
     _inv_clength = None
     _smooth_scale = None
     _clength = None
+    _nshift = None
 
-    def __init__(self, inv_clength=2**11, smooth_scale=None):
+    def __init__(self, inv_clength=2**11, smooth_scale=None, nshift=5):
         self.inv_clength = inv_clength
         self.smooth_scale = smooth_scale
+        self.nshift = nshift
 
     @property
     def inv_clength(self):
@@ -503,10 +508,14 @@ class ParticleOverlap:
         xcell, ycell, zcell = (self.pos2cell(clump[p]) for p in coords)
         if subbox:
             # Shift the box so that each non-zero grid cell is 0th
-            xcell -= numpy.min(xcell)
-            ycell -= numpy.min(ycell)
-            zcell -= numpy.min(zcell)
-            ncells = max(*(numpy.max(p) for p in (xcell, ycell, zcell))) + 1
+            xcell -= max(numpy.min(xcell) - self.nshift, 0)
+            ycell -= max(numpy.min(ycell) - self.nshift, 0)
+            zcell -= max(numpy.min(zcell) - self.nshift, 0)
+
+            ncells = max(*(numpy.max(p) + self.nshift
+                           for p in (xcell, ycell, zcell)))
+            ncells += 1  # Bump up by one to get NUMBER of cells
+            ncells = min(ncells, self.inv_clength)
         else:
             ncells = self.inv_clength
 
@@ -541,9 +550,10 @@ class ParticleOverlap:
         xcell2, ycell2, zcell2 = (self.pos2cell(clump2[p]) for p in coords)
 
         # Minimum cell number of the two halos along each dimension
-        xmin = min(numpy.min(xcell1), numpy.min(xcell2))
-        ymin = min(numpy.min(ycell1), numpy.min(ycell2))
-        zmin = min(numpy.min(zcell1), numpy.min(zcell2))
+        xmin = min(numpy.min(xcell1), numpy.min(xcell2)) - self.nshift
+        ymin = min(numpy.min(ycell1), numpy.min(ycell2)) - self.nshift
+        zmin = min(numpy.min(zcell1), numpy.min(zcell2)) - self.nshift
+        xmin, ymin, zmin = max(xmin, 0), max(ymin, 0), max(zmin, 0)
         cellmins = (xmin, ymin, zmin)
         # Maximum cell number of the two halos along each dimension
         xmax = max(numpy.max(xcell1), numpy.max(xcell2))
@@ -551,7 +561,9 @@ class ParticleOverlap:
         zmax = max(numpy.max(zcell1), numpy.max(zcell2))
 
         # Number of cells is the maximum + 1
-        ncells = max(xmax - xmin, ymax - ymin, zmax - zmin) + 1
+        ncells = max(xmax - xmin, ymax - ymin, zmax - zmin) + self.nshift
+        ncells += 1
+        ncells = min(ncells, self.inv_clength)
 
         # Shift the box so that the first non-zero grid cell is 0th
         xcell1 -= xmin
