@@ -18,7 +18,7 @@ from scipy.ndimage import gaussian_filter
 from tqdm import (tqdm, trange)
 from astropy.coordinates import SkyCoord
 from numba import jit
-from ..read import CombinedHaloCatalogue
+from ..read import (CombinedHaloCatalogue, concatenate_clumps)
 
 
 def brute_spatial_separation(c1, c2, angular=False, N=None, verbose=False):
@@ -209,7 +209,7 @@ class RealisationsMatcher:
         if overlap:
             if verbose:
                 print("Loading initial clump particles for `n_sim = {}`."
-                      .format(n_sim))
+                      .format(n_sim), flush=True)
             # Grab a paths object. What it is set to is unimportant
             paths = self.cats[0].paths
             with open(paths.clump0_path(self.cats.n_sims[n_sim]), "rb") as f:
@@ -250,9 +250,18 @@ class RealisationsMatcher:
             if overlap:
                 if verbose:
                     print("Loading initial clump particles for `n_sim = {}` "
-                          "to compare against `n_sim = {}`.".format(i, n_sim))
+                          "to compare against `n_sim = {}`.".format(i, n_sim),
+                          flush=True)
                 with open(paths.clump0_path(self.cats.n_sims[i]), 'rb') as f:
                     clumpsx = numpy.load(f, allow_pickle=True)
+
+                # Calculate the particle field
+                if verbose:
+                    print("Loading and smoothing the crossed total field.",
+                          flush=True)
+                particles = concatenate_clumps(clumpsx)
+                delta = overlapper.make_delta(particles, to_smooth=False)
+                delta = overlapper.smooth_highres(delta)
 
                 cat2clumpsx = self._cat2clump_mapping(self.cats[i]["index"],
                                                       clumpsx["ID"])
@@ -270,7 +279,8 @@ class RealisationsMatcher:
                     for ii, ind in enumerate(indxs[k]):
                         # Again which cross clump to this index
                         matchx = cat2clumpsx[ind]
-                        dint[ii] = overlapper(cl0, clumpsx["clump"][matchx])
+                        dint[ii] = overlapper(cl0, clumpsx["clump"][matchx],
+                                              delta)
 
                     cross[k] = dint
 
@@ -423,7 +433,9 @@ class ParticleOverlap:
     @smooth_scale.setter
     def smooth_scale(self, smooth_scale):
         """Sets `smooth_scale`."""
-        if smooth_scale is not None:
+        if smooth_scale is None:
+            self._smooth_scale = None
+        else:
             assert smooth_scale > 0
             self._smooth_scale = smooth_scale
 
@@ -443,7 +455,8 @@ class ParticleOverlap:
 
     def smooth_highres(self, delta):
         """
-        Smooth the central region of a full box density field.
+        Smooth the central region of a full box density field. Note that if
+        `self.smooth_scale` is `None` then quietly exits the function.
 
         Parameters
         ----------
@@ -454,7 +467,7 @@ class ParticleOverlap:
         smooth_delta : 3-dimensional arrray
         """
         if self.smooth_scale is None:
-            raise ValueError("`smooth_scale` is not set!")
+            return delta
         msg = "Shape of `delta` must match the entire box."
         assert delta.shape == (self._inv_clength,)*3, msg
 
