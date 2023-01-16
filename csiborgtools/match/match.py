@@ -604,10 +604,7 @@ class ParticleOverlap:
         -------
         overlap : float
         """
-        mass1 = numpy.sum(delta1)
-        mass2 = numpy.sum(delta2)
-        intersect = calc_intersect(delta1, delta2, cellmins, delta2_full)
-        return intersect / (mass1 + mass2 - intersect)
+        return _calculate_overlap(delta1, delta2, cellmins, delta2_full)
 
     def __call__(self, clump1, clump2, delta2_full):
         """
@@ -631,7 +628,7 @@ class ParticleOverlap:
         overlap : float
         """
         delta1, delta2, cellmins = self.make_deltas(clump1, clump2)
-        return self.overlap(delta1, delta2, cellmins, delta2_full)
+        return _calculate_overlap(delta1, delta2, cellmins, delta2_full)
 
 
 @jit(nopython=True)
@@ -658,40 +655,49 @@ def fill_delta(delta, xcell, ycell, zcell, weights):
 
 
 @jit(nopython=True)
-def calc_intersect(delta1, delta2, cellmins, delta2_full):
-    """
-    Calculate weighted intersect between two density fields.
+def _calculate_overlap(delta1, delta2, cellmins, delta2_full):
+    r"""
+    Overlap between two clumps whose density fields are evaluated on the
+    same grid. This is a JIT implementation, hence it is outside of the main
+    class.
 
     Parameters
     ----------
     delta1, delta2 : 3-dimensional arrays
-        Density fields of `clump1` and `clump2`, respectively.
+        Clumps density fields.
     cellmins : len-3 tuple
         Tuple of left-most cell ID in the full box.
     delta2_full : 3-dimensional array
-        Density field of the whole box calculated with particles assigned to
-        halos at zero redshift.
+        Density field of the whole box calculated with particles assigned
+        to halos at zero redshift.
 
     Returns
     -------
-    intersect : float
+    overlap : float
     """
     imax, jmax, kmax = delta1.shape
 
-    intersect = 0.
+    totmass = 0.    # Total mass of clump 1 and clump 2
+    intersect = 0.  # Mass of pixels that are non-zero in both clumps
+    weight = 0.     # Weight to account for other halos
+    count = 0       # Total number of pixels that are both non-zero
+
     for i in range(imax):
         ii = cellmins[0] + i
         for j in range(jmax):
             jj = cellmins[1] + j
             for k in range(kmax):
                 kk = cellmins[2] + k
-                # Unpack the densities of the clumps
+
                 cell1, cell2 = delta1[i, j, k], delta2[i, j, k]
+                totmass += cell1 + cell2
                 # If both are zero then skip
-                if not (cell1 > 0 and cell2 > 0):
-                    continue
+                if cell1 > 0 and cell2 > 0:
+                    intersect += cell1 + cell2
+                    weight += cell2 / delta2_full[ii, jj, kk]
+                    count += 1
 
-                weight = cell2 / delta2_full[ii, jj, kk]
-                intersect += 0.5 * weight * (cell1 + cell2)
-
-    return intersect
+    # Normalise the intersect and weights
+    intersect *= 0.5
+    weight = weight / count if count > 0 else 0.
+    return weight * intersect / (totmass - intersect)
