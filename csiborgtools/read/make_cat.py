@@ -448,7 +448,7 @@ class CombinedHaloCatalogue:
 
 def concatenate_clumps(clumps):
     """
-    Concatenate a list of clumps to a single array containing all particles.
+    Concatenate an array of clumps to a single array containing all particles.
 
     Parameters
     ----------
