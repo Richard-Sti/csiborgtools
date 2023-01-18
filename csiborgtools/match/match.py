@@ -155,11 +155,13 @@ class RealisationsMatcher:
 
     def cross_knn_position_single(self, n_sim, nmult=5, dlogmass=None,
                                   mass_kind="totpartmass", overlap=False,
-                                  overlapper_kwargs={}, verbose=True):
+                                  overlapper_kwargs={}, select_initial=True,
+                                  verbose=True):
         r"""
-        Find all neighbours within a multiple of :math:`R_{\rm init}` of halos
-        in the `nsim`th simulation. Enforces that the neighbours' are similar
-        in mass up to `dlogmass` dex.
+        Find all neighbours within a multiple of either :math:`R_{\rm init}`
+        (distance at :math:`z = 70`) or :math:`R_{200c}` (distance at
+        :math:`z = 0`) of halos in the `nsim`th simulation. Enforces that the
+        neighbours' are similar in mass up to `dlogmass` dex.
 
         Parameters
         ----------
@@ -180,6 +182,9 @@ class RealisationsMatcher:
             snapshot. By default `False`. This operation is slow.
         overlapper_kwargs : dict, optional
             Keyword arguments passed to `ParticleOverlapper`.
+        select_initial : bool, optional
+            Whether to select nearest neighbour at the initial or final
+            snapshot. By default `True`, i.e. at the initial snapshot.
         verbose : bool, optional
             Iterator verbosity flag. By default `True`.
 
@@ -197,9 +202,13 @@ class RealisationsMatcher:
         self._check_masskind(mass_kind)
         # Halo properties of this simulation
         logmass = numpy.log10(self.cats[n_sim][mass_kind])
-        R = self.cats[n_sim].init_radius        # Approximate initial size
         pos = self.cats[n_sim].positions        # Grav potential minimum
         pos0 = self.cats[n_sim].positions0      # CM positions
+        if select_initial:
+            R = self.cats[n_sim].init_radius    # Approximate initial size
+        else:
+            R = self.cats[n_sim]["r200"]        # R200c at z = 0
+        R *= nmult                              # Search radius
 
         if overlap:
             if verbose:
@@ -222,8 +231,12 @@ class RealisationsMatcher:
         iters = enumerate(self.search_sim_indices(n_sim))
         # Search for neighbours in the other simulations at z = 70
         for count, i in iters:
-            dist0, indxs = self.cats[i].radius_neigbours(
-                pos0, R * nmult)
+            if select_initial:
+                dist0, indxs = self.cats[i].radius_initial_neigbours(pos0, R)
+            else:
+                # Will switch dist0 <-> dist at the end
+                dist0, indxs = self.cats[i].radius_neigbours(pos, R)
+
             # Get rid of neighbors whose mass is too off
             if dlogmass is not None:
                 for j, indx in enumerate(indxs):
@@ -232,13 +245,17 @@ class RealisationsMatcher:
                     dist0[j] = dist0[j][mask]
                     indxs[j] = indx[mask]
 
-            # Find the distance at z = 0
+            # Find the distance at z = 0 (or z = 70 dep. on `search_initial``)
             dist = [numpy.asanyarray([], dtype=numpy.float64)] * dist0.size
             with_neigbours = numpy.where([ii.size > 0 for ii in indxs])[0]
             # Fill the pre-allocated array on positions with neighbours
             for k in with_neigbours:
-                dist[k] = numpy.linalg.norm(
-                    pos[k] - self.cats[i].positions[indxs[k]], axis=1)
+                if select_initial:
+                    dist[k] = numpy.linalg.norm(
+                        pos[k] - self.cats[i].positions[indxs[k]], axis=1)
+                else:
+                    dist[k] = numpy.linalg.norm(
+                        pos0[k] - self.cats[i].positions0[indxs[k]], axis=1)
 
             # Calculate the initial snapshot overlap
             cross = [numpy.asanyarray([], dtype=numpy.float64)] * dist0.size
@@ -278,16 +295,20 @@ class RealisationsMatcher:
 
                     cross[k] = dint
 
-            # Append as a composite array
-            matches[count] = numpy.asarray(
-                [indxs, dist, dist0, cross], dtype=object)
+            # Append as a composite array. Flip dist order if not select_init
+            if select_initial:
+                matches[count] = numpy.asarray(
+                    [indxs, dist, dist0, cross], dtype=object)
+            else:
+                matches[count] = numpy.asarray(
+                    [indxs, dist0, dist, cross], dtype=object)
 
         return numpy.asarray(matches, dtype=object)
 
     def cross_knn_position_all(self, nmult=5, dlogmass=None,
                                mass_kind="totpartmass", init_dist=False,
                                overlap=False, overlapper_kwargs={},
-                               verbose=True):
+                               select_initial=True, verbose=True):
         r"""
         Find all neighbours within :math:`n_{\rm mult} R_{200c}` of halos in
         all simulations listed in `self.cats`. Also enforces that the
@@ -313,6 +334,9 @@ class RealisationsMatcher:
             substantially slower.
         overlapper_kwargs : dict, optional
             Keyword arguments passed to `ParticleOverlapper`.
+        select_initial : bool, optional
+            Whether to select nearest neighbour at the initial or final
+            snapshot. By default `True`, i.e. at the initial snapshot.
         verbose : bool, optional
             Iterator verbosity flag. By default `True`.
 
@@ -542,6 +566,8 @@ class ParticleOverlap:
         coords = ('x', 'y', 'z')
         xcell1, ycell1, zcell1 = (self.pos2cell(clump1[p]) for p in coords)
         xcell2, ycell2, zcell2 = (self.pos2cell(clump2[p]) for p in coords)
+
+#    if any(clumps[0][0].dtype[p].char in numpy.typecodes["AllInteger"]
 
         # Minimum cell number of the two halos along each dimension
         xmin = min(numpy.min(xcell1), numpy.min(xcell2)) - self.nshift
