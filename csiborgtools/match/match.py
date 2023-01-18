@@ -353,7 +353,7 @@ class RealisationsMatcher:
             matches[i] = self.cross_knn_position_single(
                 i, nmult, dlogmass, mass_kind=mass_kind, init_dist=init_dist,
                 overlap=overlap, overlapper_kwargs=overlapper_kwargs,
-                verbose=verbose)
+                select_initial=select_initial, verbose=verbose)
         return matches
 
 
