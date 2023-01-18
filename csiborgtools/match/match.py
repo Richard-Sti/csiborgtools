@@ -154,13 +154,12 @@ class RealisationsMatcher:
         return mapping
 
     def cross_knn_position_single(self, n_sim, nmult=5, dlogmass=None,
-                                  mass_kind="totpartmass", init_dist=False,
-                                  overlap=False, overlapper_kwargs={},
-                                  verbose=True):
+                                  mass_kind="totpartmass", overlap=False,
+                                  overlapper_kwargs={}, verbose=True):
         r"""
-        Find all neighbours within :math:`n_{\rm mult} R_{200c}` of halos in
-        the `nsim`th simulation. Also enforces that the neighbours'
-        :math:`\log M / M_\odot` be within `dlogmass` dex.
+        Find all neighbours within a multiple of :math:`R_{\rm init}` of halos
+        in the `nsim`th simulation. Enforces that the neighbours' are similar
+        in mass up to `dlogmass` dex.
 
         Parameters
         ----------
@@ -168,21 +167,17 @@ class RealisationsMatcher:
             Index of an IC realisation in `self.cats` whose halos' neighbours
             in the remaining simulations to search for.
         nmult : float or int, optional
-            Multiple of :math:`R_{200c}` within which to return neighbours. By
-            default 5.
+            Multiple of :math:`R_{\rm init}` within which to return neighbours.
+            By default 5.
         dlogmass : float, optional
             Tolerance on mass logarithmic mass difference. By default `None`.
         mass_kind : str, optional
             The mass kind whose similarity is to be checked. Must be a valid
             catalogue key. By default `totpartmass`, i.e. the total particle
             mass associated with a halo.
-        init_dist : bool, optional
-            Whether to calculate separation of the initial CMs. By default
-            `False`.
         overlap : bool, optional
             Whether to calculate overlap between clumps in the initial
-            snapshot. By default `False`. Note that this operation is
-            substantially slower.
+            snapshot. By default `False`. This operation is slow.
         overlapper_kwargs : dict, optional
             Keyword arguments passed to `ParticleOverlapper`.
         verbose : bool, optional
@@ -200,12 +195,12 @@ class RealisationsMatcher:
             `True`.
         """
         self._check_masskind(mass_kind)
-        # Radius, mass and positions of halos in `n_sim` IC realisation
+        # Halo properties of this simulation
         logmass = numpy.log10(self.cats[n_sim][mass_kind])
-        R = self.cats[n_sim]["r200"]
-        pos = self.cats[n_sim].positions
-        if init_dist:
-            pos0 = self.cats[n_sim].positions0  # These are CM positions
+        R = self.cats[n_sim].init_radius        # Approximate initial size
+        pos = self.cats[n_sim].positions        # Grav potential minimum
+        pos0 = self.cats[n_sim].positions0      # CM positions
+
         if overlap:
             if verbose:
                 print("Loading initial clump particles for `n_sim = {}`."
@@ -225,28 +220,28 @@ class RealisationsMatcher:
         else:
             iters = enumerate(self.search_sim_indices(n_sim))
         iters = enumerate(self.search_sim_indices(n_sim))
-        # Search for neighbours in the other simulations
+        # Search for neighbours in the other simulations at z = 70
         for count, i in iters:
-            dist, indxs = self.cats[i].radius_neigbours(pos, R * nmult)
+            dist0, indxs = self.cats[i].radius_neigbours(
+                pos0, R * nmult)
             # Get rid of neighbors whose mass is too off
             if dlogmass is not None:
                 for j, indx in enumerate(indxs):
                     match_logmass = numpy.log10(self.cats[i][mass_kind][indx])
                     mask = numpy.abs(match_logmass - logmass[j]) < dlogmass
-                    dist[j] = dist[j][mask]
+                    dist0[j] = dist0[j][mask]
                     indxs[j] = indx[mask]
 
-            # Find distance to the between the initial CM
-            dist0 = [numpy.asanyarray([], dtype=numpy.float64)] * dist.size
-            if init_dist:
-                with_neigbours = numpy.where([ii.size > 0 for ii in indxs])[0]
-                # Fill the pre-allocated array on positions with neighbours
-                for k in with_neigbours:
-                    dist0[k] = numpy.linalg.norm(
-                        pos0[k] - self.cats[i].positions0[indxs[k]], axis=1)
+            # Find the distance at z = 0
+            dist = [numpy.asanyarray([], dtype=numpy.float64)] * dist0.size
+            with_neigbours = numpy.where([ii.size > 0 for ii in indxs])[0]
+            # Fill the pre-allocated array on positions with neighbours
+            for k in with_neigbours:
+                dist[k] = numpy.linalg.norm(
+                    pos[k] - self.cats[i].positions[indxs[k]], axis=1)
 
             # Calculate the initial snapshot overlap
-            cross = [numpy.asanyarray([], dtype=numpy.float64)] * dist.size
+            cross = [numpy.asanyarray([], dtype=numpy.float64)] * dist0.size
             if overlap:
                 if verbose:
                     print("Loading initial clump particles for `n_sim = {}` "
@@ -266,7 +261,6 @@ class RealisationsMatcher:
                 cat2clumpsx = self._cat2clump_mapping(self.cats[i]["index"],
                                                       clumpsx["ID"])
                 # Loop only over halos that have neighbours
-                with_neigbours = numpy.where([ii.size > 0 for ii in indxs])[0]
                 for k in tqdm(with_neigbours) if verbose else with_neigbours:
                     # Find which clump matches index of this halo from cat
                     match0 = cat2clumps0[k]
