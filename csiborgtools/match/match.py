@@ -685,6 +685,33 @@ def fill_delta(delta, xcell, ycell, zcell, xmin, ymin, zmin, weights):
         delta[xcell[i] - xmin, ycell[i] - ymin, zcell[i] - zmin] += weights[i]
 
 
+def get_clumplims(clumps):
+    """
+    Get the lower and upper limit of clumps' positions or cell numbers.
+
+    Parameters
+    ----------
+    clumps : array of arrays
+        Array of clump structured arrays.
+
+    Returns
+    -------
+    mins, maxs : 2-dimensional arrays of shape `(n_samples, 3)`
+        The minimum and maximum along each axis.
+    """
+    dtype = clumps[0][0]['x'].dtype  # dtype of the first clump's 'x'
+    nclumps = clumps.size
+    mins = numpy.full((nclumps, 3), numpy.nan, dtype=dtype)
+    maxs = numpy.full((nclumps, 3), numpy.nan, dtype=dtype)
+
+    for i, clump in enumerate(clumps):
+        for j, p in enumerate(['x', 'y', 'z']):
+            mins[i, j] = numpy.min(clump[0][p])
+            maxs[i, j] = numpy.max(clump[0][p])
+
+    return mins, maxs
+
+
 @jit(nopython=True)
 def _calculate_overlap(delta1, delta2, cellmins, delta2_full):
     r"""

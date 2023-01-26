@@ -13,6 +13,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
-from .match import (brute_spatial_separation, RealisationsMatcher, cosine_similarity, ParticleOverlap, spherical_overlap)  # noqa
+from .match import (brute_spatial_separation, RealisationsMatcher, cosine_similarity,  # noqa
+                    ParticleOverlap, spherical_overlap, get_clumplims)  # noqa
 from .num_density import (binned_counts, number_density)  # noqa
 # from .correlation import (get_randoms_sphere, sphere_angular_tpcf) # noqa
