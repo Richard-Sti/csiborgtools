@@ -18,6 +18,7 @@ from scipy.ndimage import gaussian_filter
 from tqdm import (tqdm, trange)
 from astropy.coordinates import SkyCoord
 from numba import jit
+# from ..read import (CombinedHaloCatalogue, concatenate_clumps, clumps_pos2cell)  # noqa
 from ..read import (CombinedHaloCatalogue, concatenate_clumps)
 
 
@@ -208,9 +209,9 @@ class RealisationsMatcher:
             R = self.cats[n_sim].init_radius    # Approximate initial size
         else:
             R = self.cats[n_sim]["r200"]        # R200c at z = 0
-        R *= nmult                              # Search radius
 
         if overlap:
+            overlapper = ParticleOverlap(**overlapper_kwargs)
             if verbose:
                 print("Loading initial clump particles for `n_sim = {}`."
                       .format(n_sim), flush=True)
@@ -218,7 +219,7 @@ class RealisationsMatcher:
             paths = self.cats[0].paths
             with open(paths.clump0_path(self.cats.n_sims[n_sim]), "rb") as f:
                 clumps0 = numpy.load(f, allow_pickle=True)
-            overlapper = ParticleOverlap(**overlapper_kwargs)
+#                clumps0 = clumps_pos2cell(clumps0, overlapper)
             cat2clumps0 = self._cat2clump_mapping(self.cats[n_sim]["index"],
                                                   clumps0["ID"])
 
@@ -232,10 +233,12 @@ class RealisationsMatcher:
         # Search for neighbours in the other simulations at z = 70
         for count, i in iters:
             if select_initial:
-                dist0, indxs = self.cats[i].radius_initial_neigbours(pos0, R)
+                dist0, indxs = self.cats[i].radius_initial_neigbours(
+                    pos0, R * nmult)
             else:
                 # Will switch dist0 <-> dist at the end
-                dist0, indxs = self.cats[i].radius_neigbours(pos, R)
+                dist0, indxs = self.cats[i].radius_neigbours(
+                    pos, R * nmult)
 
             # Get rid of neighbors whose mass is too off
             if dlogmass is not None:
@@ -274,6 +277,10 @@ class RealisationsMatcher:
                 particles = concatenate_clumps(clumpsx)
                 delta = overlapper.make_delta(particles, to_smooth=False)
                 delta = overlapper.smooth_highres(delta)
+                print("Smoothed up the field.", flush=True)
+
+#                # Convert positions to cell IDs only NOW
+#                clumpsx = clumps_pos2cell(clumpsx, overlapper)
 
                 cat2clumpsx = self._cat2clump_mapping(self.cats[i]["index"],
                                                       clumpsx["ID"])
@@ -464,7 +471,9 @@ class ParticleOverlap:
 
     def pos2cell(self, pos):
         """
-        Convert position to cell number.
+        Convert position to cell number. If `pos` is in
+        `numpy.typecodes["AllInteger"]` assumes it to already be the cell
+        number.
 
         Parameters
         ----------
@@ -474,6 +483,9 @@ class ParticleOverlap:
         -------
         cells : 1-dimensional array
         """
+        # Check whether this is already the cell
+        if pos.dtype.char in numpy.typecodes["AllInteger"]:
+            return pos
         return numpy.floor(pos * self.inv_clength).astype(int)
 
     def smooth_highres(self, delta):
@@ -522,24 +534,21 @@ class ParticleOverlap:
         -------
         delta : 3-dimensional array
         """
-        coords = ('x', 'y', 'z')
-        xcell, ycell, zcell = (self.pos2cell(clump[p]) for p in coords)
-        if subbox:
-            # Shift the box so that each non-zero grid cell is 0th
-            xcell -= max(numpy.min(xcell) - self.nshift, 0)
-            ycell -= max(numpy.min(ycell) - self.nshift, 0)
-            zcell -= max(numpy.min(zcell) - self.nshift, 0)
+        cells = [self.pos2cell(clump[p]) for p in ('x', 'y', 'z')]
 
-            ncells = max(*(numpy.max(p) + self.nshift
-                           for p in (xcell, ycell, zcell)))
+        if subbox:
+            # Minimum xcell, ycell and zcell of this clump
+            mins = [max(numpy.min(cell) - self.nshift, 0) for cell in cells]
+            # Number of cells along each dimension of a cubical box
+            ncells = max(*(numpy.max(p) - mins[i]
+                           for i, p in enumerate(cells)))
             ncells += 1  # Bump up by one to get NUMBER of cells
-            ncells = min(ncells, self.inv_clength)
         else:
             ncells = self.inv_clength
 
         # Preallocate and fill the array
         delta = numpy.zeros((ncells,) * 3, dtype=numpy.float32)
-        fill_delta(delta, xcell, ycell, zcell, clump['M'])
+        fill_delta(delta, *cells, *mins, clump['M'])
 
         if to_smooth and self.smooth_scale is not None:
             gaussian_filter(delta, self.smooth_scale, output=delta)
@@ -566,8 +575,6 @@ class ParticleOverlap:
         coords = ('x', 'y', 'z')
         xcell1, ycell1, zcell1 = (self.pos2cell(clump1[p]) for p in coords)
         xcell2, ycell2, zcell2 = (self.pos2cell(clump2[p]) for p in coords)
-
-#    if any(clumps[0][0].dtype[p].char in numpy.typecodes["AllInteger"]
 
         # Minimum cell number of the two halos along each dimension
         xmin = min(numpy.min(xcell1), numpy.min(xcell2)) - self.nshift
@@ -652,7 +659,7 @@ class ParticleOverlap:
 
 
 @jit(nopython=True)
-def fill_delta(delta, xcell, ycell, zcell, weights):
+def fill_delta(delta, xcell, ycell, zcell, xmin, ymin, zmin, weights):
     """
     Fill array delta at the specified indices with their weights. This is a JIT
     implementation.
@@ -663,6 +670,10 @@ def fill_delta(delta, xcell, ycell, zcell, weights):
         Grid to be filled with weights.
     xcell, ycell, zcell : 1-dimensional arrays
         Indices where to assign `weights`.
+    xmin, ymin, zmin : floats
+
+    TODO
+
     weights : 1-dimensional arrays
         Particle mass.
 
@@ -671,7 +682,7 @@ def fill_delta(delta, xcell, ycell, zcell, weights):
     None
     """
     for i in range(xcell.size):
-        delta[xcell[i], ycell[i], zcell[i]] += weights[i]
+        delta[xcell[i] - xmin, ycell[i] - ymin, zcell[i] - zmin] += weights[i]
 
 
 @jit(nopython=True)
@@ -721,3 +732,34 @@ def _calculate_overlap(delta1, delta2, cellmins, delta2_full):
     intersect *= 0.5
     weight = weight / count if count > 0 else 0.
     return weight * intersect / (totmass - intersect)
+
+
+@jit(nopython=True)
+def spherical_overlap(R1, R2, d):
+    """
+    Calculate the volume overlap between two spheres. Defined as their volume
+    intersection divided by their total volume without the intersection.
+
+
+    Parameters
+    ----------
+    R1, R2 : float
+        Radius of the two spheres.
+    d : float
+        Separation of the spheres' centres.
+
+    Returns
+    -------
+    overlap : float
+    """
+    # We want R1 >= R2 so optionally flip them.
+    if R2 > R1:
+        R1, R2 = R2, R1
+    if d < R1 - R2:  # If S2 is entirely in S1
+        return (R2 / R1)**3
+    elif d > R1 + R2:  # If too far
+        return 0.
+    else:
+        Vx = (R1 + R2 - d)**2 / (16 * d)
+        Vx *= (d**2 + 2 * d * (R1 + R2) + 6 * R1 * R2 - 3 * (R1**2 + R2**2))
+        return Vx / (R1**3 + R2**3 - Vx)
