@@ -516,7 +516,8 @@ class ParticleOverlap:
         delta[start:end, start:end, start:end] = highres
         return delta
 
-    def make_delta(self, clump, subbox=False, to_smooth=True):
+    def make_delta(self, clump, mins=None, maxs=None, subbox=False,
+                   to_smooth=True):
         """
         Calculate a NGP density field of a halo on a cubic grid.
 
@@ -524,6 +525,8 @@ class ParticleOverlap:
         ----------
         clump: structurered arrays
             Clump structured array, keys must include `x`, `y`, `z` and `M`.
+        mins, maxs : 1-dimensional arrays of shape `(3,)`
+            Minimun and maximum cell numbers along each dimension.
         subbox : bool, optional
             Whether to calculate the density field on a grid strictly enclosing
             the clump.
@@ -536,14 +539,23 @@ class ParticleOverlap:
         """
         cells = [self.pos2cell(clump[p]) for p in ('x', 'y', 'z')]
 
+        # Check that minima and maxima are integers
+        if not (mins is None and maxs is None):
+            assert mins.dtype.char in numpy.typecodes["AllInteger"]
+            assert maxs.dtype.char in numpy.typecodes["AllInteger"]
+
         if subbox:
             # Minimum xcell, ycell and zcell of this clump
-            mins = [max(numpy.min(cell) - self.nshift, 0) for cell in cells]
-            # Number of cells along each dimension of a cubical box
-            ncells = max(*(numpy.max(p) - mins[i]
-                           for i, p in enumerate(cells)))
-            ncells += 1  # Bump up by one to get NUMBER of cells
+            if mins is None or maxs is None:
+                mins = numpy.asanyarray(
+                    [max(numpy.min(cell) - self.nshift, 0) for cell in cells])
+                maxs = numpy.asanyarray(
+                    [max(numpy.max(cell) + self.nshift, self.inv_clength)
+                     for cell in cells])
+
+            ncells = numpy.max(maxs - mins) + 1  # To get the number of cells
         else:
+            mins = (0, 0, 0,)
             ncells = self.inv_clength
 
         # Preallocate and fill the array
@@ -670,10 +682,8 @@ def fill_delta(delta, xcell, ycell, zcell, xmin, ymin, zmin, weights):
         Grid to be filled with weights.
     xcell, ycell, zcell : 1-dimensional arrays
         Indices where to assign `weights`.
-    xmin, ymin, zmin : floats
-
-    TODO
-
+    xmin, ymin, zmin : ints
+        Minimum cell IDs of particles.
     weights : 1-dimensional arrays
         Particle mass.
 
@@ -685,7 +695,7 @@ def fill_delta(delta, xcell, ycell, zcell, xmin, ymin, zmin, weights):
         delta[xcell[i] - xmin, ycell[i] - ymin, zcell[i] - zmin] += weights[i]
 
 
-def get_clumplims(clumps):
+def get_clumplims(clumps, nshift=None):
     """
     Get the lower and upper limit of clumps' positions or cell numbers.
 
@@ -700,14 +710,19 @@ def get_clumplims(clumps):
         The minimum and maximum along each axis.
     """
     dtype = clumps[0][0]['x'].dtype  # dtype of the first clump's 'x'
+    # Check that for real positions we cannot apply nshift
+    if nshift is not None and dtype.char not in numpy.typecodes["AllInteger"]:
+        raise TypeError("`nshift` supported only positions are cells.")
+    nshift = 0 if nshift is None else nshift  # To simplify code below
+
     nclumps = clumps.size
     mins = numpy.full((nclumps, 3), numpy.nan, dtype=dtype)
     maxs = numpy.full((nclumps, 3), numpy.nan, dtype=dtype)
 
     for i, clump in enumerate(clumps):
         for j, p in enumerate(['x', 'y', 'z']):
-            mins[i, j] = numpy.min(clump[0][p])
-            maxs[i, j] = numpy.max(clump[0][p])
+            mins[i, j] = numpy.min(clump[0][p]) - nshift
+            maxs[i, j] = numpy.max(clump[0][p]) + nshift
 
     return mins, maxs
 
@@ -790,3 +805,46 @@ def spherical_overlap(R1, R2, d):
         Vx = (R1 + R2 - d)**2 / (16 * d)
         Vx *= (d**2 + 2 * d * (R1 + R2) + 6 * R1 * R2 - 3 * (R1**2 + R2**2))
         return Vx / (R1**3 + R2**3 - Vx)
+
+
+# @jit(nopython=True)
+# def fill_delta_cic(delta, xpart, ypart, zpart, mins, cellsize):
+#     """
+#     Don't forget to credit Pylians
+#     """
+#     u = numpy.full(3, numpy.nan, dtype=numpy.float32)
+#     d = numpy.full(3, numpy.nan, dtype=numpy.float32)
+#
+#     ku = numpy.full(3, numpy.nan, dtype=numpy.int32)
+#     kd = numpy.full(3, numpy.nan, dtype=numpy.int32)
+#
+#     nparticles = xpart.size
+#     ncells = delta.shape[0]
+#
+#     # do a loop over all particles
+#     for i in range(nparticles):
+#
+#         for ax, pos in enumerate([xpart, ypart, zpart]):
+#
+#             cell = floor(pos[i] / cellsize)
+#
+#             u[ax] = pos[i] - (cell + 0.5) * cellsize  # This is d
+#             d[ax] = 1.0 - u[ax]  # this is t
+#
+#             kcell = cell - mins[ax]
+#             kd[ax] = kcell
+#
+#             ku[ax] = kcell + 1
+#
+#             if kcell + 1 == ncells:
+#                 ku[ax] -= 1
+#                 u[ax] = 0
+#
+#         delta[kd[0], kd[1], kd[2]] += d[0] * d[1] * d[2]
+#         delta[kd[0], kd[1], ku[2]] += d[0] * d[1] * u[2]
+#         delta[kd[0], ku[1], kd[2]] += d[0] * u[1] * d[2]
+#         delta[kd[0], ku[1], ku[2]] += d[0] * u[1] * u[2]
+#         delta[ku[0], kd[1], kd[2]] += u[0] * d[1] * d[2]
+#         delta[ku[0], kd[1], ku[2]] += u[0] * d[1] * u[2]
+#         delta[ku[0], ku[1], kd[2]] += u[0] * u[1] * d[2]
+#         delta[ku[0], ku[1], ku[2]] += u[0] * u[1] * u[2]
