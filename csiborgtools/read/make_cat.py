@@ -185,12 +185,25 @@ class HaloCatalogue:
         # Pre-allocate the positions arrays
         self._positions = numpy.vstack(
             [data["peak_{}".format(p)] for p in ("x", "y", "z")]).T
+        self._positions = self._positions.astype(numpy.float32)
         # And do the unit transform
         if initcm is not None:
             data = self.box.convert_from_boxunits(
                 data, ["x0", "y0", "z0", "patch_size"])
             self._positions0 = numpy.vstack(
                 [data["{}0".format(p)] for p in ("x", "y", "z")]).T
+            self._positions0 = self._positions0.astype(numpy.float32)
+
+        # Convert all that is not an integer to float32
+        names = list(data.dtype.names)
+        formats = []
+        for name in names:
+            if data[name].dtype.char in numpy.typecodes["AllInteger"]:
+                formats.append(numpy.int32)
+            else:
+                formats.append(numpy.float32)
+        dtype = numpy.dtype({"names": names, "formats": formats})
+        data = data.astype(dtype)
 
         self._data = data
 
