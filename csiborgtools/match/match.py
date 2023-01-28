@@ -156,7 +156,7 @@ class RealisationsMatcher:
     def cross_knn_position_single(self, n_sim, nmult=5, dlogmass=None,
                                   mass_kind="totpartmass", overlap=False,
                                   overlapper_kwargs={}, select_initial=True,
-                                  verbose=True):
+                                  remove_nooverlap=True, verbose=True):
         r"""
         Find all neighbours within a multiple of either :math:`R_{\rm init}`
         (distance at :math:`z = 70`) or :math:`R_{200c}` (distance at
@@ -185,6 +185,9 @@ class RealisationsMatcher:
         select_initial : bool, optional
             Whether to select nearest neighbour at the initial or final
             snapshot. By default `True`, i.e. at the initial snapshot.
+        remove_nooverlap : bool, optional
+            Whether to remove pairs with exactly zero overlap. By default
+            `True`.
         verbose : bool, optional
             Iterator verbosity flag. By default `True`.
 
@@ -317,6 +320,13 @@ class RealisationsMatcher:
                             minsx[matchx], maxsx[matchx])
 
                     cross[k] = crosses
+                    # Optionally remove points whose overlap is exaclt zero
+                    if remove_nooverlap:
+                        mask = cross[k] > 0
+                        indxs[k] = indxs[k][mask]
+                        dist[k] = dist[k][mask]
+                        dist0[k] = dist0[k][mask]
+                        cross[k] = cross[k][mask]
 
             # Append as a composite array. Flip dist order if not select_init
             if select_initial:
@@ -331,7 +341,8 @@ class RealisationsMatcher:
     def cross_knn_position_all(self, nmult=5, dlogmass=None,
                                mass_kind="totpartmass", init_dist=False,
                                overlap=False, overlapper_kwargs={},
-                               select_initial=True, verbose=True):
+                               select_initial=True, remove_nooverlap=True,
+                               verbose=True):
         r"""
         Find all neighbours within :math:`n_{\rm mult} R_{200c}` of halos in
         all simulations listed in `self.cats`. Also enforces that the
@@ -360,6 +371,9 @@ class RealisationsMatcher:
         select_initial : bool, optional
             Whether to select nearest neighbour at the initial or final
             snapshot. By default `True`, i.e. at the initial snapshot.
+        remove_nooverlap : bool, optional
+            Whether to remove pairs with exactly zero overlap. By default
+            `True`.
         verbose : bool, optional
             Iterator verbosity flag. By default `True`.
 
@@ -377,7 +391,8 @@ class RealisationsMatcher:
                 i, nmult, dlogmass, mass_kind=mass_kind,
                 init_dist=init_dist, overlap=overlap,
                 overlapper_kwargs=overlapper_kwargs,
-                select_initial=select_initial, verbose=verbose)
+                select_initial=select_initial,
+                remove_nooverlap=remove_nooverlap, verbose=verbose)
         return matches
 
 
