@@ -187,7 +187,8 @@ class HaloCatalogue:
             [data["peak_{}".format(p)] for p in ("x", "y", "z")]).T
         # And do the unit transform
         if initcm is not None:
-            data = self.box.convert_from_boxunits(data, ["x0", "y0", "z0"])
+            data = self.box.convert_from_boxunits(
+                data, ["x0", "y0", "z0", "patch_size"])
             self._positions0 = numpy.vstack(
                 [data["{}0".format(p)] for p in ("x", "y", "z")]).T
 
@@ -243,10 +244,10 @@ class HaloCatalogue:
             raise ValueError(
                 "Ordering of `initcat` and `clumps` is inconsistent.")
 
-        X = numpy.full((clumps.size, 3), numpy.nan)
-        for i, p in enumerate(['x', 'y', 'z']):
+        X = numpy.full((clumps.size, 4), numpy.nan)
+        for i, p in enumerate(['x', 'y', 'z', "patch_size"]):
             X[:, i] = initcat[p]
-        return add_columns(clumps, X, ["x0", "y0", "z0"])
+        return add_columns(clumps, X, ["x0", "y0", "z0", "patch_size"])
 
     @property
     def positions(self):
@@ -495,8 +496,15 @@ def concatenate_clumps(clumps):
     N = 0
     for clump, __ in clumps:
         N += clump.size
+    # Infer dtype of positions
+    if clumps[0][0]['x'].dtype.char in numpy.typecodes["AllInteger"]:
+        posdtype = numpy.int32
+    else:
+        posdtype = numpy.float32
+
     # Pre-allocate array
-    dtype = {"names": ['x', 'y', 'z', "M"], "formats": [numpy.float32] * 4}
+    dtype = {"names": ['x', 'y', 'z', 'M'],
+             "formats": [posdtype] * 3 + [numpy.float32]}
     particles = numpy.full(N, numpy.nan, dtype)
 
     # Fill it one clump by another
@@ -513,7 +521,7 @@ def concatenate_clumps(clumps):
 def clumps_pos2cell(clumps, overlapper):
     """
     Convert clump positions directly to cell IDs. Useful to speed up subsequent
-    calculations.
+    calculations. Overwrites the passed in arrays.
 
     Parameters
     ----------
@@ -522,6 +530,10 @@ def clumps_pos2cell(clumps, overlapper):
         converted.
     overlapper : py:class:`csiborgtools.match.ParticleOverlapper`
         `ParticleOverlapper` handling the cell assignment.
+
+    Returns
+    -------
+    None
     """
     # Check if clumps are probably already in cells
     if any(clumps[0][0].dtype[p].char in numpy.typecodes["AllInteger"]
@@ -542,5 +554,3 @@ def clumps_pos2cell(clumps, overlapper):
         for p in ('x', 'y', 'z'):
             clumps[n][0][p] = overlapper.pos2cell(clumps[n][0][p])
         clumps[n][0] = clumps[n][0].astype(dtype)
-
-    return clumps
