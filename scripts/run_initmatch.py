@@ -26,7 +26,6 @@ from mpi4py import MPI
 from distutils.util import strtobool
 from os.path import join
 from os import remove
-from sys import stdout
 from gc import collect
 try:
     import csiborgtools
@@ -57,8 +56,8 @@ fpermpart = join(dumpdir, "initmatch", "clump_{}_particles.npy")
 
 for nsim in nsims:
     if rank == 0:
-        print("{}: reading simulation {}.".format(datetime.now(), nsim))
-        stdout.flush()
+        print("{}: reading simulation {}.".format(datetime.now(), nsim),
+              flush=True)
 
     # Set the snapshot numbers
     init_paths.set_info(nsim, init_paths.get_minimum_snapshot(nsim))
@@ -88,8 +87,8 @@ for nsim in nsims:
     collect()
 
     if rank == 0:
-        print("{}: dumping clumps for simulation.".format(datetime.now()))
-        stdout.flush()
+        print("{}: dumping clumps for simulation.".format(datetime.now()),
+              flush=True)
 
     # Grab unique clump IDs and loop over them
     unique_clumpids = numpy.unique(clump_ids)
@@ -100,12 +99,17 @@ for nsim in nsims:
         n = unique_clumpids[i]
         x0 = part0[clump_ids == n]
 
-        # Center of mass
-        cm = numpy.asanyarray(
-            [numpy.average(x0[p], weights=x0["M"]) for p in ('x', 'y', 'z')])
+        # Center of mass and Lagrangian patch size
+        pos = numpy.vstack([x0[p] for p in ('x', 'y', 'z')]).T
+        cm = numpy.average(pos, axis=0, weights=x0['M'])
+        patch_size = numpy.max(numpy.linalg.norm(pos - cm, axis=1))
+
         # Dump the center of mass
         with open(ftemp.format(nsim, n, "cm"), 'wb') as f:
             numpy.save(f, cm)
+        # Dump the Lagrangian patch size
+        with open(ftemp.format(nsim, n, "patch_size"), 'wb') as f:
+            numpy.save(f, patch_size)
         # Optionally dump the entire clump
         if args.dump_clumps:
             with open(ftemp.format(nsim, n, "clump"), "wb") as f:
@@ -116,28 +120,37 @@ for nsim in nsims:
 
     comm.Barrier()
     if rank == 0:
-        print("Collecting CM files...")
-        stdout.flush()
-        # Collect the centre of masses and dump them
-        dtype = {"names": ['x', 'y', 'z', "ID"],
-                 "formats": [numpy.float32] * 3 + [numpy.int32]}
+        print("Collecting CM files...", flush=True)
+        # Collect the centre of masses, patch size, etc. and dump them
+        dtype = {"names": ['x', 'y', 'z', "patch_size", "ID"],
+                 "formats": [numpy.float32] * 4 + [numpy.int32]}
         out = numpy.full(njobs, numpy.nan, dtype=dtype)
 
         for i, n in enumerate(unique_clumpids):
+            # Load in CM vector
             fpath = ftemp.format(nsim, n, "cm")
-            with open(fpath, 'rb') as f:
+            with open(fpath, "rb") as f:
                 fin = numpy.load(f)
-            out['x'][i] = fin[0]
-            out['y'][i] = fin[1]
-            out['z'][i] = fin[2]
-            out["ID"][i] = n
+                out['x'][i] = fin[0]
+                out['y'][i] = fin[1]
+                out['z'][i] = fin[2]
             remove(fpath)
-        print("Dumping CM files to .. `{}`.".format(fpermcm.format(nsim)))
+
+            # Load in the patch size
+            fpath = ftemp.format(nsim, n, "patch_size")
+            with open(fpath, "rb") as f:
+                out["patch_size"][i] = numpy.load(f)
+            remove(fpath)
+
+            # Store the halo ID
+            out["ID"][i] = n
+
+        print("Dumping CM files to .. `{}`.".format(fpermcm.format(nsim)),
+              flush=True)
         with open(fpermcm.format(nsim), 'wb') as f:
             numpy.save(f, out)
 
-        print("Collecting clump files...")
-        stdout.flush()
+        print("Collecting clump files...", flush=True)
         out = [None] * unique_clumpids.size
         dtype = {"names": ["clump", "ID"], "formats": [object, numpy.int32]}
         out = numpy.full(unique_clumpids.size, numpy.nan, dtype=dtype)
@@ -148,7 +161,8 @@ for nsim in nsims:
             out["clump"][i] = fin
             out["ID"][i] = n
             remove(fpath)
-        print("Dumping clump files to .. `{}`.".format(fpermpart.format(nsim)))
+        print("Dumping clump files to .. `{}`.".format(fpermpart.format(nsim)),
+              flush=True)
         with open(fpermpart.format(nsim), "wb") as f:
             numpy.save(f, out)
 
