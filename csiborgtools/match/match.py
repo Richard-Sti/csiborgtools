@@ -309,6 +309,8 @@ class RealisationsMatcher:
                 if verbose:
                     print("Smoothed up the field.", flush=True)
                 # Convert positions to cell IDs only now after full delta
+#                # TODO why does this happen only now? Should be able to do it
+#                # above already.
                 clumps_pos2cell(clumpsx, overlapper)
                 # Precalculate min and max cell along each axis
                 minsx, maxsx = get_clumplims(clumpsx,
@@ -882,12 +884,37 @@ def spherical_overlap(R1, R2, d):
         return Vx / (R1**3 + R2**3 - Vx)
 
 
-def lagpatch_size(x, y, z, M, dr=0.0025, dqperc=1, minperc=50, defperc=95,
+def lagpatch_size(x, y, z, M, dr=0.0025, dqperc=1, minperc=75, defperc=95,
                   rmax=0.075):
     """
-    TODO:
-    - [ ] Test further and add documentation.
-    - [ ] Play around to ensure this is relaly sensible.
+    Calculate an approximate Lagrangian patch size in the initial conditions.
+    Returned as the first bin whose percentile drops by `dqperc` and is above
+    `minperc`. Note that all distances must be in box units.
+
+    Parameters
+    ----------
+    x, y, z : 1-dimensional arrays
+        Particle coordinates.
+    M : 1-dimensional array
+        Particle masses.
+    dr : float, optional
+        Separation spacing to evaluate q-th percentile change. Optional, by
+        default 0.0025
+    dqperc : int or float, optional
+        Change of q-th percentile in a bin to find a threshold separation.
+        Optional, by default 1.
+    minperc : int or float, optional
+        Minimum q-th percentile of separation to be considered a patch size.
+        Optional, by default 75.
+    defperc : int or float, optional
+        Default q-th percentile if reduction by `minperc` is not satisfied in
+        any bin. Optional. By default 95.
+    rmax : float, optional
+        The maximum allowed patch size. Optional, by default 0.075.
+
+    Returns
+    -------
+    size : float
     """
     # CM along each dimension
     cmx, cmy, cmz = [numpy.average(p, weights=M) for p in (x, y, z)]
