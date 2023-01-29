@@ -609,8 +609,6 @@ class ParticleOverlap:
                     [min(numpy.max(cell) + self.nshift, self.inv_clength)
                      for cell in cells])
 
-                print(mins, maxs)
-
             ncells = numpy.max(maxs - mins) + 1  # To get the number of cells
         else:
             mins = (0, 0, 0,)
