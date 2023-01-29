@@ -19,6 +19,7 @@ from scipy.ndimage import gaussian_filter
 from tqdm import (tqdm, trange)
 from astropy.coordinates import SkyCoord
 from numba import jit
+from gc import collect
 from ..read import (CombinedHaloCatalogue, concatenate_clumps, clumps_pos2cell)  # noqa
 
 
@@ -298,6 +299,7 @@ class RealisationsMatcher:
                           flush=True)
                 with open(paths.clump0_path(self.cats.n_sims[i]), 'rb') as f:
                     clumpsx = numpy.load(f, allow_pickle=True)
+                clumps_pos2cell(clumpsx, overlapper)
 
                 # Calculate the particle field
                 if verbose:
@@ -305,13 +307,10 @@ class RealisationsMatcher:
                           flush=True)
                 particles = concatenate_clumps(clumpsx)
                 delta = overlapper.make_delta(particles, to_smooth=False)
+                del particles; collect()  # noqa - no longer needed
                 delta = overlapper.smooth_highres(delta)
                 if verbose:
                     print("Smoothed up the field.", flush=True)
-                # Convert positions to cell IDs only now after full delta
-#                # TODO why does this happen only now? Should be able to do it
-#                # above already.
-                clumps_pos2cell(clumpsx, overlapper)
                 # Precalculate min and max cell along each axis
                 minsx, maxsx = get_clumplims(clumpsx,
                                              ncells=overlapper.inv_clength,
