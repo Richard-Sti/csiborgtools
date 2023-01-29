@@ -14,6 +14,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 import numpy
+from scipy.interpolate import interp1d
 from scipy.ndimage import gaussian_filter
 from tqdm import (tqdm, trange)
 from astropy.coordinates import SkyCoord
@@ -879,3 +880,39 @@ def spherical_overlap(R1, R2, d):
         Vx = (R1 + R2 - d)**2 / (16 * d)
         Vx *= (d**2 + 2 * d * (R1 + R2) + 6 * R1 * R2 - 3 * (R1**2 + R2**2))
         return Vx / (R1**3 + R2**3 - Vx)
+
+
+def lagpatch_size(x, y, z, M, dr=0.0025, dqperc=1, minperc=50, defperc=95,
+                  rmax=0.075):
+    """
+    TODO:
+    - [ ] Test further and add documentation.
+    - [ ] Play around to ensure this is relaly sensible.
+    """
+    # CM along each dimension
+    cmx, cmy, cmz = [numpy.average(p, weights=M) for p in (x, y, z)]
+    # Particle distance from the CM
+    sep = numpy.sqrt(numpy.square(x - cmx)
+                     + numpy.square(y - cmy)
+                     + numpy.square(z - cmz))
+
+    qs = numpy.linspace(0, 100, 100)  # Percentile: where to evaluate
+    per = numpy.percentile(sep, qs)   # Percentile: evaluated
+    sep2qs = interp1d(per, qs)        # Separation to q-th percentile
+
+    # Evaluate in q-th percentile in separation bins
+    sep_bin = numpy.arange(per[0], per[-1], dr)
+    q_bin = sep2qs(sep_bin)            # Evaluate for everyhing
+    dq_bin = (q_bin[1:] - q_bin[:-1])  # Take the difference
+    # Indices when q-th percentile changes below tolerance and is above limit
+    k = numpy.where((dq_bin < dqperc) & (q_bin[1:] > minperc))[0]
+
+    if k.size == 0:
+        return per[defperc]  # Nothing found, so default percentile
+    else:
+        k = k[0]  # Take the first one that satisfies the cut.
+
+    size = 0.5 * (sep_bin[k + 1] + sep_bin[k])  # Bin centre
+    size = rmax if size > rmax else size        # Enforce maximum size
+
+    return size
