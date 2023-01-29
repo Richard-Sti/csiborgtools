@@ -606,8 +606,10 @@ class ParticleOverlap:
                 mins = numpy.asanyarray(
                     [max(numpy.min(cell) - self.nshift, 0) for cell in cells])
                 maxs = numpy.asanyarray(
-                    [max(numpy.max(cell) + self.nshift, self.inv_clength)
+                    [min(numpy.max(cell) + self.nshift, self.inv_clength)
                      for cell in cells])
+
+                print(mins, maxs)
 
             ncells = numpy.max(maxs - mins) + 1  # To get the number of cells
         else:
