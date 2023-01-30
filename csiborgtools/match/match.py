@@ -158,7 +158,6 @@ class RealisationsMatcher:
     def cross_knn_position_single(self, n_sim, nmult=5, dlogmass=None,
                                   mass_kind="totpartmass", overlap=False,
                                   overlapper_kwargs={}, select_initial=True,
-                                  get_spherical_overlap=True,
                                   remove_nooverlap=True, verbose=True):
         r"""
         Find all neighbours within a multiple of either :math:`R_{\rm init}`
@@ -188,10 +187,6 @@ class RealisationsMatcher:
         select_initial : bool, optional
             Whether to select nearest neighbour at the initial or final
             snapshot. By default `True`, i.e. at the initial snapshot.
-        get_spherical_overlap : bool, optional
-            Whether to calculate the approximate spherical overlap in the
-            initial snapshot. The radii are considered to be patch sizes.
-            By default `True`.
         remove_nooverlap : bool, optional
             Whether to remove pairs with exactly zero overlap. By default
             `True`.
@@ -204,10 +199,8 @@ class RealisationsMatcher:
             Array, indices are `(n_sims - 1, 5, n_halos, n_matches)`. The
             2nd axis is `index` of the neighbouring halo in its catalogue,
             `dist` is the 3D distance to the halo whose neighbours are
-            searched, `dist0` is the separation of the initial CMs,
-            `overlap` is the overlap over the initial clumps, and
-            `spherical_overlap` is the approximate spherical overlap,
-            all respectively.
+            searched, `dist0` is the separation of the initial CMs, and
+            `overlap` is the overlap over the initial clumps, respectively.
         """
         self._check_masskind(mass_kind)
         # Halo properties of this simulation
@@ -277,19 +270,6 @@ class RealisationsMatcher:
                     dist[k] = numpy.linalg.norm(
                         pos0[k] - self.cats[i].positions0[indxs[k]], axis=1)
 
-            # Calculate the approximate spherical overlap
-            sphcross = [numpy.asanyarray([], dtype=numpy.float32)] * dist0.size
-            if select_initial and get_spherical_overlap:
-                for k in with_neigbours:
-                    sphcrosses = numpy.full(indxs[k].size, numpy.nan,
-                                            numpy.float32)
-                    for ii, ind in enumerate(indxs[k]):
-                        sphcrosses[ii] = spherical_overlap(
-                            R[k], self.cats[i]["patch_size"][ind],
-                            dist0[k][ii])
-
-                    sphcross[k] = sphcrosses
-
             # Calculate the initial snapshot overlap
             cross = [numpy.asanyarray([], dtype=numpy.float32)] * dist0.size
             if overlap:
@@ -347,23 +327,22 @@ class RealisationsMatcher:
                         dist[k] = dist[k][mask]
                         dist0[k] = dist0[k][mask]
                         cross[k] = cross[k][mask]
-                        sphcross[k] = sphcross[k][mask]
 
             # Append as a composite array. Flip dist order if not select_init
             if select_initial:
                 matches[count] = numpy.asarray(
-                    [indxs, dist, dist0, cross, sphcross], dtype=object)
+                    [indxs, dist, dist0, cross], dtype=object)
             else:
                 matches[count] = numpy.asarray(
-                    [indxs, dist0, dist, cross, sphcross], dtype=object)
+                    [indxs, dist0, dist, cross], dtype=object)
 
         return numpy.asarray(matches, dtype=object)
 
     def cross_knn_position_all(self, nmult=5, dlogmass=None,
                                mass_kind="totpartmass", init_dist=False,
                                overlap=False, overlapper_kwargs={},
-                               select_initial=True, get_spherical_overlap=True,
-                               remove_nooverlap=True, verbose=True):
+                               select_initial=True, remove_nooverlap=True,
+                               verbose=True):
         r"""
         Find all neighbours within :math:`n_{\rm mult} R_{200c}` of halos in
         all simulations listed in `self.cats`. Also enforces that the
@@ -392,10 +371,6 @@ class RealisationsMatcher:
         select_initial : bool, optional
             Whether to select nearest neighbour at the initial or final
             snapshot. By default `True`, i.e. at the initial snapshot.
-        get_spherical_overlap : bool, optional
-            Whether to calculate the approximate spherical overlap in the
-            initial snapshot. The radii are considered to be patch sizes.
-            By default `True`.
         remove_nooverlap : bool, optional
             Whether to remove pairs with exactly zero overlap. By default
             `True`.
@@ -417,7 +392,6 @@ class RealisationsMatcher:
                 init_dist=init_dist, overlap=overlap,
                 overlapper_kwargs=overlapper_kwargs,
                 select_initial=select_initial,
-                get_spherical_overlap=get_spherical_overlap,
                 remove_nooverlap=remove_nooverlap, verbose=verbose)
         return matches
 
@@ -850,37 +824,6 @@ def _calculate_overlap(delta1, delta2, cellmins, delta2_full):
     intersect *= 0.5
     weight = weight / count if count > 0 else 0.
     return weight * intersect / (totmass - intersect)
-
-
-@jit(nopython=True)
-def spherical_overlap(R1, R2, d):
-    """
-    Calculate the volume overlap between two spheres. Defined as their volume
-    intersection divided by their total volume without the intersection.
-
-
-    Parameters
-    ----------
-    R1, R2 : float
-        Radius of the two spheres.
-    d : float
-        Separation of the spheres' centres.
-
-    Returns
-    -------
-    overlap : float
-    """
-    # We want R1 >= R2 so optionally flip them.
-    if R2 > R1:
-        R1, R2 = R2, R1
-    if d < R1 - R2:  # If S2 is entirely in S1
-        return (R2 / R1)**3
-    elif d > R1 + R2:  # If too far
-        return 0.
-    else:
-        Vx = (R1 + R2 - d)**2 / (16 * d)
-        Vx *= (d**2 + 2 * d * (R1 + R2) + 6 * R1 * R2 - 3 * (R1**2 + R2**2))
-        return Vx / (R1**3 + R2**3 - Vx)
 
 
 def lagpatch_size(x, y, z, M, dr=0.0025, dqperc=1, minperc=75, defperc=95,
