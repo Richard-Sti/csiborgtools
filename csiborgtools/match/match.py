@@ -887,8 +887,8 @@ def lagpatch_size(x, y, z, M, dr=0.0025, dqperc=1, minperc=75, defperc=95,
                   rmax=0.075):
     """
     Calculate an approximate Lagrangian patch size in the initial conditions.
-    Returned as the first bin whose percentile drops by `dqperc` and is above
-    `minperc`. Note that all distances must be in box units.
+    Returned as the first bin whose percentile drops by less than `dqperc` and
+    is above `minperc`. Note that all distances must be in box units.
 
     Parameters
     ----------
