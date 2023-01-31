@@ -19,11 +19,9 @@ are grouped in a clump at present redshift.
 Optionally also dumps the clumps information, however watch out as this will
 eat up a lot of memory.
 """
-from argparse import ArgumentParser
 import numpy
 from datetime import datetime
 from mpi4py import MPI
-from distutils.util import strtobool
 from os.path import join
 from os import remove
 from gc import collect
@@ -33,11 +31,6 @@ except ModuleNotFoundError:
     import sys
     sys.path.append("../")
     import csiborgtools
-
-parser = ArgumentParser()
-parser.add_argument("--dump_clumps", default=False,
-                    type=lambda x: bool(strtobool(x)))
-args = parser.parse_args()
 
 # Get MPI things
 comm = MPI.COMM_WORLD
@@ -102,7 +95,8 @@ for nsim in nsims:
         # Center of mass and Lagrangian patch size
         pos = numpy.vstack([x0[p] for p in ('x', 'y', 'z')]).T
         cm = numpy.average(pos, axis=0, weights=x0['M'])
-        patch_size = numpy.max(numpy.linalg.norm(pos - cm, axis=1))
+        patch_size = csiborgtools.match.lagpatch_size(
+            *(x0[p] for p in ('x', 'y', 'z', 'M')))
 
         # Dump the center of mass
         with open(ftemp.format(nsim, n, "cm"), 'wb') as f:
@@ -110,10 +104,9 @@ for nsim in nsims:
         # Dump the Lagrangian patch size
         with open(ftemp.format(nsim, n, "patch_size"), 'wb') as f:
             numpy.save(f, patch_size)
-        # Optionally dump the entire clump
-        if args.dump_clumps:
-            with open(ftemp.format(nsim, n, "clump"), "wb") as f:
-                numpy.save(f, x0)
+        # Dump the entire clump
+        with open(ftemp.format(nsim, n, "clump"), "wb") as f:
+            numpy.save(f, x0)
 
     del part0, clump_ids
     collect()
