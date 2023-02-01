@@ -14,7 +14,6 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 import numpy
-from scipy.interpolate import interp1d
 from scipy.ndimage import gaussian_filter
 from tqdm import (tqdm, trange)
 from astropy.coordinates import SkyCoord
@@ -826,12 +825,10 @@ def _calculate_overlap(delta1, delta2, cellmins, delta2_full):
     return weight * intersect / (totmass - intersect)
 
 
-def lagpatch_size(x, y, z, M, dr=0.0025, dqperc=1, minperc=75, defperc=95,
-                  rmax=0.075):
+def lagpatch_persize(x, y, z, M, qs, sepmax=0.075):
     """
-    Calculate an approximate Lagrangian patch size in the initial conditions.
-    Returned as the first bin whose percentile drops by less than `dqperc` and
-    is above `minperc`. Note that all distances must be in box units.
+    Calculate q-the percentiles of separation from the CM. Used to approximate
+    the size of the initial Lagrangian patch.
 
     Parameters
     ----------
@@ -839,24 +836,12 @@ def lagpatch_size(x, y, z, M, dr=0.0025, dqperc=1, minperc=75, defperc=95,
         Particle coordinates.
     M : 1-dimensional array
         Particle masses.
-    dr : float, optional
-        Separation spacing to evaluate q-th percentile change. Optional, by
-        default 0.0025
-    dqperc : int or float, optional
-        Change of q-th percentile in a bin to find a threshold separation.
-        Optional, by default 1.
-    minperc : int or float, optional
-        Minimum q-th percentile of separation to be considered a patch size.
-        Optional, by default 75.
-    defperc : int or float, optional
-        Default q-th percentile if reduction by `minperc` is not satisfied in
-        any bin. Optional. By default 95.
-    rmax : float, optional
-        The maximum allowed patch size. Optional, by default 0.075.
+    qs : 1-dimensional array
+        Percentiles to compute.
 
     Returns
     -------
-    size : float
+    size : 1-dimensional array
     """
     # CM along each dimension
     cmx, cmy, cmz = [numpy.average(p, weights=M) for p in (x, y, z)]
@@ -865,23 +850,6 @@ def lagpatch_size(x, y, z, M, dr=0.0025, dqperc=1, minperc=75, defperc=95,
                      + numpy.square(y - cmy)
                      + numpy.square(z - cmz))
 
-    qs = numpy.linspace(0, 100, 100)  # Percentile: where to evaluate
-    per = numpy.percentile(sep, qs)   # Percentile: evaluated
-    sep2qs = interp1d(per, qs)        # Separation to q-th percentile
-
-    # Evaluate in q-th percentile in separation bins
-    sep_bin = numpy.arange(per[0], per[-1], dr)
-    q_bin = sep2qs(sep_bin)            # Evaluate for everyhing
-    dq_bin = (q_bin[1:] - q_bin[:-1])  # Take the difference
-    # Indices when q-th percentile changes below tolerance and is above limit
-    k = numpy.where((dq_bin < dqperc) & (q_bin[1:] > minperc))[0]
-
-    if k.size == 0:
-        return per[defperc]  # Nothing found, so default percentile
-    else:
-        k = k[0]  # Take the first one that satisfies the cut.
-
-    size = 0.5 * (sep_bin[k + 1] + sep_bin[k])  # Bin centre
-    size = rmax if size > rmax else size        # Enforce maximum size
-
-    return size
+    sizes = numpy.percentile(sep, qs)
+    sizes[sizes > sepmax] = sepmax  # Enforce the upper limit
+    return sizes
