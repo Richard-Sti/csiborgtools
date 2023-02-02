@@ -189,7 +189,9 @@ class HaloCatalogue:
         # And do the unit transform
         if initcm is not None:
             data = self.box.convert_from_boxunits(
-                data, ["x0", "y0", "z0", "patch_size"])
+                data, ["x0", "y0", "z0", "patch95", "patch98", "patch100"])
+#            data = self.box.convert_from_boxunits(
+#                data, ["x0", "y0", "z0"])
             self._positions0 = numpy.vstack(
                 [data["{}0".format(p)] for p in ("x", "y", "z")]).T
             self._positions0 = self._positions0.astype(numpy.float32)
@@ -257,10 +259,12 @@ class HaloCatalogue:
             raise ValueError(
                 "Ordering of `initcat` and `clumps` is inconsistent.")
 
-        X = numpy.full((clumps.size, 4), numpy.nan)
-        for i, p in enumerate(['x', 'y', 'z', "patch_size"]):
+        X = numpy.full((clumps.size, 6), numpy.nan)
+        for i, p in enumerate(['x', 'y', 'z', "patch95", "patch98",
+                               "patch100"]):
             X[:, i] = initcat[p]
-        return add_columns(clumps, X, ["x0", "y0", "z0", "patch_size"])
+        return add_columns(clumps, X, ["x0", "y0", "z0", "patch95",
+                                       "patch98", "patch100"])
 
     @property
     def positions(self):

@@ -26,7 +26,7 @@ from ..read import ParticleReader
 # Map of unit conversions
 CONV_NAME = {
     "length": ["peak_x", "peak_y", "peak_z", "Rs", "rmin", "rmax", "r200",
-               "r500", "x0", "y0", "z0", "patch_size"],
+               "r500", "x0", "y0", "z0", "patch95", "patch98", "patch100"],
     "mass": ["mass_cl", "totpartmass", "m200", "m500", "mass_mmain"],
     "density": ["rho0"]
     }
