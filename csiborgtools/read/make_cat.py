@@ -130,6 +130,28 @@ class HaloCatalogue:
         """
         return self.paths.n_sim
 
+    @property
+    def knn(self):
+        """
+        The final snapshot k-nearest neighbour object.
+
+        Returns
+        -------
+        knn : :py:class:`sklearn.neighbors.NearestNeighbors`
+        """
+        return self._knn
+
+    @property
+    def knn0(self):
+        """
+        The initial snapshot k-nearest neighbour object.
+
+        Returns
+        -------
+        knn : :py:class:`sklearn.neighbors.NearestNeighbors`
+        """
+        return self._knn0
+
     def _set_data(self, min_m500, max_dist):
         """
         Loads the data, merges with mmain, does various coordinate transforms.
