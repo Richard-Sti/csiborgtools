@@ -207,7 +207,7 @@ class RealisationsMatcher:
         pos = self.cats[n_sim].positions        # Grav potential minimum
         pos0 = self.cats[n_sim].positions0      # CM positions
         if select_initial:
-            R = self.cats[n_sim]["patch_size"]  # Initial Lagrangian patch size
+            R = self.cats[n_sim]["patch95"]     # Initial Lagrangian patch size
         else:
             R = self.cats[n_sim]["r200"]        # R200c at z = 0
 
