@@ -154,15 +154,18 @@ class RealisationsMatcher:
         mapping[ind2] = ind1
         return mapping
 
-    def cross_knn_position_single(self, n_sim, nmult=5, dlogmass=None,
+    def cross_knn_position_single(self, n_sim, nmult=1, dlogmass=None,
                                   mass_kind="totpartmass", overlap=False,
                                   overlapper_kwargs={}, select_initial=True,
                                   remove_nooverlap=True, verbose=True):
         r"""
-        Find all neighbours within a multiple of either :math:`R_{\rm init}`
-        (distance at :math:`z = 70`) or :math:`R_{200c}` (distance at
-        :math:`z = 0`) of halos in the `nsim`th simulation. Enforces that the
-        neighbours' are similar in mass up to `dlogmass` dex.
+        Find all neighbours within a multiple of the sum of either the initial
+        Lagrangian patch sizes (distance at :math:`z = 70`) or :math:`R_{200c}`
+        (distance at :math:`z = 0`). Enforces that the neighbours' are similar
+        in mass up to `dlogmass` dex and optionally calculates their overlap.
+
+        TODO: later completely remove the option of not selecting in the
+        initial snapshot.
 
         Parameters
         ----------
@@ -170,8 +173,8 @@ class RealisationsMatcher:
             Index of an IC realisation in `self.cats` whose halos' neighbours
             in the remaining simulations to search for.
         nmult : float or int, optional
-            Multiple of :math:`R_{\rm init}` or :math:`R_{200c}` within which
-            to return neighbours. By default 5.
+            Multiple of the sum of pair Lagrangian patch sizes or
+            :math:`R_{200c}` within which to return neighbours. By default 1.
         dlogmass : float, optional
             Tolerance on mass logarithmic mass difference. By default `None`.
         mass_kind : str, optional
@@ -237,13 +240,21 @@ class RealisationsMatcher:
         iters = enumerate(self.search_sim_indices(n_sim))
         # Search for neighbours in the other simulations at z = 70
         for count, i in iters:
+            if verbose:
+                print("Querying the KNN for `n_sim = {}`.".format(n_sim),
+                      flush=True)
+
             if select_initial:
-                dist0, indxs = self.cats[i].radius_initial_neigbours(
-                    pos0, R * nmult)
+                dist0, indxs = radius_neighbours(
+                    self.cats[i].knn0, pos0, radiusX=R,
+                    radiusKNN=self.cats[i]["patch95"], nmult=nmult,
+                    verbose=verbose)
             else:
                 # Will switch dist0 <-> dist at the end
-                dist0, indxs = self.cats[i].radius_neigbours(
-                    pos, R * nmult)
+                dist0, indxs = radius_neighbours(
+                    self.cats[i].knn, pos, radiusX=R,
+                    radiusKNN=self.cats[i]["r200"], nmult=nmult,
+                    verbose=verbose)
             # Enforce int32 and float32
             for n in range(dist0.size):
                 dist0[n] = dist0[n].astype(numpy.float32)
@@ -337,30 +348,26 @@ class RealisationsMatcher:
 
         return numpy.asarray(matches, dtype=object)
 
-    def cross_knn_position_all(self, nmult=5, dlogmass=None,
-                               mass_kind="totpartmass", init_dist=False,
-                               overlap=False, overlapper_kwargs={},
+    def cross_knn_position_all(self, nmult=1, dlogmass=None,
+                               mass_kind="totpartmass", overlap=False,
+                               overlapper_kwargs={},
                                select_initial=True, remove_nooverlap=True,
                                verbose=True):
         r"""
-        Find all neighbours within :math:`n_{\rm mult} R_{200c}` of halos in
-        all simulations listed in `self.cats`. Also enforces that the
-        neighbours' :math:`\log M_{200c}` be within `dlogmass` dex.
+        Find all counterparts of halos in all simulations listed in
+        `self.cats`. See `self.cross_knn_position_single` for more details.
 
         Parameters
         ----------
         nmult : float or int, optional
-            Multiple of :math:`R_{200c}` within which to return neighbours. By
-            default 5.
+            Multiple of the sum of pair Lagrangian patch sizes or
+            :math:`R_{200c}` within which to return neighbours. By default 1.
         dlogmass : float, optional
             Tolerance on mass logarithmic mass difference. By default `None`.
         mass_kind : str, optional
             The mass kind whose similarity is to be checked. Must be a valid
             catalogue key. By default `totpartmass`, i.e. the total particle
             mass associated with a halo.
-        init_dist : bool, optional
-            Whether to calculate separation of the initial CMs. By default
-            `False`.
         overlap : bool, optional
             Whether to calculate overlap between clumps in the initial
             snapshot. By default `False`. Note that this operation is
@@ -387,8 +394,7 @@ class RealisationsMatcher:
         # Loop over each catalogue
         for i in trange(N) if verbose else range(N):
             matches[i] = self.cross_knn_position_single(
-                i, nmult, dlogmass, mass_kind=mass_kind,
-                init_dist=init_dist, overlap=overlap,
+                i, nmult, dlogmass, mass_kind=mass_kind, overlap=overlap,
                 overlapper_kwargs=overlapper_kwargs,
                 select_initial=select_initial,
                 remove_nooverlap=remove_nooverlap, verbose=verbose)
@@ -853,3 +859,55 @@ def lagpatch_persize(x, y, z, M, qs, sepmax=0.075):
     sizes = numpy.percentile(sep, qs)
     sizes[sizes > sepmax] = sepmax  # Enforce the upper limit
     return sizes
+
+
+def radius_neighbours(knn, X, radiusX, radiusKNN, nmult=1., verbose=True):
+    """
+    Find all neigbours of a trained KNN model whose center of mass separation
+    is less than `nmult` times the sum of their respective radii.
+
+    Parameters
+    ----------
+    knn : :py:class:`sklearn.neighbors.NearestNeighbors`
+        Fitted nearest neighbour search.
+    X : 2-dimensional array
+        Array of shape `(n_samples, 3)`, where the latter axis represents
+        `x`, `y` and `z`.
+    radiusX: 1-dimensional array of shape `(n_samples, )`
+        Patch radii corresponding to clumps in `X`.
+    radiusKNN : 1-dimensional array
+        Patch radii corresponding to clumps used to train `knn`.
+    nmult : float, optional
+        Multiple of the sum of two radii below which to consider a match.
+    verbose : bool, optional
+        Verbosity flag.
+
+    Returns
+    -------
+    dists : 1-dimensional array `(n_samples,)` of arrays
+        Distance from `X` to matches from `knn`.
+    indxs : 1-dimensional array `(n_samples,)` of arrays
+        Matches to `X` from `knn`.
+    """
+    assert X.ndim == 2 and X.shape[1] == 3       # shape of X ok?
+    assert X.shape[0] == radiusX.size            # patchX matches X?
+    assert radiusKNN.size == knn.n_samples_fit_  # patchknn matches the knn?
+
+    nsamples = X.shape[0]
+    dists = [None] * nsamples            # Initiate lists
+    indxs = [None] * nsamples
+    patchknn_max = numpy.max(radiusKNN)  # Maximum for completeness
+
+    for i in trange(nsamples) if verbose else range(nsamples):
+        dist, indx = knn.radius_neighbors(X[i, :].reshape(-1, 3),
+                                          radiusX[i] + patchknn_max,
+                                          sort_results=True)
+        # Note that `dist` and `indx` are wrapped in 1-element arrays
+        # so we take the first item where appropriate
+        mask = (dist[0] / (radiusX[i] + radiusKNN[indx[0]])) < nmult
+        dists[i] = dist[0][mask]
+        indxs[i] = indx[0][mask]
+
+    dists = numpy.asarray(dists, dtype=object)  # Turn into array of arrays
+    indxs = numpy.asarray(indxs, dtype=object)
+    return dists, indxs
