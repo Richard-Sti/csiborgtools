@@ -14,7 +14,8 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 from .readsim import (CSiBORGPaths, ParticleReader, read_mmain, read_initcm, halfwidth_select)  # noqa
-from .make_cat import (HaloCatalogue, CombinedHaloCatalogue, concatenate_clumps, clumps_pos2cell)  # noqa
+from .make_cat import (HaloCatalogue, CombinedHaloCatalogue, concatenate_clumps,  # noqa
+                       clumps_pos2cell, radius_neighbours)  # noqa
 from .readobs import (PlanckClusters, MCXCClusters, TwoMPPGalaxies,  # noqa
                       TwoMPPGroups, SDSS)  # noqa
 from .outsim import (dump_split, combine_splits, make_ascii_powmes)  # noqa
