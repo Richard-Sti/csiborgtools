@@ -15,6 +15,6 @@
 
 from .match import (brute_spatial_separation, RealisationsMatcher, cosine_similarity,  # noqa
                     ParticleOverlap, get_clumplims, lagpatch_persize, fill_delta,  # noqa
-                    fill_delta_indxs)  # noqa
+                    fill_delta_indxs, calculate_overlap, calculate_overlap_indxs)  # noqa
 from .num_density import (binned_counts, number_density)  # noqa
 # from .correlation import (get_randoms_sphere, sphere_angular_tpcf) # noqa
