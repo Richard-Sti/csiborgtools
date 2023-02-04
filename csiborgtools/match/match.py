@@ -327,8 +327,9 @@ class RealisationsMatcher:
                     # Find which clump matches index of this halo from cat
                     match0 = cat2clumps0[k]
 
-                    # Unpack this clum and its mins and maxs
+                    # Unpack this clum, its mamss and mins and maxs
                     cl0 = clumps0["clump"][match0]
+                    mass0 = numpy.sum(cl0['M'])
                     mins0_current, maxs0_current = mins0[match0], maxs0[match0]
                     # Preallocate this array.
                     crosses = numpy.full(indxs[k].size, numpy.nan,
@@ -338,10 +339,11 @@ class RealisationsMatcher:
                     for ii, ind in enumerate(indxs[k]):
                         # Again which cross clump to this index
                         matchx = cat2clumpsx[ind]
+                        clx = clumpsx["clump"][matchx]
                         crosses[ii] = overlapper(
-                            cl0, clumpsx["clump"][matchx], delta,
-                            mins0_current, maxs0_current,
-                            minsx[matchx], maxsx[matchx])
+                            cl0, clx, delta, mins0_current, maxs0_current,
+                            minsx[matchx], maxsx[matchx],
+                            mass1=mass0, mass2=numpy.sum(clx))
 
                     cross[k] = crosses
                     # Optionally remove points whose overlap is exaclt zero
@@ -641,7 +643,9 @@ class ParticleOverlap:
             Density arrays of `clump1` and `clump2`, respectively.
         cellmins : len-3 tuple
             Tuple of left-most cell ID in the full box.
-        TODO
+        nonzero1 : 2-dimensional array
+            Indices where `delta1` has a non-zero density. If `return_nonzero1`
+            is `False` return `None` instead.
         """
         xc1, yc1, zc1 = (self.pos2cell(clump1[p]) for p in ('x', 'y', 'z'))
         xc2, yc2, zc2 = (self.pos2cell(clump2[p]) for p in ('x', 'y', 'z'))
@@ -708,7 +712,8 @@ class ParticleOverlap:
         return calculate_overlap(delta1, delta2, cellmins, delta2_full)
 
     def __call__(self, clump1, clump2, delta2_full, mins1=None, maxs1=None,
-                 mins2=None, maxs2=None):
+                 mins2=None, maxs2=None, mass1=None, mass2=None,
+                 loop_nonzero=True):
         """
         Calculate overlap between `clump1` and `clump2`. See
         `self.overlap(...)` and `self.make_deltas(...)` for further
@@ -730,14 +735,26 @@ class ParticleOverlap:
         mins2, maxs2 : 1-dimensional arrays of shape `(3,)`
             Minimun and maximum cell numbers along each dimension of `clump2`.
             Optional.
+        mass1, mass2 : floats, optional
+            Total mass of `clump1` and `clump2`, respectively. Must be provided
+            if `loop_nonzero` is `True`.
+        loop_nonzer : bool, optional
+            Whether to only loop over cells where `clump1` has non-zero
+            density. By default `True`.
 
         Returns
         -------
         overlap : float
         """
-        delta1, delta2, cellmins = self.make_deltas(
-            clump1, clump2, mins1, maxs1, mins2, maxs2)
-        return calculate_overlap(delta1, delta2, cellmins, delta2_full)
+        delta1, delta2, cellmins, nonzero1 = self.make_deltas(
+            clump1, clump2, mins1, maxs1, mins2, maxs2,
+            return_nonzero1=loop_nonzero)
+
+        if not loop_nonzero:
+            return calculate_overlap(delta1, delta2, cellmins, delta2_full)
+
+        return calculate_overlap_indxs(delta1, delta2, cellmins, delta2_full,
+                                       nonzero1, mass1, mass2)
 
 
 @jit(nopython=True)
@@ -928,7 +945,7 @@ def calculate_overlap_indxs(delta1, delta2, cellmins, delta2_full, nonzero1,
         i, j, k = nonzero1[n, :]
         cell1, cell2 = delta1[i, j, k], delta2[i, j, k]
 
-        if cell1 * cell2 > 0:
+        if cell2 > 0:  # We already know that cell1 is non-zero
             intersect += cell1 + cell2
             weight += cell2 / delta2_full[i0 + i, j0 + j, k0 + k]
             count += 1
