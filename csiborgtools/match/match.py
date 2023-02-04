@@ -953,34 +953,49 @@ def calculate_overlap_indxs(delta1, delta2, cellmins, delta2_full, nonzero1,
     return weight * intersect / (totmass - intersect)
 
 
-def lagpatch_persize(x, y, z, M, qs, sepmax=0.075):
+def dist_centmass(clump):
     """
-    Calculate q-the percentiles of separation from the CM. Used to approximate
-    the size of the initial Lagrangian patch.
+    Calculate the clump particles' distance from the centre of mass.
 
     Parameters
     ----------
-    x, y, z : 1-dimensional arrays
-        Particle coordinates.
-    M : 1-dimensional array
-        Particle masses.
-    qs : 1-dimensional array
-        Percentiles to compute.
+    clump : structurered arrays
+        Clump structured array. Keyes must include `x`, `y`, `z` and `M`.
 
     Returns
     -------
     size : 1-dimensional array
     """
     # CM along each dimension
-    cmx, cmy, cmz = [numpy.average(p, weights=M) for p in (x, y, z)]
+    cmx, cmy, cmz = [numpy.average(clump[p], weights=clump['M'])
+                     for p in ('x', 'y', 'z')]
     # Particle distance from the CM
-    sep = numpy.sqrt(numpy.square(x - cmx)
-                     + numpy.square(y - cmy)
-                     + numpy.square(z - cmz))
+    sep = numpy.sqrt(numpy.square(clump['x'] - cmx)
+                     + numpy.square(clump['y'] - cmy)
+                     + numpy.square(clump['z'] - cmz))
+    return sep
 
-    sizes = numpy.percentile(sep, qs)
-    sizes[sizes > sepmax] = sepmax  # Enforce the upper limit
-    return sizes
+
+def dist_percentile(dist, qs, distmax=0.075):
+    """
+    Calculate q-th percentiles of `dist`, with an upper limit of `distmax`.
+
+    Parameters
+    ----------
+    dist : 1-dimensional array
+        Array of distances.
+    qs : 1-dimensional array
+        Percentiles to compute.
+    distmax : float, optional
+        The maximum distance. By default 0.075.
+
+    Returns
+    -------
+    x : 1-dimensional array
+    """
+    x = numpy.percentile(dist, qs)
+    x[x > distmax] = distmax  # Enforce the upper limit
+    return x
 
 
 def radius_neighbours(knn, X, radiusX, radiusKNN, nmult=1., verbose=True):
