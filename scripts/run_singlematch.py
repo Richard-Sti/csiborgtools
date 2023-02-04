@@ -28,10 +28,10 @@ import utils
 
 # File paths
 fperm = join(utils.dumpdir, "overlap", "cross_{}.npy")
-nmult = 0.25
-overlap = False
-select_initial = False
-fast_neighbours = True
+nmult = 0.5
+overlap = True
+select_initial = True
+fast_neighbours = False
 
 
 paths = csiborgtools.read.CSiBORGPaths(to_new=False)
