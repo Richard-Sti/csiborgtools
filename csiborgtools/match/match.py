@@ -165,9 +165,6 @@ class RealisationsMatcher:
         (distance at :math:`z = 0`). Enforces that the neighbours' are similar
         in mass up to `dlogmass` dex and optionally calculates their overlap.
 
-        TODO: later completely remove the option of not selecting in the
-        initial snapshot.
-
         Parameters
         ----------
         n_sim : int
