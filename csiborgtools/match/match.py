@@ -157,7 +157,8 @@ class RealisationsMatcher:
     def cross_knn_position_single(self, n_sim, nmult=1, dlogmass=None,
                                   mass_kind="totpartmass", overlap=False,
                                   overlapper_kwargs={}, select_initial=True,
-                                  remove_nooverlap=True, verbose=True):
+                                  remove_nooverlap=True, fast_neighbours=False,
+                                  verbose=True):
         r"""
         Find all neighbours within a multiple of the sum of either the initial
         Lagrangian patch sizes (distance at :math:`z = 70`) or :math:`R_{200c}`
@@ -192,6 +193,11 @@ class RealisationsMatcher:
         remove_nooverlap : bool, optional
             Whether to remove pairs with exactly zero overlap. By default
             `True`.
+        fast_neighbours : bool, optional
+            Whether to calculate neighbours within a fixed radius of each
+            clump. Note that this will result in missing some matches. If
+            `True` then `nmult` is a multiple of either the initial patch size
+            of :math:`R_{200c}`.
         verbose : bool, optional
             Iterator verbosity flag. By default `True`.
 
@@ -243,18 +249,26 @@ class RealisationsMatcher:
             if verbose:
                 print("Querying the KNN for `n_sim = {}`.".format(n_sim),
                       flush=True)
-
+            # Query the KNN either fast (miss some) or slow (get all)
             if select_initial:
-                dist0, indxs = radius_neighbours(
-                    self.cats[i].knn0, pos0, radiusX=R,
-                    radiusKNN=self.cats[i]["patch95"], nmult=nmult,
-                    verbose=verbose)
+                if fast_neighbours:
+                    dist0, indxs = self.cats[i].radius_initial_neigbours(
+                        pos0, R * nmult)
+                else:
+                    dist0, indxs = radius_neighbours(
+                        self.cats[i].knn0, pos0, radiusX=R,
+                        radiusKNN=self.cats[i]["patch95"], nmult=nmult,
+                        verbose=verbose)
             else:
                 # Will switch dist0 <-> dist at the end
-                dist0, indxs = radius_neighbours(
-                    self.cats[i].knn, pos, radiusX=R,
-                    radiusKNN=self.cats[i]["r200"], nmult=nmult,
-                    verbose=verbose)
+                if fast_neighbours:
+                    dist0, indxs = self.cats[i].radius_neigbours(
+                        pos, R * nmult)
+                else:
+                    dist0, indxs = radius_neighbours(
+                        self.cats[i].knn, pos, radiusX=R,
+                        radiusKNN=self.cats[i]["r200"], nmult=nmult,
+                        verbose=verbose)
             # Enforce int32 and float32
             for n in range(dist0.size):
                 dist0[n] = dist0[n].astype(numpy.float32)
@@ -740,8 +754,33 @@ def fill_delta(delta, xcell, ycell, zcell, xmin, ymin, zmin, weights):
     -------
     None
     """
-    for i in range(xcell.size):
-        delta[xcell[i] - xmin, ycell[i] - ymin, zcell[i] - zmin] += weights[i]
+#    # TODO: think about whether to do this
+#    delta[...] *= 0.
+    for n in range(xcell.size):
+        delta[xcell[n] - xmin, ycell[n] - ymin, zcell[n] - zmin] += weights[n]
+
+
+# @jit(nopython=True)
+# def fill_delta_indxs(delta, xcell, ycell, zcell, xmin, ymin, zmin, weights):
+#
+#     # TODO: think about whether to do this
+#     delta[...] *= 0.
+#
+#     cells = numpy.full((xcell.size, 3), numpy.nan, numpy.int32)
+#
+#     count = 0
+#     for n in range(xcell.size):
+#         i, j, k = xcell[n] - xmin, ycell[n] - ymin, zcell[n] - zmin
+#
+#         if delta[i, j, k] == 0:
+#             cells[count, :] = i, j, k
+#             count += 1
+#
+#         delta[i, j, k] += weights[n]
+#
+#     cells = cells[:count, :]
+#
+#     return delta, cells
 
 
 def get_clumplims(clumps, ncells, nshift=None):
