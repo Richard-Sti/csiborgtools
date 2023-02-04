@@ -20,6 +20,8 @@ Optionally also dumps the clumps information, however watch out as this will
 eat up a lot of memory.
 """
 import numpy
+from argparse import ArgumentParser
+from distutils.util import strtobool
 from datetime import datetime
 from mpi4py import MPI
 from os.path import join
@@ -36,6 +38,11 @@ except ModuleNotFoundError:
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 nproc = comm.Get_size()
+
+# Argument parser
+parser = ArgumentParser()
+parser.add_argument("--dump_clumps", type=lambda x: bool(strtobool(x)))
+args = parser.parse_args()
 
 init_paths = csiborgtools.read.CSiBORGPaths(to_new=True)
 fin_paths = csiborgtools.read.CSiBORGPaths(to_new=False)
@@ -103,15 +110,17 @@ for nsim in nsims:
         with open(ftemp.format(nsim, n, "lagpatch"), 'wb') as f:
             numpy.save(f, patch)
         # Dump the entire clump
-        with open(ftemp.format(nsim, n, "clump"), "wb") as f:
-            numpy.save(f, x0)
+        if args.dump_clumps:
+            with open(ftemp.format(nsim, n, "clump"), "wb") as f:
+                numpy.save(f, x0)
 
     del part0, clump_ids
     collect()
 
     comm.Barrier()
     if rank == 0:
-        print("Collecting CM files...", flush=True)
+        print("{}: collecting summary files...".format(datetime.now()),
+              flush=True)
         # Collect the centre of masses, patch size, etc. and dump them
         dtype = {"names": ['x', 'y', 'z', "lagpatch", "ID"],
                  "formats": [numpy.float32] * 4 + [numpy.int32]}
@@ -136,26 +145,29 @@ for nsim in nsims:
             # Store the halo ID
             out["ID"][i] = n
 
-        print("Dumping CM files to .. `{}`.".format(fpermcm.format(nsim)),
-              flush=True)
+        print("{}: dumping to .. `{}`.".format(
+            datetime.now(), fpermcm.format(nsim)), flush=True)
         with open(fpermcm.format(nsim), 'wb') as f:
             numpy.save(f, out)
 
-        print("Collecting clump files...", flush=True)
-        out = [None] * unique_clumpids.size
-        dtype = {"names": ["clump", "ID"], "formats": [object, numpy.int32]}
-        out = numpy.full(unique_clumpids.size, numpy.nan, dtype=dtype)
-        for i, n in enumerate(unique_clumpids):
-            fpath = ftemp.format(nsim, n, "clump")
-            with open(fpath, 'rb') as f:
-                fin = numpy.load(f)
-            out["clump"][i] = fin
-            out["ID"][i] = n
-            remove(fpath)
-        print("Dumping clump files to .. `{}`.".format(fpermpart.format(nsim)),
-              flush=True)
-        with open(fpermpart.format(nsim), "wb") as f:
-            numpy.save(f, out)
+        if args.dump_clumps:
+            print("{}: collecting particle files...".format(datetime.now()),
+                  flush=True)
+            out = [None] * unique_clumpids.size
+            dtype = {"names": ["clump", "ID"],
+                     "formats": [object, numpy.int32]}
+            out = numpy.full(unique_clumpids.size, numpy.nan, dtype=dtype)
+            for i, n in enumerate(unique_clumpids):
+                fpath = ftemp.format(nsim, n, "clump")
+                with open(fpath, 'rb') as f:
+                    fin = numpy.load(f)
+                out["clump"][i] = fin
+                out["ID"][i] = n
+                remove(fpath)
+            print("{}: dumping to .. `{}`.".format(
+                datetime.now(), fpermpart.format(nsim)), flush=True)
+            with open(fpermpart.format(nsim), "wb") as f:
+                numpy.save(f, out)
 
-        del out
-        collect()
+            del out
+            collect()
