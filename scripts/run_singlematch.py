@@ -16,6 +16,8 @@
 Script to test running the CSiBORG realisations matcher.
 """
 import numpy
+from argparse import ArgumentParser
+from distutils.util import strtobool
 from datetime import datetime
 from os.path import join
 try:
@@ -26,16 +28,19 @@ except ModuleNotFoundError:
     import csiborgtools
 import utils
 
-# File paths
-fperm = join(utils.dumpdir, "overlap", "cross_{}.npy")
-nmult = 1.0
-overlap = True
-select_initial = True
-fast_neighbours = False
+# Argument parser
+parser = ArgumentParser()
+parser.add_argument("--nmult", type=float)
+parser.add_argument("--overlap", type=lambda x: bool(strtobool(x)))
+parser.add_argument("--select_initial", type=lambda x: bool(strtobool(x)))
+parser.add_argument("--fast_neighbours", type=lambda x: bool(strtobool(x)))
+args = parser.parse_args()
 
+# File paths
+ic = 7468
+fperm = join(utils.dumpdir, "overlap", "cross_{}.npy")
 
 paths = csiborgtools.read.CSiBORGPaths(to_new=False)
-ic = 7468
 paths.set_info(ic, paths.get_maximum_snapshot(ic))
 
 print("{}: loading catalogues.".format(datetime.now()), flush=True)
@@ -49,8 +54,8 @@ nsimx = cat.n_sims[1]
 print("{}: crossing the simulations.".format(datetime.now()), flush=True)
 
 out = matcher.cross_knn_position_single(
-    0, nmult=nmult, dlogmass=2., overlap=overlap,
-    select_initial=select_initial, fast_neighbours=fast_neighbours)
+    0, nmult=args.nmult, dlogmass=2., overlap=args.soverlap,
+    select_initial=args.select_initial, fast_neighbours=args.fast_neighbours)
 
 # Dump the result
 fout = fperm.format(nsim0)
