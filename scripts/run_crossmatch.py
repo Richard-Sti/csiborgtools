@@ -14,6 +14,10 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 MPI script to run the CSiBORG realisations matcher.
+
+TODO
+----
+    - [ ] Update this script
 """
 import numpy
 from datetime import datetime
