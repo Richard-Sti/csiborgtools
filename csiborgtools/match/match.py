@@ -964,16 +964,20 @@ def dist_centmass(clump):
 
     Returns
     -------
-    size : 1-dimensional array
+    dist : 1-dimensional array of shape `(n_particles, )`
+        Particle distance from the centre of mass.
+    cm : 1-dimensional array of shape `(3,)`
+        Center of mass coordinates.
     """
     # CM along each dimension
     cmx, cmy, cmz = [numpy.average(clump[p], weights=clump['M'])
                      for p in ('x', 'y', 'z')]
     # Particle distance from the CM
-    sep = numpy.sqrt(numpy.square(clump['x'] - cmx)
-                     + numpy.square(clump['y'] - cmy)
-                     + numpy.square(clump['z'] - cmz))
-    return sep
+    dist = numpy.sqrt(numpy.square(clump['x'] - cmx)
+                      + numpy.square(clump['y'] - cmy)
+                      + numpy.square(clump['z'] - cmz))
+
+    return dist, numpy.asarray([cmx, cmy, cmz])
 
 
 def dist_percentile(dist, qs, distmax=0.075):
