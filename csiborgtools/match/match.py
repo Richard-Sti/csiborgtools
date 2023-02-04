@@ -618,7 +618,7 @@ class ParticleOverlap:
         return delta
 
     def make_deltas(self, clump1, clump2, mins1=None, maxs1=None,
-                    mins2=None, maxs2=None):
+                    mins2=None, maxs2=None, return_nonzero1=False):
         """
         Calculate a NGP density fields of two halos on a grid that encloses
         them both.
@@ -641,6 +641,7 @@ class ParticleOverlap:
             Density arrays of `clump1` and `clump2`, respectively.
         cellmins : len-3 tuple
             Tuple of left-most cell ID in the full box.
+        TODO
         """
         xc1, yc1, zc1 = (self.pos2cell(clump1[p]) for p in ('x', 'y', 'z'))
         xc2, yc2, zc2 = (self.pos2cell(clump2[p]) for p in ('x', 'y', 'z'))
@@ -667,16 +668,22 @@ class ParticleOverlap:
         cellmins = (xmin, ymin, zmin, )  # Cell minima
         ncells = max(xmax - xmin, ymax - ymin, zmax - zmin) + 1  # Num cells
 
-        # Preallocate and fill the array
+        # Preallocate and fill the arrays
         delta1 = numpy.zeros((ncells,)*3, dtype=numpy.float32)
-        fill_delta(delta1, xc1, yc1, zc1, *cellmins, clump1['M'])
         delta2 = numpy.zeros((ncells,)*3, dtype=numpy.float32)
+        if return_nonzero1:
+            nonzero1 = fill_delta_indxs(
+                delta1, xc1, yc1, zc1, *cellmins, clump1['M'])
+        else:
+            fill_delta(delta1, xc1, yc1, zc1, *cellmins, clump1['M'])
+            nonzero1 = None
         fill_delta(delta2, xc2, yc2, zc2, *cellmins, clump2['M'])
 
         if self.smooth_scale is not None:
             gaussian_filter(delta1, self.smooth_scale, output=delta1)
             gaussian_filter(delta2, self.smooth_scale, output=delta2)
-        return delta1, delta2, cellmins
+
+        return delta1, delta2, cellmins, nonzero1
 
     @staticmethod
     def overlap(delta1, delta2, cellmins, delta2_full):
@@ -698,7 +705,7 @@ class ParticleOverlap:
         -------
         overlap : float
         """
-        return _calculate_overlap(delta1, delta2, cellmins, delta2_full)
+        return calculate_overlap(delta1, delta2, cellmins, delta2_full)
 
     def __call__(self, clump1, clump2, delta2_full, mins1=None, maxs1=None,
                  mins2=None, maxs2=None):
@@ -730,14 +737,14 @@ class ParticleOverlap:
         """
         delta1, delta2, cellmins = self.make_deltas(
             clump1, clump2, mins1, maxs1, mins2, maxs2)
-        return _calculate_overlap(delta1, delta2, cellmins, delta2_full)
+        return calculate_overlap(delta1, delta2, cellmins, delta2_full)
 
 
 @jit(nopython=True)
 def fill_delta(delta, xcell, ycell, zcell, xmin, ymin, zmin, weights):
     """
-    Fill array delta at the specified indices with their weights. This is a JIT
-    implementation.
+    Fill array `delta` at the specified indices with their weights. This is a
+    JIT implementation.
 
     Parameters
     ----------
@@ -754,33 +761,45 @@ def fill_delta(delta, xcell, ycell, zcell, xmin, ymin, zmin, weights):
     -------
     None
     """
-#    # TODO: think about whether to do this
-#    delta[...] *= 0.
     for n in range(xcell.size):
         delta[xcell[n] - xmin, ycell[n] - ymin, zcell[n] - zmin] += weights[n]
 
 
 @jit(nopython=True)
 def fill_delta_indxs(delta, xcell, ycell, zcell, xmin, ymin, zmin, weights):
+    """
+    Fill array `delta` at the specified indices with their weights and return
+    indices where `delta` was assigned a value. This is a JIT implementation.
 
-    # TODO: think about whether to do this
-    delta[...] *= 0.
+    Parameters
+    ----------
+    delta : 3-dimensional array
+        Grid to be filled with weights.
+    xcell, ycell, zcell : 1-dimensional arrays
+        Indices where to assign `weights`.
+    xmin, ymin, zmin : ints
+        Minimum cell IDs of particles.
+    weights : 1-dimensional arrays
+        Particle mass.
 
+    Returns
+    -------
+    cells : 1-dimensional array
+        Indices where `delta` was assigned a value.
+    """
+    # Array to count non-zero cells
     cells = numpy.full((xcell.size, 3), numpy.nan, numpy.int32)
-
-    count = 0
+    count_nonzero = 0
     for n in range(xcell.size):
         i, j, k = xcell[n] - xmin, ycell[n] - ymin, zcell[n] - zmin
-
+        # If a cell is zero add it
         if delta[i, j, k] == 0:
-            cells[count, :] = i, j, k
-            count += 1
+            cells[count_nonzero, :] = i, j, k
+            count_nonzero += 1
 
         delta[i, j, k] += weights[n]
 
-    cells = cells[:count, :]
-
-    return delta, cells
+    return cells[:count_nonzero, :]  # Cutoff unassigned places
 
 
 def get_clumplims(clumps, ncells, nshift=None):
@@ -820,7 +839,7 @@ def get_clumplims(clumps, ncells, nshift=None):
 
 
 @jit(nopython=True)
-def _calculate_overlap(delta1, delta2, cellmins, delta2_full):
+def calculate_overlap(delta1, delta2, cellmins, delta2_full):
     r"""
     Overlap between two clumps whose density fields are evaluated on the
     same grid. This is a JIT implementation, hence it is outside of the main
@@ -840,14 +859,13 @@ def _calculate_overlap(delta1, delta2, cellmins, delta2_full):
     -------
     overlap : float
     """
+    totmass = 0.           # Total mass of clump 1 and clump 2
+    intersect = 0.         # Mass of pixels that are non-zero in both clumps
+    weight = 0.            # Weight to account for other halos
+    count = 0              # Total number of pixels that are both non-zero
+    i0, j0, k0 = cellmins  # Unpack things
     imax, jmax, kmax = delta1.shape
 
-    totmass = 0.    # Total mass of clump 1 and clump 2
-    intersect = 0.  # Mass of pixels that are non-zero in both clumps
-    weight = 0.     # Weight to account for other halos
-    count = 0       # Total number of pixels that are both non-zero
-
-    i0, j0, k0 = cellmins  # Unpack things
     for i in range(imax):
         ii = i0 + i
         for j in range(jmax):
@@ -863,6 +881,57 @@ def _calculate_overlap(delta1, delta2, cellmins, delta2_full):
                     intersect += cell
                     weight += cell2 / delta2_full[ii, jj, kk]
                     count += 1
+
+    # Normalise the intersect and weights
+    intersect *= 0.5
+    weight = weight / count if count > 0 else 0.
+    return weight * intersect / (totmass - intersect)
+
+
+@jit(nopython=True)
+def calculate_overlap_indxs(delta1, delta2, cellmins, delta2_full, nonzero1,
+                            mass1, mass2):
+    r"""
+    Overlap between two clumps whose density fields are evaluated on the
+    same grid and `nonzero1` enumerates the non-zero cells of `delta1.  This is
+    a JIT implementation, hence it is outside of the main class.
+
+    Parameters
+    ----------
+    delta1, delta2 : 3-dimensional arrays
+        Clumps density fields.
+    cellmins : len-3 tuple
+        Tuple of left-most cell ID in the full box.
+    delta2_full : 3-dimensional array
+        Density field of the whole box calculated with particles assigned
+        to halos at zero redshift.
+    nonzero1 : 2-dimensional array of shape `(n_cells, 3)`
+        Indices of cells that are non-zero in `delta1`. Expected to be
+        precomputed from `fill_delta_indxs`.
+    mass1, mass2 : floats, optional
+        Total masses of the two clumps, respectively. Optional. If not provided
+        calculcated directly from the density field.
+
+    Returns
+    -------
+    overlap : float
+    """
+    totmass = mass1 + mass2  # Total mass of clump 1 and clump 2
+    intersect = 0.           # Mass of pixels that are non-zero in both clumps
+    weight = 0.              # Weight to account for other halos
+    count = 0                # Total number of pixels that are both non-zero
+    i0, j0, k0 = cellmins    # Unpack cell minimas
+
+    ncells = nonzero1.shape[0]
+
+    for n in range(ncells):
+        i, j, k = nonzero1[n, :]
+        cell1, cell2 = delta1[i, j, k], delta2[i, j, k]
+
+        if cell1 * cell2 > 0:
+            intersect += cell1 + cell2
+            weight += cell2 / delta2_full[i0 + i, j0 + j, k0 + k]
+            count += 1
 
     # Normalise the intersect and weights
     intersect *= 0.5
