@@ -386,7 +386,6 @@ class HaloCatalogue:
         if not (X.ndim == 2 and X.shape[1] == 3):
             raise TypeError("`X` must be an array of shape `(n_samples, 3)`.")
         knn = self.knn0 if select_initial else self.knn  # Pick the right KNN
-        print("HAha", select_initial)
         return knn.radius_neighbors(X, radius, sort_results=True)
 
     @property
