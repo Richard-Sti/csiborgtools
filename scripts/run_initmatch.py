@@ -137,7 +137,7 @@ for nsim in nsims:
             remove(fpath)
 
             # Load in the patch size
-            fpath = ftemp.format(nsim, n, "patch_size")
+            fpath = ftemp.format(nsim, n, "lagpatch")
             with open(fpath, "rb") as f:
                 out["lagpatch"][i] = numpy.load(f)
             remove(fpath)
