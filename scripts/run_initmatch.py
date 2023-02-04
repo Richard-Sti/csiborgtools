@@ -87,7 +87,7 @@ for nsim in nsims:
     collect()
 
     if rank == 0:
-        print("{}: dumping clumps for simulation.".format(datetime.now()),
+        print("{}: dumping intermediate files.".format(datetime.now()),
               flush=True)
 
     # Grab unique clump IDs and loop over them
