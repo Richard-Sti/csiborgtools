@@ -93,17 +93,15 @@ for nsim in nsims:
         x0 = part0[clump_ids == n]
 
         # Center of mass and Lagrangian patch size
-        pos = numpy.vstack([x0[p] for p in ('x', 'y', 'z')]).T
-        cm = numpy.average(pos, axis=0, weights=x0['M'])
-        patch_sizes = csiborgtools.match.lagpatch_persize(
-            *(x0[p] for p in ('x', 'y', 'z', 'M')), [95, 98, 100])
+        dist, cm = csiborgtools.match.dist_centmass(x0)
+        patch = csiborgtools.match.dist_percentile(dist, [99], distmax=0.075)
 
         # Dump the center of mass
         with open(ftemp.format(nsim, n, "cm"), 'wb') as f:
             numpy.save(f, cm)
         # Dump the Lagrangian patch size
-        with open(ftemp.format(nsim, n, "patch_size"), 'wb') as f:
-            numpy.save(f, patch_sizes)
+        with open(ftemp.format(nsim, n, "lagpatch"), 'wb') as f:
+            numpy.save(f, patch)
         # Dump the entire clump
         with open(ftemp.format(nsim, n, "clump"), "wb") as f:
             numpy.save(f, x0)
@@ -115,9 +113,8 @@ for nsim in nsims:
     if rank == 0:
         print("Collecting CM files...", flush=True)
         # Collect the centre of masses, patch size, etc. and dump them
-        dtype = {"names": ['x', 'y', 'z',
-                           "patch95", "patch98", "patch100", "ID"],
-                 "formats": [numpy.float32] * 6 + [numpy.int32]}
+        dtype = {"names": ['x', 'y', 'z', "lagpatch", "ID"],
+                 "formats": [numpy.float32] * 4 + [numpy.int32]}
         out = numpy.full(njobs, numpy.nan, dtype=dtype)
 
         for i, n in enumerate(unique_clumpids):
@@ -133,10 +130,7 @@ for nsim in nsims:
             # Load in the patch size
             fpath = ftemp.format(nsim, n, "patch_size")
             with open(fpath, "rb") as f:
-                p95, p98, p100 = numpy.load(f)
-                out["patch95"][i] = p95
-                out["patch98"][i] = p98
-                out["patch100"][i] = p100
+                out["lagpatch"][i] = numpy.load(f)
             remove(fpath)
 
             # Store the halo ID
