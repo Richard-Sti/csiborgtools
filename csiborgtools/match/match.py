@@ -343,7 +343,7 @@ class RealisationsMatcher:
                         crosses[ii] = overlapper(
                             cl0, clx, delta, mins0_current, maxs0_current,
                             minsx[matchx], maxsx[matchx],
-                            mass1=mass0, mass2=numpy.sum(clx))
+                            mass1=mass0, mass2=numpy.sum(clx['M']))
 
                     cross[k] = crosses
                     # Optionally remove points whose overlap is exaclt zero
