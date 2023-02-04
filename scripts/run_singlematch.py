@@ -28,7 +28,7 @@ import utils
 
 # File paths
 fperm = join(utils.dumpdir, "overlap", "cross_{}.npy")
-nmult = 0.5
+nmult = 1.0
 overlap = True
 select_initial = True
 fast_neighbours = False
