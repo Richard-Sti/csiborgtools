@@ -358,37 +358,10 @@ class HaloCatalogue:
         delta = self.box.box2mpc(1 / 2**11)
         return (3 * self["npart"] / (4 * numpy.pi))**(1/3) * delta
 
-    def radius_neigbours(self, X, radius):
-        """
-        Return sorted nearest neigbours within `radius` of `X` in the final
-        snapshot.
-
-        Parameters
-        ----------
-        X : 2-dimensional array
-            Array of shape `(n_queries, 3)`, where the latter axis represents
-            `x`, `y` and `z`.
-        radius : float
-            Limiting distance of neighbours.
-
-        Returns
-        -------
-        dist : list of 1-dimensional arrays
-            List of length `n_queries` whose elements are arrays of distances
-            to the nearest neighbours.
-        knns : list of 1-dimensional arrays
-            List of length `n_queries` whose elements are arrays of indices of
-            nearest neighbours in this catalogue.
-        """
-        if not (X.ndim == 2 and X.shape[1] == 3):
-            raise TypeError("`X` must be an array of shape `(n_samples, 3)`.")
-        # Query the KNN
-        return self._knn.radius_neighbors(X, radius, sort_results=True)
-
-    def radius_initial_neigbours(self, X, radius):
+    def radius_neigbours(self, X, radius, select_initial=True):
         r"""
-        Return sorted nearest neigbours within `radius` or `X` in the initial
-        snapshot.
+        Return sorted nearest neigbours within `radius` of `X` in the initial
+        or final snapshot.
 
         Parameters
         ----------
@@ -397,6 +370,9 @@ class HaloCatalogue:
             `x`, `y` and `z`.
         radius : float
             Limiting distance of neighbours.
+        select_initial : bool, optional
+            Whether to search for neighbours in the initial or final snapshot.
+            By default `True`, i.e. the final snapshot.
 
         Returns
         -------
@@ -409,8 +385,9 @@ class HaloCatalogue:
         """
         if not (X.ndim == 2 and X.shape[1] == 3):
             raise TypeError("`X` must be an array of shape `(n_samples, 3)`.")
-        # Query the KNN
-        return self._knn0.radius_neighbors(X, radius, sort_results=True)
+        knn = self.knn0 if select_initial else self.knn  # Pick the right KNN
+        print("HAha", select_initial)
+        return knn.radius_neighbors(X, radius, sort_results=True)
 
     @property
     def keys(self):

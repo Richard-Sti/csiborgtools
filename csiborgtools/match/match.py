@@ -252,8 +252,8 @@ class RealisationsMatcher:
             # Query the KNN either fast (miss some) or slow (get all)
             if select_initial:
                 if fast_neighbours:
-                    dist0, indxs = self.cats[i].radius_initial_neigbours(
-                        pos0, R * nmult)
+                    dist0, indxs = self.cats[i].radius_neigbours(
+                        pos0, R * nmult, select_initial=True)
                 else:
                     dist0, indxs = radius_neighbours(
                         self.cats[i].knn0, pos0, radiusX=R,
@@ -263,7 +263,7 @@ class RealisationsMatcher:
                 # Will switch dist0 <-> dist at the end
                 if fast_neighbours:
                     dist0, indxs = self.cats[i].radius_neigbours(
-                        pos, R * nmult)
+                        pos, R * nmult, select_initial=False)
                 else:
                     dist0, indxs = radius_neighbours(
                         self.cats[i].knn, pos, radiusX=R,
@@ -760,27 +760,27 @@ def fill_delta(delta, xcell, ycell, zcell, xmin, ymin, zmin, weights):
         delta[xcell[n] - xmin, ycell[n] - ymin, zcell[n] - zmin] += weights[n]
 
 
-# @jit(nopython=True)
-# def fill_delta_indxs(delta, xcell, ycell, zcell, xmin, ymin, zmin, weights):
-#
-#     # TODO: think about whether to do this
-#     delta[...] *= 0.
-#
-#     cells = numpy.full((xcell.size, 3), numpy.nan, numpy.int32)
-#
-#     count = 0
-#     for n in range(xcell.size):
-#         i, j, k = xcell[n] - xmin, ycell[n] - ymin, zcell[n] - zmin
-#
-#         if delta[i, j, k] == 0:
-#             cells[count, :] = i, j, k
-#             count += 1
-#
-#         delta[i, j, k] += weights[n]
-#
-#     cells = cells[:count, :]
-#
-#     return delta, cells
+@jit(nopython=True)
+def fill_delta_indxs(delta, xcell, ycell, zcell, xmin, ymin, zmin, weights):
+
+    # TODO: think about whether to do this
+    delta[...] *= 0.
+
+    cells = numpy.full((xcell.size, 3), numpy.nan, numpy.int32)
+
+    count = 0
+    for n in range(xcell.size):
+        i, j, k = xcell[n] - xmin, ycell[n] - ymin, zcell[n] - zmin
+
+        if delta[i, j, k] == 0:
+            cells[count, :] = i, j, k
+            count += 1
+
+        delta[i, j, k] += weights[n]
+
+    cells = cells[:count, :]
+
+    return delta, cells
 
 
 def get_clumplims(clumps, ncells, nshift=None):
