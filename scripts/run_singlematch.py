@@ -54,7 +54,7 @@ nsimx = cat.n_sims[1]
 print("{}: crossing the simulations.".format(datetime.now()), flush=True)
 
 out = matcher.cross_knn_position_single(
-    0, nmult=args.nmult, dlogmass=2., overlap=args.soverlap,
+    0, nmult=args.nmult, dlogmass=2., overlap=args.overlap,
     select_initial=args.select_initial, fast_neighbours=args.fast_neighbours)
 
 # Dump the result
