@@ -210,12 +210,12 @@ class RealisationsMatcher:
         self._check_masskind(mass_kind)
         # Halo properties of this simulation
         logmass = numpy.log10(self.cats[n_sim][mass_kind])
-        pos = self.cats[n_sim].positions        # Grav potential minimum
-        pos0 = self.cats[n_sim].positions0      # CM positions
+        pos = self.cats[n_sim].positions      # Grav potential minimum
+        pos0 = self.cats[n_sim].positions0    # CM positions
         if select_initial:
-            R = self.cats[n_sim]["patch95"]     # Initial Lagrangian patch size
+            R = self.cats[n_sim]["lagpatch"]  # Initial Lagrangian patch size
         else:
-            R = self.cats[n_sim]["r200"]        # R200c at z = 0
+            R = self.cats[n_sim]["r200"]      # R200c at z = 0
 
         if overlap:
             overlapper = ParticleOverlap(**overlapper_kwargs)
@@ -254,7 +254,7 @@ class RealisationsMatcher:
                 else:
                     dist0, indxs = radius_neighbours(
                         self.cats[i].knn0, pos0, radiusX=R,
-                        radiusKNN=self.cats[i]["patch95"], nmult=nmult,
+                        radiusKNN=self.cats[i]["lagpatch"], nmult=nmult,
                         verbose=verbose)
             else:
                 # Will switch dist0 <-> dist at the end
