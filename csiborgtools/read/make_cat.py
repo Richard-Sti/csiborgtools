@@ -279,7 +279,7 @@ class HaloCatalogue:
             raise ValueError(
                 "Ordering of `initcat` and `clumps` is inconsistent.")
 
-        X = numpy.full((clumps.size, 6), numpy.nan)
+        X = numpy.full((clumps.size, 4), numpy.nan)
         for i, p in enumerate(['x', 'y', 'z', "lagpatch"]):
             X[:, i] = initcat[p]
         return add_columns(clumps, X, ["x0", "y0", "z0", "lagpatch"])
