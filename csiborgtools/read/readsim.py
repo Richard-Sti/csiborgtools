@@ -88,7 +88,8 @@ class CSiBORGPaths:
         self.to_new = to_new
         if n_sim is not None and n_snap is not None:
             self.set_info(n_sim, n_snap)
-        # "/mnt/extraspace/rstiskalek/csiborg/initmatch/clump_cm_7468.npy"
+        if n_sim is not None:
+            self.n_sim = n_sim
 
     @property
     def srcdir(self):
