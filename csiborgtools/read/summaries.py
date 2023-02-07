@@ -340,12 +340,11 @@ class OverlapReader:
         ratio = [None] * self.indxs.size
         for n, ind in enumerate(self.match_indxs):
             ratio[n] = mass0[n] / massx[ind]
-
             if in_log:
                 ratio[n] = numpy.log10(ratio[n])
             if in_abs:
                 ratio[n] = numpy.abs(ratio[n])
-        return ratio
+        return numpy.array(ratio, dtype=object)
 
     def summed_overlap(self):
         """
@@ -361,3 +360,23 @@ class OverlapReader:
         summed_overlap : 1-dimensional array of shape `(nhalos, )`
         """
         return numpy.array([numpy.sum(cross) for cross in self._data["cross"]])
+    
+    def copy_per_match(self, par):
+        """
+        Make an array like `self.match_indxs` where each of its element is an
+        equal value array of the pair clump property from the reference
+        catalogue.
+
+        Parameters
+        ----------
+        par : str
+            Property to be copied over.
+        
+        Returns
+        -------
+        out : 1-dimensional array of shape `(nhalos, )`
+        """
+        out = [None] * self.indxs.size
+        for n, ind in enumerate(self.match_indxs):
+            out[n] = numpy.ones(ind.size) * self.cat0[par][n]
+        return numpy.array(out, dtype=object)
