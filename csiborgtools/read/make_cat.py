@@ -17,10 +17,8 @@ Functions to read in the particle and clump files.
 """
 import numpy
 from os.path import join
-from tqdm import trange
-from copy import deepcopy
 from sklearn.neighbors import NearestNeighbors
-from .readsim import (read_mmain, read_initcm)
+from .readsim import (CSiBORGPaths, read_mmain, read_initcm)
 from ..utils import (flip_cols, add_columns)
 from ..units import (BoxUnits, cartesian_to_radec)
 
@@ -47,7 +45,11 @@ class HaloCatalogue:
     _positions = None
     _positions0 = None
 
-    def __init__(self, paths, min_m500=None, max_dist=None):
+    def __init__(self, nsim, min_m500=None, max_dist=None):
+        # Set up paths
+        paths = CSiBORGPaths(n_sim=nsim)
+        paths.n_snap = paths.get_maximum_snapshot()
+        self._paths = paths
         self._box = BoxUnits(paths)
         min_m500 = 0 if min_m500 is None else min_m500
         max_dist = numpy.infty if max_dist is None else max_dist
@@ -376,99 +378,6 @@ class HaloCatalogue:
         if key in initpars and key not in self.keys:
             raise RuntimeError("Initial positions are not set!")
         return self._data[key]
-
-
-class CombinedHaloCatalogue:
-    r"""
-    A combined halo catalogue, containing `HaloCatalogue` for each IC
-    realisation at the latest redshift.
-
-    Parameters
-    ----------
-    paths : py:class`csiborgtools.read.CSiBORGPaths`
-        CSiBORG paths-handling object. Doest not have to have set set `n_sim`
-        and `n_snap`.
-    min_m500 : float, optional
-        The minimum :math:`M_{rm 500c} / M_\odot` mass. By default no
-        threshold.
-    max_dist : float, optional
-        The maximum comoving distance of a halo. By default no upper limit.
-    verbose : bool, optional
-        Verbosity flag for reading the catalogues.
-    """
-    _n_sims = None
-    _n_snaps = None
-    _cats = None
-
-    def __init__(self, paths, min_m500=None, max_dist=None, verbose=True):
-        # Read simulations and their maximum snapshots
-        # NOTE later change this back to all simulations
-        # self._n_sims = [7468, 7588, 8020, 8452, 8836]
-        self._n_sims = [7468, 7588]
-#        self._n_sims = paths.ic_ids
-        n_snaps = [paths.get_maximum_snapshot(i) for i in self._n_sims]
-        self._n_snaps = numpy.asanyarray(n_snaps)
-
-        cats = [None] * self.N
-        for i in trange(self.N) if verbose else range(self.N):
-            paths = deepcopy(paths)
-            paths.set_info(self.n_sims[i], self.n_snaps[i])
-            cats[i] = HaloCatalogue(paths, min_m500, max_dist)
-        self._cats = cats
-
-    @property
-    def N(self):
-        """
-        Number of IC realisations in this combined catalogue.
-
-        Returns
-        -------
-        N : int
-            Number of catalogues.
-        """
-        return len(self.n_sims)
-
-    @property
-    def n_sims(self):
-        """
-        IC realisations CSiBORG identifiers.
-
-        Returns
-        -------
-        ids : 1-dimensional array
-            Array of IDs.
-        """
-        return self._n_sims
-
-    @property
-    def n_snaps(self):
-        """
-        Snapshot numbers corresponding to `self.n_sims`.
-
-        Returns
-        -------
-        n_snaps : 1-dimensional array
-            Array of snapshot numbers.
-        """
-        return self._n_snaps
-
-    @property
-    def cats(self):
-        """
-        Catalogues associated with this object.
-
-        Returns
-        -------
-        cats : list of `HaloCatalogue`
-            Catalogues.
-        """
-        return self._cats
-
-    def __getitem__(self, n):
-        if n > self.N:
-            raise ValueError("Catalogue count is {}, requested catalogue {}."
-                             .format(self.N, n))
-        return self.cats[n]
 
 
 def concatenate_clumps(clumps):
