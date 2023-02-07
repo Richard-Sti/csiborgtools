@@ -16,10 +16,10 @@
 import numpy
 from scipy.ndimage import gaussian_filter
 from tqdm import (tqdm, trange)
+from datetime import datetime
 from astropy.coordinates import SkyCoord
 from numba import jit
-from gc import collect
-from ..read import (CombinedHaloCatalogue, concatenate_clumps, clumps_pos2cell)  # noqa
+from ..read import (concatenate_clumps, clumps_pos2cell)
 
 
 def brute_spatial_separation(c1, c2, angular=False, N=None, verbose=False):
@@ -77,58 +77,118 @@ class RealisationsMatcher:
     neighbours in all remaining IC realisations that are within some mass
     range of it.
 
-
     Parameters
     ----------
-    cats : :py:class`csiborgtools.read.CombinedHaloCatalogue`
-        Combined halo catalogue to search.
-    """
-    _cats = None
+    nmult : float or int, optional
+        Multiple of the sum of pair initial Lagrangian patch sizes
+        within which to return neighbours. By default 1.
+    dlogmass : float, optional
+        Tolerance on the absolute logarithmic mass difference of potential
+        matches. By default 2.
+    mass_kind : str, optional
+        The mass kind whose similarity is to be checked. Must be a valid
+        catalogue key. By default `totpartmass`, i.e. the total particle
+        mass associated with a halo.
+    overlapper_kwargs : dict, optional
+        Keyword arguments passed to `ParticleOverlapper`.
+    remove_nooverlap : bool, optional
+        Whether to remove pairs with exactly zero overlap. By default `True`.
 
-    def __init__(self, cats):
-        self.cats = cats
+    """
+    _nmult = None
+    _dlogmass = None
+    _mass_kind = None
+    _overlapper = None
+    _remove_nooverlap = None
+
+    def __init__(self, nmult=1., dlogmass=2., mass_kind="totpartmass",
+                 overlapper_kwargs={}, remove_nooverlap=True):
+        self.nmult = nmult
+        self.dlogmass = dlogmass
+        self.mass_kind = mass_kind
+        self._overlapper = ParticleOverlap(**overlapper_kwargs)
+        self.remove_nooverlap = remove_nooverlap
 
     @property
-    def cats(self):
+    def nmult(self):
         """
-        Combined catalogues.
+        Multiple of the sum of pair initial Lagrangian patch sizes within which
+        to return neighbours.
 
         Returns
         -------
-        cats : :py:class`csiborgtools.read.CombinedHaloCatalogue`
-            Combined halo catalogue.
+        nmult : float
         """
-        return self._cats
+        return self._nmult
 
-    @cats.setter
-    def cats(self, cats):
-        """
-        Sets `cats`, ensures that this is a `CombinedHaloCatalogue` object.
-        """
-        if not isinstance(cats, CombinedHaloCatalogue):
-            raise TypeError("`cats` must be of type `CombinedHaloCatalogue`.")
-        self._cats = cats
+    @nmult.setter
+    def nmult(self, nmult):
+        """Set `nmult`."""
+        assert nmult > 0
+        self._nmult = nmult
 
-    def search_sim_indices(self, n_sim):
+    @property
+    def dlogmass(self):
         """
-        Return indices of all other IC realisations but of `n_sim`.
-
-        Parameters
-        ----------
-        n_sim : int
-            IC realisation index of `self.cats` to be skipped.
+        Tolerance on the absolute logarithmic mass difference of potential
+        matches.
 
         Returns
         -------
-        indxs : list of int
-            The remaining IC indices.
+        dlogmass : float
         """
-        return [i for i in range(self.cats.N) if i != n_sim]
+        return self._dlogmass
 
-    def _check_masskind(self, mass_kind):
-        """Check that `mass_kind` is a valid key."""
-        if mass_kind not in self.cats[0].keys:
-            raise ValueError("Invalid mass kind `{}`.".format(mass_kind))
+    @dlogmass.setter
+    def dlogmass(self, dlogmass):
+        """Set `dlogmass`."""
+        assert dlogmass > 0
+        self._dlogmass = dlogmass
+
+    @property
+    def mass_kind(self):
+        """
+        The mass kind whose similarity is to be checked.
+
+        Returns
+        -------
+        mass_kind : str
+        """
+        return self._mass_kind
+
+    @mass_kind.setter
+    def mass_kind(self, mass_kind):
+        """Set `mass_kind`."""
+        assert isinstance(mass_kind, str)
+        self._mass_kind = mass_kind
+
+    @property
+    def remove_nooverlap(self):
+        """
+        Whether to remove pairs with exactly zero overlap.
+
+        Returns
+        -------
+        remove_nooverlap : bool
+        """
+        return self._remove_nooverlap
+
+    @remove_nooverlap.setter
+    def remove_nooverlap(self, remove_nooverlap):
+        """Set `remove_nooverlap`."""
+        assert isinstance(remove_nooverlap, bool)
+        self._remove_nooverlap = remove_nooverlap
+
+    @property
+    def overlapper(self):
+        """
+        The overlapper object.
+
+        Returns
+        -------
+        overlapper : :py:class:`csiborgtools.match.ParticleOverlap`
+        """
+        return self._overlapper
 
     @staticmethod
     def _cat2clump_mapping(cat_indxs, clump_indxs):
@@ -154,212 +214,111 @@ class RealisationsMatcher:
         mapping[ind2] = ind1
         return mapping
 
-    def cross_knn_position_single(self, n_sim, nmult=1, dlogmass=None,
-                                  mass_kind="totpartmass", overlap=False,
-                                  overlapper_kwargs={}, select_initial=True,
-                                  remove_nooverlap=True, fast_neighbours=False,
-                                  verbose=True):
+    def cross(self, nsim0, nsimx,  cat0, catx, overlap=False, verbose=True):
         r"""
-        Find all neighbours within a multiple of the sum of either the initial
-        Lagrangian patch sizes (distance at :math:`z = 70`) or :math:`R_{200c}`
-        (distance at :math:`z = 0`). Enforces that the neighbours' are similar
-        in mass up to `dlogmass` dex and optionally calculates their overlap.
+        Find all neighbours whose CM separation is less than `nmult` times the
+        sum of their initial Lagrangian patch sizes. Enforces that the
+        neighbours' are similar in mass up to `dlogmass` dex.
 
         Parameters
         ----------
-        n_sim : int
-            Index of an IC realisation in `self.cats` whose halos' neighbours
-            in the remaining simulations to search for.
-        nmult : float or int, optional
-            Multiple of the sum of pair Lagrangian patch sizes or
-            :math:`R_{200c}` within which to return neighbours. By default 1.
-        dlogmass : float, optional
-            Tolerance on mass logarithmic mass difference. By default `None`.
-        mass_kind : str, optional
-            The mass kind whose similarity is to be checked. Must be a valid
-            catalogue key. By default `totpartmass`, i.e. the total particle
-            mass associated with a halo.
+        nsim0, nsimx : int
+            The reference and cross simulation IDs.
+        cat0, catx: :py:class:`csiborgtools.read.HaloCatalogue`
+            Halo catalogues corresponding to `nsim0` and `nsimx`, respectively.
         overlap : bool, optional
-            Whether to calculate overlap between clumps in the initial
-            snapshot. By default `False`. This operation is slow.
-        overlapper_kwargs : dict, optional
-            Keyword arguments passed to `ParticleOverlapper`.
-        select_initial : bool, optional
-            Whether to select nearest neighbour at the initial or final
-            snapshot. By default `True`, i.e. at the initial snapshot.
-        remove_nooverlap : bool, optional
-            Whether to remove pairs with exactly zero overlap. By default
-            `True`.
-        fast_neighbours : bool, optional
-            Whether to calculate neighbours within a fixed radius of each
-            clump. Note that this will result in missing some matches. If
-            `True` then `nmult` is a multiple of either the initial patch size
-            of :math:`R_{200c}`.
+            whether to calculate overlap between clumps in the initial
+            snapshot. by default `false`. this operation is slow.
         verbose : bool, optional
-            Iterator verbosity flag. By default `True`.
+            iterator verbosity flag. by default `true`.
 
         Returns
         -------
-        matches : composite array
-            Array, indices are `(n_sims - 1, 5, n_halos, n_matches)`. The
-            2nd axis is `index` of the neighbouring halo in its catalogue,
-            `dist` is the 3D distance to the halo whose neighbours are
-            searched, `dist0` is the separation of the initial CMs, and
-            `overlap` is the overlap over the initial clumps, respectively.
+        indxs : 1-dimensional array of shape `(nhalos, )`
+            Indices of halos in the reference catalogue.
+        match_indxs : 1-dimensional array of arrays
+            Indices of halo counterparts in the cross catalogue.
+        overlaps : 1-dimensional array of arrays
+            Overlaps with the cross catalogue.
         """
-        self._check_masskind(mass_kind)
-        # Halo properties of this simulation
-        logmass = numpy.log10(self.cats[n_sim][mass_kind])
-        pos = self.cats[n_sim].positions      # Grav potential minimum
-        pos0 = self.cats[n_sim].positions0    # CM positions
-        if select_initial:
-            R = self.cats[n_sim]["lagpatch"]  # Initial Lagrangian patch size
-        else:
-            R = self.cats[n_sim]["r200"]      # R200c at z = 0
+        assert (nsim0 == cat0.paths.n_sim) & (nsimx == catx.paths.n_sim)
 
-        if overlap:
-            overlapper = ParticleOverlap(**overlapper_kwargs)
-            if verbose:
-                print("Loading initial clump particles for `n_sim = {}`."
-                      .format(n_sim), flush=True)
-            # Grab a paths object. What it is set to is unimportant
-            paths = self.cats[0].paths
-            with open(paths.clump0_path(self.cats.n_sims[n_sim]), "rb") as f:
-                clumps0 = numpy.load(f, allow_pickle=True)
-            clumps_pos2cell(clumps0, overlapper)
-            # Precalculate min and max cell along each axis
-            mins0, maxs0 = get_clumplims(clumps0,
-                                         ncells=overlapper.inv_clength,
-                                         nshift=overlapper.nshift)
-            cat2clumps0 = self._cat2clump_mapping(self.cats[n_sim]["index"],
-                                                  clumps0["ID"])
-
-        matches = [None] * (self.cats.N - 1)
-        # Verbose iterator
+        # Query the KNN
         if verbose:
-            iters = enumerate(tqdm(self.search_sim_indices(n_sim)))
-        else:
-            iters = enumerate(self.search_sim_indices(n_sim))
-        iters = enumerate(self.search_sim_indices(n_sim))
-        # Search for neighbours in the other simulations at z = 70
-        for count, i in iters:
+            print("{}: querying the KNN.".format(datetime.now()), flush=True)
+        match_indxs = radius_neighbours(
+            catx.knn0, cat0.positions0, radiusX=cat0["lagpatch"],
+            radiusKNN=catx["lagpatch"], nmult=self.nmult, enforce_in32=True,
+            verbose=verbose)
+
+        # Remove neighbours whose mass is too large/small
+        if self.dlogmass is not None:
+            for j, indx in enumerate(match_indxs):
+                # |log(M1 / M2)|
+                p = self.mass_kind
+                aratio = numpy.abs(numpy.log10(catx[p][indx] / cat0[p][j]))
+                match_indxs[j] = match_indxs[j][aratio < self.dlogmass]
+
+        # Initialise the array outside in case `overlap`` is `False`
+        cross = [numpy.asanyarray([], dtype=numpy.float32)] * match_indxs.size
+        if overlap:
             if verbose:
-                print("Querying the KNN for `n_sim = {}`.".format(n_sim),
-                      flush=True)
-            # Query the KNN either fast (miss some) or slow (get all)
-            if select_initial:
-                if fast_neighbours:
-                    dist0, indxs = self.cats[i].radius_neigbours(
-                        pos0, R * nmult, select_initial=True)
-                else:
-                    dist0, indxs = radius_neighbours(
-                        self.cats[i].knn0, pos0, radiusX=R,
-                        radiusKNN=self.cats[i]["lagpatch"], nmult=nmult,
-                        verbose=verbose)
-            else:
-                # Will switch dist0 <-> dist at the end
-                if fast_neighbours:
-                    dist0, indxs = self.cats[i].radius_neigbours(
-                        pos, R * nmult, select_initial=False)
-                else:
-                    dist0, indxs = radius_neighbours(
-                        self.cats[i].knn, pos, radiusX=R,
-                        radiusKNN=self.cats[i]["r200"], nmult=nmult,
-                        verbose=verbose)
-            # Enforce int32 and float32
-            for n in range(dist0.size):
-                dist0[n] = dist0[n].astype(numpy.float32)
-                indxs[n] = indxs[n].astype(numpy.int32)
+                print("Loading the clump particles", flush=True)
+            with open(cat0.paths.clump0_path(nsim0), "rb") as f:
+                clumps0 = numpy.load(f, allow_pickle=True)
+            with open(catx.paths.clump0_path(nsimx), 'rb') as f:
+                clumpsx = numpy.load(f, allow_pickle=True)
 
-            # Get rid of neighbors whose mass is too off
-            if dlogmass is not None:
-                for j, indx in enumerate(indxs):
-                    match_logmass = numpy.log10(self.cats[i][mass_kind][indx])
-                    mask = numpy.abs(match_logmass - logmass[j]) < dlogmass
-                    dist0[j] = dist0[j][mask]
-                    indxs[j] = indx[mask]
+            # Convert 3D positions to particle IDs
+            clumps_pos2cell(clumps0, self.overlapper)
+            clumps_pos2cell(clumpsx, self.overlapper)
 
-            # Find the distance at z = 0 (or z = 70 dep. on `search_initial``)
-            dist = [numpy.asanyarray([], dtype=numpy.float32)] * dist0.size
-            with_neigbours = numpy.where([ii.size > 0 for ii in indxs])[0]
-            # Fill the pre-allocated array on positions with neighbours
-            for k in with_neigbours:
-                if select_initial:
-                    dist[k] = numpy.linalg.norm(
-                        pos[k] - self.cats[i].positions[indxs[k]], axis=1)
-                else:
-                    dist[k] = numpy.linalg.norm(
-                        pos0[k] - self.cats[i].positions0[indxs[k]], axis=1)
+            # Calculate the particle field
+            if verbose:
+                print("Creating and smoothing the crossed field.", flush=True)
+            delta = self.overlapper.make_delta(concatenate_clumps(clumpsx),
+                                               to_smooth=False)
+            delta = self.overlapper.smooth_highres(delta)
 
-            # Calculate the initial snapshot overlap
-            cross = [numpy.asanyarray([], dtype=numpy.float32)] * dist0.size
-            if overlap:
-                if verbose:
-                    print("Loading initial clump particles for `n_sim = {}` "
-                          "to compare against `n_sim = {}`.".format(i, n_sim),
-                          flush=True)
-                with open(paths.clump0_path(self.cats.n_sims[i]), 'rb') as f:
-                    clumpsx = numpy.load(f, allow_pickle=True)
-                clumps_pos2cell(clumpsx, overlapper)
+            # Min and max cells along each axis for each halo
+            limkwargs = {"ncells": self.overlapper.inv_clength,
+                         "nshift": self.overlapper.nshift}
+            mins0, maxs0 = get_clumplims(clumps0, **limkwargs)
+            minsx, maxsx = get_clumplims(clumpsx, **limkwargs)
 
-                # Calculate the particle field
-                if verbose:
-                    print("Loading and smoothing the crossed total field.",
-                          flush=True)
-                particles = concatenate_clumps(clumpsx)
-                delta = overlapper.make_delta(particles, to_smooth=False)
-                del particles; collect()  # noqa - no longer needed
-                delta = overlapper.smooth_highres(delta)
-                if verbose:
-                    print("Smoothed up the field.", flush=True)
-                # Precalculate min and max cell along each axis
-                minsx, maxsx = get_clumplims(clumpsx,
-                                             ncells=overlapper.inv_clength,
-                                             nshift=overlapper.nshift)
+            # Mapping from a catalogue halo index to the list of clumps
+            cat2clumps0 = self._cat2clump_mapping(cat0["index"], clumps0["ID"])
+            cat2clumpsx = self._cat2clump_mapping(catx["index"], clumpsx["ID"])
 
-                cat2clumpsx = self._cat2clump_mapping(self.cats[i]["index"],
-                                                      clumpsx["ID"])
-                # Loop only over halos that have neighbours
-                for k in tqdm(with_neigbours) if verbose else with_neigbours:
-                    # Find which clump matches index of this halo from cat
-                    match0 = cat2clumps0[k]
+            # Loop only over halos that have neighbours
+            wneigbours = numpy.where([ii.size > 0 for ii in match_indxs])[0]
+            for k in tqdm(wneigbours) if verbose else wneigbours:
+                match0 = cat2clumps0[k]  # Clump pos matching this halo
+                # The clump, its mass and mins & maxs
+                cl0 = clumps0["clump"][match0]
+                mass0 = numpy.sum(cl0['M'])
+                mins0_current, maxs0_current = mins0[match0], maxs0[match0]
 
-                    # Unpack this clum, its mamss and mins and maxs
-                    cl0 = clumps0["clump"][match0]
-                    mass0 = numpy.sum(cl0['M'])
-                    mins0_current, maxs0_current = mins0[match0], maxs0[match0]
-                    # Preallocate this array.
-                    crosses = numpy.full(indxs[k].size, numpy.nan,
-                                         numpy.float32)
+                # Array to store overlaps of this halo
+                crosses = numpy.full(match_indxs[k].size, numpy.nan,
+                                     numpy.float32)
+                # Loop over matches of this halo from the other simulation
+                for ii, ind in enumerate(match_indxs[k]):
+                    matchx = cat2clumpsx[ind]  # Clump pos matching this halo
+                    clx = clumpsx["clump"][matchx]
+                    crosses[ii] = self.overlapper(
+                        cl0, clx, delta, mins0_current, maxs0_current,
+                        minsx[matchx], maxsx[matchx],
+                        mass1=mass0, mass2=numpy.sum(clx['M']))
+                cross[k] = crosses
 
-                    # Loop over the ones we cross-correlate with
-                    for ii, ind in enumerate(indxs[k]):
-                        # Again which cross clump to this index
-                        matchx = cat2clumpsx[ind]
-                        clx = clumpsx["clump"][matchx]
-                        crosses[ii] = overlapper(
-                            cl0, clx, delta, mins0_current, maxs0_current,
-                            minsx[matchx], maxsx[matchx],
-                            mass1=mass0, mass2=numpy.sum(clx['M']))
+                # Optionally remove matches with exactly 0 overlap
+                if self.remove_nooverlap:
+                    mask = cross[k] > 0
+                    match_indxs[k] = match_indxs[k][mask]
+                    cross[k] = cross[k][mask]
 
-                    cross[k] = crosses
-                    # Optionally remove points whose overlap is exaclt zero
-                    if remove_nooverlap:
-                        mask = cross[k] > 0
-                        indxs[k] = indxs[k][mask]
-                        dist[k] = dist[k][mask]
-                        dist0[k] = dist0[k][mask]
-                        cross[k] = cross[k][mask]
-
-            # Append as a composite array. Flip dist order if not select_init
-            if select_initial:
-                matches[count] = numpy.asarray(
-                    [indxs, dist, dist0, cross], dtype=object)
-            else:
-                matches[count] = numpy.asarray(
-                    [indxs, dist0, dist, cross], dtype=object)
-
-        return numpy.asarray(matches, dtype=object)
+        return cat0["index"], match_indxs, cross
 
 
 ###############################################################################
@@ -950,7 +909,8 @@ def dist_percentile(dist, qs, distmax=0.075):
     return x
 
 
-def radius_neighbours(knn, X, radiusX, radiusKNN, nmult=1., verbose=True):
+def radius_neighbours(knn, X, radiusX, radiusKNN, nmult=1., enforce_in32=False,
+                      verbose=True):
     """
     Find all neigbours of a trained KNN model whose center of mass separation
     is less than `nmult` times the sum of their respective radii.
@@ -968,13 +928,14 @@ def radius_neighbours(knn, X, radiusX, radiusKNN, nmult=1., verbose=True):
         Patch radii corresponding to clumps used to train `knn`.
     nmult : float, optional
         Multiple of the sum of two radii below which to consider a match.
+    enforce_int32 : bool, optional
+        Whether to enforce 32-bit integer precision of the indices. By default
+        `False`.
     verbose : bool, optional
         Verbosity flag.
 
     Returns
     -------
-    dists : 1-dimensional array `(n_samples,)` of arrays
-        Distance from `X` to matches from `knn`.
     indxs : 1-dimensional array `(n_samples,)` of arrays
         Matches to `X` from `knn`.
     """
@@ -983,7 +944,6 @@ def radius_neighbours(knn, X, radiusX, radiusKNN, nmult=1., verbose=True):
     assert radiusKNN.size == knn.n_samples_fit_  # patchknn matches the knn?
 
     nsamples = X.shape[0]
-    dists = [None] * nsamples            # Initiate lists
     indxs = [None] * nsamples
     patchknn_max = numpy.max(radiusKNN)  # Maximum for completeness
 
@@ -994,9 +954,8 @@ def radius_neighbours(knn, X, radiusX, radiusKNN, nmult=1., verbose=True):
         # Note that `dist` and `indx` are wrapped in 1-element arrays
         # so we take the first item where appropriate
         mask = (dist[0] / (radiusX[i] + radiusKNN[indx[0]])) < nmult
-        dists[i] = dist[0][mask]
         indxs[i] = indx[0][mask]
+        if enforce_in32:
+            indxs[i] = indxs[i].astype(numpy.int32)
 
-    dists = numpy.asarray(dists, dtype=object)  # Turn into array of arrays
-    indxs = numpy.asarray(indxs, dtype=object)
-    return dists, indxs
+    return numpy.asarray(indxs, dtype=object)
