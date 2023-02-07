@@ -314,3 +314,35 @@ class OverlapReader:
                 dist[n] /= (self.cat0["lagpatch"][n]
                             + self.catx["lagpatch"][ind])
         return numpy.array(dist, dtype=object)
+
+    def mass_ratio(self, mass_kind="totpartmass", in_log=True, in_abs=True):
+        """
+        Pair mass ratio.
+
+        Parameters
+        ----------
+        mass_kind : str, optional
+            The mass kind whose ratio is to be calculated. Must be a valid
+            catalogue key. By default `totpartmass`, i.e. the total particle
+            mass associated with a halo.
+        in_log : bool, optional
+            Whether to return logarithm of the ratio. By default `True`.
+        in_abs : bool, optional
+            Whether to return absolute value of the ratio. By default `True`.
+
+        Returns
+        -------
+        ratio : array of 1-dimensional arrays of shape `(nhalos, )`
+        """
+        mass0 = self.cat0[mass_kind]
+        massx = self.catx[mass_kind]
+
+        ratio = [None] * self.indxs.size
+        for n, ind in enumerate(self.match_indxs):
+            ratio[n] = mass0[n] / massx[ind]
+
+            if in_log:
+                ratio[n] = numpy.log10(ratio[n])
+            if in_abs:
+                ratio[n] = numpy.abs(ratio[n])
+        return ratio
