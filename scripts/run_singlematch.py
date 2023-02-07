@@ -32,35 +32,25 @@ import utils
 parser = ArgumentParser()
 parser.add_argument("--nmult", type=float)
 parser.add_argument("--overlap", type=lambda x: bool(strtobool(x)))
-parser.add_argument("--select_initial", type=lambda x: bool(strtobool(x)))
-parser.add_argument("--fast_neighbours", type=lambda x: bool(strtobool(x)))
 args = parser.parse_args()
 
 # File paths
-ic = 7468
+nsim0 = 7468
+nsimx = 7588
 fperm = join(utils.dumpdir, "overlap", "cross_{}_{}.npy")
 
-paths = csiborgtools.read.CSiBORGPaths(to_new=False)
-paths.set_info(ic, paths.get_maximum_snapshot(ic))
-
 print("{}: loading catalogues.".format(datetime.now()), flush=True)
-cat = csiborgtools.read.CombinedHaloCatalogue(paths)
+cat0 = csiborgtools.read.HaloCatalogue(nsim0)
+catx = csiborgtools.read.HaloCatalogue(nsimx)
 
-
-matcher = csiborgtools.match.RealisationsMatcher(cat)
-nsim0 = cat.n_sims[0]
-nsimx = cat.n_sims[1]
-
+matcher = csiborgtools.match.RealisationsMatcher()
 print("{}: crossing the simulations.".format(datetime.now()), flush=True)
-
-out = matcher.cross_knn_position_single(
-    0, nmult=args.nmult, dlogmass=2., overlap=args.overlap,
-    select_initial=args.select_initial, fast_neighbours=args.fast_neighbours)
-
+indxs, match_indxs, cross = matcher.cross(
+    nsim0, nsimx, cat0, catx, overlap=False)
 # Dump the result
 fout = fperm.format(nsim0, nsimx)
 print("Saving results to `{}`.".format(fout), flush=True)
 with open(fout, "wb") as f:
-    numpy.save(fout, out)
+    numpy.savez(fout, indxs=indxs, match_indxs=match_indxs, cross=cross)
 
 print("All finished.", flush=True)
