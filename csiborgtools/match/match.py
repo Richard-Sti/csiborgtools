@@ -259,7 +259,7 @@ class RealisationsMatcher:
                 aratio = numpy.abs(numpy.log10(catx[p][indx] / cat0[p][j]))
                 match_indxs[j] = match_indxs[j][aratio < self.dlogmass]
 
-        # Initialise the array outside in case `overlap`` is `False`
+        # Initialise the array outside in case `overlap` is `False`
         cross = [numpy.asanyarray([], dtype=numpy.float32)] * match_indxs.size
         if overlap:
             if verbose:
