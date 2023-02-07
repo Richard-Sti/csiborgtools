@@ -170,19 +170,16 @@ class PKReader:
 
 class OverlapReader:
     """
-    Start storing halo indices in the search too.
+    TODO: docs
 
     """
 
-    def __init__(self, nsim0, nsimx, fskel=None):
+    def __init__(self, nsim0, nsimx, cat0, catx, fskel=None):
         if fskel is None:
             fskel = "/mnt/extraspace/rstiskalek/csiborg/overlap/"
-            fskel += "cross_{}_{}.npy"
-        data = numpy.load(fskel.format(nsim0, nsimx), allow_pickle=True)[0]
-        self._indxs0 = None
-        self._indxs, self._dist, self._dist0, self._overlap = data
-        self._nsim0 = nsim0  # IC ID of the referecne simulation
-        self._nsimx = nsimx  # IC ID of the cross simulation
+            fskel += "cross_{}_{}.npz"
+        self._data = numpy.load(fskel.format(nsim0, nsimx), allow_pickle=True)
+        self._set_cats(nsim0, nsimx, cat0, catx)
 
     @property
     def nsim0(self):
@@ -207,56 +204,113 @@ class OverlapReader:
         return self._nsimx
 
     @property
-    def indxs0(self):
+    def cat0(self):
         """
-        Indices of objects from `self.nsim0`.
+        The reference halo catalogue.
+
+        Returns
+        -------
+        cat0 : :py:class:`csiborgtools.read.HaloCatalogue`
+        """
+        return self._cat0
+
+    @property
+    def catx(self):
+        """
+        The cross halo catalogue.
+
+        Returns
+        -------
+        catx : :py:class:`csiborgtools.read.HaloCatalogue`
+        """
+        return self._catx
+
+    def _set_cats(self, nsim0, nsimx, cat0, catx):
+        """
+        Set the simulation IDs and catalogues.
+
+        Parameters
+        ----------
+        nsim0, nsimx : int
+            The reference and cross simulation IDs.
+        cat0, catx: :py:class:`csiborgtools.read.HaloCatalogue`
+            Halo catalogues corresponding to `nsim0` and `nsimx`, respectively.
+
+        Returns
+        -------
+        None
+        """
+        assert (nsim0 == cat0.paths.n_sim) & (nsimx == catx.paths.n_sim)
+        self._nsim0 = nsim0
+        self._nsimx = nsimx
+        self._cat0 = cat0
+        self._catx = catx
+
+    @property
+    def indxs(self):
+        """
+        Indices of halos from the reference catalogue.
 
         Returns
         -------
         indxs : 1-dimensional array
         """
-        return self._indxs0
+        return self._data["indxs"]
 
     @property
-    def indxs(self):
+    def match_indxs(self):
         """
-        Indices of the matched objects from `self.nsimx`.
+        Indices of halos from the cross catalogue.
 
         Returns
         -------
-        indxs : array of 1-dimensional arrays of shape `(nhalos, )`
+        match_indxs : array of 1-dimensional arrays of shape `(nhalos, )`
         """
-        return self._indxs
+        return self._data["match_indxs"]
 
     @property
-    def dist(self):
+    def overlap(self):
+        """
+        Pair overlap of halos between the reference and cross simulations.
+
+        Returns
+        -------
+        ovelap : array of 1-dimensional arrays of shape `(nhalos, )`
+        """
+        return self._data["cross"]
+
+    def dist(self, in_initial, norm=None):
         """
         Final snapshot pair distances.
+
+        Parameters
+        ----------
+        in_initial : bool
+            Whether to calculate separation in the initial or final snapshot.
 
         Returns
         -------
         dist : array of 1-dimensional arrays of shape `(nhalos, )`
         """
-        return self._dist
+        assert norm is None or norm in ("r200", "ref_patch", "sum_patch")
+        # Positions either in the initial or final snapshot
+        if in_initial:
+            pos0 = self.cat0.positions0
+            posx = self.catx.positions0
+        else:
+            pos0 = self.cat0.positions
+            posx = self.catx.positions
 
-    @property
-    def dist0(self):
-        """
-        Initial snapshot pair distances.
+        dist = [None] * self.indxs.size
+        for n, ind in enumerate(self.match_indxs):
+            dist[n] = numpy.linalg.norm(pos0[n, :] - posx[ind, :], axis=1)
 
-        Returns
-        -------
-        dist0 : array of 1-dimensional arrays of shape `(nhalos, )`
-        """
-        return self._dist0
-
-    @property
-    def overlap(self):
-        """
-        Pair overlap.
-
-        Returns
-        -------
-        overlap : array of 1-dimensional arrays of shape `(nhalos, )`
-        """
-        return self._overlap
+            # Normalisation
+            if norm == "r200":
+                dist[n] /= self.cat0["r200"][n]
+            if norm == "ref_patch":
+                dist[n] /= self.cat0["lagpatch"][n]
+            if norm == "sum_patch":
+                dist[n] /= (self.cat0["lagpatch"][n]
+                            + self.catx["lagpatch"][ind])
+        return numpy.array(dist, dtype=object)
