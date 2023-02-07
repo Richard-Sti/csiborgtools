@@ -346,3 +346,18 @@ class OverlapReader:
             if in_abs:
                 ratio[n] = numpy.abs(ratio[n])
         return ratio
+
+    def summed_overlap(self):
+        """
+        Summed overlap of each halo in the reference simulation with the cross
+        simulation.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        summed_overlap : 1-dimensional array of shape `(nhalos, )`
+        """
+        return numpy.array([numpy.sum(cross) for cross in self._data["cross"]])
