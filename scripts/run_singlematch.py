@@ -38,7 +38,7 @@ args = parser.parse_args()
 
 # File paths
 ic = 7468
-fperm = join(utils.dumpdir, "overlap", "cross_{}.npy")
+fperm = join(utils.dumpdir, "overlap", "cross_{}_{}.npy")
 
 paths = csiborgtools.read.CSiBORGPaths(to_new=False)
 paths.set_info(ic, paths.get_maximum_snapshot(ic))
@@ -58,7 +58,7 @@ out = matcher.cross_knn_position_single(
     select_initial=args.select_initial, fast_neighbours=args.fast_neighbours)
 
 # Dump the result
-fout = fperm.format(nsim0)
+fout = fperm.format(nsim0, nsimx)
 print("Saving results to `{}`.".format(fout), flush=True)
 with open(fout, "wb") as f:
     numpy.save(fout, out)
