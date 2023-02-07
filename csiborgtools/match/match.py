@@ -361,58 +361,6 @@ class RealisationsMatcher:
 
         return numpy.asarray(matches, dtype=object)
 
-    def cross_knn_position_all(self, nmult=1, dlogmass=None,
-                               mass_kind="totpartmass", overlap=False,
-                               overlapper_kwargs={},
-                               select_initial=True, remove_nooverlap=True,
-                               verbose=True):
-        r"""
-        Find all counterparts of halos in all simulations listed in
-        `self.cats`. See `self.cross_knn_position_single` for more details.
-
-        Parameters
-        ----------
-        nmult : float or int, optional
-            Multiple of the sum of pair Lagrangian patch sizes or
-            :math:`R_{200c}` within which to return neighbours. By default 1.
-        dlogmass : float, optional
-            Tolerance on mass logarithmic mass difference. By default `None`.
-        mass_kind : str, optional
-            The mass kind whose similarity is to be checked. Must be a valid
-            catalogue key. By default `totpartmass`, i.e. the total particle
-            mass associated with a halo.
-        overlap : bool, optional
-            Whether to calculate overlap between clumps in the initial
-            snapshot. By default `False`. Note that this operation is
-            substantially slower.
-        overlapper_kwargs : dict, optional
-            Keyword arguments passed to `ParticleOverlapper`.
-        select_initial : bool, optional
-            Whether to select nearest neighbour at the initial or final
-            snapshot. By default `True`, i.e. at the initial snapshot.
-        remove_nooverlap : bool, optional
-            Whether to remove pairs with exactly zero overlap. By default
-            `True`.
-        verbose : bool, optional
-            Iterator verbosity flag. By default `True`.
-
-        Returns
-        -------
-        matches : list of composite arrays
-            List whose length is `n_sims`. For description of its elements see
-            `self.cross_knn_position_single(...)`.
-        """
-        N = self.cats.N  # Number of catalogues
-        matches = [None] * N
-        # Loop over each catalogue
-        for i in trange(N) if verbose else range(N):
-            matches[i] = self.cross_knn_position_single(
-                i, nmult, dlogmass, mass_kind=mass_kind, overlap=overlap,
-                overlapper_kwargs=overlapper_kwargs,
-                select_initial=select_initial,
-                remove_nooverlap=remove_nooverlap, verbose=verbose)
-        return matches
-
 
 ###############################################################################
 #                           Matching statistics                               #
