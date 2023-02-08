@@ -380,3 +380,54 @@ class OverlapReader:
         for n, ind in enumerate(self.match_indxs):
             out[n] = numpy.ones(ind.size) * self.cat0[par][n]
         return numpy.array(out, dtype=object)
+
+
+def binned_resample_mean(x, y, prob, bins, nresample=50, seed=42):
+    """
+    Calculate binned average of `y` by MC resampling. Each point is kept with
+    probability `prob`.
+
+    Parameters
+    ----------
+    x : 1-dimensional array
+        Independent variable.
+    y : 1-dimensional array
+        Dependent variable.
+    prob : 1-dimensional array
+        Sample probability.
+    bins : 1-dimensional array
+        Bin edges to bin `x`.
+    nresample : int, optional
+        Number of MC resamples. By default 50.
+    seed : int, optional
+        Random seed.
+    
+    Returns
+    -------
+    bin_centres : 1-dimensional array
+        Bin centres.
+    stat : 2-dimensional array
+        Mean and its standard deviation from MC resampling.
+    """
+    assert (x.ndim == 1) & (x.shape == y.shape == prob.shape)
+
+    gen = numpy.random.RandomState(seed)
+
+    loop_stat = numpy.full(nresample, numpy.nan)      # Preallocate loop arr 
+    stat = numpy.full((bins.size - 1, 2), numpy.nan)  # Preallocate output 
+
+    for i in range(bins.size - 1):
+        mask = (x > bins[i]) & (x <= bins[i + 1])
+        nsamples = numpy.sum(mask)
+
+        loop_stat[:] = numpy.nan  # Clear it
+        for j in range(nresample):
+            loop_stat[j] = numpy.mean(y[mask][gen.rand(nsamples) < prob[mask]])
+        
+        stat[i, 0] = numpy.mean(loop_stat)
+        stat[i, 1] = numpy.std(loop_stat)
+    
+    bin_centres = (bins[1:] + bins[:-1]) / 2
+
+    return bin_centres, stat
+    
