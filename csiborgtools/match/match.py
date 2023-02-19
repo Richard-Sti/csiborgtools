@@ -804,9 +804,8 @@ def calculate_overlap(delta1, delta2, cellmins, delta2_full):
                     count += 1
 
     # Normalise the intersect and weights
-    intersect *= 0.5
     weight = weight / count if count > 0 else 0.
-    return weight * intersect / (totmass - intersect)
+    return weight * intersect / totmass
 
 
 @jit(nopython=True)
@@ -855,9 +854,8 @@ def calculate_overlap_indxs(delta1, delta2, cellmins, delta2_full, nonzero1,
             count += 1
 
     # Normalise the intersect and weights
-    intersect *= 0.5
     weight = weight / count if count > 0 else 0.
-    return weight * intersect / (totmass - intersect)
+    return weight * intersect / totmass
 
 
 def dist_centmass(clump):
