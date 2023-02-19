@@ -360,7 +360,7 @@ class OverlapReader:
         summed_overlap : 1-dimensional array of shape `(nhalos, )`
         """
         return numpy.array([numpy.sum(cross) for cross in self._data["cross"]])
-    
+
     def copy_per_match(self, par):
         """
         Make an array like `self.match_indxs` where each of its element is an
@@ -371,7 +371,7 @@ class OverlapReader:
         ----------
         par : str
             Property to be copied over.
-        
+
         Returns
         -------
         out : 1-dimensional array of shape `(nhalos, )`
@@ -401,7 +401,7 @@ def binned_resample_mean(x, y, prob, bins, nresample=50, seed=42):
         Number of MC resamples. By default 50.
     seed : int, optional
         Random seed.
-    
+
     Returns
     -------
     bin_centres : 1-dimensional array
@@ -413,8 +413,8 @@ def binned_resample_mean(x, y, prob, bins, nresample=50, seed=42):
 
     gen = numpy.random.RandomState(seed)
 
-    loop_stat = numpy.full(nresample, numpy.nan)      # Preallocate loop arr 
-    stat = numpy.full((bins.size - 1, 2), numpy.nan)  # Preallocate output 
+    loop_stat = numpy.full(nresample, numpy.nan)      # Preallocate loop arr
+    stat = numpy.full((bins.size - 1, 2), numpy.nan)  # Preallocate output
 
     for i in range(bins.size - 1):
         mask = (x > bins[i]) & (x <= bins[i + 1])
@@ -423,11 +423,10 @@ def binned_resample_mean(x, y, prob, bins, nresample=50, seed=42):
         loop_stat[:] = numpy.nan  # Clear it
         for j in range(nresample):
             loop_stat[j] = numpy.mean(y[mask][gen.rand(nsamples) < prob[mask]])
-        
+
         stat[i, 0] = numpy.mean(loop_stat)
         stat[i, 1] = numpy.std(loop_stat)
-    
+
     bin_centres = (bins[1:] + bins[:-1]) / 2
 
     return bin_centres, stat
-    
