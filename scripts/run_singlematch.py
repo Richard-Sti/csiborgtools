@@ -37,7 +37,7 @@ args = parser.parse_args()
 # File paths
 nsim0 = 7468
 nsimx = 7588
-fperm = join(utils.dumpdir, "overlap", "cross_{}_{}.npy")
+fperm = join(utils.dumpdir, "overlap", "cross_{}_{}.npz")
 
 print("{}: loading catalogues.".format(datetime.now()), flush=True)
 cat0 = csiborgtools.read.HaloCatalogue(nsim0)
@@ -46,7 +46,7 @@ catx = csiborgtools.read.HaloCatalogue(nsimx)
 matcher = csiborgtools.match.RealisationsMatcher()
 print("{}: crossing the simulations.".format(datetime.now()), flush=True)
 indxs, match_indxs, cross = matcher.cross(
-    nsim0, nsimx, cat0, catx, overlap=False)
+    nsim0, nsimx, cat0, catx, overlap=args.overlap)
 # Dump the result
 fout = fperm.format(nsim0, nsimx)
 print("Saving results to `{}`.".format(fout), flush=True)
