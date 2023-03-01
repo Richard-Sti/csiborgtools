@@ -30,25 +30,26 @@ import utils
 
 # Argument parser
 parser = ArgumentParser()
+parser.add_argument("--nsim0", type=int)
+parser.add_argument("--nsimx", type=int)
 parser.add_argument("--nmult", type=float)
 parser.add_argument("--overlap", type=lambda x: bool(strtobool(x)))
 args = parser.parse_args()
 
 # File paths
-nsim0 = 7468
-nsimx = 7588
-fperm = join(utils.dumpdir, "overlap", "cross_{}_{}.npz")
+fout = join(
+    utils.dumpdir, "overlap", "cross_{}_{}.npz".format(args.nsim0, args.nsimx))
 
 print("{}: loading catalogues.".format(datetime.now()), flush=True)
-cat0 = csiborgtools.read.HaloCatalogue(nsim0)
-catx = csiborgtools.read.HaloCatalogue(nsimx)
+cat0 = csiborgtools.read.HaloCatalogue(args.nsim0)
+catx = csiborgtools.read.HaloCatalogue(args.nsimx)
 
 matcher = csiborgtools.match.RealisationsMatcher()
 print("{}: crossing the simulations.".format(datetime.now()), flush=True)
 indxs, match_indxs, cross = matcher.cross(
-    nsim0, nsimx, cat0, catx, overlap=args.overlap)
+    args.nsim0, args.nsimx, cat0, catx, overlap=args.overlap)
+
 # Dump the result
-fout = fperm.format(nsim0, nsimx)
 print("Saving results to `{}`.".format(fout), flush=True)
 with open(fout, "wb") as f:
     numpy.savez(fout, indxs=indxs, match_indxs=match_indxs, cross=cross)
