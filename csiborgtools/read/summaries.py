@@ -18,6 +18,7 @@ Tools for summarising various results.
 import numpy
 import joblib
 from tqdm import tqdm
+from .make_cat import HaloCatalogue
 
 
 class PKReader:
@@ -170,16 +171,24 @@ class PKReader:
 
 class OverlapReader:
     """
-    TODO: docs
+    A shortcut object for reading in the results of matching two simulations.
 
+    Parameters
+    ----------
+    nsim0 : int
+        The reference simulation ID.
+    nsimx : int
+        The cross simulation ID.
+    fskel : str, optional
+        Path to the overlap. By default `None`, i.e.
+        `/mnt/extraspace/rstiskalek/csiborg/overlap/cross_{}_{}.npz`.
     """
-
-    def __init__(self, nsim0, nsimx, cat0, catx, fskel=None):
+    def __init__(self, nsim0, nsimx, fskel=None):
         if fskel is None:
             fskel = "/mnt/extraspace/rstiskalek/csiborg/overlap/"
             fskel += "cross_{}_{}.npz"
         self._data = numpy.load(fskel.format(nsim0, nsimx), allow_pickle=True)
-        self._set_cats(nsim0, nsimx, cat0, catx)
+        self._set_cats(nsim0, nsimx)
 
     @property
     def nsim0(self):
@@ -225,7 +234,7 @@ class OverlapReader:
         """
         return self._catx
 
-    def _set_cats(self, nsim0, nsimx, cat0, catx):
+    def _set_cats(self, nsim0, nsimx):
         """
         Set the simulation IDs and catalogues.
 
@@ -233,18 +242,15 @@ class OverlapReader:
         ----------
         nsim0, nsimx : int
             The reference and cross simulation IDs.
-        cat0, catx: :py:class:`csiborgtools.read.HaloCatalogue`
-            Halo catalogues corresponding to `nsim0` and `nsimx`, respectively.
 
         Returns
         -------
         None
         """
-        assert (nsim0 == cat0.paths.n_sim) & (nsimx == catx.paths.n_sim)
         self._nsim0 = nsim0
         self._nsimx = nsimx
-        self._cat0 = cat0
-        self._catx = catx
+        self._cat0 = HaloCatalogue(nsim0)
+        self._catx = HaloCatalogue(nsimx)
 
     @property
     def indxs(self):
