@@ -278,7 +278,7 @@ class RealisationsMatcher:
             if verbose:
                 print("Creating and smoothing the crossed field.", flush=True)
             delta = self.overlapper.make_background_delta(
-                concatenate_clumps(clumpsx), to_smooth=False)
+                clumpsx, to_smooth=False)
 
             # Min and max cells along each axis for each halo
             limkwargs = {"ncells": self.overlapper.inv_clength,
