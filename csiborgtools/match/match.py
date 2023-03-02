@@ -277,7 +277,7 @@ class RealisationsMatcher:
             # Calculate the particle field
             if verbose:
                 print("Creating and smoothing the crossed field.", flush=True)
-            delta = self.overlapper.make_background_delta(
+            delta_bckg = self.overlapper.make_background_delta(
                 clumpsx, to_smooth=False)
 
             # Min and max cells along each axis for each halo
@@ -307,7 +307,7 @@ class RealisationsMatcher:
                     matchx = cat2clumpsx[ind]  # Clump pos matching this halo
                     clx = clumpsx["clump"][matchx]
                     crosses[ii] = self.overlapper(
-                        cl0, clx, delta, mins0_current, maxs0_current,
+                        cl0, clx, delta_bckg, mins0_current, maxs0_current,
                         minsx[matchx], maxsx[matchx],
                         mass1=mass0, mass2=numpy.sum(clx['M']))
                 cross[k] = crosses
