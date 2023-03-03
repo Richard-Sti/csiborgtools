@@ -863,20 +863,17 @@ def calculate_overlap_indxs(delta1, delta2, cellmins, delta2_bckg, nonzero1,
     -------
     overlap : float
     """
-    totmass = mass1 + mass2  # Total mass of clump 1 and clump 2
-    intersect = 0.           # Mass of pixels that are non-zero in both clumps
-    weight = 0.              # Weight to account for other halos
-    count = 0                # Total number of pixels that are both non-zero
-    i0, j0, k0 = cellmins    # Unpack cell minimas
-
-    ncells = nonzero1.shape[0]
+    intersect = 0.         # Mass of pixels that are non-zero in both clumps
+    weight = 0.            # Weight to account for other halos
+    count = 0              # Total number of pixels that are both non-zero
+    i0, j0, k0 = cellmins  # Unpack cell minimas
     bckg_offset = 512      # Offset of the background density field
     bckg_size = 1024       # Size of the background density field array
     ii_flag = False        # Flags to check if a cell is in
     jj_flag = False        # the high-resolution region where the background is
     kk_flag = False        # calculated.
 
-    for n in range(ncells):
+    for n in range(nonzero1.shape[0]):
         i, j, k = nonzero1[n, :]
         cell1, cell2 = delta1[i, j, k], delta2[i, j, k]
 
@@ -898,7 +895,7 @@ def calculate_overlap_indxs(delta1, delta2, cellmins, delta2_bckg, nonzero1,
 
     # Normalise the intersect and weights
     weight = weight / count if count > 0 else 0.
-    return weight * intersect / totmass
+    return weight * intersect / (mass1 + mass2)
 
 
 def dist_centmass(clump):
