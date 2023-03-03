@@ -871,10 +871,10 @@ def calculate_overlap_indxs(delta1, delta2, cellmins, delta2_bckg, nonzero1,
 
     ncells = nonzero1.shape[0]
     bckg_offset = 512      # Offset of the background density field
-    bckg_size = 1024
-    ii_flag = False  # Flags to check if a cell is in
-    jj_flag = False  # the high-resolution region where the background is
-    kk_flag = False  # calculated.
+    bckg_size = 1024       # Size of the background density field array
+    ii_flag = False        # Flags to check if a cell is in
+    jj_flag = False        # the high-resolution region where the background is
+    kk_flag = False        # calculated.
 
     for n in range(ncells):
         i, j, k = nonzero1[n, :]
