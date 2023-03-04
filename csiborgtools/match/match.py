@@ -463,7 +463,7 @@ class ParticleOverlap:
         """
         conc_clumps = concatenate_clumps(clumps)
         cells = [self.pos2cell(conc_clumps[p]) for p in ('x', 'y', 'z')]
-        mass = conc_clumps['M']
+        mass = numpy.ones_like(conc_clumps['M'])
 
         del conc_clumps
         collect()  # This is a large array so force memory clean
@@ -668,9 +668,13 @@ class ParticleOverlap:
             clump1, clump2, mins1, maxs1, mins2, maxs2,
             return_nonzero1=loop_nonzero)
 
-        if not loop_nonzero:
+#        if not loop_nonzero:
+        if True:
             return calculate_overlap(delta1, delta2, cellmins, delta2_full)
 
+        # Calculate masses not given
+        mass1 = numpy.sum(clump1['M']) if mass1 is None else mass1
+        mass2 = numpy.sum(clump2['M']) if mass2 is None else mass2
         return calculate_overlap_indxs(delta1, delta2, cellmins, delta2_full,
                                        nonzero1, mass1, mass2)
 
@@ -818,20 +822,21 @@ def calculate_overlap(delta1, delta2, cellmins, delta2_bckg):
                 kk_flag = 0 <= kk < bckg_size
 
                 cell1, cell2 = delta1[i, j, k], delta2[i, j, k]
-                cell = cell1 + cell2
-                totmass += cell
                 # If both are zero then skip
                 if cell1 * cell2 > 0:
-                    intersect += cell
                     if ii_flag & jj_flag & kk_flag:
                         weight += cell2 / delta2_bckg[ii, jj, kk]
                     else:
                         weight += 1.
+                    # Average mass in the cell
+                    intersect += 0.5 * (cell1 + cell2)
                     count += 1
+
+                totmass += cell1 + cell2
 
     # Normalise the intersect and weights
     weight = weight / count if count > 0 else 0.
-    return weight * intersect / totmass
+    return weight * intersect / (totmass - intersect)
 
 
 @jit(nopython=True)
@@ -878,14 +883,15 @@ def calculate_overlap_indxs(delta1, delta2, cellmins, delta2_bckg, nonzero1,
         cell1, cell2 = delta1[i, j, k], delta2[i, j, k]
 
         if cell2 > 0:  # We already know that cell1 is non-zero
-            intersect += cell1 + cell2
+            # Average mass in the cell
+            intersect += 0.5 * (cell1 + cell2)
             ii = i0 + i - bckg_offset  # Indices of this cell in the background
-            jj = j0 + j - bckg_offset  # density field
+            jj = j0 + j - bckg_offset  # density field.
             kk = k0 + k - bckg_offset
 
-            ii_flag = 0 <= ii < bckg_size
-            jj_flag = 0 <= jj < bckg_size
-            kk_flag = 0 <= kk < bckg_size
+            ii_flag = 0 <= ii < bckg_size  # Whether this cell is in the high
+            jj_flag = 0 <= jj < bckg_size  # resolution region for which the
+            kk_flag = 0 <= kk < bckg_size  # background density is calculated.
 
             if ii_flag & jj_flag & kk_flag:
                 weight += cell2 / delta2_bckg[ii, jj, kk]
@@ -895,7 +901,7 @@ def calculate_overlap_indxs(delta1, delta2, cellmins, delta2_bckg, nonzero1,
 
     # Normalise the intersect and weights
     weight = weight / count if count > 0 else 0.
-    return weight * intersect / (mass1 + mass2)
+    return weight * intersect / (mass1 + mass2 - intersect)
 
 
 def dist_centmass(clump):
