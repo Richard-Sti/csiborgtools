@@ -463,7 +463,7 @@ class ParticleOverlap:
         """
         conc_clumps = concatenate_clumps(clumps)
         cells = [self.pos2cell(conc_clumps[p]) for p in ('x', 'y', 'z')]
-        mass = numpy.ones_like(conc_clumps['M'])
+        mass = conc_clumps['M']
 
         del conc_clumps
         collect()  # This is a large array so force memory clean
