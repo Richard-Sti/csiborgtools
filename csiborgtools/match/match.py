@@ -668,8 +668,7 @@ class ParticleOverlap:
             clump1, clump2, mins1, maxs1, mins2, maxs2,
             return_nonzero1=loop_nonzero)
 
-#        if not loop_nonzero:
-        if True:
+        if not loop_nonzero:
             return calculate_overlap(delta1, delta2, cellmins, delta2_full)
 
         # Calculate masses not given
