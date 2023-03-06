@@ -365,7 +365,7 @@ class OverlapReader:
         -------
         summed_overlap : 1-dimensional array of shape `(nhalos, )`
         """
-        return numpy.array([numpy.sum(cross) for cross in self._data["cross"]])
+        return numpy.array([numpy.sum(cross) for cross in self.overlap])
 
     def copy_per_match(self, par):
         """
@@ -386,6 +386,79 @@ class OverlapReader:
         for n, ind in enumerate(self.match_indxs):
             out[n] = numpy.ones(ind.size) * self.cat0[par][n]
         return numpy.array(out, dtype=object)
+
+    def prob_nomatch(self):
+        """
+        Probability of no match for each halo in the reference simulation with
+        the cross simulation. Defined as a product of 1 - overlap with other
+        halos.
+
+        Returns
+        -------
+        out : 1-dimensional array of shape `(nhalos, )`
+        """
+        return numpy.array(
+            [numpy.product(1 - overlap) for overlap in self.overlap])
+
+    def expected_counterpart_mass(self, overlap_threshold=0., in_log=False,
+                                  mass_kind="totpartmass"):
+        """
+        Calculate the expected counterpart mass of each halo in the reference
+        simulation from the crossed simulation.
+
+        Parameters
+        -----------
+        overlap_threshold : float, optional
+            Minimum overlap required for a halo to be considered a match. By
+            default 0.0, i.e. no threshold.
+        in_log : bool, optional
+            Whether to calculate the expectation value in log space. By default
+            `False`.
+        mass_kind : str, optional
+            The mass kind whose ratio is to be calculated. Must be a valid
+            catalogue key. By default `totpartmass`, i.e. the total particle
+            mass associated with a halo.
+        Returns
+        -------
+        mean, std : 1-dimensional arrays of shape `(nhalos, )`
+        """
+        nhalos = self.indxs.size
+        mean = numpy.full(nhalos, numpy.nan)  # Preallocate output arrays
+        std = numpy.full(nhalos, numpy.nan)
+
+        massx = self.catx[mass_kind]  # Create references to the arrays here
+        overlap = self.overlap        # to speed up the loop below.
+
+        # Is the iterator verbose?
+        for n, match_ind in enumerate((self.match_indxs)):
+            # Skip if no match
+            if match_ind.size == 0:
+                continue
+
+            massx_ = massx[match_ind]  # Again just create references
+            overlap_ = overlap[n]      # to the appropriate elements
+
+            # Optionally apply overlap threshold
+            if overlap_threshold > 0.:
+                mask = overlap_ > overlap_threshold
+                if numpy.sum(mask) == 0:
+                    continue
+                massx_ = massx_[mask]
+                overlap_ = overlap_[mask]
+
+            massx_ = numpy.log10(massx_) if in_log else massx_
+            # Weighted average and *biased* standard deviation
+            mean_ = numpy.average(massx_, weights=overlap_)
+            std_ = numpy.average((massx_ - mean_)**2, weights=overlap_)**0.5
+
+            # If in log, convert back to linear
+            mean_ = 10**mean_ if in_log else mean_
+            std_ = mean_ * std_ * numpy.log(10) if in_log else std_
+
+            mean[n] = mean_
+            std[n] = std_
+
+        return mean, std
 
 
 def binned_resample_mean(x, y, prob, bins, nresample=50, seed=42):
