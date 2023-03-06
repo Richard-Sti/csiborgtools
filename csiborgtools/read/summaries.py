@@ -357,10 +357,6 @@ class OverlapReader:
         Summed overlap of each halo in the reference simulation with the cross
         simulation.
 
-        Parameters
-        ----------
-        None
-
         Returns
         -------
         summed_overlap : 1-dimensional array of shape `(nhalos, )`
@@ -418,6 +414,7 @@ class OverlapReader:
             The mass kind whose ratio is to be calculated. Must be a valid
             catalogue key. By default `totpartmass`, i.e. the total particle
             mass associated with a halo.
+
         Returns
         -------
         mean, std : 1-dimensional arrays of shape `(nhalos, )`
