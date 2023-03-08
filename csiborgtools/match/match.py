@@ -277,7 +277,9 @@ class RealisationsMatcher:
             # Calculate the particle field
             if verbose:
                 print("Creating and smoothing the crossed field.", flush=True)
-            delta_bckg = self.overlapper.make_background_delta(
+            delta_bckg0 = self.overlapper.make_background_delta(
+                clumps0, to_smooth=False)
+            delta_bckgx = self.overlapper.make_background_delta(
                 clumpsx, to_smooth=False)
 
             # Min and max cells along each axis for each halo
@@ -307,8 +309,8 @@ class RealisationsMatcher:
                     matchx = cat2clumpsx[ind]  # Clump pos matching this halo
                     clx = clumpsx["clump"][matchx]
                     crosses[ii] = self.overlapper(
-                        cl0, clx, delta_bckg, mins0_current, maxs0_current,
-                        minsx[matchx], maxsx[matchx],
+                        cl0, clx, delta_bckg0, delta_bckgx, mins0_current,
+                        maxs0_current, minsx[matchx], maxsx[matchx],
                         mass1=mass0, mass2=numpy.sum(clx['M']))
                 cross[k] = crosses
 
@@ -554,6 +556,9 @@ class ParticleOverlap:
         mins2, maxs2 : 1-dimensional arrays of shape `(3,)`
             Minimun and maximum cell numbers along each dimension of `clump2`.
             Optional.
+        return_nonzero1 : bool, optional
+            Whether to return the indices where the contribution of `clump1` is
+            non-zero.
 
         Returns
         -------
@@ -607,35 +612,12 @@ class ParticleOverlap:
 
         return delta1, delta2, cellmins, nonzero1
 
-    @staticmethod
-    def overlap(delta1, delta2, cellmins, delta2_full):
-        r"""
-        Overlap between two clumps whose density fields are evaluated on the
-        same grid.
-
-        Parameters
-        ----------
-        delta1, delta2 : 3-dimensional arrays
-            Clumps density fields.
-        cellmins : len-3 tuple
-            Tuple of left-most cell ID in the full box.
-        delta2_full : 3-dimensional array
-            Density field of the whole box calculated with particles assigned
-            to halos at zero redshift.
-
-        Returns
-        -------
-        overlap : float
-        """
-        return calculate_overlap(delta1, delta2, cellmins, delta2_full)
-
-    def __call__(self, clump1, clump2, delta2_full, mins1=None, maxs1=None,
-                 mins2=None, maxs2=None, mass1=None, mass2=None,
-                 loop_nonzero=True):
+    def __call__(self, clump1, clump2, delta1_bckg, delta2_bckg,
+                 mins1=None, maxs1=None, mins2=None, maxs2=None,
+                 mass1=None, mass2=None, loop_nonzero=True):
         """
         Calculate overlap between `clump1` and `clump2`. See
-        `self.overlap(...)` and `self.make_deltas(...)` for further
-        information.
+        `calculate_overlap(...)` for further information.
 
         Parameters
         ----------
@@ -644,9 +626,10 @@ class ParticleOverlap:
             must include `x`, `y`, `z` and `M`.
         cellmins : len-3 tuple
             Tuple of left-most cell ID in the full box.
-        delta2_full : 3-dimensional array
-            Density field of the whole box calculated with particles assigned
-            to halos at zero redshift.
+        delta1_bcgk, delta2_bckg : 3-dimensional arrays
+            Background density fields of the reference and cross boxes
+            calculated with particles assigned to halos at the final snapshot.
+            Assumed to only be sampled in cells :math:`[512, 1536)^3`.
         mins1, maxs1 : 1-dimensional arrays of shape `(3,)`
             Minimun and maximum cell numbers along each dimension of `clump1`.
             Optional.
@@ -669,13 +652,14 @@ class ParticleOverlap:
             return_nonzero1=loop_nonzero)
 
         if not loop_nonzero:
-            return calculate_overlap(delta1, delta2, cellmins, delta2_full)
+            return calculate_overlap(delta1, delta2, cellmins,
+                                     delta1_bckg, delta2_bckg)
 
         # Calculate masses not given
         mass1 = numpy.sum(clump1['M']) if mass1 is None else mass1
         mass2 = numpy.sum(clump2['M']) if mass2 is None else mass2
-        return calculate_overlap_indxs(delta1, delta2, cellmins, delta2_full,
-                                       nonzero1, mass1, mass2)
+        return calculate_overlap_indxs(delta1, delta2, cellmins, delta1_bckg,
+                                       delta2_bckg, nonzero1, mass1, mass2)
 
 
 @jit(nopython=True)
@@ -777,7 +761,7 @@ def get_clumplims(clumps, ncells, nshift=None):
 
 
 @jit(nopython=True)
-def calculate_overlap(delta1, delta2, cellmins, delta2_bckg):
+def calculate_overlap(delta1, delta2, cellmins, delta1_bckg, delta2_bckg):
     r"""
     Overlap between two clumps whose density fields are evaluated on the
     same grid. This is a JIT implementation, hence it is outside of the main
@@ -789,10 +773,10 @@ def calculate_overlap(delta1, delta2, cellmins, delta2_bckg):
         Clumps density fields.
     cellmins : len-3 tuple
         Tuple of left-most cell ID in the full box.
-    delta2_bckg : 3-dimensional array
-        Background density field of the whole box calculated with particles
-        assigned to halos at zero redshift. Assumed to only be sampled in cells
-        :math:`[512, 1536)^3`.
+    delta1_bcgk, delta2_bckg : 3-dimensional arrays
+        Background density fields of the reference and cross boxes calculated
+        with particles assigned to halos at the final snapshot. Assumed to only
+        be sampled in cells :math:`[512, 1536)^3`.
 
     Returns
     -------
@@ -800,47 +784,41 @@ def calculate_overlap(delta1, delta2, cellmins, delta2_bckg):
     """
     totmass = 0.           # Total mass of clump 1 and clump 2
     intersect = 0.         # Mass of pixels that are non-zero in both clumps
-    weight = 0.            # Weight to account for other halos
-    count = 0              # Total number of pixels that are both non-zero
     i0, j0, k0 = cellmins  # Unpack things
     bckg_offset = 512      # Offset of the background density field
     bckg_size = 1024
     imax, jmax, kmax = delta1.shape
-    ii_flag = False  # Flags to check if a cell is in
-    jj_flag = False  # the high-resolution region where the background is
-    kk_flag = False  # calculated.
 
     for i in range(imax):
         ii = i0 + i - bckg_offset
-        ii_flag = 0 <= ii < bckg_size
+        flag = 0 <= ii < bckg_size
         for j in range(jmax):
             jj = j0 + j - bckg_offset
-            jj_flag = 0 <= jj < bckg_size
+            flag &= 0 <= jj < bckg_size
             for k in range(kmax):
                 kk = k0 + k - bckg_offset
-                kk_flag = 0 <= kk < bckg_size
+                flag &= 0 <= kk < bckg_size
 
                 cell1, cell2 = delta1[i, j, k], delta2[i, j, k]
                 # If both are zero then skip
                 if cell1 * cell2 > 0:
-                    if ii_flag & jj_flag & kk_flag:
-                        weight += cell2 / delta2_bckg[ii, jj, kk]
+                    if flag:
+                        weight1 = cell1 / delta1_bckg[ii, jj, kk]
+                        weight2 = cell2 / delta2_bckg[ii, jj, kk]
                     else:
-                        weight += 1.
-                    # Average mass in the cell
-                    intersect += 0.5 * (cell1 + cell2)
-                    count += 1
+                        weight1 = 1.
+                        weight2 = 1.
+                    # Average weighted mass in the cell
+                    intersect += 0.5 * (weight1 * cell1 + weight2 * cell2)
 
                 totmass += cell1 + cell2
 
-    # Normalise the intersect and weights
-    weight = weight / count if count > 0 else 0.
-    return weight * intersect / (totmass - intersect)
+    return intersect / (totmass - intersect)
 
 
 @jit(nopython=True)
-def calculate_overlap_indxs(delta1, delta2, cellmins, delta2_bckg, nonzero1,
-                            mass1, mass2):
+def calculate_overlap_indxs(delta1, delta2, cellmins, delta1_bckg, delta2_bckg,
+                            nonzero1, mass1, mass2):
     r"""
     Overlap between two clumps whose density fields are evaluated on the
     same grid and `nonzero1` enumerates the non-zero cells of `delta1.  This is
@@ -852,10 +830,10 @@ def calculate_overlap_indxs(delta1, delta2, cellmins, delta2_bckg, nonzero1,
         Clumps density fields.
     cellmins : len-3 tuple
         Tuple of left-most cell ID in the full box.
-    delta2_bckg : 3-dimensional array
-        Background density field of the whole box calculated with particles
-        assigned to halos at zero redshift. Assumed to only be sampled in cells
-        :math:`[512, 1536)^3`.
+    delta1_bcgk, delta2_bckg : 3-dimensional arrays
+        Background density fields of the reference and cross boxes calculated
+        with particles assigned to halos at the final snapshot. Assumed to only
+        be sampled in cells :math:`[512, 1536)^3`.
     nonzero1 : 2-dimensional array of shape `(n_cells, 3)`
         Indices of cells that are non-zero in `delta1`. Expected to be
         precomputed from `fill_delta_indxs`.
@@ -868,39 +846,35 @@ def calculate_overlap_indxs(delta1, delta2, cellmins, delta2_bckg, nonzero1,
     overlap : float
     """
     intersect = 0.         # Mass of pixels that are non-zero in both clumps
-    weight = 0.            # Weight to account for other halos
-    count = 0              # Total number of pixels that are both non-zero
     i0, j0, k0 = cellmins  # Unpack cell minimas
     bckg_offset = 512      # Offset of the background density field
     bckg_size = 1024       # Size of the background density field array
-    ii_flag = False        # Flags to check if a cell is in
-    jj_flag = False        # the high-resolution region where the background is
-    kk_flag = False        # calculated.
 
     for n in range(nonzero1.shape[0]):
         i, j, k = nonzero1[n, :]
-        cell1, cell2 = delta1[i, j, k], delta2[i, j, k]
+        cell2 = delta2[i, j, k]
 
         if cell2 > 0:  # We already know that cell1 is non-zero
-            # Average mass in the cell
-            intersect += 0.5 * (cell1 + cell2)
-            ii = i0 + i - bckg_offset  # Indices of this cell in the background
-            jj = j0 + j - bckg_offset  # density field.
+            cell1 = delta1[i, j, k]      # Now unpack cell1 as well
+            ii = i0 + i - bckg_offset    # Indices of this cell in the
+            jj = j0 + j - bckg_offset    # background density field.
             kk = k0 + k - bckg_offset
 
-            ii_flag = 0 <= ii < bckg_size  # Whether this cell is in the high
-            jj_flag = 0 <= jj < bckg_size  # resolution region for which the
-            kk_flag = 0 <= kk < bckg_size  # background density is calculated.
+            flag = 0 <= ii < bckg_size   # Whether this cell is in the high
+            flag &= 0 <= jj < bckg_size  # resolution region for which the
+            flag &= 0 <= kk < bckg_size  # background density is calculated.
 
-            if ii_flag & jj_flag & kk_flag:
-                weight += cell2 / delta2_bckg[ii, jj, kk]
+            if flag:
+                weight1 = cell1 / delta1_bckg[ii, jj, kk]
+                weight2 = cell2 / delta2_bckg[ii, jj, kk]
             else:
-                weight += 1.
-            count += 1
+                weight1 = 1.
+                weight2 = 1.
 
-    # Normalise the intersect and weights
-    weight = weight / count if count > 0 else 0.
-    return weight * intersect / (mass1 + mass2 - intersect)
+            # Average weighted mass in the cell
+            intersect += 0.5 * (weight1 * cell1 + weight2 * cell2)
+
+    return intersect / (mass1 + mass2 - intersect)
 
 
 def dist_centmass(clump):
