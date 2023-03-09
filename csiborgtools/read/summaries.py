@@ -17,6 +17,7 @@ Tools for summarising various results.
 """
 import numpy
 import joblib
+from os.path import isfile
 from tqdm import tqdm
 from .make_cat import HaloCatalogue
 
@@ -187,8 +188,34 @@ class OverlapReader:
         if fskel is None:
             fskel = "/mnt/extraspace/rstiskalek/csiborg/overlap/"
             fskel += "cross_{}_{}.npz"
-        self._data = numpy.load(fskel.format(nsim0, nsimx), allow_pickle=True)
+
+        fpath = fskel.format(nsim0, nsimx)
+        fpath_inv = fskel.format(nsimx, nsim0)
+        is_inverted = False
+        if isfile(fpath):
+            pass
+        elif isfile(fpath_inv):
+            fpath = fpath_inv
+            is_inverted = True
+            nsim0, nsimx = nsimx, nsim0
+        else:
+            raise FileNotFoundError(
+                "No overlap file found for combination `{}` and `{}`."
+                .format(nsim0, nsimx))
+
+        # We can set catalogues already now even if inverted
         self._set_cats(nsim0, nsimx)
+        print(is_inverted)
+        data = numpy.load(fpath, allow_pickle=True)
+        if is_inverted:
+            inv_match_indxs, inv_overlap = self._invert_match(
+                data["match_indxs"], data["cross"], self.cat0["index"].size,)
+            # Overwrite the original file and store as a dictionary
+            data = {"indxs": self.cat0["index"],
+                    "match_indxs": inv_match_indxs,
+                    "cross": inv_overlap,
+                    }
+        self._data = data
 
     @property
     def nsim0(self):
@@ -252,6 +279,57 @@ class OverlapReader:
         self._cat0 = HaloCatalogue(nsim0)
         self._catx = HaloCatalogue(nsimx)
 
+    @staticmethod
+    def _invert_match(match_indxs, overlap, cross_size):
+        """
+        Invert reference and cross matching, possible since the overlap
+        definition is symmetric.
+
+        Parameters
+        ----------
+        match_indxs : array of 1-dimensional arrays
+            Indices of halos from the original cross catalogue matched to the
+            reference catalogue.
+        overlap : array of 1-dimensional arrays
+            Pair overlap of halos between the originla reference and cross
+            simulations.
+        cross_size : int
+            The size of the cross catalogue.
+
+        Returns
+        -------
+        inv_match_indxs : array of 1-dimensional arrays
+            The inverted match indices.
+        ind_overlap : array of 1-dimensional arrays
+            The corresponding overlaps to `inv_match_indxs`.
+        """
+        # 1. Invert the match. Each reference halo has a list of counterparts
+        # so loop over those to each counterpart assign a reference halo.
+        # Add the same time also add the overlaps
+        inv_match_indxs = [[] for __ in range(cross_size)]
+        inv_overlap = [[] for __ in range(cross_size)]
+        for ref_id in range(match_indxs.size):
+            for cross_id, cross in zip(match_indxs[ref_id], overlap[ref_id]):
+                inv_match_indxs[cross_id].append(ref_id)
+                inv_overlap[cross_id].append(cross)
+
+        # 2. Convert the cross matches and overlaps to proper numpy arrays
+        # and ensure that the overlaps are ordered.
+        for n in range(len(inv_match_indxs)):
+            inv_match_indxs[n] = numpy.asanyarray(inv_match_indxs[n],
+                                                  dtype=numpy.int32)
+            inv_overlap[n] = numpy.asanyarray(inv_overlap[n],
+                                              dtype=numpy.float32)
+
+            ordering = numpy.argsort(inv_overlap[n])[::-1]
+            inv_match_indxs[n] = inv_match_indxs[n][ordering]
+            inv_overlap[n] = inv_overlap[n][ordering]
+
+        inv_match_indxs = numpy.asarray(inv_match_indxs, dtype=object)
+        inv_overlap = numpy.asarray(inv_overlap, dtype=object)
+
+        return inv_match_indxs, inv_overlap
+
     @property
     def indxs(self):
         """
@@ -281,7 +359,7 @@ class OverlapReader:
 
         Returns
         -------
-        ovelap : array of 1-dimensional arrays of shape `(nhalos, )`
+        overlap : array of 1-dimensional arrays of shape `(nhalos, )`
         """
         return self._data["cross"]
 
