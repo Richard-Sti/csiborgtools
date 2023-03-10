@@ -205,16 +205,13 @@ class OverlapReader:
 
         # We can set catalogues already now even if inverted
         self._set_cats(nsim0, nsimx)
-        print(is_inverted)
         data = numpy.load(fpath, allow_pickle=True)
         if is_inverted:
             inv_match_indxs, inv_overlap = self._invert_match(
                 data["match_indxs"], data["cross"], self.cat0["index"].size,)
-            # Overwrite the original file and store as a dictionary
-            data = {"indxs": self.cat0["index"],
-                    "match_indxs": inv_match_indxs,
-                    "cross": inv_overlap,
-                    }
+            data = {"match_indxs": inv_match_indxs, "cross": inv_overlap}
+        else:
+            data = {"match_indxs": data["match_indxs"], "cross": data["cross"]}
         self._data = data
 
     @property
@@ -339,7 +336,7 @@ class OverlapReader:
         -------
         indxs : 1-dimensional array
         """
-        return self._data["indxs"]
+        return self.cat0["index"]
 
     @property
     def match_indxs(self):
