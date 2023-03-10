@@ -168,7 +168,7 @@ class HaloCatalogue:
         data = self.merge_mmain_to_clumps(data, mmain)
         flip_cols(data, "peak_x", "peak_z")
 
-        # Cut on number of particles and finite m200
+        # Cut on number of particles and finite m200. Do not change! Hardcoded
         data = data[(data["npart"] > 100) & numpy.isfinite(data["m200"])]
 
         # Now also load the initial positions
