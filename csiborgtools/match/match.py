@@ -235,6 +235,8 @@ class RealisationsMatcher:
 
         Returns
         -------
+        indxs : 1-dimensional array
+            Indices of halos in the reference catalogue.
         match_indxs : 1-dimensional array of arrays
             Indices of halo counterparts in the cross catalogue.
         overlaps : 1-dimensional array of arrays
@@ -318,7 +320,7 @@ class RealisationsMatcher:
                     match_indxs[k] = match_indxs[k][mask]
                     cross[k] = cross[k][mask]
 
-        return match_indxs, cross
+        return cat0["index"], match_indxs, cross
 
 
 ###############################################################################
