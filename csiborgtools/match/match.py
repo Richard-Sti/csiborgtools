@@ -246,9 +246,9 @@ class RealisationsMatcher:
         if verbose:
             print("{}: querying the KNN.".format(datetime.now()), flush=True)
         match_indxs = radius_neighbours(
-            catx.knn0, cat0.positions0, radiusX=cat0["lagpatch"],
-            radiusKNN=catx["lagpatch"], nmult=self.nmult, enforce_in32=True,
-            verbose=verbose)
+            catx.knn(select_initial=True), cat0.positions0,
+            radiusX=cat0["lagpatch"], radiusKNN=catx["lagpatch"],
+            nmult=self.nmult, enforce_in32=True, verbose=verbose)
 
         # Remove neighbours whose mass is too large/small
         if self.dlogmass is not None:
