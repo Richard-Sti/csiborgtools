@@ -46,12 +46,13 @@ catx = csiborgtools.read.HaloCatalogue(args.nsimx)
 
 matcher = csiborgtools.match.RealisationsMatcher()
 print("{}: crossing the simulations.".format(datetime.now()), flush=True)
-indxs, match_indxs, cross = matcher.cross(
+ref_indxs, cross_indxs, match_indxs, cross = matcher.cross(
     args.nsim0, args.nsimx, cat0, catx, overlap=args.overlap)
 
 # Dump the result
 print("Saving results to `{}`.".format(fout), flush=True)
 with open(fout, "wb") as f:
-    numpy.savez(fout, indxs=indxs, match_indxs=match_indxs, cross=cross)
+    numpy.savez(fout, ref_indxs=ref_indxs, cross_indxs=cross_indxs,
+                match_indxs=match_indxs, cross=cross)
 
 print("All finished.", flush=True)
