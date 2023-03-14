@@ -215,7 +215,7 @@ class RealisationsMatcher:
         mapping[ind2] = ind1
         return mapping
 
-    def cross(self, nsim0, nsimx,  cat0, catx, overlap=False, verbose=True):
+    def cross(self, cat0, catx, overlap=False, verbose=True):
         r"""
         Find all neighbours whose CM separation is less than `nmult` times the
         sum of their initial Lagrangian patch sizes. Enforces that the
@@ -223,10 +223,9 @@ class RealisationsMatcher:
 
         Parameters
         ----------
-        nsim0, nsimx : int
-            The reference and cross simulation IDs.
         cat0, catx: :py:class:`csiborgtools.read.HaloCatalogue`
-            Halo catalogues corresponding to `nsim0` and `nsimx`, respectively.
+            Halo catalogues corresponding to the reference and cross
+            simulations.
         overlap : bool, optional
             whether to calculate overlap between clumps in the initial
             snapshot. by default `false`. this operation is slow.
@@ -244,8 +243,6 @@ class RealisationsMatcher:
         overlaps : 1-dimensional array of arrays
             Overlaps with the cross catalogue.
         """
-        assert (nsim0 == cat0.paths.n_sim) & (nsimx == catx.paths.n_sim)
-
         # Query the KNN
         if verbose:
             print("{}: querying the KNN.".format(datetime.now()), flush=True)
@@ -267,9 +264,9 @@ class RealisationsMatcher:
         if overlap:
             if verbose:
                 print("Loading the clump particles", flush=True)
-            with open(cat0.paths.clump0_path(nsim0), "rb") as f:
+            with open(cat0.paths.clump0_path(cat0.n_sim), "rb") as f:
                 clumps0 = numpy.load(f, allow_pickle=True)
-            with open(catx.paths.clump0_path(nsimx), 'rb') as f:
+            with open(catx.paths.clump0_path(catx.n_sim), 'rb') as f:
                 clumpsx = numpy.load(f, allow_pickle=True)
 
             # Convert 3D positions to particle IDs
