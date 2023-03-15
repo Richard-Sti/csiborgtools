@@ -17,9 +17,8 @@ Tools for summarising various results.
 """
 import numpy
 import joblib
-from os.path import isfile
+from os.path import (join, isfile)
 from tqdm import tqdm
-from .make_cat import HaloCatalogue
 
 
 class PKReader:
@@ -171,70 +170,64 @@ class PKReader:
 
 
 class OverlapReader:
-    """
+    r"""
     A shortcut object for reading in the results of matching two simulations.
 
     Parameters
     ----------
-    nsim0 : int
-        The reference simulation ID.
-    nsimx : int
-        The cross simulation ID.
+    cat0, catx: :py:class:`csiborgtools.read.HaloCatalogue`
+        Halo catalogues corresponding to the reference and cross
+        simulations.
     fskel : str, optional
         Path to the overlap. By default `None`, i.e.
         `/mnt/extraspace/rstiskalek/csiborg/overlap/cross_{}_{}.npz`.
+    min_mass : float, optional
+        The minimum :math:`M_{\rm tot} / M_\odot` mass. By default no
+        threshold.
+    max_dist : float, optional
+        The maximum comoving distance of a halo. By default no upper limit.
     """
-    def __init__(self, nsim0, nsimx, fskel=None):
-        if fskel is None:
-            fskel = "/mnt/extraspace/rstiskalek/csiborg/overlap/"
-            fskel += "cross_{}_{}.npz"
+    _cat0 = None
+    _catx = None
+    _refmask = None
 
-        fpath = fskel.format(nsim0, nsimx)
-        fpath_inv = fskel.format(nsimx, nsim0)
-        is_inverted = False
+    def __init__(self, cat0, catx, fskel=None, min_mass=None, max_dist=None):
+        self._cat0 = cat0
+        self._catx = catx
+
+        if fskel is None:
+            fskel = join("/mnt/extraspace/rstiskalek/csiborg/overlap",
+                         "cross_{}_{}.npz")
+
+        fpath = fskel.format(cat0.n_sim, catx.n_sim)
+        fpath_inv = fskel.format(catx.n_sim, cat0.n_sim)
         if isfile(fpath):
-            pass
+            is_inverted = False
         elif isfile(fpath_inv):
             fpath = fpath_inv
             is_inverted = True
-            nsim0, nsimx = nsimx, nsim0
         else:
             raise FileNotFoundError(
                 "No overlap file found for combination `{}` and `{}`."
-                .format(nsim0, nsimx))
+                .format(cat0.n_sim, catx.n_sim))
 
         # We can set catalogues already now even if inverted
-        self._set_cats(nsim0, nsimx)
         data = numpy.load(fpath, allow_pickle=True)
         if is_inverted:
             inv_match_indxs, inv_overlap = self._invert_match(
-                data["match_indxs"], data["cross"], self.cat0["index"].size,)
-            data = {"match_indxs": inv_match_indxs, "cross": inv_overlap}
+                data["match_indxs"], data["overlap"],
+                data["cross_indxs"].size,)
+            self._data = {
+                "index": data["cross_indxs"],
+                "match_indxs": inv_match_indxs,
+                "overlap": inv_overlap}
         else:
-            data = {"match_indxs": data["match_indxs"], "cross": data["cross"]}
-        self._data = data
+            self._data = {
+                "index": data["ref_indxs"],
+                "match_indxs": data["match_indxs"],
+                "overlap": data["overlap"]}
 
-    @property
-    def nsim0(self):
-        """
-        The reference simulation ID.
-
-        Returns
-        -------
-        nsim0 : int
-        """
-        return self._nsim0
-
-    @property
-    def nsimx(self):
-        """
-        The cross simulation ID.
-
-        Returns
-        -------
-        nsimx : int
-        """
-        return self._nsimx
+        self._make_refmask(min_mass, max_dist)
 
     @property
     def cat0(self):
@@ -257,24 +250,6 @@ class OverlapReader:
         catx : :py:class:`csiborgtools.read.HaloCatalogue`
         """
         return self._catx
-
-    def _set_cats(self, nsim0, nsimx):
-        """
-        Set the simulation IDs and catalogues.
-
-        Parameters
-        ----------
-        nsim0, nsimx : int
-            The reference and cross simulation IDs.
-
-        Returns
-        -------
-        None
-        """
-        self._nsim0 = nsim0
-        self._nsimx = nsimx
-        self._cat0 = HaloCatalogue(nsim0)
-        self._catx = HaloCatalogue(nsimx)
 
     @staticmethod
     def _invert_match(match_indxs, overlap, cross_size):
@@ -301,8 +276,8 @@ class OverlapReader:
             The corresponding overlaps to `inv_match_indxs`.
         """
         # 1. Invert the match. Each reference halo has a list of counterparts
-        # so loop over those to each counterpart assign a reference halo.
-        # Add the same time also add the overlaps
+        # so loop over those to each counterpart assign a reference halo
+        # and at the same time also add the overlaps
         inv_match_indxs = [[] for __ in range(cross_size)]
         inv_overlap = [[] for __ in range(cross_size)]
         for ref_id in range(match_indxs.size):
@@ -327,6 +302,35 @@ class OverlapReader:
 
         return inv_match_indxs, inv_overlap
 
+    def _make_refmask(self, min_mass, max_dist):
+        r"""
+        Create a mask for the reference catalogue that accounts for the mass
+        and distance cuts. Note that *no* masking is applied to the cross
+        catalogue.
+
+        Parameters
+        ----------
+        min_mass : float, optional
+            The minimum :math:`M_{rm tot} / M_\odot` mass.
+        max_dist : float, optional
+            The maximum comoving distance of a halo.
+
+        Returns
+        -------
+        None
+        """
+        # Enforce a cut on the reference catalogue
+        min_mass = 0 if min_mass is None else min_mass
+        max_dist = numpy.infty if max_dist is None else max_dist
+        m = ((self.cat0["totpartmass"] > min_mass)
+             & (self.cat0["dist"] < max_dist))
+        # Now remove indices that are below this cut
+        self._data["index"] = self._data["index"][m]
+        self._data["match_indxs"] = self._data["match_indxs"][m]
+        self._data["overlap"] = self._data["overlap"][m]
+
+        self._refmask = m
+
     @property
     def indxs(self):
         """
@@ -336,7 +340,7 @@ class OverlapReader:
         -------
         indxs : 1-dimensional array
         """
-        return self.cat0["index"]
+        return self._data["index"]
 
     @property
     def match_indxs(self):
@@ -358,47 +362,73 @@ class OverlapReader:
         -------
         overlap : array of 1-dimensional arrays of shape `(nhalos, )`
         """
-        return self._data["cross"]
+        return self._data["overlap"]
 
-    def dist(self, in_initial, norm=None):
+    @property
+    def refmask(self):
         """
-        Final snapshot pair distances.
+        Mask of the reference catalogue to match the calculated overlaps.
+
+        Returns
+        -------
+        refmask : 1-dimensional boolean array
+        """
+        return self._refmask
+
+    def dist(self, in_initial, norm_kind=None):
+        """
+        Pair distances of matched halos between the reference and cross
+        simulations.
 
         Parameters
         ----------
         in_initial : bool
             Whether to calculate separation in the initial or final snapshot.
+        norm_kind : str, optional
+            The kind of normalisation to apply to the distances. Can be `r200`,
+            `ref_patch` or `sum_patch`.
 
         Returns
         -------
         dist : array of 1-dimensional arrays of shape `(nhalos, )`
         """
-        assert norm is None or norm in ("r200", "ref_patch", "sum_patch")
-        # Positions either in the initial or final snapshot
+        assert (norm_kind is None
+                or norm_kind in ("r200", "ref_patch", "sum_patch"))
+        # Get positions either in the initial or final snapshot
         if in_initial:
-            pos0 = self.cat0.positions0
-            posx = self.catx.positions0
+            pos0, posx = self.cat0.positions0, self.catx.positions0
         else:
-            pos0 = self.cat0.positions
-            posx = self.catx.positions
+            pos0, posx = self.cat0.positions, self.catx.positions
+        pos0 = pos0[self.refmask, :]  # Apply the reference catalogue mask
 
+        # Get the normalisation array if applicable
+        if norm_kind == "r200":
+            norm = self.cat0["r200"][self.refmask]
+        if norm_kind == "ref_patch":
+            norm = self.cat0["lagpatch"][self.refmask]
+        if norm_kind == "sum_patch":
+            patch0 = self.cat0["lagpatch"][self.refmask]
+            patchx = self.catx["lagpatch"]
+            norm = [None] * self.indxs.size
+            for i, ind in enumerate(self.match_indxs):
+                norm[i] = patch0[i] + patchx[ind]
+            norm = numpy.array(norm, dtype=object)
+
+        # Now calculate distances
         dist = [None] * self.indxs.size
-        for n, ind in enumerate(self.match_indxs):
-            dist[n] = numpy.linalg.norm(pos0[n, :] - posx[ind, :], axis=1)
+        for i, ind in enumerate(self.match_indxs):
+            # n refers to the reference halo catalogue position
+            dist[i] = numpy.linalg.norm(pos0[i, :] - posx[ind, :], axis=1)
 
-            # Normalisation
-            if norm == "r200":
-                dist[n] /= self.cat0["r200"][n]
-            if norm == "ref_patch":
-                dist[n] /= self.cat0["lagpatch"][n]
-            if norm == "sum_patch":
-                dist[n] /= (self.cat0["lagpatch"][n]
-                            + self.catx["lagpatch"][ind])
+            if norm_kind is not None:
+                dist[i] /= norm[i]
+
         return numpy.array(dist, dtype=object)
 
     def mass_ratio(self, mass_kind="totpartmass", in_log=True, in_abs=True):
         """
-        Pair mass ratio.
+        Pair mass ratio of matched halos between the reference and cross
+        simulations.
 
         Parameters
         ----------
@@ -415,16 +445,16 @@ class OverlapReader:
         -------
         ratio : array of 1-dimensional arrays of shape `(nhalos, )`
         """
-        mass0 = self.cat0[mass_kind]
+        mass0 = self.cat0[mass_kind][self.refmask]
         massx = self.catx[mass_kind]
 
         ratio = [None] * self.indxs.size
-        for n, ind in enumerate(self.match_indxs):
-            ratio[n] = mass0[n] / massx[ind]
+        for i, ind in enumerate(self.match_indxs):
+            ratio[i] = mass0[i] / massx[ind]
             if in_log:
-                ratio[n] = numpy.log10(ratio[n])
+                ratio[i] = numpy.log10(ratio[i])
             if in_abs:
-                ratio[n] = numpy.abs(ratio[n])
+                ratio[i] = numpy.abs(ratio[i])
         return numpy.array(ratio, dtype=object)
 
     def summed_overlap(self):
@@ -453,9 +483,10 @@ class OverlapReader:
         -------
         out : 1-dimensional array of shape `(nhalos, )`
         """
+        vals = self.cat0[par][self.refmask]
         out = [None] * self.indxs.size
-        for n, ind in enumerate(self.match_indxs):
-            out[n] = numpy.ones(ind.size) * self.cat0[par][n]
+        for i, ind in enumerate(self.match_indxs):
+            out[i] = numpy.ones(ind.size) * vals[i]
         return numpy.array(out, dtype=object)
 
     def prob_nomatch(self):
@@ -501,14 +532,13 @@ class OverlapReader:
         massx = self.catx[mass_kind]  # Create references to the arrays here
         overlap = self.overlap        # to speed up the loop below.
 
-        # Is the iterator verbose?
-        for n, match_ind in enumerate((self.match_indxs)):
+        for i, match_ind in enumerate(self.match_indxs):
             # Skip if no match
             if match_ind.size == 0:
                 continue
 
             massx_ = massx[match_ind]  # Again just create references
-            overlap_ = overlap[n]      # to the appropriate elements
+            overlap_ = overlap[i]      # to the appropriate elements
 
             # Optionally apply overlap threshold
             if overlap_threshold > 0.:
@@ -527,8 +557,8 @@ class OverlapReader:
             mean_ = 10**mean_ if in_log else mean_
             std_ = mean_ * std_ * numpy.log(10) if in_log else std_
 
-            mean[n] = mean_
-            std[n] = std_
+            mean[i] = mean_
+            std[i] = std_
 
         return mean, std
 
