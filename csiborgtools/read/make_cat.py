@@ -31,38 +31,24 @@ class HaloCatalogue:
     ----------
     paths : py:class:`csiborgtools.read.CSiBORGPaths`
         CSiBORG paths-handling object with set `n_sim` and `n_snap`.
-    min_m500 : float, optional
-        The minimum :math:`M_{rm 500c} / M_\odot` mass. By default no
-        threshold.
+    min_mass : float, optional
+        The minimum :math:`M_{rm tot} / M_\odot` mass. By default no threshold.
     max_dist : float, optional
         The maximum comoving distance of a halo. By default no upper limit.
     """
     _box = None
     _paths = None
     _data = None
-    _knn = None
-    _knn0 = None
-    _positions = None
-    _positions0 = None
+    _selmask = None
 
-    def __init__(self, nsim, min_m500=None, max_dist=None):
+    def __init__(self, nsim, min_mass=None, max_dist=None):
         # Set up paths
         paths = CSiBORGPaths(n_sim=nsim)
         paths.n_snap = paths.get_maximum_snapshot()
         self._paths = paths
         self._box = BoxUnits(paths)
-        min_m500 = 0 if min_m500 is None else min_m500
-        max_dist = numpy.infty if max_dist is None else max_dist
         self._paths = paths
-        self._set_data(min_m500, max_dist)
-        # Initialise the KNN at z = 0 and at z = 70
-        knn = NearestNeighbors()
-        knn.fit(self.positions)
-        self._knn = knn
-
-        knn0 = NearestNeighbors()
-        knn0.fit(self.positions0)
-        self._knn0 = knn0
+        self._set_data(min_mass, max_dist)
 
     @property
     def data(self):
@@ -87,17 +73,6 @@ class HaloCatalogue:
         box : :py:class:`csiborgtools.units.BoxUnits`
         """
         return self._box
-
-    @property
-    def cosmo(self):
-        """
-        The box cosmology.
-
-        Returns
-        -------
-        cosmo : `astropy` cosmology object
-        """
-        return self.box.cosmo
 
     @property
     def paths(self):
@@ -132,29 +107,23 @@ class HaloCatalogue:
         """
         return self.paths.n_sim
 
-    @property
-    def knn(self):
+    def knn(self, select_initial):
         """
         The final snapshot k-nearest neighbour object.
 
-        Returns
-        -------
-        knn : :py:class:`sklearn.neighbors.NearestNeighbors`
-        """
-        return self._knn
-
-    @property
-    def knn0(self):
-        """
-        The initial snapshot k-nearest neighbour object.
+        Parameters
+        ----------
+        select_initial : bool
+            Whether to define the KNN on the initial or final snapshot.
 
         Returns
         -------
         knn : :py:class:`sklearn.neighbors.NearestNeighbors`
         """
-        return self._knn0
+        knn = NearestNeighbors()
+        return knn.fit(self.positions0 if select_initial else self.positions)
 
-    def _set_data(self, min_m500, max_dist):
+    def _set_data(self, min_mass, max_dist):
         """
         Loads the data, merges with mmain, does various coordinate transforms.
         """
@@ -177,16 +146,15 @@ class HaloCatalogue:
             data = self.merge_initmatch_to_clumps(data, initcm)
             flip_cols(data, "x0", "z0")
 
-        # Calculate redshift
-        pos = [data["peak_{}".format(p)] - 0.5 for p in ("x", "y", "z")]
-        vel = [data["v{}".format(p)] for p in ("x", "y", "z")]
-        zpec = self.box.box2pecredshift(*vel, *pos)
-        zobs = self.box.box2obsredshift(*vel, *pos)
-        zcosmo = self.box.box2cosmoredshift(
-            sum(pos[i]**2 for i in range(3))**0.5)
-
-        data = add_columns(data, [zpec, zobs, zcosmo],
-                           ["zpec", "zobs", "zcosmo"])
+#        # Calculate redshift
+#        pos = [data["peak_{}".format(p)] - 0.5 for p in ("x", "y", "z")]
+#        vel = [data["v{}".format(p)] for p in ("x", "y", "z")]
+#        zpec = self.box.box2pecredshift(*vel, *pos)
+#        zobs = self.box.box2obsredshift(*vel, *pos)
+#        zcosmo = self.box.box2cosmoredshift(
+#            sum(pos[i]**2 for i in range(3))**0.5)
+#        data = add_columns(data, [zpec, zobs, zcosmo],
+#                           ["zpec", "zobs", "zcosmo"])
 
         # Unit conversion
         convert_cols = ["m200", "m500", "totpartmass", "mass_mmain",
@@ -194,29 +162,15 @@ class HaloCatalogue:
                         "peak_x", "peak_y", "peak_z"]
         data = self.box.convert_from_boxunits(data, convert_cols)
 
-        # Cut on mass. Note that this is in Msun
-        data = data[data["m500"] > min_m500]
-
         # Now calculate spherical coordinates
         d, ra, dec = cartesian_to_radec(
             data["peak_x"], data["peak_y"], data["peak_z"])
-
         data = add_columns(data, [d, ra, dec], ["dist", "ra", "dec"])
 
-        # Cut on separation
-        data = data[data["dist"] < max_dist]
-
-        # Pre-allocate the positions arrays
-        self._positions = numpy.vstack(
-            [data["peak_{}".format(p)] for p in ("x", "y", "z")]).T
-        self._positions = self._positions.astype(numpy.float32)
         # And do the unit transform
         if initcm is not None:
             data = self.box.convert_from_boxunits(
                 data, ["x0", "y0", "z0", "lagpatch"])
-            self._positions0 = numpy.vstack(
-                [data["{}0".format(p)] for p in ("x", "y", "z")]).T
-            self._positions0 = self._positions0.astype(numpy.float32)
 
         # Convert all that is not an integer to float32
         names = list(data.dtype.names)
@@ -227,9 +181,13 @@ class HaloCatalogue:
             else:
                 formats.append(numpy.float32)
         dtype = numpy.dtype({"names": names, "formats": formats})
-        data = data.astype(dtype)
 
-        self._data = data
+        # Apply cuts on distance and min500 if any
+        data = data[data["dist"] < max_dist] if max_dist is not None else data
+        data = (data[data["totpartmass"] > min_mass]
+                if min_mass is not None else data)
+
+        self._data = data.astype(dtype)
 
     def merge_mmain_to_clumps(self, clumps, mmain):
         """
@@ -288,8 +246,8 @@ class HaloCatalogue:
 
     @property
     def positions(self):
-        """
-        3D positions of halos in comoving units of Mpc.
+        r"""
+        3D positions of halos in :math:`\mathrm{cMpc}`.
 
         Returns
         -------
@@ -297,12 +255,13 @@ class HaloCatalogue:
             Array of shape `(n_halos, 3)`, where the latter axis represents
             `x`, `y` and `z`.
         """
-        return self._positions
+        return numpy.vstack(
+            [self._data["peak_{}".format(p)] for p in ("x", "y", "z")]).T
 
     @property
     def positions0(self):
         r"""
-        3D positions of halos in the initial snapshot in comoving units of Mpc.
+        3D positions of halos in the initial snapshot in :math:`\mathrm{cMpc}`.
 
         Returns
         -------
@@ -310,9 +269,11 @@ class HaloCatalogue:
             Array of shape `(n_halos, 3)`, where the latter axis represents
             `x`, `y` and `z`.
         """
-        if self._positions0 is None:
+        try:
+            return numpy.vstack(
+                [self._data["{}".format(p)] for p in ("x0", "y0", "z0")]).T
+        except KeyError:
             raise RuntimeError("Initial positions are not set!")
-        return self._positions0
 
     @property
     def velocities(self):
@@ -365,7 +326,7 @@ class HaloCatalogue:
         """
         if not (X.ndim == 2 and X.shape[1] == 3):
             raise TypeError("`X` must be an array of shape `(n_samples, 3)`.")
-        knn = self.knn0 if select_initial else self.knn  # Pick the right KNN
+        knn = self.knn(select_initial)
         return knn.radius_neighbors(X, radius, sort_results=True)
 
     @property
