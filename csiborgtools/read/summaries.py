@@ -182,10 +182,11 @@ class PairOverlap:
         Path to the overlap. By default `None`, i.e.
         `/mnt/extraspace/rstiskalek/csiborg/overlap/cross_{}_{}.npz`.
     min_mass : float, optional
-        The minimum :math:`M_{\rm tot} / M_\odot` mass. By default no
-        threshold.
+        Minimum :math:`M_{\rm tot} / M_\odot` mass in the reference catalogue.
+        By default no threshold.
     max_dist : float, optional
-        The maximum comoving distance of a halo. By default no upper limit.
+        Maximum comoving distance in the reference catalogue. By default upper
+        limit.
     """
     _cat0 = None
     _catx = None
@@ -327,7 +328,7 @@ class PairOverlap:
 
         Returns
         -------
-        out : 1-dimensional array of shape `(nhalos, )`
+        prob_nomatch : 1-dimensional array of shape `(nhalos, )`
         """
         return numpy.array(
             [numpy.product(1 - overlap) for overlap in self["overlap"]])
@@ -413,8 +414,8 @@ class PairOverlap:
                 ratio[i] = numpy.abs(ratio[i])
         return numpy.array(ratio, dtype=object)
 
-    def expected_counterpart_mass(self, overlap_threshold=0., in_log=False,
-                                  mass_kind="totpartmass"):
+    def counterpart_mass(self, overlap_threshold=0., in_log=False,
+                         mass_kind="totpartmass"):
         """
         Calculate the expected counterpart mass of each halo in the reference
         simulation from the crossed simulation.
@@ -436,8 +437,8 @@ class PairOverlap:
         -------
         mean, std : 1-dimensional arrays of shape `(nhalos, )`
         """
-        mean = numpy.full(len(self), numpy.nan)  # Preallocate output arrays
-        std = numpy.full(len(self), numpy.nan)
+        mean = numpy.full(len(self), numpy.nan, dtype=numpy.float32)
+        std = numpy.full(len(self), numpy.nan, dtype=numpy.float32)
 
         massx = self.catx(mass_kind)  # Create references to the arrays here
         overlap = self["overlap"]     # to speed up the loop below.
@@ -547,10 +548,99 @@ class PairOverlap:
 
 
 class NPairsOverlap:
+    r"""
+    A shortcut object for reading in the results of matching a reference
+    simulation with many cross simulations.
+
+    Parameters
+    ----------
+    cat0 : :py:class:`csiborgtools.read.HaloCatalogue`
+        Reference simulation halo catalogue.
+    catxs : list of :py:class:`csiborgtools.read.HaloCatalogue`
+        List of cross simulation halo catalogues.
+    fskel : str, optional
+        Path to the overlap. By default `None`, i.e.
+        `/mnt/extraspace/rstiskalek/csiborg/overlap/cross_{}_{}.npz`.
+    min_mass : float, optional
+        Minimum :math:`M_{\rm tot} / M_\odot` mass in the reference catalogue.
+        By default no threshold.
+    max_dist : float, optional
+        Maximum comoving distance in the reference catalogue. By default upper
+        limit.
+    """
+    _pairs = None
 
     def __init__(self, cat0, catxs, fskel=None, min_mass=None, max_dist=None):
         self._pairs = [PairOverlap(cat0, catx, fskel=fskel, min_mass=min_mass,
                                    max_dist=max_dist) for catx in catxs]
+
+    def summed_overlap(self, verbose=False):
+        """
+        Summed overlap of each halo in the reference simulation with the cross
+        simulations.
+
+        Parameters
+        ----------
+        verbose : bool, optional
+
+        Returns
+        -------
+        summed_overlap : 2-dimensional array of shape `(nhalos, ncatxs)`
+        """
+        out = [None] * len(self)
+        for i, pair in enumerate(tqdm(self.pairs) if verbose else self.pairs):
+            out[i] = pair.summed_overlap()
+        return numpy.vstack(out).T
+
+    def prob_nomatch(self, verbose=False):
+        """
+        Probability of no match for each halo in the reference simulation with
+        the cross simulation.
+
+        Parameters
+        ----------
+        verbose : bool, optional
+
+        Returns
+        -------
+        prob_nomatch : 2-dimensional array of shape `(nhalos, ncatxs)`
+        """
+        out = [None] * len(self)
+        for i, pair in enumerate(tqdm(self.pairs) if verbose else self.pairs):
+            out[i] = pair.prob_nomatch()
+        return numpy.vstack(out).T
+
+    def counterpart_mass(self, overlap_threshold=0., in_log=False,
+                         mass_kind="totpartmass", verbose=False):
+        """
+        Calculate the expected counterpart mass of each halo in the reference
+        simulation from the crossed simulation.
+
+        Parameters
+        -----------
+        overlap_threshold : float, optional
+            Minimum overlap required for a halo to be considered a match. By
+            default 0.0, i.e. no threshold.
+        in_log : bool, optional
+            Whether to calculate the expectation value in log space. By default
+            `False`.
+        mass_kind : str, optional
+            The mass kind whose ratio is to be calculated. Must be a valid
+            catalogue key. By default `totpartmass`, i.e. the total particle
+            mass associated with a halo.
+        verbose : bool, optional
+            Verbosity flag. By default `False`.
+
+        Returns
+        -------
+        mean, std : 2-dimensional arrays of shape `(nhalos, ncatx)`
+        """
+        mu, std = [None] * len(self), [None] * len(self)
+        for i, pair in enumerate(tqdm(self.pairs) if verbose else self.pairs):
+            mu[i], std[i] = pair.counterpart_mass(
+                overlap_threshold=overlap_threshold, in_log=in_log,
+                mass_kind=mass_kind)
+        return numpy.vstack(mu).T, numpy.vstack(std).T
 
     @property
     def pairs(self):
@@ -562,6 +652,13 @@ class NPairsOverlap:
         pairs : list of :py:class:`csiborgtools.read.PairOverlap`
         """
         return self._pairs
+
+    @property
+    def cat0(self):
+        return self.pairs[0].cat0  # All pairs have the same ref catalogue
+
+    def __len__(self):
+        return len(self.pairs)
 
 
 def binned_resample_mean(x, y, prob, bins, nresample=50, seed=42):
