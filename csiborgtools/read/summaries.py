@@ -611,7 +611,8 @@ class NPairsOverlap:
         return numpy.vstack(out).T
 
     def counterpart_mass(self, overlap_threshold=0., in_log=False,
-                         mass_kind="totpartmass", verbose=False):
+                         mass_kind="totpartmass", return_full=True,
+                         verbose=False):
         """
         Calculate the expected counterpart mass of each halo in the reference
         simulation from the crossed simulation.
@@ -628,6 +629,9 @@ class NPairsOverlap:
             The mass kind whose ratio is to be calculated. Must be a valid
             catalogue key. By default `totpartmass`, i.e. the total particle
             mass associated with a halo.
+        return_full : bool, optional
+            Whether to return the full results of matching each pair or
+            calculate summary statistics by Gaussian averaging.
         verbose : bool, optional
             Verbosity flag. By default `False`.
 
@@ -635,12 +639,27 @@ class NPairsOverlap:
         -------
         mean, std : 2-dimensional arrays of shape `(nhalos, ncatx)`
         """
-        mu, std = [None] * len(self), [None] * len(self)
+        mus, stds = [None] * len(self), [None] * len(self)
         for i, pair in enumerate(tqdm(self.pairs) if verbose else self.pairs):
-            mu[i], std[i] = pair.counterpart_mass(
+            mus[i], stds[i] = pair.counterpart_mass(
                 overlap_threshold=overlap_threshold, in_log=in_log,
                 mass_kind=mass_kind)
-        return numpy.vstack(mu).T, numpy.vstack(std).T
+        mus, stds = numpy.vstack(mus).T, numpy.vstack(stds).T
+
+        if return_full:
+            return mus, stds
+
+        probmatch = 1 - self.prob_nomatch()  # Prob of > 0 matches
+        # Normalise it for weighted sums etc.
+        norm_probmatch = numpy.apply_along_axis(
+            lambda x: x / numpy.sum(x), axis=1, arr=probmatch)
+        # Mean is just the weighted mean from each pair
+        mu = numpy.sum(norm_probmatch * mus, axis=1)
+        # Std is a corrected average variance
+        dmus = numpy.apply_along_axis(lambda x: (x - mu), axis=0, arr=mus)
+        std = numpy.sum(norm_probmatch * (stds**2 + dmus**2), axis=1)**0.5
+
+        return mu, std
 
     @property
     def pairs(self):
