@@ -189,7 +189,7 @@ class PairOverlap:
     """
     _cat0 = None
     _catx = None
-    _refmask = None
+    _data = None
 
     def __init__(self, cat0, catx, fskel=None, min_mass=None, max_dist=None):
         self._cat0 = cat0
@@ -228,28 +228,6 @@ class PairOverlap:
                 "overlap": data["overlap"]}
 
         self._make_refmask(min_mass, max_dist)
-
-    @property
-    def cat0(self):
-        """
-        The reference halo catalogue.
-
-        Returns
-        -------
-        cat0 : :py:class:`csiborgtools.read.HaloCatalogue`
-        """
-        return self._cat0
-
-    @property
-    def catx(self):
-        """
-        The cross halo catalogue.
-
-        Returns
-        -------
-        catx : :py:class:`csiborgtools.read.HaloCatalogue`
-        """
-        return self._catx
 
     @staticmethod
     def _invert_match(match_indxs, overlap, cross_size):
@@ -322,58 +300,13 @@ class PairOverlap:
         # Enforce a cut on the reference catalogue
         min_mass = 0 if min_mass is None else min_mass
         max_dist = numpy.infty if max_dist is None else max_dist
-        m = ((self.cat0["totpartmass"] > min_mass)
-             & (self.cat0["dist"] < max_dist))
+        m = ((self.cat0()["totpartmass"] > min_mass)
+             & (self.cat0()["dist"] < max_dist))
         # Now remove indices that are below this cut
         self._data["index"] = self._data["index"][m]
         self._data["match_indxs"] = self._data["match_indxs"][m]
         self._data["overlap"] = self._data["overlap"][m]
-
-        self._refmask = m
-
-    @property
-    def indxs(self):
-        """
-        Indices of halos from the reference catalogue.
-
-        Returns
-        -------
-        indxs : 1-dimensional array
-        """
-        return self._data["index"]
-
-    @property
-    def match_indxs(self):
-        """
-        Indices of halos from the cross catalogue.
-
-        Returns
-        -------
-        match_indxs : array of 1-dimensional arrays of shape `(nhalos, )`
-        """
-        return self._data["match_indxs"]
-
-    @property
-    def overlap(self):
-        """
-        Pair overlap of halos between the reference and cross simulations.
-
-        Returns
-        -------
-        overlap : array of 1-dimensional arrays of shape `(nhalos, )`
-        """
-        return self._data["overlap"]
-
-    @property
-    def refmask(self):
-        """
-        Mask of the reference catalogue to match the calculated overlaps.
-
-        Returns
-        -------
-        refmask : 1-dimensional boolean array
-        """
-        return self._refmask
+        self._data["refmask"] = m
 
     def dist(self, in_initial, norm_kind=None):
         """
@@ -396,27 +329,27 @@ class PairOverlap:
                 or norm_kind in ("r200", "ref_patch", "sum_patch"))
         # Get positions either in the initial or final snapshot
         if in_initial:
-            pos0, posx = self.cat0.positions0, self.catx.positions0
+            pos0, posx = self.cat0().positions0, self.catx().positions0
         else:
-            pos0, posx = self.cat0.positions, self.catx.positions
-        pos0 = pos0[self.refmask, :]  # Apply the reference catalogue mask
+            pos0, posx = self.cat0().positions, self.catx().positions
+        pos0 = pos0[self["refmask"], :]  # Apply the reference catalogue mask
 
         # Get the normalisation array if applicable
         if norm_kind == "r200":
-            norm = self.cat0["r200"][self.refmask]
+            norm = self.cat0("r200")
         if norm_kind == "ref_patch":
-            norm = self.cat0["lagpatch"][self.refmask]
+            norm = self.cat0("lagpatch")
         if norm_kind == "sum_patch":
-            patch0 = self.cat0["lagpatch"][self.refmask]
-            patchx = self.catx["lagpatch"]
-            norm = [None] * self.indxs.size
-            for i, ind in enumerate(self.match_indxs):
+            patch0 = self.cat0("lagpatch")
+            patchx = self.catx("lagpatch")
+            norm = [None] * len(self)
+            for i, ind in enumerate(self["match_indxs"]):
                 norm[i] = patch0[i] + patchx[ind]
             norm = numpy.array(norm, dtype=object)
 
         # Now calculate distances
-        dist = [None] * self.indxs.size
-        for i, ind in enumerate(self.match_indxs):
+        dist = [None] * len(self)
+        for i, ind in enumerate(self["match_indxs"]):
             # n refers to the reference halo catalogue position
             dist[i] = numpy.linalg.norm(pos0[i, :] - posx[ind, :], axis=1)
 
@@ -445,11 +378,10 @@ class PairOverlap:
         -------
         ratio : array of 1-dimensional arrays of shape `(nhalos, )`
         """
-        mass0 = self.cat0[mass_kind][self.refmask]
-        massx = self.catx[mass_kind]
+        mass0, massx = self.cat0(mass_kind), self.catx(mass_kind)
 
-        ratio = [None] * self.indxs.size
-        for i, ind in enumerate(self.match_indxs):
+        ratio = [None] * len(self)
+        for i, ind in enumerate(self["match_indxs"]):
             ratio[i] = mass0[i] / massx[ind]
             if in_log:
                 ratio[i] = numpy.log10(ratio[i])
@@ -466,7 +398,7 @@ class PairOverlap:
         -------
         summed_overlap : 1-dimensional array of shape `(nhalos, )`
         """
-        return numpy.array([numpy.sum(cross) for cross in self.overlap])
+        return numpy.array([numpy.sum(cross) for cross in self["overlap"]])
 
     def copy_per_match(self, par):
         """
@@ -483,9 +415,9 @@ class PairOverlap:
         -------
         out : 1-dimensional array of shape `(nhalos, )`
         """
-        vals = self.cat0[par][self.refmask]
-        out = [None] * self.indxs.size
-        for i, ind in enumerate(self.match_indxs):
+        vals = self.cat0(par)
+        out = [None] * len(self)
+        for i, ind in enumerate(self["match_indxs"]):
             out[i] = numpy.ones(ind.size) * vals[i]
         return numpy.array(out, dtype=object)
 
@@ -500,7 +432,7 @@ class PairOverlap:
         out : 1-dimensional array of shape `(nhalos, )`
         """
         return numpy.array(
-            [numpy.product(1 - overlap) for overlap in self.overlap])
+            [numpy.product(1 - overlap) for overlap in self["overlap"]])
 
     def expected_counterpart_mass(self, overlap_threshold=0., in_log=False,
                                   mass_kind="totpartmass"):
@@ -525,14 +457,13 @@ class PairOverlap:
         -------
         mean, std : 1-dimensional arrays of shape `(nhalos, )`
         """
-        nhalos = self.indxs.size
-        mean = numpy.full(nhalos, numpy.nan)  # Preallocate output arrays
-        std = numpy.full(nhalos, numpy.nan)
+        mean = numpy.full(len(self), numpy.nan)  # Preallocate output arrays
+        std = numpy.full(len(self), numpy.nan)
 
-        massx = self.catx[mass_kind]  # Create references to the arrays here
-        overlap = self.overlap        # to speed up the loop below.
+        massx = self.catx(mass_kind)  # Create references to the arrays here
+        overlap = self["overlap"]     # to speed up the loop below.
 
-        for i, match_ind in enumerate(self.match_indxs):
+        for i, match_ind in enumerate(self["match_indxs"]):
             # Skip if no match
             if match_ind.size == 0:
                 continue
@@ -562,11 +493,75 @@ class PairOverlap:
 
         return mean, std
 
+    def cat0(self, key=None, index=None):
+        """
+        Return the reference halo catalogue if `key` is `None`, otherwise
+        return  values from the reference catalogue and apply `refmask`.
+
+        Parameters
+        ----------
+        key : str, optional
+            Key to get. If `None` return the whole catalogue.
+        index : int or array, optional
+            Indices to get, if `None` return all.
+
+        Returns
+        -------
+        out : :py:class:`csiborgtools.read.HaloCatalogue` or array
+        """
+        if key is None:
+            return self._cat0
+        out = self._cat0[key][self["refmask"]]
+        return out if index is None else out[index]
+
+    def catx(self, key=None, index=None):
+        """
+        Return the cross halo catalogue if `key` is `None`, otherwise
+        return  values from the reference catalogue.
+
+        Parameters
+        ----------
+        key : str, optional
+            Key to get. If `None` return the whole catalogue.
+        index : int or array, optional
+            Indices to get, if `None` return all.
+
+        Returns
+        -------
+        out : :py:class:`csiborgtools.read.HaloCatalogue` or array
+        """
+        if key is None:
+            return self._catx
+        out = self._catx[key]
+        return out if index is None else out[index]
+
+    def __getitem__(self, key):
+        """
+        Must be one of `index`, `match_indxs`, `overlap` or `refmask`.
+        """
+        assert key in ("index", "match_indxs", "overlap", "refmask")
+        return self._data[key]
+
+    def __len__(self):
+        return self["index"].size
+
 
 class NPairsOverlap:
 
-    def __init__(self):
-        pass
+    def __init__(self, cat0, catxs, fskel=None, min_mass=None, max_dist=None):
+        self._pairs = [PairOverlap(cat0, catx, fskel=fskel, min_mass=min_mass,
+                                   max_dist=max_dist) for catx in catxs]
+
+    @property
+    def pairs(self):
+        """
+        List of `PairOverlap` objects in this reader.
+
+        Returns
+        -------
+        pairs : list of :py:class:`csiborgtools.read.PairOverlap`
+        """
+        return self._pairs
 
 
 def binned_resample_mean(x, y, prob, bins, nresample=50, seed=42):
