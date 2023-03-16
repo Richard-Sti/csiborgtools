@@ -655,11 +655,10 @@ class NPairsOverlap:
         # Normalise it for weighted sums etc.
         norm_probmatch = numpy.apply_along_axis(
             lambda x: x / numpy.sum(x), axis=1, arr=probmatch)
-        # Mean is just the weighted mean from each pair
+
+        # Mean and standard deviation of weighted stacked Gaussians
         mu = numpy.sum(norm_probmatch * mus, axis=1)
-        # Std is a corrected average variance
-        dmus = numpy.apply_along_axis(lambda x: (x - mu), axis=0, arr=mus)
-        std = numpy.sum(norm_probmatch * (stds**2 + dmus**2), axis=1)**0.5
+        std = numpy.sum(norm_probmatch * (mus**2 + stds**2), axis=1) - mu**2
 
         if return_full:
             return mu, std, mus, stds
