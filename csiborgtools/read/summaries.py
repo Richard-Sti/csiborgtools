@@ -169,7 +169,7 @@ class PKReader:
         return ks, xpks
 
 
-class OverlapReader:
+class PairOverlap:
     r"""
     A shortcut object for reading in the results of matching two simulations.
 
@@ -561,6 +561,12 @@ class OverlapReader:
             std[i] = std_
 
         return mean, std
+
+
+class NPairsOverlap:
+
+    def __init__(self):
+        pass
 
 
 def binned_resample_mean(x, y, prob, bins, nresample=50, seed=42):
