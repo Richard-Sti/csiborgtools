@@ -651,9 +651,6 @@ class NPairsOverlap:
                 mass_kind=mass_kind)
         mus, stds = numpy.vstack(mus).T, numpy.vstack(stds).T
 
-        if return_full:
-            return mus, stds
-
         probmatch = 1 - self.prob_nomatch()  # Prob of > 0 matches
         # Normalise it for weighted sums etc.
         norm_probmatch = numpy.apply_along_axis(
