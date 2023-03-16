@@ -308,6 +308,30 @@ class PairOverlap:
         self._data["overlap"] = self._data["overlap"][m]
         self._data["refmask"] = m
 
+    def summed_overlap(self):
+        """
+        Summed overlap of each halo in the reference simulation with the cross
+        simulation.
+
+        Returns
+        -------
+        summed_overlap : 1-dimensional array of shape `(nhalos, )`
+        """
+        return numpy.array([numpy.sum(cross) for cross in self["overlap"]])
+
+    def prob_nomatch(self):
+        """
+        Probability of no match for each halo in the reference simulation with
+        the cross simulation. Defined as a product of 1 - overlap with other
+        halos.
+
+        Returns
+        -------
+        out : 1-dimensional array of shape `(nhalos, )`
+        """
+        return numpy.array(
+            [numpy.product(1 - overlap) for overlap in self["overlap"]])
+
     def dist(self, in_initial, norm_kind=None):
         """
         Pair distances of matched halos between the reference and cross
@@ -389,51 +413,6 @@ class PairOverlap:
                 ratio[i] = numpy.abs(ratio[i])
         return numpy.array(ratio, dtype=object)
 
-    def summed_overlap(self):
-        """
-        Summed overlap of each halo in the reference simulation with the cross
-        simulation.
-
-        Returns
-        -------
-        summed_overlap : 1-dimensional array of shape `(nhalos, )`
-        """
-        return numpy.array([numpy.sum(cross) for cross in self["overlap"]])
-
-    def copy_per_match(self, par):
-        """
-        Make an array like `self.match_indxs` where each of its element is an
-        equal value array of the pair clump property from the reference
-        catalogue.
-
-        Parameters
-        ----------
-        par : str
-            Property to be copied over.
-
-        Returns
-        -------
-        out : 1-dimensional array of shape `(nhalos, )`
-        """
-        vals = self.cat0(par)
-        out = [None] * len(self)
-        for i, ind in enumerate(self["match_indxs"]):
-            out[i] = numpy.ones(ind.size) * vals[i]
-        return numpy.array(out, dtype=object)
-
-    def prob_nomatch(self):
-        """
-        Probability of no match for each halo in the reference simulation with
-        the cross simulation. Defined as a product of 1 - overlap with other
-        halos.
-
-        Returns
-        -------
-        out : 1-dimensional array of shape `(nhalos, )`
-        """
-        return numpy.array(
-            [numpy.product(1 - overlap) for overlap in self["overlap"]])
-
     def expected_counterpart_mass(self, overlap_threshold=0., in_log=False,
                                   mass_kind="totpartmass"):
         """
@@ -492,6 +471,27 @@ class PairOverlap:
             std[i] = std_
 
         return mean, std
+
+    def copy_per_match(self, par):
+        """
+        Make an array like `self.match_indxs` where each of its element is an
+        equal value array of the pair clump property from the reference
+        catalogue.
+
+        Parameters
+        ----------
+        par : str
+            Property to be copied over.
+
+        Returns
+        -------
+        out : 1-dimensional array of shape `(nhalos, )`
+        """
+        vals = self.cat0(par)
+        out = [None] * len(self)
+        for i, ind in enumerate(self["match_indxs"]):
+            out[i] = numpy.ones(ind.size) * vals[i]
+        return numpy.array(out, dtype=object)
 
     def cat0(self, key=None, index=None):
         """
