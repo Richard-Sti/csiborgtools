@@ -637,7 +637,12 @@ class NPairsOverlap:
 
         Returns
         -------
-        mean, std : 2-dimensional arrays of shape `(nhalos, ncatx)`
+        mu, std : 1-dimensional arrays of shape `(nhalos,)`
+            Summary expected mass and standard deviation from all cross
+            simulations.
+        mus, stds : 2-dimensional arrays of shape `(nhalos, ncatx)`, optional
+            Expected mass and standard deviation from each cross simulation.
+            Returned only if `return_full` is `True`.
         """
         mus, stds = [None] * len(self), [None] * len(self)
         for i, pair in enumerate(tqdm(self.pairs) if verbose else self.pairs):
@@ -659,6 +664,8 @@ class NPairsOverlap:
         dmus = numpy.apply_along_axis(lambda x: (x - mu), axis=0, arr=mus)
         std = numpy.sum(norm_probmatch * (stds**2 + dmus**2), axis=1)**0.5
 
+        if return_full:
+            return mu, std, mus, stds
         return mu, std
 
     @property
