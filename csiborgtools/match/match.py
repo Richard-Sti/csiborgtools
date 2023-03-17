@@ -369,21 +369,15 @@ class ParticleOverlap:
     nshift : int, optional
         Number of cells by which to shift the subbox from the outside-most
         cell containing a particle. By default 5.
-    smooth_scale : float or integer, optional
-        Optional Gaussian smoothing scale to by applied to the fields. By
-        default no smoothing is applied. Otherwise the scale is to be
-        specified in the number of cells (i.e. in units of `self.cellsize`).
     """
     _inv_clength = None
-    _smooth_scale = None
     _clength = None
     _nshift = None
 
-    def __init__(self, smooth_scale=None, nshift=5):
+    def __init__(self, nshift=5):
         # Inverse cell length in box units. By default :math:`2^11`, which
         # matches the initial RAMSES grid resolution.
         self.inv_clength = 2**11
-        self.smooth_scale = smooth_scale
         self.nshift = nshift
 
     @property
@@ -406,26 +400,6 @@ class ParticleOverlap:
         # Also set the inverse and number of cells
         self._clength = 1 / self.inv_clength
 
-    @property
-    def smooth_scale(self):
-        """
-        The smoothing scale in units of `self.cellsize`. If not set `None`.
-
-        Returns
-        -------
-        smooth_scale : int or float
-        """
-        return self._smooth_scale
-
-    @smooth_scale.setter
-    def smooth_scale(self, smooth_scale):
-        """Sets `smooth_scale`."""
-        if smooth_scale is None:
-            self._smooth_scale = None
-        else:
-            assert smooth_scale > 0
-            self._smooth_scale = smooth_scale
-
     def pos2cell(self, pos):
         """
         Convert position to cell number. If `pos` is in
@@ -445,18 +419,20 @@ class ParticleOverlap:
             return pos
         return numpy.floor(pos * self.inv_clength).astype(int)
 
-    def make_background_delta(self, clumps, to_smooth=True):
+    def make_background_delta(self, clumps, smooth_kwargs=None):
         """
         Calculate a NGP density field of clumps within the central
-        :math:`1/2^3` region of the simulation.
+        :math:`1/2^3` region of the simulation. Optionally can be smoothed with
+        a Gaussian kernel.
 
         Parameters
         ----------
         clumps : list of structured arrays
             List of clump structured array, keys must include `x`, `y`, `z`
             and `M`.
-        to_smooth : bool, optional
-            Explicit control over whether to smooth. By default `True`.
+        smooth_kwargs : kwargs, optional
+            Kwargs to be passed to :py:func:`scipy.ndimage.gaussian_filter`.
+            If `None` no smoothing is applied.
 
         Returns
         -------
@@ -484,26 +460,28 @@ class ParticleOverlap:
         delta = numpy.zeros((ncells,) * 3, dtype=numpy.float32)
         fill_delta(delta, *cells, *(cellmin,) * 3, mass)
 
-        if to_smooth and self.smooth_scale is not None:
-            gaussian_filter(delta, self.smooth_scale, output=delta)
+        if smooth_kwargs is not None:
+            gaussian_filter(delta, output=delta, **smooth_kwargs)
         return delta
 
     def make_delta(self, clump, mins=None, maxs=None, subbox=False,
-                   to_smooth=True):
+                   smooth_kwargs=None):
         """
-        Calculate a NGP density field of a halo on a cubic grid.
+        Calculate a NGP density field of a halo on a cubic grid. Optionally can
+        be smoothed with a Gaussian kernel.
 
         Parameters
         ----------
-        clump: structurered arrays
+        clump : structurered arrays
             Clump structured array, keys must include `x`, `y`, `z` and `M`.
         mins, maxs : 1-dimensional arrays of shape `(3,)`
             Minimun and maximum cell numbers along each dimension.
         subbox : bool, optional
             Whether to calculate the density field on a grid strictly enclosing
             the clump.
-        to_smooth : bool, optional
-            Explicit control over whether to smooth. By default `True`.
+        smooth_kwargs : kwargs, optional
+            Kwargs to be passed to :py:func:`scipy.ndimage.gaussian_filter`.
+            If `None` no smoothing is applied.
 
         Returns
         -------
@@ -534,15 +512,15 @@ class ParticleOverlap:
         delta = numpy.zeros((ncells,) * 3, dtype=numpy.float32)
         fill_delta(delta, *cells, *mins, clump['M'])
 
-        if to_smooth and self.smooth_scale is not None:
-            gaussian_filter(delta, self.smooth_scale, output=delta)
+        if smooth_kwargs is not None:
+            gaussian_filter(delta, output=delta, **smooth_kwargs)
         return delta
 
     def make_deltas(self, clump1, clump2, mins1=None, maxs1=None,
-                    mins2=None, maxs2=None, return_nonzero1=False):
+                    mins2=None, maxs2=None, smooth_kwargs=None):
         """
         Calculate a NGP density fields of two halos on a grid that encloses
-        them both.
+        them both. Optionally can be smoothed with a Gaussian kernel.
 
         Parameters
         ----------
@@ -555,9 +533,9 @@ class ParticleOverlap:
         mins2, maxs2 : 1-dimensional arrays of shape `(3,)`
             Minimun and maximum cell numbers along each dimension of `clump2`.
             Optional.
-        return_nonzero1 : bool, optional
-            Whether to return the indices where the contribution of `clump1` is
-            non-zero.
+        smooth_kwargs : kwargs, optional
+            Kwargs to be passed to :py:func:`scipy.ndimage.gaussian_filter`.
+            If `None` no smoothing is applied.
 
         Returns
         -------
@@ -565,9 +543,9 @@ class ParticleOverlap:
             Density arrays of `clump1` and `clump2`, respectively.
         cellmins : len-3 tuple
             Tuple of left-most cell ID in the full box.
-        nonzero1 : 2-dimensional array
-            Indices where `delta1` has a non-zero density. If `return_nonzero1`
-            is `False` return `None` instead.
+        nonzero : 2-dimensional array
+            Indices where the lower mass clump has a non-zero density.
+            Calculated only if no smoothing is applied, otherwise `None`.
         """
         xc1, yc1, zc1 = (self.pos2cell(clump1[p]) for p in ('x', 'y', 'z'))
         xc2, yc2, zc2 = (self.pos2cell(clump2[p]) for p in ('x', 'y', 'z'))
@@ -597,26 +575,38 @@ class ParticleOverlap:
         # Preallocate and fill the arrays
         delta1 = numpy.zeros((ncells,)*3, dtype=numpy.float32)
         delta2 = numpy.zeros((ncells,)*3, dtype=numpy.float32)
-        if return_nonzero1:
-            nonzero1 = fill_delta_indxs(
-                delta1, xc1, yc1, zc1, *cellmins, clump1['M'])
+
+        # If no smoothing figure out the nonzero indices of the smaller clump
+        if smooth_kwargs is None:
+            if clump1.size > clump2.size:
+                fill_delta(delta1, xc1, yc1, zc1, *cellmins, clump1['M'])
+                nonzero = fill_delta_indxs(delta2, xc2, yc2, zc2, *cellmins,
+                                           clump2['M'])
+            else:
+                nonzero = fill_delta_indxs(delta1, xc1, yc1, zc1, *cellmins,
+                                           clump1['M'])
+                fill_delta(delta2, xc2, yc2, zc2, *cellmins, clump2['M'])
         else:
             fill_delta(delta1, xc1, yc1, zc1, *cellmins, clump1['M'])
-            nonzero1 = None
-        fill_delta(delta2, xc2, yc2, zc2, *cellmins, clump2['M'])
+            fill_delta(delta2, xc2, yc2, zc2, *cellmins, clump2['M'])
+            nonzero = None
 
-        if self.smooth_scale is not None:
-            gaussian_filter(delta1, self.smooth_scale, output=delta1)
-            gaussian_filter(delta2, self.smooth_scale, output=delta2)
-
-        return delta1, delta2, cellmins, nonzero1
+        if smooth_kwargs is not None:
+            gaussian_filter(delta1, output=delta1, **smooth_kwargs)
+            gaussian_filter(delta2, output=delta2, **smooth_kwargs)
+        return delta1, delta2, cellmins, nonzero
 
     def __call__(self, clump1, clump2, delta1_bckg, delta2_bckg,
                  mins1=None, maxs1=None, mins2=None, maxs2=None,
-                 mass1=None, mass2=None, loop_nonzero=True):
+                 mass1=None, mass2=None, smooth_kwargs=None):
         """
         Calculate overlap between `clump1` and `clump2`. See
         `calculate_overlap(...)` for further information.
+
+        Be careful so that the background density fields are calculated with
+        the same`smooth_kwargs`. If any smoothing is applied then loops over
+        the full density fields, otherwise only over the non-zero cells of the
+        lower mass clump.
 
         Parameters
         ----------
@@ -633,24 +623,24 @@ class ParticleOverlap:
             Minimun and maximum cell numbers along each dimension of `clump1`.
             Optional.
         mins2, maxs2 : 1-dimensional arrays of shape `(3,)`
-            Minimun and maximum cell numbers along each dimension of `clump2`.
-            Optional.
+            Minimun and maximum cell numbers along each dimension of `clump2`,
+            optional.
         mass1, mass2 : floats, optional
             Total mass of `clump1` and `clump2`, respectively. Must be provided
             if `loop_nonzero` is `True`.
-        loop_nonzer : bool, optional
-            Whether to only loop over cells where `clump1` has non-zero
-            density. By default `True`.
+        smooth_kwargs : kwargs, optional
+            Kwargs to be passed to :py:func:`scipy.ndimage.gaussian_filter`.
+            If `None` no smoothing is applied.
 
         Returns
         -------
         overlap : float
         """
-        delta1, delta2, cellmins, nonzero1 = self.make_deltas(
+        delta1, delta2, cellmins, nonzero = self.make_deltas(
             clump1, clump2, mins1, maxs1, mins2, maxs2,
-            return_nonzero1=loop_nonzero)
+            smooth_kwargs=smooth_kwargs)
 
-        if not loop_nonzero:
+        if smooth_kwargs is not None:
             return calculate_overlap(delta1, delta2, cellmins,
                                      delta1_bckg, delta2_bckg)
 
@@ -658,7 +648,7 @@ class ParticleOverlap:
         mass1 = numpy.sum(clump1['M']) if mass1 is None else mass1
         mass2 = numpy.sum(clump2['M']) if mass2 is None else mass2
         return calculate_overlap_indxs(delta1, delta2, cellmins, delta1_bckg,
-                                       delta2_bckg, nonzero1, mass1, mass2)
+                                       delta2_bckg, nonzero, mass1, mass2)
 
 
 @jit(nopython=True)
@@ -817,7 +807,7 @@ def calculate_overlap(delta1, delta2, cellmins, delta1_bckg, delta2_bckg):
 
 @jit(nopython=True)
 def calculate_overlap_indxs(delta1, delta2, cellmins, delta1_bckg, delta2_bckg,
-                            nonzero1, mass1, mass2):
+                            nonzero, mass1, mass2):
     r"""
     Overlap between two clumps whose density fields are evaluated on the
     same grid and `nonzero1` enumerates the non-zero cells of `delta1.  This is
@@ -833,9 +823,9 @@ def calculate_overlap_indxs(delta1, delta2, cellmins, delta1_bckg, delta2_bckg,
         Background density fields of the reference and cross boxes calculated
         with particles assigned to halos at the final snapshot. Assumed to only
         be sampled in cells :math:`[512, 1536)^3`.
-    nonzero1 : 2-dimensional array of shape `(n_cells, 3)`
-        Indices of cells that are non-zero in `delta1`. Expected to be
-        precomputed from `fill_delta_indxs`.
+    nonzero : 2-dimensional array of shape `(n_cells, 3)`
+        Indices of cells that are non-zero of the lower mass clump. Expected to
+        be precomputed from `fill_delta_indxs`.
     mass1, mass2 : floats, optional
         Total masses of the two clumps, respectively. Optional. If not provided
         calculcated directly from the density field.
@@ -849,12 +839,12 @@ def calculate_overlap_indxs(delta1, delta2, cellmins, delta1_bckg, delta2_bckg,
     bckg_offset = 512      # Offset of the background density field
     bckg_size = 1024       # Size of the background density field array
 
-    for n in range(nonzero1.shape[0]):
-        i, j, k = nonzero1[n, :]
+    for n in range(nonzero.shape[0]):
+        i, j, k = nonzero[n, :]
+        cell1 = delta1[i, j, k]
         cell2 = delta2[i, j, k]
 
-        if cell2 > 0:  # We already know that cell1 is non-zero
-            cell1 = delta1[i, j, k]      # Now unpack cell1 as well
+        if cell1 * cell2 > 0:
             ii = i0 + i - bckg_offset    # Indices of this cell in the
             jj = j0 + j - bckg_offset    # background density field.
             kk = k0 + k - bckg_offset
