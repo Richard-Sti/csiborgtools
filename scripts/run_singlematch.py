@@ -32,25 +32,34 @@ parser.add_argument("--nsim0", type=int)
 parser.add_argument("--nsimx", type=int)
 parser.add_argument("--nmult", type=float)
 parser.add_argument("--overlap", type=lambda x: bool(strtobool(x)))
+parser.add_argument("--sigma", type=float)
 args = parser.parse_args()
 
 # File paths
-fout = join(
-    utils.dumpdir, "overlap", "cross_{}_{}.npz".format(args.nsim0, args.nsimx))
+fout = join(utils.dumpdir, "overlap",
+            "cross_{}_{}.npz".format(args.nsim0, args.nsimx))
+smooth_kwargs = {"sigma": args.sigma}
 
 print("{}: loading catalogues.".format(datetime.now()), flush=True)
 cat0 = csiborgtools.read.HaloCatalogue(args.nsim0)
 catx = csiborgtools.read.HaloCatalogue(args.nsimx)
 
 matcher = csiborgtools.match.RealisationsMatcher()
-print("{}: crossing the simulations.".format(datetime.now()), flush=True)
+print("{}: starting to cross the simulations.".format(datetime.now()),
+      flush=True)
 ref_indxs, cross_indxs, match_indxs, overlap = matcher.cross(
     cat0, catx, overlap=args.overlap)
+
+print("{}: starting to smooth the overlaps.".format(datetime.now()),
+      flush=True)
+smoothed_overlap = matcher.smoothed_cross(cat0, catx, ref_indxs, cross_indxs,
+                                          match_indxs, smooth_kwargs)
 
 # Dump the result
 print("Saving results to `{}`.".format(fout), flush=True)
 with open(fout, "wb") as f:
     numpy.savez(fout, ref_indxs=ref_indxs, cross_indxs=cross_indxs,
-                match_indxs=match_indxs, overlap=overlap)
+                match_indxs=match_indxs, overlap=overlap,
+                smoothed_overlap=smoothed_overlap, sigma=args.sigma)
 
 print("All finished.", flush=True)
