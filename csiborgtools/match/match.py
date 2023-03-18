@@ -274,6 +274,11 @@ class RealisationsMatcher:
                 match_indxs[i] = match_indxs[i][mask]
                 cross[i] = cross[i][mask]
 
+                # Sort the matches by overlap
+                ordering = numpy.argsort(cross[i])[::-1]
+                match_indxs[i] = match_indxs[i][ordering]
+                cross[i] = cross[i][ordering]
+
         return cat0["index"], catx["index"], match_indxs, cross
 
     def smoothed_cross(self, cat0, catx, ref_indxs, cross_indxs, match_indxs,
