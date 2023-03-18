@@ -14,7 +14,5 @@ scripts/*.out
 build/*
 .eggs/*
 csiborgtools.egg-info/*
-scripts/playground_*
-scripts/*.ipynb
 Pylians3/*
 scripts/plot_correlation.ipynb
