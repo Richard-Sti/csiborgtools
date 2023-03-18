@@ -340,6 +340,9 @@ class HaloCatalogue:
             raise RuntimeError("Initial positions are not set!")
         return self._data[key]
 
+    def __len__(self):
+        return self.data.size
+
 
 def concatenate_clumps(clumps):
     """
