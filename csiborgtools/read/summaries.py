@@ -213,25 +213,40 @@ class PairOverlap:
                 .format(cat0.n_sim, catx.n_sim))
 
         # We can set catalogues already now even if inverted
-        data = numpy.load(fpath, allow_pickle=True)
+        d = numpy.load(fpath, allow_pickle=True)
         if is_inverted:
-            inv_match_indxs, inv_overlap = self._invert_match(
-                data["match_indxs"], data["overlap"],
-                data["cross_indxs"].size,)
+            # Multiply the raw overlaps with their *CORRECT* cross occupancies
+            for i in range(d["ref_indxs"].size):
+                d["raw_overlap"][i] *= d["ngp_ref_occup"][i]
+                d["smoothed_raw_overlap"][i] *= d["smoothed_ref_occup"][i]
+            # Invert the matches
+            inv_match_indxs, inv_ngp_overlap, inv_smoothed_overlap = self._invert_match(  # noqa
+                d["match_indxs"], d["raw_overlap"], d["smoothed_raw_overlap"],
+                d["cross_indxs"].size,)
+
             self._data = {
-                "index": data["cross_indxs"],
+                "index": d["cross_indxs"],
                 "match_indxs": inv_match_indxs,
-                "overlap": inv_overlap}
+                "ngp_overlap": inv_ngp_overlap,
+                "smoothed_overlap": inv_smoothed_overlap,
+                }
         else:
+            # Multiply the raw overlaps with their cross occupancies
+            for i in range(d["ref_indxs"].size):
+                d["raw_overlap"][i] *= d["ngp_cross_occup"][i]
+                d["smoothed_raw_overlap"][i] *= d["smoothed_cross_occup"][i]
+
             self._data = {
-                "index": data["ref_indxs"],
-                "match_indxs": data["match_indxs"],
-                "overlap": data["overlap"]}
+                "index": d["ref_indxs"],
+                "match_indxs": d["match_indxs"],
+                "ngp_overlap": d["raw_overlap"],
+                "smoothed_overlap": d["smoothed_raw_overlap"],
+                }
 
         self._make_refmask(min_mass, max_dist)
 
     @staticmethod
-    def _invert_match(match_indxs, overlap, cross_size):
+    def _invert_match(match_indxs, ngp_overlap, smoothed_overlap, cross_size):
         """
         Invert reference and cross matching, possible since the overlap
         definition is symmetric.
@@ -241,9 +256,12 @@ class PairOverlap:
         match_indxs : array of 1-dimensional arrays
             Indices of halos from the original cross catalogue matched to the
             reference catalogue.
-        overlap : array of 1-dimensional arrays
-            Pair overlap of halos between the originla reference and cross
+        ngp_overlap : array of 1-dimensional arrays
+            NGP pair overlap of halos between the original reference and cross
             simulations.
+        smoothed_overlap : array of 1-dimensional arrays
+            Smoothed pair overlap of halos between the original reference and
+            cross simulations.
         cross_size : int
             The size of the cross catalogue.
 
@@ -251,35 +269,46 @@ class PairOverlap:
         -------
         inv_match_indxs : array of 1-dimensional arrays
             The inverted match indices.
-        ind_overlap : array of 1-dimensional arrays
-            The corresponding overlaps to `inv_match_indxs`.
+        ind_ngp_overlap : array of 1-dimensional arrays
+            The corresponding NGP overlaps to `inv_match_indxs`.
+        ind_smoothed_overlap : array of 1-dimensional arrays
+            The corresponding smoothed overlaps to `inv_match_indxs`.
         """
         # 1. Invert the match. Each reference halo has a list of counterparts
         # so loop over those to each counterpart assign a reference halo
         # and at the same time also add the overlaps
         inv_match_indxs = [[] for __ in range(cross_size)]
-        inv_overlap = [[] for __ in range(cross_size)]
+        inv_ngp_overlap = [[] for __ in range(cross_size)]
+        inv_smoothed_overlap = [[] for __ in range(cross_size)]
         for ref_id in range(match_indxs.size):
-            for cross_id, cross in zip(match_indxs[ref_id], overlap[ref_id]):
+            for cross_id, ngp_cross, smoothed_cross in zip(match_indxs[ref_id],
+                                                           ngp_overlap[ref_id],
+                                                           smoothed_overlap[ref_id]):  # noqa
                 inv_match_indxs[cross_id].append(ref_id)
-                inv_overlap[cross_id].append(cross)
+                inv_ngp_overlap[cross_id].append(ngp_cross)
+                inv_smoothed_overlap[cross_id].append(smoothed_cross)
 
         # 2. Convert the cross matches and overlaps to proper numpy arrays
         # and ensure that the overlaps are ordered.
         for n in range(len(inv_match_indxs)):
             inv_match_indxs[n] = numpy.asanyarray(inv_match_indxs[n],
                                                   dtype=numpy.int32)
-            inv_overlap[n] = numpy.asanyarray(inv_overlap[n],
-                                              dtype=numpy.float32)
+            inv_ngp_overlap[n] = numpy.asanyarray(inv_ngp_overlap[n],
+                                                  dtype=numpy.float32)
+            inv_smoothed_overlap[n] = numpy.asanyarray(inv_smoothed_overlap[n],
+                                                       dtype=numpy.float32)
 
-            ordering = numpy.argsort(inv_overlap[n])[::-1]
+            ordering = numpy.argsort(inv_ngp_overlap[n])[::-1]
             inv_match_indxs[n] = inv_match_indxs[n][ordering]
-            inv_overlap[n] = inv_overlap[n][ordering]
+            inv_ngp_overlap[n] = inv_ngp_overlap[n][ordering]
+            inv_smoothed_overlap[n] = inv_smoothed_overlap[n][ordering]
 
         inv_match_indxs = numpy.asarray(inv_match_indxs, dtype=object)
-        inv_overlap = numpy.asarray(inv_overlap, dtype=object)
+        inv_ngp_overlap = numpy.asarray(inv_ngp_overlap, dtype=object)
+        inv_smoothed_overlap = numpy.asarray(inv_smoothed_overlap,
+                                             dtype=object)
 
-        return inv_match_indxs, inv_overlap
+        return inv_match_indxs, inv_ngp_overlap, inv_smoothed_overlap
 
     def _make_refmask(self, min_mass, max_dist):
         r"""
@@ -304,34 +333,63 @@ class PairOverlap:
         m = ((self.cat0()["totpartmass"] > min_mass)
              & (self.cat0()["dist"] < max_dist))
         # Now remove indices that are below this cut
-        self._data["index"] = self._data["index"][m]
-        self._data["match_indxs"] = self._data["match_indxs"][m]
-        self._data["overlap"] = self._data["overlap"][m]
+        for p in ("index", "match_indxs", "ngp_overlap", "smoothed_overlap"):
+            self._data[p] = self._data[p][m]
+
         self._data["refmask"] = m
 
-    def summed_overlap(self):
+    def overlap(self, from_smoothed):
+        """
+        Pair overlap of matched halos between the reference and cross
+        simulations.
+
+        Parameters
+        ----------
+        from_smoothed : bool
+            Whether to use the smoothed overlap.
+
+        Returns
+        -------
+        overlap : 1-dimensional array of arrays
+        """
+        if from_smoothed:
+            return self["smoothed_overlap"]
+        return self["ngp_overlap"]
+
+    def summed_overlap(self, from_smoothed):
         """
         Summed overlap of each halo in the reference simulation with the cross
         simulation.
+
+        Parameters
+        ----------
+        from_smoothed : bool
+            Whether to use the smoothed overlap or not.
 
         Returns
         -------
         summed_overlap : 1-dimensional array of shape `(nhalos, )`
         """
-        return numpy.array([numpy.sum(cross) for cross in self["overlap"]])
+        overlap = self.overlap(from_smoothed)
+        return numpy.array([numpy.sum(cross)for cross in overlap])
 
-    def prob_nomatch(self):
+    def prob_nomatch(self, from_smoothed):
         """
         Probability of no match for each halo in the reference simulation with
         the cross simulation. Defined as a product of 1 - overlap with other
         halos.
 
+        Parameters
+        ----------
+        from_smoothed : bool
+            Whether to use the smoothed overlap or not.
+
         Returns
         -------
         prob_nomatch : 1-dimensional array of shape `(nhalos, )`
         """
-        return numpy.array(
-            [numpy.product(1 - overlap) for overlap in self["overlap"]])
+        overlap = self.overlap(from_smoothed)
+        return numpy.array([numpy.product(1 - overlap) for overlap in overlap])
 
     def dist(self, in_initial, norm_kind=None):
         """
@@ -414,14 +472,16 @@ class PairOverlap:
                 ratio[i] = numpy.abs(ratio[i])
         return numpy.array(ratio, dtype=object)
 
-    def counterpart_mass(self, overlap_threshold=0., in_log=False,
-                         mass_kind="totpartmass"):
+    def counterpart_mass(self, from_smoothed, overlap_threshold=0.,
+                         in_log=False, mass_kind="totpartmass"):
         """
         Calculate the expected counterpart mass of each halo in the reference
         simulation from the crossed simulation.
 
         Parameters
         -----------
+        from_smoothed : bool
+            Whether to use the smoothed overlap or not.
         overlap_threshold : float, optional
             Minimum overlap required for a halo to be considered a match. By
             default 0.0, i.e. no threshold.
@@ -440,8 +500,8 @@ class PairOverlap:
         mean = numpy.full(len(self), numpy.nan, dtype=numpy.float32)
         std = numpy.full(len(self), numpy.nan, dtype=numpy.float32)
 
-        massx = self.catx(mass_kind)  # Create references to the arrays here
-        overlap = self["overlap"]     # to speed up the loop below.
+        massx = self.catx(mass_kind)           # Create references to speed
+        overlap = self.overlap(from_smoothed)  # up the loop below
 
         for i, match_ind in enumerate(self["match_indxs"]):
             # Skip if no match
@@ -538,9 +598,11 @@ class PairOverlap:
 
     def __getitem__(self, key):
         """
-        Must be one of `index`, `match_indxs`, `overlap` or `refmask`.
+        Must be one of `index`, `match_indxs`, `ngp_overlap`,
+        `smoothed_overlap` or `refmask`.
         """
-        assert key in ("index", "match_indxs", "overlap", "refmask")
+        assert key in ("index", "match_indxs", "ngp_overlap",
+                       "smoothed_overlap", "refmask")
         return self._data[key]
 
     def __len__(self):
@@ -574,14 +636,17 @@ class NPairsOverlap:
         self._pairs = [PairOverlap(cat0, catx, fskel=fskel, min_mass=min_mass,
                                    max_dist=max_dist) for catx in catxs]
 
-    def summed_overlap(self, verbose=False):
+    def summed_overlap(self, from_smoothed, verbose=False):
         """
         Summed overlap of each halo in the reference simulation with the cross
         simulations.
 
         Parameters
         ----------
+        from_smoothed : bool
+            Whether to use the smoothed overlap or not.
         verbose : bool, optional
+            Verbosity flag.
 
         Returns
         -------
@@ -589,17 +654,20 @@ class NPairsOverlap:
         """
         out = [None] * len(self)
         for i, pair in enumerate(tqdm(self.pairs) if verbose else self.pairs):
-            out[i] = pair.summed_overlap()
+            out[i] = pair.summed_overlap(from_smoothed)
         return numpy.vstack(out).T
 
-    def prob_nomatch(self, verbose=False):
+    def prob_nomatch(self, from_smoothed, verbose=False):
         """
         Probability of no match for each halo in the reference simulation with
         the cross simulation.
 
         Parameters
         ----------
+        from_smoothed : bool
+            Whether to use the smoothed overlap or not.
         verbose : bool, optional
+            Verbosity flag.
 
         Returns
         -------
@@ -607,18 +675,20 @@ class NPairsOverlap:
         """
         out = [None] * len(self)
         for i, pair in enumerate(tqdm(self.pairs) if verbose else self.pairs):
-            out[i] = pair.prob_nomatch()
+            out[i] = pair.prob_nomatch(from_smoothed)
         return numpy.vstack(out).T
 
-    def counterpart_mass(self, overlap_threshold=0., in_log=False,
-                         mass_kind="totpartmass", return_full=True,
-                         verbose=False):
+    def counterpart_mass(self, from_smoothed, overlap_threshold=0.,
+                         in_log=False, mass_kind="totpartmass",
+                         return_full=True, verbose=False):
         """
         Calculate the expected counterpart mass of each halo in the reference
         simulation from the crossed simulation.
 
         Parameters
         -----------
+        from_smoothed : bool
+            Whether to use the smoothed overlap or not.
         overlap_threshold : float, optional
             Minimum overlap required for a halo to be considered a match. By
             default 0.0, i.e. no threshold.
@@ -647,11 +717,12 @@ class NPairsOverlap:
         mus, stds = [None] * len(self), [None] * len(self)
         for i, pair in enumerate(tqdm(self.pairs) if verbose else self.pairs):
             mus[i], stds[i] = pair.counterpart_mass(
+                from_smoothed=from_smoothed,
                 overlap_threshold=overlap_threshold, in_log=in_log,
                 mass_kind=mass_kind)
         mus, stds = numpy.vstack(mus).T, numpy.vstack(stds).T
 
-        probmatch = 1 - self.prob_nomatch()  # Prob of > 0 matches
+        probmatch = 1 - self.prob_nomatch(from_smoothed)  # Prob of > 0 matches
         # Normalise it for weighted sums etc.
         norm_probmatch = numpy.apply_along_axis(
             lambda x: x / numpy.sum(x), axis=1, arr=probmatch)
