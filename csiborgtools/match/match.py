@@ -174,7 +174,7 @@ class RealisationsMatcher:
         r"""
         Find all neighbours whose CM separation is less than `nmult` times the
         sum of their initial Lagrangian patch sizes and optionally calculate
-        their overlap.Enforces that the neighbours' are similar in mass up to
+        their overlap. Enforces that the neighbours' are similar in mass up to
         `dlogmass` dex.
 
         Parameters
@@ -183,7 +183,7 @@ class RealisationsMatcher:
             Halo catalogues corresponding to the reference and cross
             simulations.
         overlap : bool, optional
-            whether to calculate overlap between clumps in the initial
+            Whether to calculate overlap between clumps in the initial
             snapshot. by default `false`. this operation is slow.
         verbose : bool, optional
             iterator verbosity flag. by default `true`.
@@ -196,8 +196,12 @@ class RealisationsMatcher:
             Halo IDs in the cross catalogue.
         match_indxs : 1-dimensional array of arrays
             Indices of halo counterparts in the cross catalogue.
-        overlaps : 1-dimensional array of arrays
-            Overlaps with the cross catalogue.
+        raw_overlaps : 1-dimensional array of arrays
+            Raw symmetric overlaps with the cross catalogue.
+        occupancy1 : float
+            Average occupancy of reference clumps in common cells.
+        occupancy2 : float
+            Average occupancy of cross clumps in common cells.
         """
         # Query the KNN
         verbose and print("{}: querying the KNN.".format(now()), flush=True)
@@ -214,9 +218,13 @@ class RealisationsMatcher:
                 aratio = numpy.abs(numpy.log10(catx[p][indx] / cat0[p][i]))
                 match_indxs[i] = match_indxs[i][aratio < self.dlogmass]
 
-        # Initialise the array outside in case `overlap` is `False`
+        # Initialise arrays outside in case `overlap` is `False`
         cross = [numpy.asanyarray([], dtype=numpy.float32)
                  for __ in range(match_indxs.size)]
+        occup1 = [numpy.asanyarray([], dtype=numpy.float32)
+                  for __ in range(match_indxs.size)]
+        occup2 = [numpy.asanyarray([], dtype=numpy.float32)
+                  for __ in range(match_indxs.size)]
         if overlap:
             verbose and print("{}: loading particles.".format(now()),
                               flush=True)
@@ -256,30 +264,38 @@ class RealisationsMatcher:
                 mass0 = numpy.sum(cl0['M'])
                 mins0_current, maxs0_current = mins0[match0], maxs0[match0]
 
-                # Array to store overlaps of this halo
-                crosses = numpy.full(match_indxs[i].size, numpy.nan,
-                                     numpy.float32)
+                # Preallocate arrays to store overlap information
+                nmatches = match_indxs[i].size
+                _cross = numpy.full(nmatches, numpy.nan, numpy.float32)
+                _occup1 = numpy.full(nmatches, numpy.nan, numpy.float32)
+                _occup2 = numpy.full(nmatches, numpy.nan, numpy.float32)
                 # Loop over matches of this halo from the other simulation
                 for j, ind in enumerate(match_indxs[i]):
                     matchx = hid2clumpsx[catx["index"][ind]]
                     clx = clumpsx["clump"][matchx]
-                    crosses[j] = self.overlapper(
+                    _cross[j], _occup1[j], _occup2[j] = self.overlapper(
                         cl0, clx, delta_bckg0, delta_bckgx, mins0_current,
                         maxs0_current, minsx[matchx], maxsx[matchx],
                         mass1=mass0, mass2=numpy.sum(clx['M']))
-                cross[i] = crosses
+                cross[i] = _cross
+                occup1[i] = _occup1
+                occup2[i] = _occup2
 
                 # Remove matches with exactly 0 overlap
                 mask = cross[i] > 0
                 match_indxs[i] = match_indxs[i][mask]
                 cross[i] = cross[i][mask]
+                occup1[i] = occup1[i][mask]
+                occup2[i] = occup2[i][mask]
 
                 # Sort the matches by overlap
                 ordering = numpy.argsort(cross[i])[::-1]
                 match_indxs[i] = match_indxs[i][ordering]
                 cross[i] = cross[i][ordering]
+                occup1[i] = occup1[i][ordering]
+                occup2[i] = occup2[i][ordering]
 
-        return cat0["index"], catx["index"], match_indxs, cross
+        return cat0["index"], catx["index"], match_indxs, cross, occup1, occup2
 
     def smoothed_cross(self, cat0, catx, ref_indxs, cross_indxs, match_indxs,
                        smooth_kwargs, verbose=True):
@@ -311,8 +327,12 @@ class RealisationsMatcher:
             Indices of halos in the cross catalogue.
         match_indxs : 1-dimensional array of arrays
             Indices of halo counterparts in the cross catalogue.
-        overlaps : 1-dimensional array of arrays
+        raw_overlaps : 1-dimensional array of arrays
             Overlaps with the cross catalogue.
+        occupancy1 : float
+            Average occupancy of reference clumps in common cells.
+        occupancy2 : float
+            Average occupancy of cross clumps in common cells.
         """
         # Load particles
         verbose and print("{}: loading particles.".format(now()), flush=True)
@@ -342,27 +362,36 @@ class RealisationsMatcher:
         hid2clumps0 = {hid: n for n, hid in enumerate(clumps0["ID"])}
         hid2clumpsx = {hid: n for n, hid in enumerate(clumpsx["ID"])}
 
-        # Preallocate the array for smoothed overlaps
-        smoothed_overlap = [numpy.asanyarray([], dtype=numpy.float32)
-                            for __ in range(match_indxs.size)]
+        # Preallocate arrays to store the overlap information
+        cross = [numpy.asanyarray([], dtype=numpy.float32)
+                 for __ in range(match_indxs.size)]
+        occup1 = [numpy.asanyarray([], dtype=numpy.float32)
+                  for __ in range(match_indxs.size)]
+        occup2 = [numpy.asanyarray([], dtype=numpy.float32)
+                  for __ in range(match_indxs.size)]
         for i, ref_ind in enumerate(tqdm(ref_indxs) if verbose else ref_indxs):
             match0 = hid2clumps0[ref_ind]
             # The reference clump, its mass and mins & maxs
             cl0 = clumps0["clump"][match0]
             mins0_current, maxs0_current = mins0[match0], maxs0[match0]
 
-            # Array to store overlaps of this halo
-            x = numpy.full(match_indxs[i].size, numpy.nan, numpy.float32)
+            # Preallocate
+            nmatches = match_indxs[i].size
+            _cross = numpy.full(nmatches, numpy.nan, numpy.float32)
+            _occup1 = numpy.full(nmatches, numpy.nan, numpy.float32)
+            _occup2 = numpy.full(nmatches, numpy.nan, numpy.float32)
             for j, match_ind in enumerate(match_indxs[i]):
                 matchx = hid2clumpsx[cross_indxs[match_ind]]
                 clx = clumpsx["clump"][matchx]
-                x[j] = self.overlapper(
+                _cross[j], _occup1[j], _occup2[j] = self.overlapper(
                     cl0, clx, delta_bckg0, delta_bckgx, mins0_current,
                     maxs0_current, minsx[matchx], maxsx[matchx],
                     smooth_kwargs=smooth_kwargs)
-            smoothed_overlap[i] = x
+            cross[i] = _cross
+            occup1[i] = _occup1
+            occup2[i] = _occup2
 
-        return smoothed_overlap
+        return cross, occup1, occup2
 
 
 ###############################################################################
@@ -677,21 +706,29 @@ class ParticleOverlap:
 
         Returns
         -------
-        overlap : float
+        raw_overlap : float
+            Raw symmetric mass overlap between the two clumps.
+        occupancy1 : float
+            Average occupancy of clump 1 in common cells.
+        occupancy2 : float
+            Average occupancy of clump 2 in common cells.
         """
         delta1, delta2, cellmins, nonzero = self.make_deltas(
             clump1, clump2, mins1, maxs1, mins2, maxs2,
             smooth_kwargs=smooth_kwargs)
 
         if smooth_kwargs is not None:
-            return calculate_overlap(delta1, delta2, cellmins,
-                                     delta1_bckg, delta2_bckg)
+            overlap, occupancy1, occupancy2 = calculate_overlap(
+                delta1, delta2, cellmins, delta1_bckg, delta2_bckg)
+        else:
+            # Calculate masses not given
+            mass1 = numpy.sum(clump1['M']) if mass1 is None else mass1
+            mass2 = numpy.sum(clump2['M']) if mass2 is None else mass2
+            overlap, occupancy1, occupancy2 = calculate_overlap_indxs(
+                delta1, delta2, cellmins, delta1_bckg, delta2_bckg, nonzero,
+                mass1, mass2)
 
-        # Calculate masses not given
-        mass1 = numpy.sum(clump1['M']) if mass1 is None else mass1
-        mass2 = numpy.sum(clump2['M']) if mass2 is None else mass2
-        return calculate_overlap_indxs(delta1, delta2, cellmins, delta1_bckg,
-                                       delta2_bckg, nonzero, mass1, mass2)
+        return overlap, occupancy1, occupancy2
 
 
 @jit(nopython=True)
@@ -812,10 +849,18 @@ def calculate_overlap(delta1, delta2, cellmins, delta1_bckg, delta2_bckg):
 
     Returns
     -------
-    overlap : float
+    raw_overlap : float
+        Raw symmetric mass overlap between the two clumps.
+    occupancy1 : float
+        Average occupancy of clump 1 in common cells.
+    occupancy2 : float
+        Average occupancy of clump 2 in common cells.
     """
     totmass = 0.           # Total mass of clump 1 and clump 2
-    intersect = 0.         # Mass of pixels that are non-zero in both clumps
+    intersect1 = 0.        # Intersecting mass of clump 1
+    intersect2 = 0.        # Intersecting mass of clump 2
+    bckgtot1 = 0.          # Background intersecting mass of clump1 field
+    bckgtot2 = 0.          # Background intersecting mass of clump2 field
     i0, j0, k0 = cellmins  # Unpack things
     bckg_offset = 512      # Offset of the background density field
     bckg_size = 1024
@@ -823,29 +868,33 @@ def calculate_overlap(delta1, delta2, cellmins, delta1_bckg, delta2_bckg):
 
     for i in range(imax):
         ii = i0 + i - bckg_offset
-        flag = 0 <= ii < bckg_size
+        ishighres = 0 <= ii < bckg_size
         for j in range(jmax):
             jj = j0 + j - bckg_offset
-            flag &= 0 <= jj < bckg_size
+            ishighres &= 0 <= jj < bckg_size
             for k in range(kmax):
                 kk = k0 + k - bckg_offset
-                flag &= 0 <= kk < bckg_size
+                ishighres &= 0 <= kk < bckg_size
 
                 cell1, cell2 = delta1[i, j, k], delta2[i, j, k]
-                # If both are zero then skip
-                if cell1 * cell2 > 0:
-                    if flag:
-                        weight1 = cell1 / delta1_bckg[ii, jj, kk]
-                        weight2 = cell2 / delta2_bckg[ii, jj, kk]
-                    else:
-                        weight1 = 1.
-                        weight2 = 1.
-                    # Average weighted mass in the cell
-                    intersect += 0.5 * (weight1 * cell1 + weight2 * cell2)
-
                 totmass += cell1 + cell2
 
-    return intersect / (totmass - intersect)
+                if cell1 * cell2 > 0:  # If both cells are non-zero
+                    intersect1 += cell1
+                    intersect2 += cell2
+
+                    if ishighres:  # Outside high res assume cannot overlap
+                        bckgtot1 += delta1_bckg[ii, jj, kk]
+                        bckgtot2 += delta2_bckg[ii, jj, kk]
+                    else:
+                        bckgtot1 += cell1
+                        bckgtot2 += cell2
+
+    # Average occupancy of clump 1 and 2 in common cells
+    occupancy1 = intersect1 / bckgtot1 if bckgtot1 > 0 else 0.
+    occupancy2 = intersect2 / bckgtot2 if bckgtot2 > 0 else 0.
+    intersect = 0.5 * (intersect1 + intersect2)
+    return intersect / (totmass - intersect), occupancy1, occupancy2
 
 
 @jit(nopython=True)
@@ -875,9 +924,17 @@ def calculate_overlap_indxs(delta1, delta2, cellmins, delta1_bckg, delta2_bckg,
 
     Returns
     -------
-    overlap : float
+    raw_overlap : float
+        Raw symmetric mass overlap between the two clumps.
+    occupancy1 : float
+        Average occupancy of clump 1 in common cells.
+    occupancy2 : float
+        Average occupancy of clump 2 in common cells.
     """
-    intersect = 0.         # Mass of pixels that are non-zero in both clumps
+    intersect1 = 0.        # Intersecting mass of clump 1
+    intersect2 = 0.        # Intersecting mass of clump 2
+    bckgtot1 = 0.          # Background intersecting mass of clump1 field
+    bckgtot2 = 0.          # Background intersecting mass of clump2 field
     i0, j0, k0 = cellmins  # Unpack cell minimas
     bckg_offset = 512      # Offset of the background density field
     bckg_size = 1024       # Size of the background density field array
@@ -892,21 +949,25 @@ def calculate_overlap_indxs(delta1, delta2, cellmins, delta1_bckg, delta2_bckg,
             jj = j0 + j - bckg_offset    # background density field.
             kk = k0 + k - bckg_offset
 
-            flag = 0 <= ii < bckg_size   # Whether this cell is in the high
-            flag &= 0 <= jj < bckg_size  # resolution region for which the
-            flag &= 0 <= kk < bckg_size  # background density is calculated.
+            ishighres = 0 <= ii < bckg_size   # Is this cell is in the high
+            ishighres &= 0 <= jj < bckg_size  # resolution region for which the
+            ishighres &= 0 <= kk < bckg_size  # background field is calculated.
 
-            if flag:
-                weight1 = cell1 / delta1_bckg[ii, jj, kk]
-                weight2 = cell2 / delta2_bckg[ii, jj, kk]
+            intersect1 += cell1
+            intersect2 += cell2
+
+            if ishighres:
+                bckgtot1 += delta1_bckg[ii, jj, kk]
+                bckgtot2 += delta2_bckg[ii, jj, kk]
             else:
-                weight1 = 1.
-                weight2 = 1.
+                bckgtot1 += cell1
+                bckgtot2 += cell2
 
-            # Average weighted mass in the cell
-            intersect += 0.5 * (weight1 * cell1 + weight2 * cell2)
-
-    return intersect / (mass1 + mass2 - intersect)
+    # Average occupancy of clump 1 and 2 in common cells
+    occupancy1 = intersect1 / bckgtot1 if bckgtot1 > 0 else 0.
+    occupancy2 = intersect2 / bckgtot2 if bckgtot2 > 0 else 0.
+    intersect = 0.5 * (intersect1 + intersect2)
+    return intersect / (mass1 + mass2 - intersect), occupancy1, occupancy2
 
 
 def dist_centmass(clump):
