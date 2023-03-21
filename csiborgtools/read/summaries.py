@@ -214,34 +214,23 @@ class PairOverlap:
 
         # We can set catalogues already now even if inverted
         d = numpy.load(fpath, allow_pickle=True)
+        ngp_overlap = d["ngp_overlap"]
+        smoothed_overlap = d["smoothed_overlap"]
+        match_indxs = d["match_indxs"]
         if is_inverted:
-            # Multiply the raw overlaps with their *CORRECT* cross occupancies
-            for i in range(d["ref_indxs"].size):
-                d["raw_overlap"][i] *= d["ngp_ref_occup"][i]
-                d["smoothed_raw_overlap"][i] *= d["smoothed_ref_occup"][i]
+            indxs = d["cross_indxs"]
             # Invert the matches
-            inv_match_indxs, inv_ngp_overlap, inv_smoothed_overlap = self._invert_match(  # noqa
-                d["match_indxs"], d["raw_overlap"], d["smoothed_raw_overlap"],
-                d["cross_indxs"].size,)
-
-            self._data = {
-                "index": d["cross_indxs"],
-                "match_indxs": inv_match_indxs,
-                "ngp_overlap": inv_ngp_overlap,
-                "smoothed_overlap": inv_smoothed_overlap,
-                }
+            match_indxs, ngp_overlap, smoothed_overlap = self._invert_match(
+                match_indxs, ngp_overlap, smoothed_overlap, indxs.size,)
         else:
-            # Multiply the raw overlaps with their cross occupancies
-            for i in range(d["ref_indxs"].size):
-                d["raw_overlap"][i] *= d["ngp_cross_occup"][i]
-                d["smoothed_raw_overlap"][i] *= d["smoothed_cross_occup"][i]
+            indxs = d["ref_indxs"]
 
-            self._data = {
-                "index": d["ref_indxs"],
-                "match_indxs": d["match_indxs"],
-                "ngp_overlap": d["raw_overlap"],
-                "smoothed_overlap": d["smoothed_raw_overlap"],
-                }
+        self._data = {
+            "index": indxs,
+            "match_indxs": match_indxs,
+            "ngp_overlap": ngp_overlap,
+            "smoothed_overlap": smoothed_overlap,
+            }
 
         self._make_refmask(min_mass, max_dist)
 
