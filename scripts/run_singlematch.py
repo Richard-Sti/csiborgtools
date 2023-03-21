@@ -48,21 +48,18 @@ catx = csiborgtools.read.HaloCatalogue(args.nsimx)
 matcher = csiborgtools.match.RealisationsMatcher()
 print("{}: starting to cross the simulations.".format(datetime.now()),
       flush=True)
-ref_indxs, cross_indxs, match_indxs, raw_overlap, ngp_ref_occup, ngp_cross_occup = matcher.cross(  # noqa
+ref_indxs, cross_indxs, match_indxs, ngp_overlap = matcher.cross(  # noqa
     cat0, catx, overlap=args.overlap)
 
 print("{}: starting to smooth the overlaps.".format(datetime.now()),
       flush=True)
-smoothed_raw_overlap, smoothed_ref_occup, smoothed_cross_occup = matcher.smoothed_cross(  # noqa
+smoothed_overlap = matcher.smoothed_cross(  # noqa
     cat0, catx, ref_indxs, cross_indxs, match_indxs, smooth_kwargs)
 
 # Dump the result
 print("Saving results to `{}`.".format(fout), flush=True)
 with open(fout, "wb") as f:
     numpy.savez(fout, ref_indxs=ref_indxs, cross_indxs=cross_indxs,
-                match_indxs=match_indxs, raw_overlap=raw_overlap,
-                ngp_ref_occup=ngp_ref_occup, ngp_cross_occup=ngp_cross_occup,
-                smoothed_raw_overlap=smoothed_raw_overlap,
-                smoothed_ref_occup=smoothed_ref_occup,
-                smoothed_cross_occup=smoothed_cross_occup, sigma=args.sigma)
+                match_indxs=match_indxs, ngp_overlap=ngp_overlap,
+                smoothed_overlap=smoothed_overlap, sigma=args.sigma)
 print("All finished.", flush=True)
