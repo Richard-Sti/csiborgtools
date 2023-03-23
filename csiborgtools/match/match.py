@@ -235,7 +235,7 @@ class RealisationsMatcher:
         hid2clumps0 = {hid: n for n, hid in enumerate(clumps0["ID"])}
         hid2clumpsx = {hid: n for n, hid in enumerate(clumpsx["ID"])}
 
-        cross = [None] * match_indxs.size
+        cross = [numpy.asanyarray([], dtype=numpy.float32)] * match_indxs.size
         # Loop only over halos that have neighbours
         iters = numpy.arange(len(cat0))[[x.size > 0 for x in match_indxs]]
         for i in tqdm(iters) if verbose else iters:
@@ -317,7 +317,7 @@ class RealisationsMatcher:
         hid2clumpsx = {hid: n for n, hid in enumerate(clumpsx["ID"])}
 
         # Preallocate arrays to store the overlap information
-        cross = [None] * match_indxs.size
+        cross = [numpy.asanyarray([], dtype=numpy.float32)] * match_indxs.size
         for i, ref_ind in enumerate(tqdm(ref_indxs) if verbose else ref_indxs):
             match0 = hid2clumps0[ref_ind]
             # The reference clump, its mass and mins & maxs
