@@ -13,11 +13,11 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """A script to calculate overlap between two CSiBORG realisations."""
-import numpy
-from argparse import ArgumentParser
-from distutils.util import strtobool
-from datetime import datetime
 from os.path import join
+from argparse import ArgumentParser
+from datetime import datetime
+import numpy
+from scipy.ndimage import gaussian_filter
 try:
     import csiborgtools
 except ModuleNotFoundError:
@@ -31,7 +31,6 @@ parser = ArgumentParser()
 parser.add_argument("--nsim0", type=int)
 parser.add_argument("--nsimx", type=int)
 parser.add_argument("--nmult", type=float)
-parser.add_argument("--overlap", type=lambda x: bool(strtobool(x)))
 parser.add_argument("--sigma", type=float)
 args = parser.parse_args()
 
@@ -39,22 +38,47 @@ args = parser.parse_args()
 fout = join(utils.dumpdir, "overlap",
             "cross_{}_{}.npz".format(args.nsim0, args.nsimx))
 smooth_kwargs = {"sigma": args.sigma, "mode": "constant", "cval": 0.0}
+overlapper = csiborgtools.match.ParticleOverlap()
 
+# Load catalogues
 print("{}: loading catalogues {} and {}."
       .format(datetime.now(), args.nsim0, args.nsimx), flush=True)
 cat0 = csiborgtools.read.HaloCatalogue(args.nsim0)
 catx = csiborgtools.read.HaloCatalogue(args.nsimx)
 
-matcher = csiborgtools.match.RealisationsMatcher()
-print("{}: starting to cross the simulations.".format(datetime.now()),
-      flush=True)
-ref_indxs, cross_indxs, match_indxs, ngp_overlap = matcher.cross(  # noqa
-    cat0, catx, overlap=args.overlap)
 
-print("{}: starting to smooth the overlaps.".format(datetime.now()),
+print("{}: loading simulation {} and converting positions to cell numbers."
+      .format(datetime.now(), args.nsim0), flush=True)
+with open(cat0.paths.clump0_path(args.nsim0), "rb") as f:
+    clumps0 = numpy.load(f, allow_pickle=True)
+    overlapper.clumps_pos2cell(clumps0)
+print("{}: loading simulation {} and converting positions to cell numbers."
+      .format(datetime.now(), args.nsimx), flush=True)
+with open(catx.paths.clump0_path(args.nsimx), 'rb') as f:
+    clumpsx = numpy.load(f, allow_pickle=True)
+    overlapper.clumps_pos2cell(clumpsx)
+
+
+print("{}: generating the background density fields.".format(datetime.now()),
       flush=True)
-smoothed_overlap = matcher.smoothed_cross(  # noqa
-    cat0, catx, ref_indxs, cross_indxs, match_indxs, smooth_kwargs)
+delta_bckg = overlapper.make_bckg_delta(clumps0)
+delta_bckg += overlapper.make_bckg_delta(clumpsx, delta=delta_bckg)
+
+
+print("{}: crossing the simulations.".format(datetime.now()), flush=True)
+matcher = csiborgtools.match.RealisationsMatcher()
+ref_indxs, cross_indxs, match_indxs, ngp_overlap = matcher.cross(
+    cat0, catx, clumps0, clumpsx, delta_bckg)
+
+
+print("{}: smoothing the background field.".format(datetime.now()), flush=True)
+gaussian_filter(delta_bckg, output=delta_bckg, **smooth_kwargs)
+
+
+print("{}: calculating smoothed overlaps.".format(datetime.now()), flush=True)
+smoothed_overlap = matcher.smoothed_cross(clumps0, clumpsx, delta_bckg,
+                                          ref_indxs, cross_indxs, match_indxs,
+                                          smooth_kwargs)
 
 # Dump the result
 print("Saving results to `{}`.".format(fout), flush=True)
