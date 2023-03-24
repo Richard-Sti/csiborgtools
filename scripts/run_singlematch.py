@@ -62,7 +62,7 @@ with open(catx.paths.clump0_path(args.nsimx), 'rb') as f:
 print("{}: generating the background density fields.".format(datetime.now()),
       flush=True)
 delta_bckg = overlapper.make_bckg_delta(clumps0)
-delta_bckg += overlapper.make_bckg_delta(clumpsx, delta=delta_bckg)
+delta_bckg = overlapper.make_bckg_delta(clumpsx, delta=delta_bckg)
 
 
 print("{}: crossing the simulations.".format(datetime.now()), flush=True)
