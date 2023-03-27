@@ -719,6 +719,7 @@ class NPairsOverlap:
         # Mean and standard deviation of weighted stacked Gaussians
         mu = numpy.sum(norm_probmatch * mus, axis=1)
         std = numpy.sum(norm_probmatch * (mus**2 + stds**2), axis=1) - mu**2
+        std **= 0.5
 
         if return_full:
             return mu, std, mus, stds
