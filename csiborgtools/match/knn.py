@@ -17,6 +17,7 @@ kNN-CDF calculation
 """
 import numpy
 from scipy.interpolate import interp1d
+from tqdm import tqdm
 
 
 class kNN_CDF:
@@ -98,7 +99,7 @@ class kNN_CDF:
         return r, cdf
 
     def __call__(self, *knns, nneighbours, Rmax, nsamples, rmin, rmax, neval,
-                 random_state=42):
+                 verbose=True, random_state=42):
         """
         Calculate the peaked CDF for a set of kNNs of CSiBORG halo catalogues.
 
@@ -121,7 +122,8 @@ class kNN_CDF:
             Number of points to evaluate the CDF.
         random_state : int, optional
             Random state for the random number generator.
-
+        verbose : bool, optional
+            Verbosity flag.
 
         Returns
         -------
@@ -133,7 +135,7 @@ class kNN_CDF:
         rand = self.rvs_in_sphere(nsamples, Rmax, random_state=random_state)
 
         cdfs = [None] * len(knns)
-        for i, knn in enumerate(knns):
+        for i, knn in enumerate(tqdm(knns) if verbose else knns):
             dist, __ = knn.kneighbors(rand, nneighbours)
             cdf = [None] * nneighbours
             for j in range(nneighbours):
