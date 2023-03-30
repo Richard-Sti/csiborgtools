@@ -109,7 +109,7 @@ class HaloCatalogue:
 
     def knn(self, select_initial):
         """
-        The final snapshot k-nearest neighbour object.
+        The halo k-nearest neighbour object.
 
         Parameters
         ----------
