@@ -35,20 +35,22 @@ class HaloCatalogue:
         The minimum :math:`M_{rm tot} / M_\odot` mass. By default no threshold.
     max_dist : float, optional
         The maximum comoving distance of a halo. By default no upper limit.
+    load_init : bool, optional
+        Whether to load the initial snapshot information. By default False.
     """
     _box = None
     _paths = None
     _data = None
     _selmask = None
 
-    def __init__(self, nsim, min_mass=None, max_dist=None):
+    def __init__(self, nsim, min_mass=None, max_dist=None, load_init=False):
         # Set up paths
         paths = CSiBORGPaths(n_sim=nsim)
         paths.n_snap = paths.get_maximum_snapshot()
         self._paths = paths
         self._box = BoxUnits(paths)
         self._paths = paths
-        self._set_data(min_mass, max_dist)
+        self._set_data(min_mass, max_dist, load_init)
 
     @property
     def data(self):
@@ -109,7 +111,7 @@ class HaloCatalogue:
 
     def knn(self, select_initial):
         """
-        The halo k-nearest neighbour object.
+        kNN object of all halo positions.
 
         Parameters
         ----------
@@ -123,7 +125,7 @@ class HaloCatalogue:
         knn = NearestNeighbors()
         return knn.fit(self.positions0 if select_initial else self.positions)
 
-    def _set_data(self, min_mass, max_dist):
+    def _set_data(self, min_mass, max_dist, load_init):
         """
         Loads the data, merges with mmain, does various coordinate transforms.
         """
@@ -141,10 +143,11 @@ class HaloCatalogue:
         data = data[(data["npart"] > 100) & numpy.isfinite(data["m200"])]
 
         # Now also load the initial positions
-        initcm = read_initcm(self.n_sim, self.paths.initmatch_path)
-        if initcm is not None:
-            data = self.merge_initmatch_to_clumps(data, initcm)
-            flip_cols(data, "x0", "z0")
+        if load_init:
+            initcm = read_initcm(self.n_sim, self.paths.initmatch_path)
+            if initcm is not None:
+                data = self.merge_initmatch_to_clumps(data, initcm)
+                flip_cols(data, "x0", "z0")
 
 #        # Calculate redshift
 #        pos = [data["peak_{}".format(p)] - 0.5 for p in ("x", "y", "z")]
@@ -168,7 +171,7 @@ class HaloCatalogue:
         data = add_columns(data, [d, ra, dec], ["dist", "ra", "dec"])
 
         # And do the unit transform
-        if initcm is not None:
+        if load_init and initcm is not None:
             data = self.box.convert_from_boxunits(
                 data, ["x0", "y0", "z0", "lagpatch"])
 
