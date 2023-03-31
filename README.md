@@ -9,6 +9,7 @@
 ## Project Clustering
 - [ ] Add uncertainty to the kNN-CDF autocorrelation.
 - [ ] Add the joint kNN-CDF calculation.
+- [ ] Make kNN-CDF more memory friendly if generating many randoms.
 
 
 ## Project Environmental Dependence
