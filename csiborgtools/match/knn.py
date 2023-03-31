@@ -57,9 +57,9 @@ class kNN_CDF:
         return numpy.vstack([x, y, z]).T
 
     @staticmethod
-    def peakedcdf_from_samples(r, rmin=None, rmax=None, neval=None):
+    def cdf_from_samples(r, rmin=None, rmax=None, neval=None):
         """
-        Calculate the peaked CDF from samples.
+        Calculate the CDF from samples.
 
         Parameters
         ----------
@@ -87,10 +87,8 @@ class kNN_CDF:
         # Calculate the CDF
         r = numpy.sort(r)
         cdf = numpy.arange(r.size) / r.size
-        cdf[cdf > 0.5] = 1 - cdf[cdf > 0.5]
 
-        # Optinally interpolate at given points
-        if neval is not None:
+        if neval is not None:  # Optinally interpolate at given points
             _r = numpy.linspace(rmin, rmax, neval)
             cdf = interp1d(r, cdf, kind="linear", fill_value=numpy.nan,
                            bounds_error=False)(_r)
@@ -98,10 +96,31 @@ class kNN_CDF:
 
         return r, cdf
 
+    @staticmethod
+    def peaked_cdf(cdf, make_copy=True):
+        """
+        Transform the CDF to a peaked CDF.
+
+        Parameters
+        ----------
+        cdf : 1- or 2- or 3-dimensional array
+            CDF to be transformed along the last axis.
+        make_copy : bool, optional
+            Whether to make a copy of the CDF before transforming it to avoid
+            overwriting it.
+
+        Returns
+        -------
+        peaked_cdf : 1- or 2- or 3-dimensional array
+        """
+        cdf = numpy.copy(cdf) if make_copy else cdf
+        cdf[cdf > 0.5] = 1 - cdf[cdf > 0.5]
+        return cdf
+
     def __call__(self, *knns, nneighbours, Rmax, nsamples, rmin, rmax, neval,
                  verbose=True, random_state=42):
         """
-        Calculate the peaked CDF for a set of kNNs of CSiBORG halo catalogues.
+        Calculate the CDF for a set of kNNs of CSiBORG halo catalogues.
 
         Parameters
         ----------
@@ -129,7 +148,7 @@ class kNN_CDF:
         -------
         rs : 1-dimensional array
             Distances at which the CDF is evaluated.
-        cdfs : 3-dimensional array of shape `(len(knns), nneighbours, neval)`
+        cdfs : 2 or 3-dimensional array
             CDFs evaluated at `rs`.
         """
         rand = self.rvs_in_sphere(nsamples, Rmax, random_state=random_state)
@@ -139,9 +158,10 @@ class kNN_CDF:
             dist, __ = knn.kneighbors(rand, nneighbours)
             cdf = [None] * nneighbours
             for j in range(nneighbours):
-                rs, cdf[j] = self.peakedcdf_from_samples(
+                rs, cdf[j] = self.cdf_from_samples(
                     dist[:, j], rmin=rmin, rmax=rmax, neval=neval)
             cdfs[i] = cdf
 
         cdfs = numpy.asanyarray(cdfs)
+        cdfs = cdfs[0, ...] if len(knns) == 1 else cdfs
         return rs, cdfs
