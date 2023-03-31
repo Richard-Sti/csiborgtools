@@ -15,6 +15,7 @@
 """
 kNN-CDF calculation
 """
+from gc import collect
 import numpy
 from scipy.interpolate import interp1d
 from tqdm import tqdm
@@ -26,7 +27,7 @@ class kNN_CDF:
     their kNN objects.
     """
     @staticmethod
-    def rvs_in_sphere(nsamples, R, random_state=42):
+    def rvs_in_sphere(nsamples, R, random_state=42, dtype=numpy.float32):
         """
         Generate random samples in a sphere of radius `R` centered at the
         origin.
@@ -39,6 +40,8 @@ class kNN_CDF:
             Radius of the sphere.
         random_state : int, optional
             Random state for the random number generator.
+        dtype : numpy dtype, optional
+            Data type, by default `numpy.float32`.
 
         Returns
         -------
@@ -46,9 +49,9 @@ class kNN_CDF:
         """
         gen = numpy.random.default_rng(random_state)
         # Sample spherical coordinates
-        r = gen.uniform(0, 1, nsamples)**(1/3) * R
-        theta = 2 * numpy.arcsin(gen.uniform(0, 1, nsamples))
-        phi = 2 * numpy.pi * gen.uniform(0, 1, nsamples)
+        r = gen.uniform(0, 1, nsamples).astype(dtype)**(1/3) * R
+        theta = 2 * numpy.arcsin(gen.uniform(0, 1, nsamples).astype(dtype))
+        phi = 2 * numpy.pi * gen.uniform(0, 1, nsamples).astype(dtype)
         # Convert to cartesian coordinates
         x = r * numpy.sin(theta) * numpy.cos(phi)
         y = r * numpy.sin(theta) * numpy.sin(phi)
@@ -57,7 +60,8 @@ class kNN_CDF:
         return numpy.vstack([x, y, z]).T
 
     @staticmethod
-    def cdf_from_samples(r, rmin=None, rmax=None, neval=None):
+    def cdf_from_samples(r, rmin=None, rmax=None, neval=None,
+                         dtype=numpy.float32):
         """
         Calculate the CDF from samples.
 
@@ -71,6 +75,8 @@ class kNN_CDF:
             Maximum distance to evaluate the CDF.
         neval : int, optional
             Number of points to evaluate the CDF. By default equal to `len(x)`.
+        dtype : numpy dtype, optional
+            Calculation data type. By default `numpy.float32`.
 
         Returns
         -------
@@ -89,9 +95,10 @@ class kNN_CDF:
         cdf = numpy.arange(r.size) / r.size
 
         if neval is not None:  # Optinally interpolate at given points
-            _r = numpy.logspace(numpy.log10(rmin), numpy.log10(rmax), neval)
+            _r = numpy.logspace(numpy.log10(rmin), numpy.log10(rmax), neval,
+                                dtype=dtype)
             cdf = interp1d(r, cdf, kind="linear", fill_value=numpy.nan,
-                           bounds_error=False)(_r)
+                           bounds_error=False)(_r).astype(dtype)
             r = _r
 
         return r, cdf
@@ -118,7 +125,7 @@ class kNN_CDF:
         return cdf
 
     def __call__(self, *knns, nneighbours, Rmax, nsamples, rmin, rmax, neval,
-                 verbose=True, random_state=42):
+                 verbose=True, random_state=42, dtype=numpy.float32):
         """
         Calculate the CDF for a set of kNNs of CSiBORG halo catalogues.
 
@@ -139,10 +146,12 @@ class kNN_CDF:
             Maximum distance to evaluate the CDF.
         neval : int
             Number of points to evaluate the CDF.
-        random_state : int, optional
-            Random state for the random number generator.
         verbose : bool, optional
             Verbosity flag.
+        random_state : int, optional
+            Random state for the random number generator.
+        dtype : numpy dtype, optional
+            Calculation data type. By default `numpy.float32`.
 
         Returns
         -------
@@ -155,7 +164,12 @@ class kNN_CDF:
 
         cdfs = [None] * len(knns)
         for i, knn in enumerate(tqdm(knns) if verbose else knns):
-            dist, __ = knn.kneighbors(rand, nneighbours)
+            dist, _indxs = knn.kneighbors(rand, nneighbours)
+            dist = dist.astype(dtype)
+            del _indxs
+            collect()
+
+
             cdf = [None] * nneighbours
             for j in range(nneighbours):
                 rs, cdf[j] = self.cdf_from_samples(
