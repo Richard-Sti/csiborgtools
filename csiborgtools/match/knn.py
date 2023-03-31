@@ -89,7 +89,7 @@ class kNN_CDF:
         cdf = numpy.arange(r.size) / r.size
 
         if neval is not None:  # Optinally interpolate at given points
-            _r = numpy.linspace(rmin, rmax, neval)
+            _r = numpy.logspace(numpy.log10(rmin), numpy.log10(rmax), neval)
             cdf = interp1d(r, cdf, kind="linear", fill_value=numpy.nan,
                            bounds_error=False)(_r)
             r = _r
