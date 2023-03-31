@@ -15,3 +15,4 @@ build/*
 csiborgtools.egg-info/*
 Pylians3/*
 scripts/plot_correlation.ipynb
+scripts/python.sh
