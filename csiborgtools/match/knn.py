@@ -155,6 +155,31 @@ class kNN_CDF:
         cdf = cdf[0, ...] if nknns == 1 else cdf  # Reshape if necessary
         return cdf
 
+    @staticmethod
+    def joint_to_corr(cdf0, cdf1, joint_cdf):
+        """
+        Calculate the correlation function from the joint kNN-CDFs.
+
+        Parameters
+        ----------
+        cdf0 : 2-dimensional array
+            CDF evaluated at `rs` of the first kNN.
+        cdf1 : 2-dimensional array
+            CDF evaluated at `rs` of the second kNN.
+        joint_cdf : 2-dimensional array
+            Joint CDF evaluated at `rs`.
+
+        Returns
+        -------
+        corr : 2-dimensional array
+            Correlation function evaluated at `rs`.
+        """
+        assert cdf0.ndim == cdf1.ndim == joint_cdf.ndim == 2
+        corr = numpy.zeros_like(joint_cdf)
+        for k in range(joint_cdf.shape[0]):
+            corr[k, :] = joint_cdf[k, :] - cdf0[k, :] * cdf1[k, :]
+        return corr
+
     def brute_cdf(self, knn, nneighbours, Rmax, nsamples, rmin, rmax, neval,
                  random_state=42, dtype=numpy.float32):
         """
@@ -259,10 +284,9 @@ class kNN_CDF:
         cdf1 = numpy.zeros_like(joint_cdf)
 
         jointdist = numpy.zeros((batch_size, 2), dtype=dtype)
-
         for j in range(nbatches):
             rand = self.rvs_in_sphere(batch_size, Rmax,
-                                      random_state=random_state + j)
+                                           random_state=random_state + j)
             dist0, __ = knn0.kneighbors(rand, nneighbours)
             dist1, __ = knn1.kneighbors(rand, nneighbours)
 
@@ -297,31 +321,6 @@ class kNN_CDF:
 
         rs = (bins[1:] + bins[:-1]) / 2     # Bin centers
         return rs, cdf0, cdf1, joint_cdf
-
-    @staticmethod
-    def joint_to_corr(cdf0, cdf1, joint_cdf):
-        """
-        Calculate the correlation function from the joint kNN-CDFs.
-
-        Parameters
-        ----------
-        cdf0 : 2-dimensional array
-            CDF evaluated at `rs` of the first kNN.
-        cdf1 : 2-dimensional array
-            CDF evaluated at `rs` of the second kNN.
-        joint_cdf : 2-dimensional array
-            Joint CDF evaluated at `rs`.
-
-        Returns
-        -------
-        corr : 2-dimensional array
-            Correlation function evaluated at `rs`.
-        """
-        assert cdf0.ndim == cdf1.ndim == joint_cdf.ndim == 2
-        corr = numpy.zeros_like(joint_cdf)
-        for k in range(joint_cdf.shape[0]):
-            corr[k, :] = joint_cdf[k, :] - cdf0[k, :] * cdf1[k, :]
-        return corr
 
     def __call__(self, *knns, nneighbours, Rmax, nsamples, rmin, rmax, neval,
                 batch_size=None, verbose=True, random_state=42,
@@ -372,12 +371,11 @@ class kNN_CDF:
         bins = numpy.logspace(numpy.log10(rmin), numpy.log10(rmax), neval)
         cdfs = numpy.zeros((len(knns), nneighbours, neval - 1), dtype=dtype)
         for i, knn in enumerate(tqdm(knns) if verbose else knns):
-            # Loop over batches. This is to avoid generating large mocks
-            # requiring a lot of memory. Add counts to the CDF array
             for j in range(nbatches):
                 rand = self.rvs_in_sphere(batch_size, Rmax,
                                           random_state=random_state + j)
                 dist, __ = knn.kneighbors(rand, nneighbours)
+
                 for k in range(nneighbours):  # Count for each neighbour
                     _counts, __, __ = binned_statistic(
                         dist[:, k], dist[:, k], bins=bins, statistic="count",
