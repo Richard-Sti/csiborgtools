@@ -124,6 +124,37 @@ class kNN_CDF:
         cdf[cdf > 0.5] = 1 - cdf[cdf > 0.5]
         return cdf
 
+    @staticmethod
+    def clipped_cdf(cdf):
+        """
+        Clip the CDF, setting values where the CDF is either 0 or after the
+        first occurence of 1 to `numpy.nan`.
+
+        Parameters
+        ----------
+        cdf : 2- or 3-dimensional array
+            CDF to be clipped.
+
+        Returns
+        -------
+        clipped_cdf : 2- or 3-dimensional array
+            The clipped CDF.
+        """
+        cdf = numpy.copy(cdf)
+        if cdf.ndim == 2:
+            cdf = cdf.reshape(1, *cdf.shape)
+        nknns, nneighbours, __ = cdf.shape
+
+        for i in range(nknns):
+            for k in range(nneighbours):
+                ns = numpy.where(cdf[i, k, :] == 1.)[0]
+                if ns.size > 1:
+                    cdf[i, k, ns[1]:] = numpy.nan
+        cdf[cdf == 0] = numpy.nan
+
+        cdf = cdf[0, ...] if nknns == 1 else cdf  # Reshape if necessary
+        return cdf
+
     def brute_cdf(self, knn, nneighbours, Rmax, nsamples, rmin, rmax, neval,
                  random_state=42, dtype=numpy.float32):
         """
@@ -173,9 +204,128 @@ class kNN_CDF:
         cdf = numpy.asanyarray(cdf)
         return rs, cdf
 
+    def joint(self, knn0, knn1, nneighbours, Rmax, nsamples, rmin, rmax,
+              neval, batch_size=None, random_state=42,
+              dtype=numpy.float32):
+        """
+        Calculate the joint CDF for two kNNs of CSiBORG halo catalogues.
+
+        Parameters
+        ----------
+        knn0 : `sklearn.neighbors.NearestNeighbors` instance
+            kNN of the first CSiBORG halo catalogue.
+        knn1 : `sklearn.neighbors.NearestNeighbors` instance
+            kNN of the second CSiBORG halo catalogue.
+        neighbours : int
+            Maximum number of neighbours to use for the kNN-CDF calculation.
+        Rmax : float
+            Maximum radius of the sphere in which to sample random points for
+            the knn-CDF calculation. This should match the CSiBORG catalogues.
+        nsamples : int
+            Number of random points to sample for the knn-CDF calculation.
+        rmin : float
+            Minimum distance to evaluate the CDF.
+        rmax : float
+            Maximum distance to evaluate the CDF.
+        neval : int
+            Number of points to evaluate the CDF.
+        batch_size : int, optional
+            Number of random points to sample in each batch. By default equal
+            to `nsamples`, however recommeded to be smaller to avoid requesting
+            too much memory,
+        random_state : int, optional
+            Random state for the random number generator.
+        dtype : numpy dtype, optional
+            Calculation data type. By default `numpy.float32`.
+
+        Returns
+        -------
+        rs : 1-dimensional array
+            Distances at which the CDF is evaluated.
+        cdf0 : 2-dimensional array
+            CDF evaluated at `rs` of the first kNN.
+        cdf1 : 2-dimensional array
+            CDF evaluated at `rs` of the second kNN.
+        joint_cdf : 2-dimensional array
+            Joint CDF evaluated at `rs`.
+        """
+        batch_size = nsamples if batch_size is None else batch_size
+        assert nsamples >= batch_size
+        nbatches = nsamples // batch_size
+
+        bins = numpy.logspace(numpy.log10(rmin), numpy.log10(rmax), neval)
+        joint_cdf = numpy.zeros((nneighbours, neval - 1), dtype=dtype)
+        cdf0 = numpy.zeros_like(joint_cdf)
+        cdf1 = numpy.zeros_like(joint_cdf)
+
+        jointdist = numpy.zeros((batch_size, 2), dtype=dtype)
+
+        for j in range(nbatches):
+            rand = self.rvs_in_sphere(batch_size, Rmax,
+                                      random_state=random_state + j)
+            dist0, __ = knn0.kneighbors(rand, nneighbours)
+            dist1, __ = knn1.kneighbors(rand, nneighbours)
+
+            for k in range(nneighbours):
+                jointdist[:, 0] = dist0[:, k]
+                jointdist[:, 1] = dist1[:, k]
+                maxdist = numpy.max(jointdist, axis=1)
+                # Joint CDF
+                _counts, __, __ = binned_statistic(
+                    maxdist, maxdist, bins=bins, statistic="count",
+                    range=(rmin, rmax))
+                joint_cdf[k, :] += _counts
+                # First CDF
+                _counts, __, __ = binned_statistic(
+                    dist0[:, k], dist0[:, k], bins=bins, statistic="count",
+                    range=(rmin, rmax))
+                cdf0[k, :] += _counts
+                # Second CDF
+                _counts, __, __ = binned_statistic(
+                    dist1[:, k], dist1[:, k], bins=bins, statistic="count",
+                    range=(rmin, rmax))
+                cdf1[k, :] += _counts
+
+
+        joint_cdf = numpy.cumsum(joint_cdf, axis=-1)
+        cdf0 = numpy.cumsum(cdf0, axis=-1)
+        cdf1 = numpy.cumsum(cdf1, axis=-1)
+        for k in range(nneighbours):
+            joint_cdf[k, :] /= joint_cdf[k, -1]
+            cdf0[k, :] /= cdf0[k, -1]
+            cdf1[k, :] /= cdf1[k, -1]
+
+        rs = (bins[1:] + bins[:-1]) / 2     # Bin centers
+        return rs, cdf0, cdf1, joint_cdf
+
+    @staticmethod
+    def joint_to_corr(cdf0, cdf1, joint_cdf):
+        """
+        Calculate the correlation function from the joint kNN-CDFs.
+
+        Parameters
+        ----------
+        cdf0 : 2-dimensional array
+            CDF evaluated at `rs` of the first kNN.
+        cdf1 : 2-dimensional array
+            CDF evaluated at `rs` of the second kNN.
+        joint_cdf : 2-dimensional array
+            Joint CDF evaluated at `rs`.
+
+        Returns
+        -------
+        corr : 2-dimensional array
+            Correlation function evaluated at `rs`.
+        """
+        assert cdf0.ndim == cdf1.ndim == joint_cdf.ndim == 2
+        corr = numpy.zeros_like(joint_cdf)
+        for k in range(joint_cdf.shape[0]):
+            corr[k, :] = joint_cdf[k, :] - cdf0[k, :] * cdf1[k, :]
+        return corr
+
     def __call__(self, *knns, nneighbours, Rmax, nsamples, rmin, rmax, neval,
                 batch_size=None, verbose=True, random_state=42,
-                left_nan=True, right_nan=True, dtype=numpy.float32):
+                dtype=numpy.float32):
         """
         Calculate the CDF for a set of kNNs of CSiBORG halo catalogues.
 
@@ -204,12 +354,6 @@ class kNN_CDF:
             Verbosity flag.
         random_state : int, optional
             Random state for the random number generator.
-        left_nan : bool, optional
-            Whether to set values where the CDF is 0 to `numpy.nan`. By
-            default `True`.
-        right_nan : bool, optional
-            Whether to set values where the CDF is 1 to `numpy.nan` after its
-            first occurence to 1. By default `True`.
         dtype : numpy dtype, optional
             Calculation data type. By default `numpy.float32`.
 
@@ -222,7 +366,7 @@ class kNN_CDF:
         """
         batch_size = nsamples if batch_size is None else batch_size
         assert nsamples >= batch_size
-        nbatches = nsamples // batch_size  # Number of batches
+        nbatches = nsamples // batch_size
 
         # Preallocate the bins and the CDF array
         bins = numpy.logspace(numpy.log10(rmin), numpy.log10(rmax), neval)
@@ -240,20 +384,11 @@ class kNN_CDF:
                         range=(rmin, rmax))
                     cdfs[i, k, :] += _counts
 
-        rs = (bins[1:] + bins[:-1]) / 2     # Bin centers
         cdfs = numpy.cumsum(cdfs, axis=-1)  # Cumulative sum, i.e. the CDF
         for i in range(len(knns)):
             for k in range(nneighbours):
                 cdfs[i, k, :] /= cdfs[i, k, -1]
-                # Set to NaN values after the first point where the CDF is 1
-                if right_nan:
-                    ns = numpy.where(cdfs[i, k, :] == 1.)[0]
-                    if ns.size > 1:
-                        cdfs[i, k, ns[1]:] = numpy.nan
 
-        # Set to NaN values where the CDF is 0
-        if left_nan:
-            cdfs[cdfs == 0] = numpy.nan
-
+        rs = (bins[1:] + bins[:-1]) / 2     # Bin centers
         cdfs = cdfs[0, ...] if len(knns) == 1 else cdfs
         return rs, cdfs
