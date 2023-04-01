@@ -1,6 +1,6 @@
-nthreads=102
+nthreads=151
 memory=4
-queue="berg"
+queue="cmb"
 env="/mnt/zfsusers/rstiskalek/csiborgtools/venv_galomatch/bin/python"
 file="run_knn.py"
 
@@ -11,7 +11,7 @@ nsamples=100000000
 batch_size=1000000
 neval=10000
 
-pythoncm="$env $file --rmin $rmin --rmax $rmax --nneighbours $nneighbours --nsamples $nsamples --neval $neval"
+pythoncm="$env $file --rmin $rmin --rmax $rmax --nneighbours $nneighbours --nsamples $nsamples --batch_size $batch_size --neval $neval"
 
 # echo $pythoncm
 # $pythoncm
