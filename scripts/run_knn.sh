@@ -6,7 +6,7 @@ file="run_knn.py"
 
 rmin=0.01
 rmax=100
-nneighbours=16
+nneighbours=8
 nsamples=100000000
 batch_size=1000000
 neval=10000
