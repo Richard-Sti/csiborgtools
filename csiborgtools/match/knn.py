@@ -104,58 +104,6 @@ class kNN_CDF:
         return r, cdf
 
     @staticmethod
-    def peaked_cdf(cdf, make_copy=True):
-        """
-        Transform the CDF to a peaked CDF.
-
-        Parameters
-        ----------
-        cdf : 1- or 2- or 3-dimensional array
-            CDF to be transformed along the last axis.
-        make_copy : bool, optional
-            Whether to make a copy of the CDF before transforming it to avoid
-            overwriting it.
-
-        Returns
-        -------
-        peaked_cdf : 1- or 2- or 3-dimensional array
-        """
-        cdf = numpy.copy(cdf) if make_copy else cdf
-        cdf[cdf > 0.5] = 1 - cdf[cdf > 0.5]
-        return cdf
-
-    @staticmethod
-    def clipped_cdf(cdf):
-        """
-        Clip the CDF, setting values where the CDF is either 0 or after the
-        first occurence of 1 to `numpy.nan`.
-
-        Parameters
-        ----------
-        cdf : 2- or 3-dimensional array
-            CDF to be clipped.
-
-        Returns
-        -------
-        clipped_cdf : 2- or 3-dimensional array
-            The clipped CDF.
-        """
-        cdf = numpy.copy(cdf)
-        if cdf.ndim == 2:
-            cdf = cdf.reshape(1, *cdf.shape)
-        nknns, nneighbours, __ = cdf.shape
-
-        for i in range(nknns):
-            for k in range(nneighbours):
-                ns = numpy.where(cdf[i, k, :] == 1.)[0]
-                if ns.size > 1:
-                    cdf[i, k, ns[1]:] = numpy.nan
-        cdf[cdf == 0] = numpy.nan
-
-        cdf = cdf[0, ...] if nknns == 1 else cdf  # Reshape if necessary
-        return cdf
-
-    @staticmethod
     def joint_to_corr(cdf0, cdf1, joint_cdf):
         """
         Calculate the correlation function from the joint kNN-CDFs.
