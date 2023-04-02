@@ -224,8 +224,8 @@ class kNNCDFReader:
                     out[i, j, ...] = self.clipped_cdf(out[i, j, ...])
 
         # Apply separation cuts
-        mask = rs >= rmin if rmin is not None else 0
-        mask &= rs <= rmax if rmax is not None else numpy.infty
+        mask = (rs >= rmin if rmin is not None else rs > 0)
+        mask &= (rs <= rmax if rmax is not None else rs < numpy.infty)
         rs = rs[mask]
         out = out[..., mask]
 
