@@ -169,6 +169,121 @@ class PKReader:
         return ks, xpks
 
 
+class kNNCDFReader:
+    """
+    Shortcut object to read in the kNN CDF data.
+    """
+    def read(self, files, ks, rmin=None, rmax=None, to_clip=True):
+        """
+        Read the kNN CDF data can be either the auto- or cross-correlation.
+
+        Parameters
+        ----------
+        files : list of str
+            List of file paths to read in.
+        ks : list of int
+            kNN values to read in.
+        rmin : float, optional
+            Minimum separation. By default ignored.
+        rmax : float, optional
+            Maximum separation. By default ignored.
+        to_clip : bool, optional
+            Whether to clip the auto-correlation CDF. Ignored if reading in the
+            cross-correlation.
+
+        Returns
+        -------
+        rs : 1-dimensional array
+            Array of separations.
+        out : 4-dimensional array
+            Auto-correlation or cross-correlation kNN CDFs. The shape is
+            `(len(files), len(mass_thresholds), len(ks), neval)`.
+        mass_thresholds : 1-dimensional array
+            Array of mass thresholds.
+        """
+        data = joblib.load(files[0])
+        if "cdf_0" in data.keys():
+            isauto = True
+            kind = "cdf"
+        elif "corr_0" in data.keys():
+            isauto = False
+            kind = "corr"
+        else:
+            raise ValueError("Unknown data format.")
+        rs = data["rs"]
+        mass_thresholds = data["mass_threshold"]
+        neval = data["{}_0".format(kind)].shape[1]
+        out = numpy.full((len(files), len(mass_thresholds), len(ks), neval),
+                         numpy.nan, dtype=numpy.float32)
+
+        for i, file in enumerate(tqdm(files)):
+            data = joblib.load(file)
+            for j in range(len(mass_thresholds)):
+                out[i, j, ...] = data["{}_{}".format(kind, j)][ks, :]
+                if isauto and to_clip:
+                    out[i, j, ...] = self.clipped_cdf(out[i, j, ...])
+
+        # Apply separation cuts
+        mask = rs >= rmin if rmin is not None else 0
+        mask &= rs <= rmax if rmax is not None else numpy.infty
+        rs = rs[mask]
+        out = out[..., mask]
+
+        return rs, out, mass_thresholds
+
+    @staticmethod
+    def peaked_cdf(cdf, make_copy=True):
+        """
+        Transform the CDF to a peaked CDF.
+
+        Parameters
+        ----------
+        cdf : 1- or 2- or 3-dimensional array
+            CDF to be transformed along the last axis.
+        make_copy : bool, optional
+            Whether to make a copy of the CDF before transforming it to avoid
+            overwriting it.
+
+        Returns
+        -------
+        peaked_cdf : 1- or 2- or 3-dimensional array
+        """
+        cdf = numpy.copy(cdf) if make_copy else cdf
+        cdf[cdf > 0.5] = 1 - cdf[cdf > 0.5]
+        return cdf
+
+    @staticmethod
+    def clipped_cdf(cdf):
+        """
+        Clip the CDF, setting values where the CDF is either 0 or after the
+        first occurence of 1 to `numpy.nan`.
+
+        Parameters
+        ----------
+        cdf : 2- or 3-dimensional array
+            CDF to be clipped.
+
+        Returns
+        -------
+        clipped_cdf : 2- or 3-dimensional array
+            The clipped CDF.
+        """
+        cdf = numpy.copy(cdf)
+        if cdf.ndim == 2:
+            cdf = cdf.reshape(1, *cdf.shape)
+        nknns, nneighbours, __ = cdf.shape
+
+        for i in range(nknns):
+            for k in range(nneighbours):
+                ns = numpy.where(cdf[i, k, :] == 1.)[0]
+                if ns.size > 1:
+                    cdf[i, k, ns[1]:] = numpy.nan
+        cdf[cdf == 0] = numpy.nan
+
+        cdf = cdf[0, ...] if nknns == 1 else cdf  # Reshape if necessary
+        return cdf
+
+
 class PairOverlap:
     r"""
     A shortcut object for reading in the results of matching two simulations.

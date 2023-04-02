@@ -18,4 +18,5 @@ from .make_cat import (HaloCatalogue, concatenate_clumps)  # noqa
 from .readobs import (PlanckClusters, MCXCClusters, TwoMPPGalaxies,  # noqa
                       TwoMPPGroups, SDSS)  # noqa
 from .outsim import (dump_split, combine_splits, make_ascii_powmes)  # noqa
-from .summaries import (PKReader, PairOverlap, NPairsOverlap, binned_resample_mean) # noqa
+from .summaries import (PKReader, kNNCDFReader, PairOverlap, NPairsOverlap,
+                        binned_resample_mean) # noqa
