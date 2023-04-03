@@ -129,7 +129,7 @@ class kNN_CDF:
         return corr
 
     def brute_cdf(self, knn, nneighbours, Rmax, nsamples, rmin, rmax, neval,
-                 random_state=42, dtype=numpy.float32):
+                  random_state=42, dtype=numpy.float32):
         """
         Calculate the CDF for a kNN of CSiBORG halo catalogues without batch
         sizing. This can become memory intense for large numbers of randoms
@@ -234,7 +234,7 @@ class kNN_CDF:
         jointdist = numpy.zeros((batch_size, 2), dtype=dtype)
         for j in range(nbatches):
             rand = self.rvs_in_sphere(batch_size, Rmax,
-                                           random_state=random_state + j)
+                                      random_state=random_state + j)
             dist0, __ = knn0.kneighbors(rand, nneighbours)
             dist1, __ = knn1.kneighbors(rand, nneighbours)
 
@@ -258,7 +258,6 @@ class kNN_CDF:
                     range=(rmin, rmax))
                 cdf1[k, :] += _counts
 
-
         joint_cdf = numpy.cumsum(joint_cdf, axis=-1)
         cdf0 = numpy.cumsum(cdf0, axis=-1)
         cdf1 = numpy.cumsum(cdf1, axis=-1)
@@ -271,8 +270,8 @@ class kNN_CDF:
         return rs, cdf0, cdf1, joint_cdf
 
     def __call__(self, *knns, nneighbours, Rmax, nsamples, rmin, rmax, neval,
-                batch_size=None, verbose=True, random_state=42,
-                dtype=numpy.float32):
+                 batch_size=None, verbose=True, random_state=42,
+                 dtype=numpy.float32):
         """
         Calculate the CDF for a set of kNNs of CSiBORG halo catalogues.
 
