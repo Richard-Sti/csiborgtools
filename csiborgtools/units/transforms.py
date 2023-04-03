@@ -15,7 +15,6 @@
 """
 Various coordinate transformations.
 """
-
 import numpy
 
 
@@ -49,7 +48,7 @@ def radec_to_cartesian(dist, ra, dec, isdeg=True):
     Parameters
     ----------
     dist, ra, dec : 1-dimensional arrays
-        The spherical coordinates.
+        Spherical coordinates.
     isdeg : bool, optional
         Whether `ra` and `dec` are in degres. By default `True`.
 
