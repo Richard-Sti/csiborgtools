@@ -15,19 +15,13 @@
 """
 I/O functions for analysing the CSiBORG realisations.
 """
-
-
 import numpy
-from os.path import (join, isfile)
+from os.path import join
 from os import remove
 from tqdm import trange
-from astropy.table import Table
-
-I64 = numpy.int64
-F64 = numpy.float64
 
 
-def dump_split(arr, n_split, paths):
+def dump_split(arr, nsplit, nsnap, nsim, paths):
     """
     Dump an array from a split.
 
@@ -35,30 +29,28 @@ def dump_split(arr, n_split, paths):
     ----------
     arr : n-dimensional or structured array
         Array to be saved.
-    n_split: int
-        The split index.
+    nsplit: int
+        Split index.
+    nsnap : int
+        Snapshot index.
+    nsim : int
+        IC realisation index.
     paths : py:class`csiborgtools.read.CSiBORGPaths`
         CSiBORG paths-handling object with set `n_sim` and `n_snap`.
-    n_sim : int
-        The CSiBORG realisation index.
-    n_snap : int
-        The index of a redshift snapshot.
-    outdir : string
-        Directory where to save the temporary files.
 
     Returns
     -------
     None
     """
-    n_sim = str(paths.n_sim).zfill(5)
-    n_snap = str(paths.n_snap).zfill(5)
+    nsim = str(nsim).zfill(5)
+    nsnap = str(nsnap).zfill(5)
     fname = join(paths.temp_dumpdir, "ramses_out_{}_{}_{}.npy"
-                 .format(n_sim, n_snap, n_split))
+                 .format(nsim, nsnap, nsplit))
     numpy.save(fname, arr)
 
 
-def combine_splits(n_splits, part_reader, cols_add, remove_splits=False,
-                   verbose=True):
+def combine_splits(nsplits, nsnap, nsim, part_reader, cols_add,
+                   remove_splits=False, verbose=True):
     """
     Combine results of many splits saved from `dump_split`. Identifies to which
     clump the clumps in the split correspond to by matching their index.
@@ -67,8 +59,12 @@ def combine_splits(n_splits, part_reader, cols_add, remove_splits=False,
 
     Paramaters
     ----------
-    n_splits : int
-        The total number of clump splits.
+    nsplits : int
+        Total number of clump splits.
+    nsnap : int
+        Snapshot index.
+    nsim : int
+        IC realisation index.
     part_reader : py:class`csiborgtools.read.ParticleReadear`
         CSiBORG particle reader.
     cols_add : list of `(str, dtype)`
@@ -84,26 +80,20 @@ def combine_splits(n_splits, part_reader, cols_add, remove_splits=False,
     out : structured array
         Clump array with appended results from the splits.
     """
-    # Load clumps to see how many there are and will add to this array
-    n_sim = part_reader.paths.n_sim
-    n_snap = part_reader.paths.n_snap
-    clumps = part_reader.read_clumps(cols=None)
-
+    clumps = part_reader.read_clumps(nsnap, nsim, cols=None)
     # Get the old + new dtypes and create an empty array
     descr = clumps.dtype.descr + cols_add
     out = numpy.full(clumps.size, numpy.nan, dtype=descr)
-    # Now put the old values into the array
-    for par in clumps.dtype.names:
+    for par in clumps.dtype.names:  # Now put the old values into the array
         out[par] = clumps[par]
 
     # Filename of splits data
-    froot = "ramses_out_{}_{}".format(
-        str(n_sim).zfill(5), str(n_snap).zfill(5))
+    froot = "ramses_out_{}_{}".format(str(nsim).zfill(5), str(nsnap).zfill(5))
     fname = join(part_reader.paths.temp_dumpdir, froot + "_{}.npy")
 
     # Iterate over splits and add to the output array
     cols_add_names = [col[0] for col in cols_add]
-    iters = trange(n_splits) if verbose else range(n_splits)
+    iters = trange(nsplits) if verbose else range(nsplits)
     for n in iters:
         fnamesplit = fname.format(n)
         arr = numpy.load(fnamesplit)
@@ -121,31 +111,3 @@ def combine_splits(n_splits, part_reader, cols_add, remove_splits=False,
             remove(fnamesplit)
 
     return out
-
-
-def make_ascii_powmes(particles, fout):
-    """
-    Write an ASCII file with appropriate formatting for POWMES.
-
-    Parameters
-    ----------
-    particles : structured array
-        Array of particles.
-    fout : str
-        File path to store the ASCII file.
-
-    Returns
-    -------
-    None
-    """
-    out = Table()
-    for p in ('x', 'y', 'z', 'M'):
-        out[p] = particles[p]
-    Npart = particles.size
-
-    # If fout exists, remove
-    if isfile(fout):
-        remove(fout)
-
-    with open(fout, 'wb') as f:
-        numpy.savetxt(f, out, delimiter=',', header=str(Npart), comments='')
