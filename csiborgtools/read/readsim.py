@@ -25,13 +25,6 @@ from warnings import warn
 from ..utils import (cols_to_structured)
 
 
-F16 = numpy.float16
-F32 = numpy.float32
-F64 = numpy.float64
-I32 = numpy.int32
-I64 = numpy.int64
-
-
 ###############################################################################
 #                            Paths manager                                    #
 ###############################################################################
@@ -609,9 +602,9 @@ class ParticleReader:
         simpath : str
             The complete path to the CSiBORG simulation.
         """
-        if dtype in [F16, F32, F64]:
+        if dtype in [numpy.float16, numpy.float32, numpy.float64]:
             return partfile.read_reals('d')
-        elif dtype in [I32]:
+        elif dtype in [numpy.int32]:
             return partfile.read_ints()
         else:
             raise TypeError("Unexpected dtype `{}`.".format(dtype))
@@ -661,9 +654,11 @@ class ParticleReader:
             print("Opened {} particle files.".format(nparts.size))
         ncpu = nparts.size
         # Order in which the particles are written in the FortranFile
-        forder = [("x", F32), ("y", F32), ("z", F32),
-                  ("vx", F32), ("vy", F32), ("vz", F32),
-                  ("M", F32), ("ID", I32), ("level", I32)]
+        forder = [("x", numpy.float32), ("y", numpy.float32),
+                  ("z", numpy.float32), ("vx", numpy.float32),
+                  ("vy", numpy.float32), ("vz", numpy.float32),
+                  ("M", numpy.float32), ("ID", numpy.int32),
+                  ("level", numpy.int32)]
         fnames = [fp[0] for fp in forder]
         fdtypes = [fp[1] for fp in forder]
         # Check there are no strange parameters
@@ -677,7 +672,7 @@ class ParticleReader:
 
         npart_tot = numpy.sum(nparts)
         # A dummy array is necessary for reading the fortran files.
-        dum = numpy.full(npart_tot, numpy.nan, dtype=F16)
+        dum = numpy.full(npart_tot, numpy.nan, dtype=numpy.float16)
         # These are the data we read along with types
         dtype = {"names": pars_extract,
                  "formats": [forder[fnames.index(p)][1] for p in pars_extract]}
@@ -738,7 +733,7 @@ class ParticleReader:
         start_ind = self.nparts_to_start_ind(nparts)
         ncpu = nparts.size
 
-        clumpid = numpy.full(numpy.sum(nparts), numpy.nan, dtype=I32)
+        clumpid = numpy.full(numpy.sum(nparts), numpy.nan, dtype=numpy.int32)
         iters = tqdm(range(ncpu)) if verbose else range(ncpu)
         for cpu in iters:
             i = start_ind[cpu]
@@ -797,10 +792,12 @@ class ParticleReader:
 
         # Read in the clump array. This is how the columns must be written!
         data = numpy.genfromtxt(fname)
-        clump_cols = [("index", I64), ("level", I64), ("parent", I64),
-                      ("ncell", F64), ("peak_x", F64), ("peak_y", F64),
-                      ("peak_z", F64), ("rho-", F64), ("rho+", F64),
-                      ("rho_av", F64), ("mass_cl", F64), ("relevance", F64)]
+        clump_cols = [("index", numpy.int64), ("level", numpy.int64),
+                      ("parent", numpy.int64), ("ncell", numpy.float64),
+                      ("peak_x", numpy.float64), ("peak_y", numpy.float64),
+                      ("peak_z", numpy.float64), ("rho-", numpy.float64),
+                      ("rho+", numpy.float64), ("rho_av", numpy.float64),
+                      ("mass_cl", numpy.float64), ("relevance", numpy.float64)]
         out0 = cols_to_structured(data.shape[0], clump_cols)
         for i, name in enumerate(out0.dtype.names):
             out0[name] = data[:, i]
@@ -847,8 +844,9 @@ def read_mmain(n, srcdir, fname="Mmain_{}.npy"):
     fpath = join(srcdir, fname.format(n))
     arr = numpy.load(fpath)
 
-    cols = [("index", I64), ("peak_x", F64), ("peak_y", F64),
-            ("peak_z", F64), ("mass_cl", F64), ("sub_frac", F64)]
+    cols = [("index", numpy.int64), ("peak_x", numpy.float64),
+            ("peak_y", numpy.float64), ("peak_z", numpy.float64),
+            ("mass_cl", numpy.float64), ("sub_frac", numpy.float64)]
     out = cols_to_structured(arr.shape[0], cols)
     for i, name in enumerate(out.dtype.names):
         out[name] = arr[:, i]
