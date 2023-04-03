@@ -36,53 +36,29 @@ class CSiBORGPaths:
 
     Parameters
     ----------
-    n_sim : int, optional
-        CSiBORG IC realisation index. By default not set.
-    n_snap : int, optional
-        Snapshot index. By default not set.
     srcdir : str, optional
-        Path to the folder where CSiBORG simulations are stored. By default
-        `/mnt/extraspace/hdesmond/`.
+        Path to the folder where CSiBORG simulations are stored.
     dumpdir : str, optional
-        Path to where files from `run_fit_halos` are stored. By default
-        `/mnt/extraspace/rstiskalek/csiborg/`.
+        Path to the folder where files from `run_fit_halos` are stored.
     mmain_path : str, optional
-        Path to where mmain files are stored. By default
-        `/mnt/zfsusers/hdesmond/Mmain`.
+        Path to folder where mmain files are stored.
     initmatch_path : str, optional
-        Path to where match between the first and final snapshot is stored. By
-        default `/mnt/extraspace/rstiskalek/csiborg/initmatch/`.
-    to_new : bool, optional
-        Whether the paths should point to `new` files, for example
-        `ramses_out_8452_new`.
+        Path to the folder where particle ID match between the first and final
+        snapshot is stored.
     """
     _srcdir = None
-    _n_sim = None
-    _n_snap = None
     _dumpdir = None
     _mmain_path = None
     _initmatch_path = None
-    _to_new = None
 
-    def __init__(self, n_sim=None, n_snap=None, srcdir=None, dumpdir=None,
-                 mmain_path=None, initmatch_path=None, to_new=False):
-        if srcdir is None:
-            srcdir = "/mnt/extraspace/hdesmond/"
+    def __init__(self, srcdir="/mnt/extraspace/hdesmond/",
+                 dumpdir="/mnt/extraspace/rstiskalek/csiborg/",
+                 mmain_path="/mnt/zfsusers/hdesmond/Mmain",
+                 initmatch_path="/mnt/extraspace/rstiskalek/csiborg/initmatch/"):  # noqa
         self.srcdir = srcdir
-        if dumpdir is None:
-            dumpdir = "/mnt/extraspace/rstiskalek/csiborg/"
         self.dumpdir = dumpdir
-        if mmain_path is None:
-            mmain_path = "/mnt/zfsusers/hdesmond/Mmain"
         self.mmain_path = mmain_path
-        if initmatch_path is None:
-            initmatch_path = "/mnt/extraspace/rstiskalek/csiborg/initmatch/"
         self.initmatch_path = initmatch_path
-        self.to_new = to_new
-        if n_sim is not None and n_snap is not None:
-            self.set_info(n_sim, n_snap)
-        if n_sim is not None:
-            self.n_sim = n_sim
 
     @property
     def srcdir(self):
@@ -168,104 +144,6 @@ class CSiBORGPaths:
         self._initmatch_path = initmatch_path
 
     @property
-    def to_new(self):
-        """
-        Whether paths should point to `new` files, for example
-        `ramses_out_8452_new` that contain the regenerated particles in the
-        initial snapshot.
-
-        Returns
-        -------
-        flag : bool
-        """
-        return self._to_new
-
-    @to_new.setter
-    def to_new(self, to_new):
-        if not isinstance(to_new, bool):
-            raise TypeError("`to_new` must be be a bool")
-        self._to_new = to_new
-
-    @property
-    def n_sim(self):
-        """
-        IC realisation ID.
-
-        Returns
-        -------
-        n_sim : int
-        """
-        if self._n_sim is None:
-            raise ValueError("`self.n_sim` is not set.")
-        return self._n_sim
-
-    @n_sim.setter
-    def n_sim(self, n_sim):
-        if n_sim not in self.ic_ids:
-            raise ValueError("`{}` is not a valid IC realisation ID."
-                             .format(n_sim))
-        self._n_sim = n_sim
-
-    @property
-    def n_snap(self):
-        """
-        Snapshot ID of a IC realisation set by the user.
-
-        Returns
-        -------
-        n_snap: int
-        """
-        if self._n_snap is None:
-            raise ValueError("`self.n_snap` is not set!")
-        return self._n_snap
-
-    @n_snap.setter
-    def n_snap(self, n_snap):
-        self._n_snap = n_snap
-
-    def set_info(self, n_sim, n_snap):
-        """
-        Convenience function for setting `n_sim` and `n_snap`.
-
-        Parameters
-        ----------
-        n_sim : int
-            Index of the IC realisation.
-        n_snap : int
-            Snapshot index.
-        """
-        self.n_sim = n_sim
-        if n_snap not in self.get_snapshots(n_sim):
-            raise ValueError(
-                "Invalid snapshot number `{}` for IC realisation `{}`."
-                .format(n_snap, n_sim))
-        self.n_snap = n_snap
-
-    def reset_info(self):
-        """
-        Reset `self.n_sim` and `self.n_snap`.
-        """
-        self._n_sim = None
-        self._n_snap = None
-
-    def get_n_sim(self, n_sim):
-        """
-        Get `n_sim`. If `self.n_sim` return it, otherwise returns `n_sim`.
-        """
-        if n_sim is None:
-            return self.n_sim
-        return n_sim
-
-    def get_n_snap(self, n_snap):
-
-        """
-        Get `n_snap`. If `self.n_snap` return it, otherwise returns `n_snap`.
-        """
-        if n_snap is None:
-            return self.n_snap
-        return n_snap
-
-    @property
     def ic_ids(self):
         """
         CSiBORG IC realisation IDs from the list of folders in `self.srcdir`.
@@ -290,81 +168,45 @@ class CSiBORGPaths:
                 pass
         return numpy.sort(ids)
 
-    def ic_path(self, n_sim=None):
+    def ic_path(self, nsim, to_new):
         """
         Path to a CSiBORG IC realisation folder.
 
         Parameters
         ----------
-        n_sim : int, optional
-            The index of the initial conditions (IC) realisation. By default
-            `None` and the set value is attempted to be used.
+        nsim : int
+            IC realisation index.
+        to_new : bool
+            If `True`, path to the '_new' ICs is returned.
 
         Returns
         -------
         path : str
         """
-        n_sim = self.get_n_sim(n_sim)
         fname = "ramses_out_{}"
-        if self.to_new:
+        if to_new:
             fname += "_new"
-        return join(self.srcdir, fname.format(n_sim))
+        return join(self.srcdir, fname.format(nsim))
 
-    def get_snapshots(self, n_sim=None):
+    def get_snapshots(self, nsim):
         """
         List of available snapshots of a CSiBORG IC realisation.
 
         Parameters
         ----------
-        n_sim : int
-            Index of the IC realisation. By default `None` and the set value is
-            attempted to be used.
+        nsim : int
+            IC realisation index.
 
         Returns
         -------
         snapshots : 1-dimensional array
         """
-        n_sim = self.get_n_sim(n_sim)
-        simpath = self.ic_path(n_sim)
+        simpath = self.ic_path(nsim, to_new=False)
         # Get all files in simpath that start with output_
         snaps = glob(join(simpath, "output_*"))
         # Take just the last _00XXXX from each file  and strip zeros
         snaps = [int(snap.split('_')[-1].lstrip('0')) for snap in snaps]
         return numpy.sort(snaps)
-
-    def get_maximum_snapshot(self, n_sim=None):
-        """
-        Maximum snapshot of a CSiBORG IC realisation.
-
-        Parameters
-        ----------
-        n_sim : int
-            Index of the IC realisation. By default `None` and the set value is
-            attempted to be used.
-
-        Returns
-        -------
-        maxsnap : int
-        """
-        n_sim = self.get_n_sim(n_sim)
-        return max(self.get_snapshots(n_sim))
-
-    def get_minimum_snapshot(self, n_sim=None):
-        """
-        Minimum snapshot of a CSiBORG IC realisation.
-
-        Parameters
-        ----------
-        n_sim : int
-            Index of the IC realisation. By default `None` and the set value is
-            attempted to be used.
-
-        Returns
-        -------
-        minsnap : int
-        """
-        n_sim = self.get_n_sim(n_sim)
-        return min(self.get_snapshots(n_sim))
 
     def clump0_path(self, nsim):
         """
@@ -375,7 +217,7 @@ class CSiBORGPaths:
         Parameters
         ----------
         nsim : int
-            Index of the IC realisation.
+            IC realisation index.
 
         Returns
         -------
@@ -384,25 +226,23 @@ class CSiBORGPaths:
         cdir = join(self.dumpdir, "initmatch")
         return join(cdir, "clump_{}_{}.npy".format(nsim, "particles"))
 
-    def snapshot_path(self, n_snap=None, n_sim=None):
+    def snapshot_path(self, nsnap, nsim):
         """
         Path to a CSiBORG IC realisation snapshot.
 
         Parameters
         ----------
-        n_snap : int
+        nsnap : int
             Snapshot index.
-        n_sim : int
-            Index of the IC realisation.
+        nsim : int
+            IC realisation index.
 
         Returns
         -------
         snappath : str
         """
-        n_snap = self.get_n_snap(n_snap)
-        n_sim = self.get_n_sim(n_sim)
-        simpath = self.ic_path(n_sim)
-        return join(simpath, "output_{}".format(str(n_snap).zfill(5)))
+        simpath = self.ic_path(nsim)
+        return join(simpath, "output_{}".format(str(nsnap).zfill(5)))
 
 
 ###############################################################################
@@ -412,12 +252,11 @@ class CSiBORGPaths:
 
 class ParticleReader:
     """
-    Tools to read in particle files alon with their corresponding clumps.
+    Shortcut to read in particle files along with their corresponding clumps.
 
     Parameters
     ----------
     paths : py:class`csiborgtools.read.CSiBORGPaths`
-        CSiBORG paths-handling object with set `n_sim` and `n_snap`.
     """
     _paths = None
 
@@ -427,7 +266,7 @@ class ParticleReader:
     @property
     def paths(self):
         """
-        The paths-handling object.
+        Paths manager.
 
         Returns
         -------
@@ -437,31 +276,29 @@ class ParticleReader:
 
     @paths.setter
     def paths(self, paths):
-        """
-        Set `paths`. Makes sure it is the right object and `n_sim` and `n_snap`
-        are both set.
-        """
         if not isinstance(paths, CSiBORGPaths):
             raise TypeError("`paths` must be of type `CSiBORGPaths`.")
-        if paths.n_sim is None or paths.n_snap is None:
-            raise ValueError(
-                "`paths` must have set both `n_sim` and `n_snap`!")
         self._paths = paths
 
-    def read_info(self):
+    def read_info(self, nsnap, nsim):
         """
         Read CSiBORG simulation snapshot info.
+
+        Parameters
+        ----------
+        nsnap : int
+            Snapshot index.
+        nsim : int
+            IC realisation index.
 
         Returns
         -------
         info : dict
-            Dictionary of info paramaters. Note that both keys and values are
-            strings.
+            Dictionary of information paramaters. Note that both keys and
+            values are strings.
         """
-        # Open the info file
-        n_snap = self.paths.n_snap
-        snappath = self.paths.snapshot_path()
-        filename = join(snappath, "info_{}.txt".format(str(n_snap).zfill(5)))
+        snappath = self.paths.snapshot_path(nsnap, nsim)
+        filename = join(snappath, "info_{}.txt".format(str(nsnap).zfill(5)))
         with open(filename, "r") as f:
             info = f.read().split()
         # Throw anything below ordering line out
@@ -473,12 +310,16 @@ class ParticleReader:
         vals = info[eqs + 1]
         return {key: val for key, val in zip(keys, vals)}
 
-    def open_particle(self, verbose=True):
+    def open_particle(self, nsnap, nsim, verbose=True):
         """
         Open particle files to a given CSiBORG simulation.
 
         Parameters
         ----------
+        nsnap : int
+            Snapshot index.
+        nsim : int
+            IC realisation index.
         verbose : bool, optional
             Verbosity flag.
 
@@ -489,28 +330,25 @@ class ParticleReader:
         partfiles : list of `scipy.io.FortranFile`
             Opened part files.
         """
-        n_snap = self.paths.n_snap
-        # Zeros filled snapshot number and the snapshot path
-        nout = str(n_snap).zfill(5)
-        snappath = self.paths.snapshot_path()
+        snappath = self.paths.snapshot_path(nsnap, nsim)
         ncpu = int(self.read_info()["ncpu"])
-
+        nsnap = str(nsnap).zfill(5)
         if verbose:
             print("Reading in output `{}` with ncpu = `{}`."
-                  .format(nout, ncpu))
+                  .format(nsnap, ncpu))
 
         # First read the headers. Reallocate arrays and fill them.
         nparts = numpy.zeros(ncpu, dtype=int)
         partfiles = [None] * ncpu
         for cpu in range(ncpu):
             cpu_str = str(cpu + 1).zfill(5)
-            fpath = join(snappath, "part_{}.out{}".format(nout, cpu_str))
+            fpath = join(snappath, "part_{}.out{}".format(nsnap, cpu_str))
 
             f = FortranFile(fpath)
             # Read in this order
             ncpuloc = f.read_ints()
             if ncpuloc != ncpu:
-                infopath = join(snappath, "info_{}.txt".format(nout))
+                infopath = join(snappath, "info_{}.txt".format(nsnap))
                 raise ValueError(
                     "`ncpu = {}` of `{}` disagrees with `ncpu = {}` "
                     "of `{}`.".format(ncpu, infopath, ncpuloc, fpath))
@@ -530,8 +368,7 @@ class ParticleReader:
     @staticmethod
     def read_sp(dtype, partfile):
         """
-        Utility function to read a single particle file, depending on its
-        dtype.
+        Utility function to read a single particle file.
 
         Parameters
         ----------
@@ -560,7 +397,8 @@ class ParticleReader:
     def nparts_to_start_ind(nparts):
         """
         Convert `nparts` array to starting indices in a pre-allocated array for
-        looping over the CPU number.
+        looping over the CPU number. The starting indices calculated as a
+        cumulative sum starting at 0.
 
         Parameters
         ----------
@@ -570,33 +408,31 @@ class ParticleReader:
         Returns
         -------
         start_ind : 1-dimensional array
-            The starting indices calculated as a cumulative sum starting at 0.
         """
         return numpy.hstack([[0], numpy.cumsum(nparts[:-1])])
 
-    def read_particle(self, pars_extract, verbose=True):
+    def read_particle(self, nsnap, nsim, pars_extract, verbose=True):
         """
         Read particle files of a simulation at a given snapshot and return
         values of `pars_extract`.
 
         Parameters
         ----------
+        nsnap : int
+            Snapshot index.
+        nsim : int
+            IC realisation index.
         pars_extract : list of str
             Parameters to be extacted.
-        Nsnap : int
-            The index of the redshift snapshot.
-        simpath : str
-            The complete path to the CSiBORG simulation.
         verbose : bool, optional
             Verbosity flag while for reading the CPU outputs.
 
         Returns
         -------
         out : structured array
-            The data read from the particle file.
         """
         # Open the particle files
-        nparts, partfiles = self.open_particle(verbose=verbose)
+        nparts, partfiles = self.open_particle(nsnap, nsim, verbose=verbose)
         if verbose:
             print("Opened {} particle files.".format(nparts.size))
         ncpu = nparts.size
@@ -641,13 +477,17 @@ class ParticleReader:
 
         return out
 
-    def open_unbinding(self, cpu):
+    def open_unbinding(self, nsnap, nsim, cpu):
         """
         Open particle files to a given CSiBORG simulation. Note that to be
         consistent CPU is incremented by 1.
 
         Parameters
         ----------
+        nsnap : int
+            Snapshot index.
+        nsim : int
+            IC realisation index.
         cpu : int
             The CPU index.
 
@@ -656,18 +496,23 @@ class ParticleReader:
         unbinding : `scipy.io.FortranFile`
             The opened unbinding FortranFile.
         """
-        nout = str(self.paths.n_snap).zfill(5)
+        nsnap = str(nsnap).zfill(5)
         cpu = str(cpu + 1).zfill(5)
-        fpath = join(self.paths.ic_path(), "output_{}".format(nout),
-                     "unbinding_{}.out{}".format(nout, cpu))
+        fpath = join(self.paths.ic_path(nsim, to_new=False),
+                     "output_{}".format(nsnap),
+                     "unbinding_{}.out{}".format(nsnap, cpu))
         return FortranFile(fpath)
 
-    def read_clumpid(self, verbose=True):
+    def read_clumpid(self, nsnap, nsim, verbose=True):
         """
         Read clump IDs of particles from unbinding files.
 
         Parameters
         ----------
+        nsnap : int
+            Snapshot index.
+        nsim : int
+            IC realisation index.
         verbose : bool, optional
             Verbosity flag while for reading the CPU outputs.
 
@@ -676,7 +521,7 @@ class ParticleReader:
         clumpid : 1-dimensional array
             The array of clump IDs.
         """
-        nparts, __ = self.open_particle(verbose)
+        nparts, __ = self.open_particle(nsnap, nsim, verbose)
         start_ind = self.nparts_to_start_ind(nparts)
         ncpu = nparts.size
 
@@ -685,7 +530,7 @@ class ParticleReader:
         for cpu in iters:
             i = start_ind[cpu]
             j = nparts[cpu]
-            ff = self.open_unbinding(cpu)
+            ff = self.open_unbinding(nsnap, nsim, cpu)
             clumpid[i:i + j] = ff.read_ints()
             # Close
             ff.close()
@@ -714,12 +559,17 @@ class ParticleReader:
         mask = clump_ids != 0
         return clump_ids[mask], particles[mask]
 
-    def read_clumps(self, cols=None):
+    def read_clumps(self, nsnap, nsim, cols=None):
         """
         Read in a clump file `clump_Nsnap.dat`.
 
         Parameters
         ----------
+        nsnap : int
+            Snapshot index.
+        nsim : int
+            IC realisation index.
+
         cols : list of str, optional.
             Columns to extract. By default `None` and all columns are
             extracted.
@@ -729,9 +579,10 @@ class ParticleReader:
         out : structured array
             Structured array of the clumps.
         """
-        n_snap = str(self.paths.n_snap).zfill(5)
-        fname = join(self.paths.ic_path(), "output_{}".format(n_snap),
-                     "clump_{}.dat".format(n_snap))
+        nsnap = str(nsnap).zfill(5)
+        fname = join(self.paths.ic_path(nsim, to_new=False),
+                     "output_{}".format(nsnap),
+                     "clump_{}.dat".format(nsnap))
         # Check the file exists.
         if not isfile(fname):
             raise FileExistsError(
@@ -768,19 +619,19 @@ class ParticleReader:
         return out
 
 
-def read_mmain(n, srcdir, fname="Mmain_{}.npy"):
+def read_mmain(nsim, srcdir, fname="Mmain_{}.npy"):
     """
     Read `mmain` numpy arrays of central halos whose mass contains their
     substracture contribution.
 
     Parameters
     ----------
-    n : int
-        The index of the initial conditions (IC) realisation.
+    nsim : int
+        IC realisation index.
     srcdir : str
-        The path to the folder containing the files.
+        Path to the folder containing the files.
     fname : str, optional
-        The file name convention.  By default `Mmain_{}.npy`, where the
+        File name convention.  By default `Mmain_{}.npy`, where the
         substituted value is `n`.
 
     Returns
@@ -788,7 +639,7 @@ def read_mmain(n, srcdir, fname="Mmain_{}.npy"):
     out : structured array
         Array with the central halo information.
     """
-    fpath = join(srcdir, fname.format(n))
+    fpath = join(srcdir, fname.format(nsim))
     arr = numpy.load(fpath)
 
     cols = [("index", numpy.int64), ("peak_x", numpy.float64),
@@ -801,26 +652,26 @@ def read_mmain(n, srcdir, fname="Mmain_{}.npy"):
     return out
 
 
-def read_initcm(n, srcdir, fname="clump_{}_cm.npy"):
+def read_initcm(nsim, srcdir, fname="clump_{}_cm.npy"):
     """
     Read `clump_cm`, i.e. the center of mass of a clump at redshift z = 70.
     If the file does not exist returns `None`.
 
     Parameters
     ----------
-    n : int
-        The index of the initial conditions (IC) realisation.
+    nsim : int
+        IC realisation index.
     srcdir : str
-        The path to the folder containing the files.
+        Path to the folder containing the files.
     fname : str, optional
-        The file name convention.  By default `clump_cm_{}.npy`, where the
-        substituted value is `n`.
+        File name convention.  By default `clump_cm_{}.npy`, where the
+        substituted value is `nsim`.
 
     Returns
     -------
     out : structured array
     """
-    fpath = join(srcdir, fname.format(n))
+    fpath = join(srcdir, fname.format(nsim))
     try:
         return numpy.load(fpath)
     except FileNotFoundError:
