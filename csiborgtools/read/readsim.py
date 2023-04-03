@@ -41,8 +41,8 @@ class CSiBORGPaths:
     n_snap : int, optional
         Snapshot index. By default not set.
     srcdir : str, optional
-        The file path to the folder where realisations of the ICs are stored.
-        By default `/mnt/extraspace/hdesmond/`.
+        Path to the folder where CSiBORG simulations are stored. By default
+        `/mnt/extraspace/hdesmond/`.
     dumpdir : str, optional
         Path to where files from `run_fit_halos` are stored. By default
         `/mnt/extraspace/rstiskalek/csiborg/`.
@@ -87,19 +87,16 @@ class CSiBORGPaths:
     @property
     def srcdir(self):
         """
-        Folder where CSiBORG simulations are stored.
+        Path to the folder where CSiBORG simulations are stored.
 
         Returns
         -------
-        srcdir : int
+        path : str
         """
         return self._srcdir
 
     @srcdir.setter
     def srcdir(self, srcdir):
-        """
-        Set `srcdir`, check that the directory exists.
-        """
         if not isdir(srcdir):
             raise IOError("Invalid directory `{}`!".format(srcdir))
         self._srcdir = srcdir
@@ -107,33 +104,30 @@ class CSiBORGPaths:
     @property
     def dumpdir(self):
         """
-        Folder where files from `run_fit_halos` are stored.
+        Path to the folder where files from `run_fit_halos` are stored.
 
         Returns
         -------
-        dumpdir : str
+        path : str
         """
         return self._dumpdir
 
     @property
     def temp_dumpdir(self):
         """
-        Temporary dumping directory.
+        Path to a temporary dumping folder.
 
         Returns
         -------
-        temp_dumpdir : str
+        path : str
         """
         fpath = join(self.dumpdir, "temp")
         if not isdir(fpath):
-            raise IOError("Invalid directory `{}`!".format(fpath))
+            raise IOError("Invalid directory `{}`.".format(fpath))
         return fpath
 
     @dumpdir.setter
     def dumpdir(self, dumpdir):
-        """
-        Set `dumpdir`, check that the directory exists.
-        """
         if not isdir(dumpdir):
             raise IOError("Invalid directory `{}`!".format(dumpdir))
         self._dumpdir = dumpdir
@@ -141,19 +135,16 @@ class CSiBORGPaths:
     @property
     def mmain_path(self):
         """
-        Path where mmain files are stored.
+        Path to the folder where mmain files are stored.
 
         Returns
         -------
-        mmain_path : str
+        path : str
         """
         return self._mmain_path
 
     @mmain_path.setter
     def mmain_path(self, mmain_path):
-        """
-        Set `mmain_path`, check that the directory exists.
-        """
         if not isdir(mmain_path):
             raise IOError("Invalid directory `{}`!".format(mmain_path))
         self._mmain_path = mmain_path
@@ -161,19 +152,17 @@ class CSiBORGPaths:
     @property
     def initmatch_path(self):
         """
-        Path to where match between the first and final snapshot is stored.
+        Path to the folder where the match between the first and final
+        snapshot is stored.
 
         Returns
         -------
-        initmach_path : str
+        path : str
         """
         return self._initmatch_path
 
     @initmatch_path.setter
     def initmatch_path(self, initmatch_path):
-        """
-        Set `initmatch_path`, check that the directory exists.
-        """
         if not isdir(initmatch_path):
             raise IOError("Invalid directory `{}`!".format(initmatch_path))
         self._initmatch_path = initmatch_path
@@ -181,18 +170,18 @@ class CSiBORGPaths:
     @property
     def to_new(self):
         """
-        Flag whether paths should point to `new` files, for example
-        `ramses_out_8452_new`.
+        Whether paths should point to `new` files, for example
+        `ramses_out_8452_new` that contain the regenerated particles in the
+        initial snapshot.
 
         Returns
         -------
-        to_new : bool
+        flag : bool
         """
         return self._to_new
 
     @to_new.setter
     def to_new(self, to_new):
-        """Set `to_new`."""
         if not isinstance(to_new, bool):
             raise TypeError("`to_new` must be be a bool")
         self._to_new = to_new
@@ -200,44 +189,38 @@ class CSiBORGPaths:
     @property
     def n_sim(self):
         """
-        The IC realisation index set by the user.
+        IC realisation ID.
 
         Returns
         -------
         n_sim : int
         """
         if self._n_sim is None:
-            raise ValueError(
-                "`self.n_sim` is not set! Either provide a value directly  "
-                "or set it using `self.set_info(...)`")
+            raise ValueError("`self.n_sim` is not set.")
         return self._n_sim
 
     @n_sim.setter
     def n_sim(self, n_sim):
-        """Set `n_sim`, ensure it is a valid simulation index."""
         if n_sim not in self.ic_ids:
-            raise ValueError(
-                "`{}` is not a valid IC realisation index.".format(n_sim))
+            raise ValueError("`{}` is not a valid IC realisation ID."
+                             .format(n_sim))
         self._n_sim = n_sim
 
     @property
     def n_snap(self):
         """
-        The snapshot index of a IC realisation set by the user.
+        Snapshot ID of a IC realisation set by the user.
 
         Returns
         -------
         n_snap: int
         """
         if self._n_snap is None:
-            raise ValueError(
-                "`self.n_sim` is not set! Either provide a value directly  "
-                "or set it using `self.set_info(...)`")
+            raise ValueError("`self.n_snap` is not set!")
         return self._n_snap
 
     @n_snap.setter
     def n_snap(self, n_snap):
-        """Set `n_snap`."""
         self._n_snap = n_snap
 
     def set_info(self, n_sim, n_snap):
@@ -247,7 +230,7 @@ class CSiBORGPaths:
         Parameters
         ----------
         n_sim : int
-            CSiBORG IC realisation index.
+            Index of the IC realisation.
         n_snap : int
             Snapshot index.
         """
@@ -285,65 +268,31 @@ class CSiBORGPaths:
     @property
     def ic_ids(self):
         """
-        CSiBORG initial condition (IC) simulation IDs from the list of folders
-        in `self.srcdir`.
+        CSiBORG IC realisation IDs from the list of folders in `self.srcdir`.
 
         Returns
         -------
         ids : 1-dimensional array
-            Array of CSiBORG simulation IDs.
         """
+        files = glob(join(self.srcdir, "ramses_out*"))
+        files = [f.split("/")[-1] for f in files]  # Select only file names
         if self.to_new:
-            return self._ic_ids_new
-        return self._ic_ids
-
-    @property
-    def _ic_ids(self):
-        """
-        IC simulation IDs.
-
-        Returns
-        -------
-        ids : 1-dimensional array
-        """
-        files = glob(join(self.srcdir, "ramses_out*"))
-        # Select only file names
-        files = [f.split("/")[-1] for f in files]
-        # Remove files with inverted ICs
-        files = [f for f in files if "_inv" not in f]
-        # Remove the new files with z = 70 only
-        files = [f for f in files if "_new" not in f]
-        # Remove the filename with _old
-        files = [f for f in files if "OLD" not in f]
-        ids = [int(f.split("_")[-1]) for f in files]
-        try:
-            ids.remove(5511)
-        except ValueError:
-            pass
-        return numpy.sort(ids)
-
-    @property
-    def _ic_ids_new(self):
-        """
-        ICs simulation IDs denoted as `new` with recoved :math:`z = 70`
-        particle information.
-
-        Returns
-        -------
-        ids : 1-dimensional array
-        """
-        files = glob(join(self.srcdir, "ramses_out*"))
-        # Select only file names
-        files = [f.split("/")[-1] for f in files]
-        # Only _new files
-        files = [f for f in files if "_new" in f]
-        # Take the ICs
-        ids = [int(f.split("_")[2]) for f in files]
+            files = [f for f in files if "_new" in f]
+            ids = [int(f.split("_")[2]) for f in files]  # Take the IC IDs
+        else:
+            files = [f for f in files if "_inv" not in f]  # Remove inv. ICs
+            files = [f for f in files if "_new" not in f]  # Remove _new
+            files = [f for f in files if "OLD" not in f]   # Remove _old
+            ids = [int(f.split("_")[-1]) for f in files]
+            try:
+                ids.remove(5511)
+            except ValueError:
+                pass
         return numpy.sort(ids)
 
     def ic_path(self, n_sim=None):
         """
-        Path to `n_sim`th CSiBORG IC realisation.
+        Path to a CSiBORG IC realisation folder.
 
         Parameters
         ----------
@@ -363,13 +312,13 @@ class CSiBORGPaths:
 
     def get_snapshots(self, n_sim=None):
         """
-        List of snapshots for the `n_sim`th IC realisation.
+        List of available snapshots of a CSiBORG IC realisation.
 
         Parameters
         ----------
         n_sim : int
-            The index of the initial conditions (IC) realisation. By default
-            `None` and the set value is attempted to be used.
+            Index of the IC realisation. By default `None` and the set value is
+            attempted to be used.
 
         Returns
         -------
@@ -385,48 +334,48 @@ class CSiBORGPaths:
 
     def get_maximum_snapshot(self, n_sim=None):
         """
-        Return the maximum snapshot of an IC realisation.
+        Maximum snapshot of a CSiBORG IC realisation.
 
         Parameters
         ----------
         n_sim : int
-            The index of the initial conditions (IC) realisation. By default
-            `None` and the set value is attempted to be used.
+            Index of the IC realisation. By default `None` and the set value is
+            attempted to be used.
 
         Returns
         -------
-        maxsnap : float
+        maxsnap : int
         """
         n_sim = self.get_n_sim(n_sim)
         return max(self.get_snapshots(n_sim))
 
     def get_minimum_snapshot(self, n_sim=None):
         """
-        Return the maximum snapshot of an IC realisation.
+        Minimum snapshot of a CSiBORG IC realisation.
 
         Parameters
         ----------
         n_sim : int
-            The index of the initial conditions (IC) realisation. By default
-            `None` and the set value is attempted to be used.
+            Index of the IC realisation. By default `None` and the set value is
+            attempted to be used.
 
         Returns
         -------
-        minsnap : float
+        minsnap : int
         """
         n_sim = self.get_n_sim(n_sim)
         return min(self.get_snapshots(n_sim))
 
     def clump0_path(self, nsim):
         """
-        Path to a single dumped clump's particles. This is expected to point
-        to a dictonary whose keys are the clump indices and items structured
+        Path to a single dumped clump's particles. Expected to point to a
+        dictonary whose keys are the clump indices and items structured
         arrays with the clump's particles in the initial snapshot.
 
         Parameters
         ----------
         nsim : int
-            Index of the initial conditions (IC) realisation.
+            Index of the IC realisation.
 
         Returns
         -------
@@ -442,11 +391,9 @@ class CSiBORGPaths:
         Parameters
         ----------
         n_snap : int
-            Snapshot index. By default `None` and the set value is attempted
-            to be used.
-        n_sim : str
-            Corresponding CSiBORG IC realisation index. By default `None` and
-            the set value is attempted to be used.
+            Snapshot index.
+        n_sim : int
+            Index of the IC realisation.
 
         Returns
         -------
