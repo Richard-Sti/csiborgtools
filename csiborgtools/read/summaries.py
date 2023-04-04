@@ -15,10 +15,10 @@
 """
 Tools for summarising various results.
 """
-import numpy
-import joblib
 from os.path import (join, isfile)
 from glob import glob
+import numpy
+import joblib
 from tqdm import tqdm
 
 
