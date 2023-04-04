@@ -77,7 +77,7 @@ def do_auto(ic):
 
     for i, mmin in enumerate(mass_threshold):
         knn = NearestNeighbors()
-        knn.fit(cat.positions[cat["totpartmass"] > mmin, ...])
+        knn.fit(cat.positions(False)[cat["totpartmass"] > mmin, ...])
 
         rs, cdf = knncdf(knn, nneighbours=args.nneighbours, Rmax=Rmax,
                          rmin=args.rmin, rmax=args.rmax, nsamples=args.nsamples,
@@ -96,10 +96,10 @@ def do_cross(ics):
 
     for i, mmin in enumerate(mass_threshold):
         knn1 = NearestNeighbors()
-        knn1.fit(cat1.positions[cat1["totpartmass"] > mmin, ...])
+        knn1.fit(cat1.positions()[cat1["totpartmass"] > mmin, ...])
 
         knn2 = NearestNeighbors()
-        knn2.fit(cat2.positions[cat2["totpartmass"] > mmin, ...])
+        knn2.fit(cat2.positions()[cat2["totpartmass"] > mmin, ...])
 
         rs, cdf0, cdf1, joint_cdf = knncdf.joint(
             knn1, knn2, nneighbours=args.nneighbours, Rmax=Rmax,

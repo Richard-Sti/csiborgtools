@@ -155,7 +155,7 @@ class RealisationsMatcher:
         # Query the KNN
         verbose and print("{}: querying the KNN.".format(now()), flush=True)
         match_indxs = radius_neighbours(
-            catx.knn(select_initial=True), cat0.positions0,
+            catx.knn(select_initial=True), cat0.positions(in_initial=True),
             radiusX=cat0["lagpatch"], radiusKNN=catx["lagpatch"],
             nmult=self.nmult, enforce_in32=True, verbose=verbose)
 
