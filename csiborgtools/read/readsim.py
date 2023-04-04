@@ -243,7 +243,8 @@ class ParticleReader:
     _paths = None
 
     def __init__(self, paths):
-        self.paths = paths
+        assert isinstance(paths, CSiBORGPaths)
+        self._paths = paths
 
     @property
     def paths(self):
@@ -255,12 +256,6 @@ class ParticleReader:
         paths : :py:class:`csiborgtools.read.CSiBORGPaths`
         """
         return self._paths
-
-    @paths.setter
-    def paths(self, paths):
-        if not isinstance(paths, CSiBORGPaths):
-            raise TypeError("`paths` must be of type `CSiBORGPaths`.")
-        self._paths = paths
 
     def read_info(self, nsnap, nsim):
         """
