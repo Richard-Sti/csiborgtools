@@ -15,8 +15,6 @@
 """
 Utilility functions for manipulation structured arrays.
 """
-
-
 import numpy
 
 
@@ -51,7 +49,7 @@ def add_columns(arr, X, cols):
     Parameters
     ----------
     arr : record array
-        The record array to add columns to.
+        Record array to add columns to.
     X : (list of) 1-dimensional array(s) or 2-dimensional array
         Columns to be added.
     cols : str or list of str
@@ -60,7 +58,6 @@ def add_columns(arr, X, cols):
     Returns
     -------
     out : record array
-        The new record array with added values.
     """
     # Make sure cols is a list of str and X a 2D array
     cols = [cols] if isinstance(cols, str) else cols
@@ -95,14 +92,13 @@ def rm_columns(arr, cols):
     Parameters
     ----------
     arr : record array
-        The record array to remove columns from.
+        Record array to remove columns from.
     cols : str or list of str
         Column names to be removed.
 
     Returns
     -------
     out : record array
-        Record array with removed columns.
     """
     # Check columns we wish to delete are in the array
     cols = [cols] if isinstance(cols, str) else cols
@@ -173,7 +169,7 @@ def array_to_structured(arr, cols):
     Returns
     -------
     out : structured array
-        The output structured array.
+        Output structured array.
     """
     cols = [cols] if isinstance(cols, str) else cols
     if arr.ndim != 2 and arr.shape[1] != len(cols):
@@ -196,15 +192,15 @@ def flip_cols(arr, col1, col2):
     Parameters
     ----------
     arr : structured array
-        The array whose columns are to be converted.
+        Array whose columns are to be converted.
     col1 : str
-        The first column name.
+        First column name.
     col2 : str
-        The second column name.
+        Second column name.
 
     Returns
     -------
-    nothing
+    None
     """
     dum = numpy.copy(arr[col1])
     arr[col1] = arr[col2]
