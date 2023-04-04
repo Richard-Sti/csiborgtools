@@ -248,13 +248,6 @@ class ParticleReader:
 
     @property
     def paths(self):
-        """
-        Paths manager.
-
-        Returns
-        -------
-        paths : :py:class:`csiborgtools.read.CSiBORGPaths`
-        """
         return self._paths
 
     def read_info(self, nsnap, nsim):
