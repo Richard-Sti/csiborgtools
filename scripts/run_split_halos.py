@@ -15,9 +15,8 @@
 """
 Script to split particles into smaller files according to their clump
 membership for faster manipulation. Currently does this for the maximum
-snapshot of each simulation. Running this will require a lot of memory.
+snapshot of each simulation. Running this requires a lot of memory.
 """
-
 from mpi4py import MPI
 from datetime import datetime
 try:
@@ -34,27 +33,26 @@ rank = comm.Get_rank()
 nproc = comm.Get_size()
 
 paths = csiborgtools.read.CSiBORGPaths()
-n_sims = paths.ic_ids[:1]
+nsims = len(paths.ic_ids(False))
 partcols = ["x", "y", "z", "vx", "vy", "vz", "M", "level"]
 
-jobs = csiborgtools.fits.split_jobs(len(n_sims), nproc)[rank]
+jobs = csiborgtools.fits.split_jobs(len(nsims), nproc)[rank]
 for icount, sim_index in enumerate(jobs):
-    print("{}: rank {} working {} / {} jobs.".format(datetime.now(), rank,
-                                                     icount + 1, len(jobs)))
-    n_sim = n_sims[sim_index]
-    n_snap = paths.get_maximum_snapshot(n_sim)
-    # Set paths and inifitalise a particle reader
-    paths.set_info(n_sim, n_snap)
+    print("{}: rank {} working {} / {} jobs."
+          .format(datetime.now(), rank, icount + 1, len(jobs)), flush=True)
+    nsim = nsims[sim_index]
+    nsnap = max(paths.get_snapshots(nsim))
     partreader = csiborgtools.read.ParticleReader(paths)
     # Load the clumps, particles' clump IDs and particles.
-    clumps = partreader.read_clumps()
-    particle_clumps = partreader.read_clumpid(verbose=False)
-    particles = partreader.read_particle(partcols, verbose=False)
+    clumps = partreader.read_clumps(nsnap, nsim)
+    particle_clumps = partreader.read_clumpid(nsnap, nsim, verbose=False)
+    particles = partreader.read_particle(nsnap, nsim, partcols, verbose=False)
     # Drop all particles whose clump index is 0 (not assigned to any halo)
     particle_clumps, particles = partreader.drop_zero_indx(
         particle_clumps, particles)
     # Dump it!
     csiborgtools.fits.dump_split_particles(particles, particle_clumps, clumps,
-                                           utils.Nsplits, paths, verbose=False)
+                                           utils.Nsplits, nsnap, nsim, paths,
+                                           verbose=False)
 
-print("All finished!")
+print("All finished!", flush=True)
