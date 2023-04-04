@@ -62,6 +62,7 @@ ics = [7444, 7468, 7492, 7516, 7540, 7564, 7588, 7612, 7636, 7660, 7684,
 dumpdir = "/mnt/extraspace/rstiskalek/csiborg/knn"
 fout_auto = join(dumpdir, "auto", "knncdf_{}.p")
 fout_cross = join(dumpdir, "cross", "knncdf_{}_{}.p")
+paths = csiborgtools.read.CSiBORGPaths()
 
 
 ###############################################################################
@@ -72,7 +73,7 @@ knncdf = csiborgtools.match.kNN_CDF()
 
 def do_auto(ic):
     out = {}
-    cat = csiborgtools.read.HaloCatalogue(ic, max_dist=Rmax)
+    cat = csiborgtools.read.HaloCatalogue(ic, paths, max_dist=Rmax)
 
     for i, mmin in enumerate(mass_threshold):
         knn = NearestNeighbors()
@@ -90,8 +91,8 @@ def do_auto(ic):
 
 def do_cross(ics):
     out = {}
-    cat1 = csiborgtools.read.HaloCatalogue(ics[0], max_dist=Rmax)
-    cat2 = csiborgtools.read.HaloCatalogue(ics[1], max_dist=Rmax)
+    cat1 = csiborgtools.read.HaloCatalogue(ics[0], paths, max_dist=Rmax)
+    cat2 = csiborgtools.read.HaloCatalogue(ics[1], paths, max_dist=Rmax)
 
     for i, mmin in enumerate(mass_threshold):
         knn1 = NearestNeighbors()
