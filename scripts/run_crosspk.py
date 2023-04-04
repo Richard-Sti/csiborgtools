@@ -16,14 +16,14 @@
 MPI script to calculate the matter cross power spectrum between CSiBORG
 IC realisations. Units are Mpc/h.
 """
+from gc import collect
 from argparse import ArgumentParser
+from os import remove
+from os.path import join
+from itertools import combinations
+from datetime import datetime
 import numpy
 import joblib
-from datetime import datetime
-from itertools import combinations
-from os.path import join
-from os import remove
-from gc import collect
 from mpi4py import MPI
 import Pk_library as PKL
 try:
@@ -32,9 +32,9 @@ except ModuleNotFoundError:
     import sys
     sys.path.append("../")
     import csiborgtools
-import utils
 
 
+dumpdir = "/mnt/extraspace/rstiskalek/csiborg/"
 parser = ArgumentParser()
 parser.add_argument("--grid", type=int)
 parser.add_argument("--halfwidth", type=float, default=0.5)
@@ -47,27 +47,24 @@ nproc = comm.Get_size()
 MAS = "CIC"  # mass asignment scheme
 
 paths = csiborgtools.read.CSiBORGPaths()
-ics = paths.ic_ids
-n_sims = len(ics)
+box = csiborgtools.units.BoxUnits(paths)
+reader = csiborgtools.read.ParticleReader(paths)
+ics = paths.ic_ids(tonew=False)
+nsims = len(ics)
 
 # File paths
-ftemp = join(utils.dumpdir, "temp_crosspk",
+ftemp = join(dumpdir, "temp_crosspk",
              "out_{}_{}" + "_{}".format(args.halfwidth))
-fout = join(utils.dumpdir, "crosspk",
+fout = join(dumpdir, "crosspk",
             "out_{}_{}" + "_{}.p".format(args.halfwidth))
 
 
-jobs = csiborgtools.fits.split_jobs(n_sims, nproc)[rank]
+jobs = csiborgtools.fits.split_jobs(nsims, nproc)[rank]
 for n in jobs:
     print("Rank {}@{}: saving {}th delta.".format(rank, datetime.now(), n))
-    # Set the paths
-    n_sim = ics[n]
-    paths.set_info(n_sim, paths.get_maximum_snapshot(n_sim))
-    # Set reader and the box
-    reader = csiborgtools.read.ParticleReader(paths)
-    box = csiborgtools.units.BoxUnits(paths)
-    # Read particles
-    particles = reader.read_particle(["x", "y", "z", "M"], verbose=False)
+    nsim = ics[n]
+    particles = reader.read_particle(max(paths.get_snapshots(nsim)), nsim,
+                                     ["x", "y", "z", "M"], verbose=False)
     # Halfwidth -- particle selection
     if args.halfwidth < 0.5:
         particles = csiborgtools.read.halfwidth_select(
@@ -85,9 +82,9 @@ for n in jobs:
     collect()
 
     # Dump the results
-    with open(ftemp.format(n_sim, "delta") + ".npy", "wb") as f:
+    with open(ftemp.format(nsim, "delta") + ".npy", "wb") as f:
         numpy.save(f, delta)
-    joblib.dump([aexp, length], ftemp.format(n_sim, "lengths") + ".p")
+    joblib.dump([aexp, length], ftemp.format(nsim, "lengths") + ".p")
 
     # Try to clean up memory
     del delta
@@ -97,8 +94,8 @@ for n in jobs:
 comm.Barrier()
 
 # Get off-diagonal elements and append the diagoal
-combs = [c for c in combinations(range(n_sims), 2)]
-for i in range(n_sims):
+combs = [c for c in combinations(range(nsims), 2)]
+for i in range(nsims):
     combs.append((i, i))
 prev_delta = [-1, None, None, None]  # i, delta, aexp, length
 
