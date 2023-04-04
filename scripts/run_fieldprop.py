@@ -16,11 +16,11 @@
 MPI script to evaluate field properties at the galaxy positions.
 """
 from argparse import ArgumentParser
-import numpy
-from datetime import datetime
-from mpi4py import MPI
 from os.path import join
 from os import remove
+from datetime import datetime
+import numpy
+from mpi4py import MPI
 try:
     import csiborgtools
 except ModuleNotFoundError:
@@ -29,6 +29,7 @@ except ModuleNotFoundError:
     import csiborgtools
 import utils
 
+dumpdir = "/mnt/extraspace/rstiskalek/csiborg/"
 parser = ArgumentParser()
 parser.add_argument("--survey", type=str, choices=["SDSS"])
 parser.add_argument("--grid", type=int)
@@ -52,30 +53,28 @@ pos = pos.astype(numpy.float32)
 # File paths
 fname = "out_{}_{}_{}_{}_{}".format(
     survey.name, args.grid, args.MAS, args.halfwidth, args.smooth_scale)
-ftemp = join(utils.dumpdir, "temp_fields", fname + "_{}.npy")
-fperm = join(utils.dumpdir, "fields", fname + ".npy")
+ftemp = join(dumpdir, "temp_fields", fname + "_{}.npy")
+fperm = join(dumpdir, "fields", fname + ".npy")
 
 # Edit depending on what is calculated
 dtype = {"names": ["delta", "phi"], "formats": [numpy.float32] * 2}
 
 # CSiBORG simulation paths
 paths = csiborgtools.read.CSiBORGPaths()
-ics = paths.ic_ids
-n_sims = len(ics)
+ics = paths.ic_ids(tonew=False)
+nsims = len(ics)
 
-for n in csiborgtools.fits.split_jobs(n_sims, nproc)[rank]:
+for n in csiborgtools.fits.split_jobs(nsims, nproc)[rank]:
     print("Rank {}@{}: working on {}th IC.".format(rank, datetime.now(), n),
           flush=True)
-    # Set the paths
-    n_sim = ics[n]
-    paths.set_info(n_sim, paths.get_maximum_snapshot(n_sim))
-
-    # Set reader and the box
+    nsim = ics[n]
+    nsnap = max(paths.get_snapshots(nsim))
     reader = csiborgtools.read.ParticleReader(paths)
-    box = csiborgtools.units.BoxUnits(paths)
+    box = csiborgtools.units.BoxUnits(nsnap, nsim, paths)
 
     # Read particles and select a subset of them
-    particles = reader.read_particle(["x", "y", "z", "M"], verbose=False)
+    particles = reader.read_particle(nsnap, nsim, ["x", "y", "z", "M"],
+                                     verbose=False)
     if args.halfwidth < 0.5:
         particles = csiborgtools.read.halfwidth_select(
             args.halfwidth, particles)
@@ -101,7 +100,7 @@ for n in csiborgtools.fits.split_jobs(n_sims, nproc)[rank]:
     # ...
 
     # Dump the results
-    with open(ftemp.format(n_sim), "wb") as f:
+    with open(ftemp.format(nsim), "wb") as f:
         numpy.save(f, out)
 
 # Wait for all ranks to finish
@@ -109,16 +108,16 @@ comm.Barrier()
 if rank == 0:
     print("Collecting files...", flush=True)
 
-    out = numpy.full((n_sims, pos.shape[0]), numpy.nan, dtype=dtype)
+    out = numpy.full((nsims, pos.shape[0]), numpy.nan, dtype=dtype)
 
-    for n in range(n_sims):
-        n_sim = ics[n]
-        with open(ftemp.format(n_sim), "rb") as f:
+    for n in range(nsims):
+        nsim = ics[n]
+        with open(ftemp.format(nsim), "rb") as f:
             fin = numpy.load(f, allow_pickle=True)
             for name in dtype["names"]:
                 out[name][n, ...] = fin[name]
         # Remove the temporary file
-        remove(ftemp.format(n_sim))
+        remove(ftemp.format(nsim))
 
     print("Saving results to `{}`.".format(fperm), flush=True)
     with open(fperm, "wb") as f:
