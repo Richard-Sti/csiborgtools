@@ -29,8 +29,8 @@ def dump_split(arr, nsplit, nsnap, nsim, paths):
     ----------
     arr : n-dimensional or structured array
         Array to be saved.
-    nsplit: int
-        Split index.
+    nsplit : int
+         Split index.
     nsnap : int
         Snapshot index.
     nsim : int
@@ -42,10 +42,8 @@ def dump_split(arr, nsplit, nsnap, nsim, paths):
     -------
     None
     """
-    nsim = str(nsim).zfill(5)
-    nsnap = str(nsnap).zfill(5)
     fname = join(paths.temp_dumpdir, "ramses_out_{}_{}_{}.npy"
-                 .format(nsim, nsnap, nsplit))
+                 .format(str(nsim).zfill(5), str(nsnap).zfill(5), nsplit))
     numpy.save(fname, arr)
 
 
