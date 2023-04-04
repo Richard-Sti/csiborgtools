@@ -15,7 +15,6 @@
 """
 Calculation of number density functions.
 """
-
 import numpy
 
 
