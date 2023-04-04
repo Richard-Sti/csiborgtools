@@ -15,11 +15,11 @@
 """
 Support for matching halos between CSiBORG IC realisations.
 """
+from gc import collect
 import numpy
 from scipy.ndimage import gaussian_filter
-from tqdm import (tqdm, trange)
 from numba import jit
-from gc import collect
+from tqdm import (tqdm, trange)
 from ..read import concatenate_clumps
 from ..utils import now
 
