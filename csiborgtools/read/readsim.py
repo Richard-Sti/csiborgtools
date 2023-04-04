@@ -15,12 +15,12 @@
 """
 Functions to read in the particle and clump files.
 """
-import numpy
-from scipy.io import FortranFile
 from os.path import (join, isfile, isdir)
 from glob import glob
-from tqdm import tqdm
 from warnings import warn
+import numpy
+from scipy.io import FortranFile
+from tqdm import tqdm
 from ..utils import (cols_to_structured)
 
 
