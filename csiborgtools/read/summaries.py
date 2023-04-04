@@ -22,6 +22,11 @@ from glob import glob
 from tqdm import tqdm
 
 
+###############################################################################
+#                            PKReader                                         #
+###############################################################################
+
+
 class PKReader:
     """
     A shortcut object for reading in the power spectrum files.
@@ -170,6 +175,11 @@ class PKReader:
         return ks, xpks
 
 
+###############################################################################
+#                            PKReader                                         #
+###############################################################################
+
+
 class kNNCDFReader:
     """
     Shortcut object to read in the kNN CDF data.
@@ -302,6 +312,11 @@ class kNNCDFReader:
         filepath : list of str
         """
         return [file for file in glob(join(folder, "*")) if str(ic) in file]
+
+
+###############################################################################
+#                            PKReader                                         #
+###############################################################################
 
 
 class PairOverlap:
