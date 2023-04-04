@@ -231,6 +231,11 @@ def pick_single_clump(n, particles, particle_clumps, clumps):
     return particles[mask], clumps[n]
 
 
+###############################################################################
+#                           Clump object                                      #
+###############################################################################
+
+
 class Clump:
     r"""
     A clump (halo) object to handle the particles and their clump's data.
@@ -267,9 +272,6 @@ class Clump:
     G : float, optional
         The gravitational constant :math:`G` in box units. By default not set.
     """
-    _r = None
-    _rmin = None
-    _rmax = None
     _pos = None
     _clump_pos = None
     _clump_mass = None
@@ -280,7 +282,7 @@ class Clump:
 
     def __init__(self, x, y, z, m, x0, y0, z0, clump_mass=None,
                  vx=None, vy=None, vz=None, index=None, rhoc=None, G=None):
-        self.pos = (x, y, z, x0, y0, z0)
+        self._pos = numpy.vstack([x - x0, y - y0, z - z0]).T
         self._clump_pos = numpy.asarray((x0, y0, z0))
         assert clump_mass is None or isinstance(clump_mass, float)
         self._clump_mass = clump_mass
@@ -307,15 +309,6 @@ class Clump:
         """
         return self._pos
 
-    @pos.setter
-    def pos(self, X):
-        """Sets `pos` and calculates radial distance."""
-        x, y, z, x0, y0, z0 = X
-        self._pos = numpy.vstack([x - x0, y - y0, z - z0]).T
-        self._r = numpy.sum(self.pos**2, axis=1)**0.5
-        self._rmin = numpy.min(self._r)
-        self._rmax = numpy.max(self._r)
-
     @property
     def Npart(self):
         """
@@ -336,7 +329,7 @@ class Clump:
         -------
         r : 1-dimensional array of shape `(n_particles, )`.
         """
-        return self._r
+        return numpy.sum(self.pos**2, axis=1)**0.5
 
     @property
     def rmin(self):
@@ -347,7 +340,7 @@ class Clump:
         -------
         rmin : float
         """
-        return self._rmin
+        return numpy.min(self.r)
 
     @property
     def rmax(self):
@@ -358,7 +351,7 @@ class Clump:
         -------
         rmin : float
         """
-        return self._rmax
+        return numpy.max(self.r)
 
     @property
     def clump_pos(self):

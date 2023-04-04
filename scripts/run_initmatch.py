@@ -19,14 +19,14 @@ are grouped in a clump at present redshift.
 Optionally also dumps the clumps information, however watch out as this will
 eat up a lot of memory.
 """
-import numpy
-from argparse import ArgumentParser
-from distutils.util import strtobool
-from datetime import datetime
-from mpi4py import MPI
+from gc import collect
 from os.path import join
 from os import remove
-from gc import collect
+from argparse import ArgumentParser
+from datetime import datetime
+from distutils.util import strtobool
+import numpy
+from mpi4py import MPI
 try:
     import csiborgtools
 except ModuleNotFoundError:
@@ -44,9 +44,8 @@ parser = ArgumentParser()
 parser.add_argument("--dump_clumps", type=lambda x: bool(strtobool(x)))
 args = parser.parse_args()
 
-init_paths = csiborgtools.read.CSiBORGPaths(to_new=True)
-fin_paths = csiborgtools.read.CSiBORGPaths(to_new=False)
-nsims = init_paths.ic_ids
+paths = csiborgtools.read.CSiBORGPaths()
+nsims = paths.ic_ids(tonew=True)
 
 # Output files
 dumpdir = "/mnt/extraspace/rstiskalek/csiborg/"
@@ -58,22 +57,18 @@ for nsim in nsims:
     if rank == 0:
         print("{}: reading simulation {}.".format(datetime.now(), nsim),
               flush=True)
-
-    # Set the snapshot numbers
-    init_paths.set_info(nsim, init_paths.get_minimum_snapshot(nsim))
-    fin_paths.set_info(nsim, fin_paths.get_maximum_snapshot(nsim))
-    # Set the readers
-    init_reader = csiborgtools.read.ParticleReader(init_paths)
-    fin_reader = csiborgtools.read.ParticleReader(fin_paths)
+    nsnap_min = min(paths.get_snapshots(nsim))
+    nsnap_max = max(paths.get_snapshots(nsim))
+    reader = csiborgtools.read.ParticleReader(paths)
 
     # Read and sort the initial particle files by their particle IDs
-    part0 = init_reader.read_particle(["x", "y", "z", "M", "ID"],
-                                      verbose=False)
+    part0 = reader.read_particle(nsnap_min, nsim, ["x", "y", "z", "M", "ID"],
+                                 verbose=False)
     part0 = part0[numpy.argsort(part0["ID"])]
 
     # Order the final snapshot clump IDs by the particle IDs
-    pid = fin_reader.read_particle(["ID"], verbose=False)["ID"]
-    clump_ids = fin_reader.read_clumpid(verbose=False)
+    pid = reader.read_particle(nsnap_max, nsim, ["ID"], verbose=False)["ID"]
+    clump_ids = reader.read_clumpid(nsnap_max, nsim, verbose=False)
     clump_ids = clump_ids[numpy.argsort(pid)]
 
     del pid

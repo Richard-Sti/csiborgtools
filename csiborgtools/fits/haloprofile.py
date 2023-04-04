@@ -15,35 +15,12 @@
 """
 Halo profiles functions and posteriors.
 """
-
-
-import numpy
 from jax import numpy as jnumpy
 from jax import grad
+import numpy
 from scipy.optimize import minimize_scalar
 from scipy.stats import uniform
 from .halo import Clump
-
-
-def jax_switch(f1, f2, use_jax):
-    """
-    Return function `f1` if `use_jax` else return `f2`.
-
-    Parameters
-    ----------
-    f1 : function
-        The JAX function.
-    f2 : function
-        The non-JAX function.
-    use_jax : bool
-        Whether to use the JAX function.
-
-    Returns
-    -------
-    chosen_func : function
-        The chosen function.
-    """
-    return f1 if use_jax else f2
 
 
 class NFWProfile:
@@ -62,10 +39,6 @@ class NFWProfile:
     rho0 : float
         NFW density parameter :math:`\rho_0`.
     """
-
-    def __init__(self):
-        pass
-
     @staticmethod
     def profile(r, Rs, rho0):
         r"""
@@ -109,7 +82,7 @@ class NFWProfile:
         logdensity : float or 1-dimensional array
             Logarithmic density of the NFW profile at :math:`r`.
         """
-        log = jax_switch(jnumpy.log, numpy.log, use_jax)
+        log = jnumpy.log if use_jax else numpy.log
         x = r / Rs
         return log(rho0) - log(x) - 2 * log(1 + x)
 
@@ -134,8 +107,9 @@ class NFWProfile:
         M : float or 1-dimensional array
             The enclosed mass.
         """
+        log = jnumpy.log if use_jax else numpy.log
         x = r / Rs
-        out = jax_switch(jnumpy.log, numpy.log, use_jax)(1 + x) - x / (1 + x)
+        out = log(1 + x) - x / (1 + x)
         return 4 * numpy.pi * rho0 * Rs**3 * out
 
     def bounded_enclosed_mass(self, rmin, rmax, Rs, rho0, use_jax=False):
@@ -145,9 +119,9 @@ class NFWProfile:
         Parameters
         ----------
         rmin : float
-            The minimum radius.
+            Minimum radius.
         rmax : float
-            The maximum radius.
+            Maximum radius.
         Rs : float
             Scale radius :math:`R_s`.
         rho0 : float
@@ -158,7 +132,7 @@ class NFWProfile:
         Returns
         -------
         M : float
-            The enclosed mass within the radial range.
+            Enclosed mass within the radial range.
         """
         return (self.enclosed_mass(rmax, Rs, rho0, use_jax)
                 - self.enclosed_mass(rmin, Rs, rho0, use_jax))
@@ -182,9 +156,9 @@ class NFWProfile:
         Rs : float
             Scale radius :math:`R_s`.
         rmin : float
-            The minimum radius.
+            Minimum radius.
         rmax : float
-            The maximum radius.
+            Maximum radius.
 
         Returns
         -------
@@ -202,9 +176,9 @@ class NFWProfile:
         Parameters
         ----------
         rmin : float
-            The minimum radius.
+            Minimum radius.
         rmax : float
-            The maximum radius.
+            Maximum radius.
         Rs : float
             Scale radius :math:`R_s`.
         N : int, optional
@@ -271,7 +245,6 @@ class NFWPosterior(NFWProfile):
         Returns
         -------
         clump : `Clump`
-            The clump object.
         """
         return self._clump
 
@@ -284,7 +257,6 @@ class NFWPosterior(NFWProfile):
         Returns
         -------
         r : 1-dimensional array
-            Array of shape `(n_particles, )`.
         """
         return self._r
 
@@ -297,7 +269,6 @@ class NFWPosterior(NFWProfile):
         Returns
         -------
         Npart : int
-            Number of particles.
         """
         return self._Npart
 
@@ -310,7 +281,6 @@ class NFWPosterior(NFWProfile):
         Returns
         -------
         r : 1-dimensional array
-            Array of shape `(n_particles, )`.
         """
         return self._m
 
@@ -322,7 +292,6 @@ class NFWPosterior(NFWProfile):
         Returns
         -------
         rmin : float
-            The minimum distance.
         """
         return self._rmin
 
@@ -335,7 +304,6 @@ class NFWPosterior(NFWProfile):
         Returns
         -------
         rmax : float
-            The R200c radius.
         """
         return self._rmax
 
@@ -384,7 +352,6 @@ class NFWPosterior(NFWProfile):
         Returns
         -------
         rho0: float
-            The NFW density parameter.
         """
         Mtot = numpy.exp(self._logMtot)
         Mnfw_norm = self.bounded_enclosed_mass(self.rmin, self.rmax, Rs, 1)
@@ -401,8 +368,7 @@ class NFWPosterior(NFWProfile):
 
         Returns
         -------
-        ll : float
-            The logarithmic prior.
+        lp : float
         """
         if not self._logrmin < logRs < self._logrmax:
             return - numpy.infty
@@ -422,16 +388,14 @@ class NFWPosterior(NFWProfile):
         Returns
         -------
         ll : float
-            The logarithmic likelihood.
         """
         Rs = 10**logRs
         log = jnumpy.log if use_jax else numpy.log
         # Expected enclosed mass from a NFW
         Mnfw = self.bounded_enclosed_mass(self.rmin, self.rmax,
                                           Rs, 1, use_jax)
-        ll = jax_switch(jnumpy.sum, numpy.sum, use_jax)(self.logprofile(
-            self.r, Rs, 1, use_jax))
-        ll += self._ll0
+        fsum = jnumpy.sum if use_jax else numpy.sum
+        ll = fsum(self.logprofile(self.r, Rs, 1, use_jax)) + self._ll0
         return ll - self.Npart * log(Mnfw)
 
     @property
@@ -444,7 +408,6 @@ class NFWPosterior(NFWProfile):
         Returns
         -------
         initlogRs : float
-            The initial guess of :math:`\log R_{\rm s}`.
         """
         bins = numpy.linspace(self.rmin, self.rmax,
                               self._binsguess)
@@ -465,7 +428,6 @@ class NFWPosterior(NFWProfile):
         Returns
         -------
         lpost : float
-            The logarithmic posterior.
         """
         lp = self.logprior(logRs)
         if not numpy.isfinite(lp):
@@ -475,7 +437,7 @@ class NFWPosterior(NFWProfile):
     def uncertainty_at_maxpost(self, logRs_max):
         r"""
         Calculate Gaussian approximation of the uncertainty at `logRs_max`, the
-        maximum a-posteriori esitmate. This is the square root of the negative
+        maximum a-posteriori estimate. This is the square root of the negative
         inverse 2nd derivate of the logarithimic posterior with respect to the
         logarithm of the scale factor. This is only valid `logRs_max` is the
         maximum of the posterior!
@@ -492,7 +454,6 @@ class NFWPosterior(NFWProfile):
         Returns
         -------
         uncertainty : float
-            The uncertainty calculated as outlined above.
         """
         def f(x):
             return self(x, use_jax=True)
@@ -506,9 +467,10 @@ class NFWPosterior(NFWProfile):
 
     def maxpost_logRs(self, calc_err=False, eps=1e-4):
         r"""
-        Maximum a-posterio estimate of the scale radius :math:`\log R_{\rm s}`.
-        Returns the scale radius if the fit converged, otherwise `numpy.nan`.
-        Checks whether :math:`log r_{\rm max} / R_{\rm s} > \epsilon`, where
+        Maximum a-posteriori estimate of the scale radius
+        :math:`\log R_{\rm s}`. Returns the scale radius if the fit converged,
+        otherwise `numpy.nan`. Checks whether
+        :math:`log r_{\rm max} / R_{\rm s} > \epsilon`, where
         to ensure that the scale radius is not too close to the boundary which
         occurs if the fit fails.
 
@@ -521,9 +483,9 @@ class NFWPosterior(NFWProfile):
         Returns
         -------
         logRs: float
-            The log scale radius.
+            Log scale radius.
         uncertainty : float
-            The uncertainty on the scale radius. Calculated following
+            Uncertainty on the scale radius. Calculated following
             `self.uncertainty_at_maxpost`.
         """
         # Loss function to optimize
