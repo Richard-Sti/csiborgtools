@@ -29,8 +29,10 @@ class HaloCatalogue:
 
     Parameters
     ----------
-    paths : py:class:`csiborgtools.read.CSiBORGPaths`
-        CSiBORG paths-handling object with set `n_sim` and `n_snap`.
+    nsim : int
+        IC realisation index.
+    paths : py:class`csiborgtools.read.CSiBORGPaths`
+        CSiBORG paths object.
     min_mass : float, optional
         The minimum :math:`M_{rm tot} / M_\odot` mass. By default no threshold.
     max_dist : float, optional
@@ -38,19 +40,48 @@ class HaloCatalogue:
     load_init : bool, optional
         Whether to load the initial snapshot information. By default False.
     """
-    _box = None
     _paths = None
+    _nsim = None
     _data = None
     _selmask = None
 
-    def __init__(self, nsim, min_mass=None, max_dist=None, load_init=False):
-        # Set up paths
-        paths = CSiBORGPaths(n_sim=nsim)
-        paths.n_snap = paths.get_maximum_snapshot()
-        self._paths = paths
-        self._box = BoxUnits(paths)
+    def __init__(self, nsim, paths, min_mass=None, max_dist=None,
+                 load_init=False):
+        assert isinstance(paths, CSiBORGPaths)
+        self._nsim = nsim
         self._paths = paths
         self._set_data(min_mass, max_dist, load_init)
+
+    @property
+    def nsim(self):
+        return self._nsim
+
+    @property
+    def paths(self):
+        return self._paths
+
+    @property
+    def nsnap(self):
+        """
+        Catalogue's snapshot index corresponding to the maximum simulation
+        snapshot index.
+
+        Returns
+        -------
+        nsnap : int
+        """
+        return max(self.paths.get_snapshots(self.nsim))
+
+    @property
+    def box(self):
+        """
+        CSiBORG box object handling unit conversion.
+
+        Returns
+        -------
+        box : :py:class:`csiborgtools.units.BoxUnits`
+        """
+        return BoxUnits(self.nsnap, self.nsim, self.paths)
 
     @property
     def data(self):
@@ -61,69 +92,7 @@ class HaloCatalogue:
         -------
         cat : structured array
         """
-        if self._data is None:
-            raise ValueError("`data` is not set!")
         return self._data
-
-    @property
-    def box(self):
-        """
-        Box object, useful for change of units.
-
-        Returns
-        -------
-        box : :py:class:`csiborgtools.units.BoxUnits`
-        """
-        return self._box
-
-    @property
-    def paths(self):
-        """
-        The paths-handling object.
-
-        Returns
-        -------
-        paths : :py:class:`csiborgtools.read.CSiBORGPaths`
-        """
-        return self._paths
-
-    @property
-    def n_snap(self):
-        """
-        The snapshot ID.
-
-        Returns
-        -------
-        n_snap : int
-        """
-        return self.paths.n_snap
-
-    @property
-    def n_sim(self):
-        """
-        The initial condition (IC) realisation ID.
-
-        Returns
-        -------
-        n_sim : int
-        """
-        return self.paths.n_sim
-
-    def knn(self, select_initial):
-        """
-        kNN object of all halo positions.
-
-        Parameters
-        ----------
-        select_initial : bool
-            Whether to define the KNN on the initial or final snapshot.
-
-        Returns
-        -------
-        knn : :py:class:`sklearn.neighbors.NearestNeighbors`
-        """
-        knn = NearestNeighbors()
-        return knn.fit(self.positions0 if select_initial else self.positions)
 
     def _set_data(self, min_mass, max_dist, load_init):
         """
@@ -131,11 +100,11 @@ class HaloCatalogue:
         """
         # Load the processed data
         fname = "ramses_out_{}_{}.npy".format(
-            str(self.n_sim).zfill(5), str(self.n_snap).zfill(5))
+            str(self.nsim).zfill(5), str(self.nsnap).zfill(5))
         data = numpy.load(join(self.paths.dumpdir, fname))
 
         # Load the mmain file and add it to the data
-        mmain = read_mmain(self.n_sim, self.paths.mmain_path)
+        mmain = read_mmain(self.nsim, self.paths.mmain_path)
         data = self.merge_mmain_to_clumps(data, mmain)
         flip_cols(data, "peak_x", "peak_z")
 
@@ -144,7 +113,7 @@ class HaloCatalogue:
 
         # Now also load the initial positions
         if load_init:
-            initcm = read_initcm(self.n_sim, self.paths.initmatch_path)
+            initcm = read_initcm(self.nsim, self.paths.initmatch_path)
             if initcm is not None:
                 data = self.merge_initmatch_to_clumps(data, initcm)
                 flip_cols(data, "x0", "z0")
@@ -185,7 +154,7 @@ class HaloCatalogue:
                 formats.append(numpy.float32)
         dtype = numpy.dtype({"names": names, "formats": formats})
 
-        # Apply cuts on distance and min500 if any
+        # Apply cuts on distance and total particle mass if any
         data = data[data["dist"] < max_dist] if max_dist is not None else data
         data = (data[data["totpartmass"] > min_mass]
                 if min_mass is not None else data)
@@ -247,76 +216,75 @@ class HaloCatalogue:
             X[:, i] = initcat[p]
         return add_columns(clumps, X, ["x0", "y0", "z0", "lagpatch"])
 
-    @property
-    def positions(self):
+    def positions(self, in_initial=False):
         r"""
-        3D positions of halos in :math:`\mathrm{cMpc}`.
+        Cartesian position components of halos in :math:`\mathrm{cMpc}`.
+
+        Parameters
+        ----------
+        in_initial : bool, optional
+            Whether to define the kNN on the initial or final snapshot.
 
         Returns
         -------
-        X : 2-dimensional array
-            Array of shape `(n_halos, 3)`, where the latter axis represents
-            `x`, `y` and `z`.
+        pos : 2-dimensional array of shape `(nhalos, 3)`
         """
-        return numpy.vstack(
-            [self._data["peak_{}".format(p)] for p in ("x", "y", "z")]).T
+        if in_initial:
+            ps = ["x0", "y0", "z0"]
+        else:
+            ps = ["peak_x", "peak_y", "peak_z"]
+        return numpy.vstack([self[p] for p in ps]).T
 
-    @property
-    def positions0(self):
-        r"""
-        3D positions of halos in the initial snapshot in :math:`\mathrm{cMpc}`.
-
-        Returns
-        -------
-        X : 2-dimensional array
-            Array of shape `(n_halos, 3)`, where the latter axis represents
-            `x`, `y` and `z`.
-        """
-        try:
-            return numpy.vstack(
-                [self._data["{}".format(p)] for p in ("x0", "y0", "z0")]).T
-        except KeyError:
-            raise RuntimeError("Initial positions are not set!")
-
-    @property
     def velocities(self):
         """
-        Cartesian velocities of halos.
+        Cartesian velocity components of halos. Likely in box units.
 
         Returns
         -------
-        vel : 2-dimensional array
-            Array of shape `(n_halos, 3)`.
+        vel : 2-dimensional array of shape `(nhalos, 3)`
         """
         return numpy.vstack([self["v{}".format(p)] for p in ("x", "y", "z")]).T
 
-    @property
     def angmomentum(self):
         """
-        Angular momentum of halos in the box coordinate system.
+        Cartesian angular momentum components of halos in the box coordinate
+        system. Likely in box units.
 
         Returns
         -------
-        angmom : 2-dimensional array
-            Array of shape `(n_halos, 3)`.
+        angmom : 2-dimensional array of shape `(nhalos, 3)`
         """
         return numpy.vstack([self["L{}".format(p)] for p in ("x", "y", "z")]).T
 
-    def radius_neigbours(self, X, radius, select_initial=True):
+    def knn(self, in_initial):
+        """
+        kNN object of all halo positions.
+
+        Parameters
+        ----------
+        in_initial : bool
+            Whether to define the kNN on the initial or final snapshot.
+
+        Returns
+        -------
+        knn : :py:class:`sklearn.neighbors.NearestNeighbors`
+        """
+        knn = NearestNeighbors()
+        return knn.fit(self.positions(in_initial))
+
+    def radius_neigbours(self, X, radius, in_initial):
         r"""
-        Return sorted nearest neigbours within `radius` of `X` in the initial
+        Sorted nearest neigbours within `radius` of `X` in the initial
         or final snapshot.
 
         Parameters
         ----------
-        X : 2-dimensional array
-            Array of shape `(n_queries, 3)`, where the latter axis represents
-            `x`, `y` and `z`.
+        X : 2-dimensional array of shape `(n_queries, 3)`
+            Cartesian query position components in :math:`\mathrm{cMpc}`.
         radius : float
-            Limiting distance of neighbours.
-        select_initial : bool, optional
-            Whether to search for neighbours in the initial or final snapshot.
-            By default `True`, i.e. the final snapshot.
+            Limiting neighbour distance.
+        in_initial : bool
+            Whether to define the kNN on the initial or final snapshot.
 
         Returns
         -------
@@ -329,7 +297,7 @@ class HaloCatalogue:
         """
         if not (X.ndim == 2 and X.shape[1] == 3):
             raise TypeError("`X` must be an array of shape `(n_samples, 3)`.")
-        knn = self.knn(select_initial)
+        knn = self.knn(in_initial)
         return knn.radius_neighbors(X, radius, sort_results=True)
 
     @property
@@ -345,6 +313,11 @@ class HaloCatalogue:
 
     def __len__(self):
         return self.data.size
+
+
+###############################################################################
+#                           Useful functions                                  #
+###############################################################################
 
 
 def concatenate_clumps(clumps):
