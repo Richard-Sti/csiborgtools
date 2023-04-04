@@ -15,12 +15,10 @@
 """
 Tools for splitting the particles and a clump object.
 """
-
-
-import numpy
 from os import remove
 from warnings import warn
 from os.path import join
+import numpy
 from tqdm import trange
 from ..read import ParticleReader
 
@@ -34,11 +32,11 @@ def clump_with_particles(particle_clumps, clumps):
     particle_clumps : 1-dimensional array
         Array of particles' clump IDs.
     clumps : structured array
-        The clumps array.
+        Clumps array.
 
     Returns
     -------
-    with_particles : 1-dimensional array
+    with_particles : 1-dimensional boolean array
         Array of whether a clump has any particles.
     """
     return numpy.isin(clumps["index"], particle_clumps)
@@ -54,13 +52,12 @@ def distribute_halos(n_splits, clumps):
     n_splits : int
         Number of splits.
     clumps : structured array
-        The clumps array.
+        Clumps array.
 
     Returns
     -------
-    splits : 2-dimensional array
-        Array of starting and ending indices of each CPU of shape
-        `(njobs, 2)`.
+    splits : 2-dimensional array of shape `(njobs, 2)`
+        Array of starting and ending indices of each CPU.
     """
     # Make sure these are unique IDs
     indxs = clumps["index"]
@@ -75,7 +72,7 @@ def distribute_halos(n_splits, clumps):
 
 
 def dump_split_particles(particles, particle_clumps, clumps, n_splits,
-                         paths, verbose=True):
+                         nsnap, nsim, paths, verbose=True):
     """
     Save the data needed for each split so that a process does not have to load
     everything.
@@ -90,6 +87,10 @@ def dump_split_particles(particles, particle_clumps, clumps, n_splits,
         The clumps array.
     n_splits : int
         Number of times to split the clumps.
+    nsnap : int
+        Snapshot index.
+    nsim : int
+        IC realisation index.
     paths : py:class`csiborgtools.read.CSiBORGPaths`
         CSiBORG paths-handling object with set `n_sim` and `n_snap`.
     verbose : bool, optional
@@ -112,9 +113,8 @@ def dump_split_particles(particles, particle_clumps, clumps, n_splits,
     splits = distribute_halos(n_splits, clumps)
     fname = join(paths.temp_dumpdir, "out_{}_snap_{}_{}.npz")
 
-    iters = trange(n_splits) if verbose else range(n_splits)
     tot = 0
-    for n in iters:
+    for n in trange(n_splits) if verbose else range(n_splits):
         # Lower and upper array index of the clumps array
         i, j = splits[n, :]
         # Clump indices in this split
@@ -130,7 +130,7 @@ def dump_split_particles(particles, particle_clumps, clumps, n_splits,
                 "with no particles.".format(n, indxs.size, npart_unique))
         # Dump it!
         tot += mask.sum()
-        fout = fname.format(paths.n_sim, paths.n_snap, n)
+        fout = fname.format(nsim, nsnap, n)
         numpy.savez(fout, particles[mask], particle_clumps[mask], clumps[i:j])
 
     # There are particles whose clump ID is > 1 and have no counterpart in the
@@ -166,7 +166,7 @@ def split_jobs(njobs, ncpu):
     return jobs
 
 
-def load_split_particles(n_split, paths, remove_split=False):
+def load_split_particles(nsplit, nsnap, nsim, paths, remove_split=False):
     """
     Load particles of a split saved by `dump_split_particles`.
 
@@ -174,6 +174,10 @@ def load_split_particles(n_split, paths, remove_split=False):
     --------
     n_split : int
         Split index.
+    nsnap : int
+        Snapshot index.
+    nsim : int
+        IC realisation index.
     paths : py:class`csiborgtools.read.CSiBORGPaths`
         CSiBORG paths-handling object with set `n_sim` and `n_snap`.
     remove_split : bool, optional
@@ -188,9 +192,8 @@ def load_split_particles(n_split, paths, remove_split=False):
     clumps : 1-dimensional array
         Clumps belonging to this split.
     """
-    fname = join(
-        paths.temp_dumpdir, "out_{}_snap_{}_{}.npz".format(
-            paths.n_sim, paths.n_snap, n_split))
+    fname = join(paths.temp_dumpdir,
+                 "out_{}_snap_{}_{}.npz".format(nsim, nsnap, nsplit))
     file = numpy.load(fname)
     particles, clump_indxs, clumps = (file[f] for f in file.files)
     if remove_split:
@@ -271,7 +274,6 @@ class Clump:
     _clump_pos = None
     _clump_mass = None
     _vel = None
-    _Npart = None
     _index = None
     _rhoc = None
     _G = None
@@ -279,13 +281,20 @@ class Clump:
     def __init__(self, x, y, z, m, x0, y0, z0, clump_mass=None,
                  vx=None, vy=None, vz=None, index=None, rhoc=None, G=None):
         self.pos = (x, y, z, x0, y0, z0)
-        self.clump_pos = (x0, y0, z0)
-        self.clump_mass = clump_mass
-        self.vel = (vx, vy, vz)
-        self.m = m
-        self.index = index
-        self.rhoc = rhoc
-        self.G = G
+        self._clump_pos = numpy.asarray((x0, y0, z0))
+        assert clump_mass is None or isinstance(clump_mass, float)
+        self._clump_mass = clump_mass
+        if all(v is not None for v in (vx, vy, vz)):
+            self._vel = numpy.vstack([vx, vy, vz]).T
+            assert self._vel.shape == self.pos.shape
+        assert m.ndim == 1 and m.size == self.Npart
+        self._m = m
+        assert index is None or (isinstance(index, (int, numpy.int64)) and index >= 0)  # noqa
+        self._index = index
+        assert rhoc is None or rhoc > 0
+        self._rhoc = rhoc
+        assert G is None or G > 0
+        self._G = G
 
     @property
     def pos(self):
@@ -306,7 +315,17 @@ class Clump:
         self._r = numpy.sum(self.pos**2, axis=1)**0.5
         self._rmin = numpy.min(self._r)
         self._rmax = numpy.max(self._r)
-        self._Npart = self._r.size
+
+    @property
+    def Npart(self):
+        """
+        Number of particles associated with this clump.
+
+        Returns
+        -------
+        Npart : int
+        """
+        return self.pos.shape[0]
 
     @property
     def r(self):
@@ -342,34 +361,15 @@ class Clump:
         return self._rmax
 
     @property
-    def Npart(self):
-        """
-        Number of particles associated with this clump.
-
-        Returns
-        -------
-        Npart : int
-        """
-        return self._Npart
-
-    @property
     def clump_pos(self):
         """
-        Cartesian clump coordinates.
+        Cartesian position components of the clump.
 
         Returns
         -------
         pos : 1-dimensional array of shape `(3, )`
         """
         return self._clump_pos
-
-    @clump_pos.setter
-    def clump_pos(self, pos):
-        """Sets `clump_pos`. Makes sure it is the correct shape."""
-        pos = numpy.asarray(pos)
-        if pos.shape != (3,):
-            raise TypeError("Invalid clump position `{}`".format(pos.shape))
-        self._clump_pos = pos
 
     @property
     def clump_mass(self):
@@ -384,17 +384,10 @@ class Clump:
             raise ValueError("Clump mass `clump_mass` has not been set.")
         return self._clump_mass
 
-    @clump_mass.setter
-    def clump_mass(self, mass):
-        """Sets `clump_mass`, making sure it is a float."""
-        if mass is not None and not isinstance(mass, float):
-            raise ValueError("`clump_mass` must be a float.")
-        self._clump_mass = mass
-
     @property
     def vel(self):
         """
-        Cartesian particle velocities. Throws an error if they are not set.
+        Cartesian velocity components of the clump.
 
         Returns
         -------
@@ -403,16 +396,6 @@ class Clump:
         if self._vel is None:
             raise ValueError("Velocities `vel` have not been set.")
         return self._vel
-
-    @vel.setter
-    def vel(self, V):
-        """Sets the particle velocities, making sure the shape is OK."""
-        if any(v is None for v in V):
-            return
-        vx, vy, vz = V
-        self._vel = numpy.vstack([vx, vy, vz]).T
-        if self.pos.shape != self.vel.shape:
-            raise ValueError("Different `pos` and `vel` arrays!")
 
     @property
     def m(self):
@@ -425,18 +408,11 @@ class Clump:
         """
         return self._m
 
-    @m.setter
-    def m(self, m):
-        """Sets particle masses `m`, ensuring it is the right size."""
-        if not isinstance(m, numpy.ndarray) and m.size != self.r.size:
-            raise TypeError("`r` and `m` must be equal size 1-dim arrays.")
-        self._m = m
-
     @property
     def center_mass(self):
         """
-        Clump center of mass. Note that this is already in a frame centered at
-        the clump's potential minimum.
+        Cartesian position components of the clump centre of mass. Note that
+        this is already in a frame centered at the clump's potential minimum.
 
         Returns
         -------
@@ -445,9 +421,42 @@ class Clump:
         return numpy.average(self.pos, axis=0, weights=self.m)
 
     @property
+    def angular_momentum(self):
+        """
+        Clump angular momentum in the box coordinates.
+
+        Returns
+        -------
+        J : 1-dimensional array or shape `(3, )`
+        """
+        J = numpy.cross(self.pos - self.center_mass, self.vel)
+        return numpy.einsum("i,ij->j", self.m, J)
+
+    @property
+    def lambda200c(self):
+        r"""
+        Clump Bullock spin, see Eq. 5 in [1], in a radius of
+        :math:`R_{\rm 200c}`.
+
+        References
+        ----------
+        [1] A Universal Angular Momentum Profile for Galactic Halos; 2001;
+        Bullock, J. S.;  Dekel, A.;  Kolatt, T. S.;  Kravtsov, A. V.;
+        Klypin, A. A.;  Porciani, C.;  Primack, J. R.
+
+        Returns
+        -------
+        lambda200c : float
+        """
+        J = self.angular_momentum
+        R, M = self.spherical_overdensity_mass(200)
+        V = numpy.sqrt(self.G * M / R)
+        return numpy.linalg.norm(J) / (numpy.sqrt(2) * M * V * R)
+
+    @property
     def index(self):
         """
-        The halo finder clump index.
+        Halo finder clump index.
 
         Returns
         -------
@@ -457,17 +466,10 @@ class Clump:
             raise ValueError("Halo index `hindex` has not been set.")
         return self._index
 
-    @index.setter
-    def index(self, n):
-        """Sets the halo index, making sure it is an integer."""
-        if n is not None and not (isinstance(n, (int, numpy.int64)) and n > 0):
-            raise ValueError("Halo index `index` must be an integer > 0.")
-        self._index = n
-
     @property
     def rhoc(self):
         r"""
-        The critical density :math:`\rho_c` at this snapshot in box units.
+        Critical density :math:`\rho_c` at this snapshot in box units.
 
         Returns
         -------
@@ -477,17 +479,10 @@ class Clump:
             raise ValueError("The critical density `rhoc` has not been set.")
         return self._rhoc
 
-    @rhoc.setter
-    def rhoc(self, rhoc):
-        """Sets the critical density. Makes sure it is > 0."""
-        if rhoc is not None and not rhoc > 0:
-            raise ValueError("Critical density `rho_c` must be > 0.")
-        self._rhoc = rhoc
-
     @property
     def G(self):
         r"""
-        The gravitational constant :math:`G` in box units.
+        Gravitational constant :math:`G` in box units.
 
         Returns
         -------
@@ -496,13 +491,6 @@ class Clump:
         if self._G is None:
             raise ValueError("The grav. constant `G` has not been set.")
         return self._G
-
-    @G.setter
-    def G(self, G):
-        """Sets the gravitational constant. Makes sure it is > 0."""
-        if G is not None and not G > 0:
-            raise ValueError("Gravitational constant `G` must be > 0.")
-        self._G = G
 
     @property
     def total_particle_mass(self):
@@ -528,8 +516,7 @@ class Clump:
 
     def enclosed_spherical_mass(self, rmax, rmin=0):
         """
-        The enclosed spherical mass between two radii. All quantities remain
-        in the box units.
+        Enclosed spherical mass between two radii in box units.
 
         Parameters
         ----------
@@ -547,14 +534,14 @@ class Clump:
 
     def enclosed_spherical_volume(self, rmax, rmin=0):
         """
-        Enclosed volume within two radii.
+        Enclosed spherical volume within two radii in box units.
 
         Parameters
         ----------
         rmax : float
-            The maximum radial distance.
+            Maximum radial distance.
         rmin : float, optional
-            The minimum radial distance. By default 0.
+            Minimum radial distance. By default 0.
 
         Returns
         -------
@@ -581,15 +568,15 @@ class Clump:
             The :math:`\delta_{\rm x}` parameters where :math:`\mathrm{x}` is
             the overdensity multiple.
         n_particles_min : int
-            The minimum number of enclosed particles for a radius to be
+            Minimum number of enclosed particles for a radius to be
             considered trustworthy.
 
         Returns
         -------
         rx : float
-            The radius where the enclosed density reaches required value.
+            Radius where the enclosed density reaches required value.
         mx :  float
-            The corresponding spherical enclosed mass.
+            Corresponding spherical enclosed mass.
         """
         # If single `delta` turn to list
         delta = [delta] if isinstance(delta, (float, int)) else delta
@@ -635,39 +622,6 @@ class Clump:
             mfound = mfound[0]
 
         return rfound, mfound
-
-    @property
-    def angular_momentum(self):
-        """
-        The clump angular momentum in the box coordinates.
-
-        Returns
-        -------
-        J : 1-dimensional array or shape `(3, )`
-        """
-        J = numpy.cross(self.pos - self.center_mass, self.vel)
-        return numpy.einsum("i,ij->j", self.m, J)
-
-    @property
-    def lambda200c(self):
-        r"""
-        The clump Bullock spin, see Eq. 5 in [1], in a radius of
-        :math:`R_{\rm 200c}`.
-
-        References
-        ----------
-        [1] A Universal Angular Momentum Profile for Galactic Halos; 2001;
-        Bullock, J. S.;  Dekel, A.;  Kolatt, T. S.;  Kravtsov, A. V.;
-        Klypin, A. A.;  Porciani, C.;  Primack, J. R.
-
-        Returns
-        -------
-        lambda200c : float
-        """
-        J = self.angular_momentum
-        R, M = self.spherical_overdensity_mass(200)
-        V = numpy.sqrt(self.G * M / R)
-        return numpy.linalg.norm(J) / (numpy.sqrt(2) * M * V * R)
 
     @classmethod
     def from_arrays(cls, particles, clump, rhoc=None, G=None):
