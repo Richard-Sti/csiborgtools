@@ -14,4 +14,4 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 from .transforms import cartesian_to_radec, radec_to_cartesian  # noqa
-from .box_units import (BoxUnits)  # noqa
+from .box_units import BoxUnits  # noqa
