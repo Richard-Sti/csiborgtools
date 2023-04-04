@@ -15,12 +15,12 @@
 """
 Density field and cross-correlation calculations.
 """
+from warnings import warn
+from tqdm import trange
 import numpy
 import MAS_library as MASL
 import Pk_library as PKL
 import smoothing_library as SL
-from warnings import warn
-from tqdm import trange
 from ..units import (BoxUnits, radec_to_cartesian)
 
 
@@ -55,9 +55,12 @@ class DensityField:
 
     def __init__(self, particles, boxsize, box, MAS="CIC"):
         self.particles = particles
+        assert boxsize > 0
+        self._boxsize = boxsize
+        assert isinstance(box, BoxUnits)
         self.box = box
-        self.boxsize = boxsize
-        self.MAS = MAS
+        assert MAS in ["NGP", "CIC", "TSC", "PCS"]
+        self._MAS = MAS
 
     @property
     def particles(self):
@@ -89,15 +92,10 @@ class DensityField:
         """
         return self._boxsize
 
-    @boxsize.setter
-    def boxsize(self, boxsize):
-        """Set `self.boxsize`."""
-        self._boxsize = boxsize
-
     @property
     def box(self):
         """
-        The simulation box information and transformations.
+        Simulation box information and transformations.
 
         Returns
         -------
@@ -105,32 +103,16 @@ class DensityField:
         """
         return self._box
 
-    @box.setter
-    def box(self, box):
-        """Set the simulation box."""
-        if not isinstance(box, BoxUnits):
-            raise TypeError("`box` must be `BoxUnits` instance.")
-        self._box = box
-
     @property
     def MAS(self):
         """
-        The mass-assignment scheme.
+        Mass-assignment scheme.
 
         Returns
         -------
         MAS : str
         """
         return self._MAS
-
-    @MAS.setter
-    def MAS(self, MAS):
-        """Sets `self.MAS`."""
-        opts = ["NGP", "CIC", "TSC", "PCS"]
-        if MAS not in opts:
-            raise ValueError("Invalid MAS `{}`. Options are: `{}`."
-                             .format(MAS, opts))
-        self._MAS = MAS
 
     @staticmethod
     def _force_f32(x, name):
@@ -147,17 +129,16 @@ class DensityField:
         Parameters
         ----------
         grid : int
-            The grid size.
+            Grid size.
         smooth_scale : float, optional
             Scale to smoothen the density field, in units matching
-            `self.boxsize`. By default `None`, i.e. no smoothing is applied.
-        verbose : float, optional
-            A verbosity flag. By default `True`.
+            `self.boxsize`. By default no smoothing is applied.
+        verbose : bool
+            Verbosity flag.
 
         Returns
         -------
         rho : 3-dimensional array of shape `(grid, grid, grid)`.
-            Density field.
 
         References
         ----------
@@ -185,17 +166,16 @@ class DensityField:
         Parameters
         ----------
         grid : int
-            The grid size.
+            Grid size.
         smooth_scale : float, optional
             Scale to smoothen the density field, in units matching
-            `self.boxsize`. By default `None`, i.e. no smoothing is applied.
-        verbose : float, optional
-            A verbosity flag. By default `True`.
+            `self.boxsize`. By default no smoothing is applied.
+        verbose : bool
+            Verbosity flag.
 
         Returns
         -------
         overdensity : 3-dimensional array of shape `(grid, grid, grid)`.
-            Overdensity field.
         """
         # Get the overdensity
         delta = self.density_field(grid, smooth_scale, verbose)
@@ -210,17 +190,16 @@ class DensityField:
         Parameters
         ----------
         grid : int
-            The grid size.
+            Grid size.
         smooth_scale : float, optional
-            Scale to smoothen the original density field, in units matching
-            `self.boxsize`. By default `None`, i.e. no smoothing is applied.
-        verbose : float, optional
-            A verbosity flag. By default `True`.
+            Scale to smoothen the density field, in units matching
+            `self.boxsize`. By default no smoothing is applied.
+        verbose : bool
+            Verbosity flag.
 
         Returns
         -------
         potential : 3-dimensional array of shape `(grid, grid, grid)`.
-            Potential field.
         """
         delta = self.overdensity_field(grid, smooth_scale, verbose)
         if verbose:
@@ -236,12 +215,12 @@ class DensityField:
         Parameters
         ----------
         grid : int
-            The grid size.
+            Grid size.
         smooth_scale : float, optional
-            Scale to smoothen the original density field, in units matching
-            `self.boxsize`. By default `None`, i.e. no smoothing is applied.
-        verbose : float, optional
-            A verbosity flag. By default `True`.
+            Scale to smoothen the density field, in units matching
+            `self.boxsize`. By default no smoothing is applied.
+        verbose : bool
+            Verbosity flag.
 
         Returns
         -------
@@ -260,12 +239,12 @@ class DensityField:
         Parameters
         ----------
         grid : int
-            The grid size.
+            Grid size.
         smooth_scale : float, optional
-            Scale to smoothen the original density field, in units matching
-            `self.boxsize`. By default `None`, i.e. no smoothing is applied.
-        verbose : float, optional
-            A verbosity flag. By default `True`.
+            Scale to smoothen the density field, in units matching
+            `self.boxsize`. By default no smoothing is applied.
+        verbose : bool, optional
+            A verbosity flag.
 
         Returns
         -------
@@ -284,24 +263,23 @@ class DensityField:
         Parameters
         ----------
         grid : int
-            The grid size.
+            Grid size.
         smooth_scale : float, optional
-            Scale to smoothen the original density field, in units matching
-            `self.boxsize`. By default `None`, i.e. no smoothing is applied.
-        verbose : float, optional
-            A verbosity flag. By default `True`.
+            Scale to smoothen the density field, in units matching
+            `self.boxsize`. By default no smoothing is applied.
+        verbose : bool, optional
+            Verbosity flag.
 
         Returns
         -------
         pk : py:class`Pk_library.Pk`
-            Power spectrum object.
         """
         delta = self.overdensity_field(grid, smooth_scale, verbose)
         return PKL.Pk(
             delta, self.boxsize, axis=1, MAS=self.MAS, threads=1,
             verbose=verbose)
 
-    def smooth_field(self, field, scale, threads=1):
+    def smooth_field(self, field, smooth_scale, threads=1):
         """
         Smooth a field with a Gaussian filter.
 
@@ -309,9 +287,9 @@ class DensityField:
         ----------
         field : 3-dimensional array of shape `(grid, grid, grid)`
             The field to be smoothed.
-        scale : float
-            The smoothing scale of the Gaussian filter. Units must match that
-            of `self.boxsize`.
+        smooth_scale : float, optional
+            Scale to smoothen the density field, in units matching
+            `self.boxsize`. By default no smoothing is applied.
         threads : int, optional
             Number of threads. By default 1.
 
@@ -322,17 +300,17 @@ class DensityField:
         Filter = "Gaussian"
         grid = field.shape[0]
         # FFT of the filter
-        W_k = SL.FT_filter(self.boxsize, scale, grid, Filter, threads)
+        W_k = SL.FT_filter(self.boxsize, smooth_scale, grid, Filter, threads)
         return SL.field_smoothing(field, W_k, threads)
 
     def evaluate_field(self, *field, pos):
         """
-        Evaluate the field at Cartesian coordinates.
+        Evaluate the field at Cartesian coordinates using CIC interpolation.
 
         Parameters
         ----------
         field : (list of) 3-dimensional array of shape `(grid, grid, grid)`
-            The density field that is to be interpolated.
+            Density field that is to be interpolated.
         pos : 2-dimensional array of shape `(n_samples, 3)`
             Positions to evaluate the density field. The coordinates span range
             of [0, boxsize].
@@ -340,7 +318,6 @@ class DensityField:
         Returns
         -------
         interp_field : (list of) 1-dimensional array of shape `(n_samples,).
-            Interpolated fields at `pos`.
         """
         self._force_f32(pos, "pos")
 
@@ -353,12 +330,13 @@ class DensityField:
     def evaluate_sky(self, *field, pos, isdeg=True):
         """
         Evaluate the field at given distance, right ascension and declination.
-        Assumes that the observed is in the centre of the box.
+        Assumes that the observed is in the centre of the box and uses CIC
+        interpolation.
 
         Parameters
         ----------
         field : (list of) 3-dimensional array of shape `(grid, grid, grid)`
-            The density field that is to be interpolated. Assumed to be defined
+            Density field that is to be interpolated. Assumed to be defined
             on a Cartesian grid.
         pos : 2-dimensional array of shape `(n_samples, 3)`
             Spherical coordinates to evaluate the field. Should be distance,
@@ -369,7 +347,6 @@ class DensityField:
         Returns
         -------
         interp_field : (list of) 1-dimensional array of shape `(n_samples,).
-            Interpolated fields at `pos`.
         """
         self._force_f32(pos, "pos")
         X = numpy.vstack(
@@ -387,12 +364,11 @@ class DensityField:
         Parameters
         ----------
         gx, gy, gz : 1-dimensional arrays of shape `(n_samples,)`
-            Gravitational field components.
+            Gravitational field Cartesian components.
 
         Returns
         -------
         g : 1-dimensional array of shape `(n_samples,)`
-            Gravitational field norm.
         """
         return numpy.sqrt(gx * gx + gy * gy + gz * gz)
 
@@ -410,7 +386,6 @@ class DensityField:
         Returns
         -------
         eigvals : 2-dimensional array of shape `(n_samples, 3)`
-            Eigenvalues of each sample.
         """
         n_samples = T00.size
         # Fill array of shape `(n_samples, 3, 3)` to calculate eigvals
@@ -446,14 +421,14 @@ class DensityField:
             Directions to evaluate the field. Assumes `dec` is in [-90, 90]
             degrees (or equivalently in radians).
         field : 3-dimensional array of shape `(grid, grid, grid)`
-            The density field that is to be interpolated. Assumed to be defined
+            Density field that is to be interpolated. Assumed to be defined
             on a Cartesian grid `[0, self.boxsize]^3`.
         dist_marg : 1-dimensional array
             Radial distances to evaluate the field.
         isdeg : bool, optional
             Whether `ra` and `dec` are in degres. By default `True`.
         verbose : bool, optional
-            Verbosity flag. By default `True`.
+            Verbosity flag.
 
         Returns
         -------
