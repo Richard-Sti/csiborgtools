@@ -15,7 +15,6 @@
 """
 Functions to read in the particle and clump files.
 """
-
 import numpy
 from scipy.io import FortranFile
 from os.path import (join, isfile, isdir)
@@ -55,10 +54,17 @@ class CSiBORGPaths:
                  dumpdir="/mnt/extraspace/rstiskalek/csiborg/",
                  mmain_path="/mnt/zfsusers/hdesmond/Mmain",
                  initmatch_path="/mnt/extraspace/rstiskalek/csiborg/initmatch/"):  # noqa
-        self.srcdir = srcdir
-        self.dumpdir = dumpdir
-        self.mmain_path = mmain_path
-        self.initmatch_path = initmatch_path
+        for path in [srcdir, dumpdir, mmain_path, initmatch_path]:
+            self._check_directory(path)
+        self._srcdir = srcdir
+        self._dumpdir = dumpdir
+        self._mmain_path = mmain_path
+        self._initmatch_path = initmatch_path
+
+    @staticmethod
+    def _check_directory(path):
+        if not isdir(path):
+            raise IOError("Invalid directory `{}`!".format(path))
 
     @property
     def srcdir(self):
@@ -70,12 +76,6 @@ class CSiBORGPaths:
         path : str
         """
         return self._srcdir
-
-    @srcdir.setter
-    def srcdir(self, srcdir):
-        if not isdir(srcdir):
-            raise IOError("Invalid directory `{}`!".format(srcdir))
-        self._srcdir = srcdir
 
     @property
     def dumpdir(self):
@@ -102,12 +102,6 @@ class CSiBORGPaths:
             raise IOError("Invalid directory `{}`.".format(fpath))
         return fpath
 
-    @dumpdir.setter
-    def dumpdir(self, dumpdir):
-        if not isdir(dumpdir):
-            raise IOError("Invalid directory `{}`!".format(dumpdir))
-        self._dumpdir = dumpdir
-
     @property
     def mmain_path(self):
         """
@@ -118,12 +112,6 @@ class CSiBORGPaths:
         path : str
         """
         return self._mmain_path
-
-    @mmain_path.setter
-    def mmain_path(self, mmain_path):
-        if not isdir(mmain_path):
-            raise IOError("Invalid directory `{}`!".format(mmain_path))
-        self._mmain_path = mmain_path
 
     @property
     def initmatch_path(self):
@@ -136,12 +124,6 @@ class CSiBORGPaths:
         path : str
         """
         return self._initmatch_path
-
-    @initmatch_path.setter
-    def initmatch_path(self, initmatch_path):
-        if not isdir(initmatch_path):
-            raise IOError("Invalid directory `{}`!".format(initmatch_path))
-        self._initmatch_path = initmatch_path
 
     @property
     def ic_ids(self):
