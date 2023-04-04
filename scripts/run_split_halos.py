@@ -33,14 +33,14 @@ rank = comm.Get_rank()
 nproc = comm.Get_size()
 
 paths = csiborgtools.read.CSiBORGPaths()
-nsims = len(paths.ic_ids(False))
+sims = paths.ic_ids(False)
 partcols = ["x", "y", "z", "vx", "vy", "vz", "M", "level"]
 
-jobs = csiborgtools.fits.split_jobs(len(nsims), nproc)[rank]
+jobs = csiborgtools.fits.split_jobs(len(sims), nproc)[rank]
 for icount, sim_index in enumerate(jobs):
     print("{}: rank {} working {} / {} jobs."
           .format(datetime.now(), rank, icount + 1, len(jobs)), flush=True)
-    nsim = nsims[sim_index]
+    nsim = sims[sim_index]
     nsnap = max(paths.get_snapshots(nsim))
     partreader = csiborgtools.read.ParticleReader(paths)
     # Load the clumps, particles' clump IDs and particles.
