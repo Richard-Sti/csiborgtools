@@ -37,16 +37,21 @@ class BoxUnits:
 
     Paramaters
     ----------
+    nsnap : int
+        Snapshot index.
+    nsim : int
+        IC realisation index.
     paths : py:class`csiborgtools.read.CSiBORGPaths`
+        CSiBORG paths object.
     """
     _cosmo = None
 
-    def __init__(self, paths):
+    def __init__(self, nsnap, nsim, paths):
         """
         Read in the snapshot info file and set the units from it.
         """
         partreader = ParticleReader(paths)
-        info = partreader.read_info()
+        info = partreader.read_info(nsnap, nsim)
         pars = ["boxlen", "time", "aexp", "H0",
                 "omega_m", "omega_l", "omega_k", "omega_b",
                 "unit_l", "unit_d", "unit_t"]
