@@ -35,6 +35,7 @@ parser.add_argument("--sigma", type=float)
 args = parser.parse_args()
 
 # File paths
+paths = csiborgtools.read.CSiBORGPaths()
 fout = join(utils.dumpdir, "overlap",
             "cross_{}_{}.npz".format(args.nsim0, args.nsimx))
 smooth_kwargs = {"sigma": args.sigma, "mode": "constant", "cval": 0.0}
@@ -43,18 +44,18 @@ overlapper = csiborgtools.match.ParticleOverlap()
 # Load catalogues
 print("{}: loading catalogues {} and {}."
       .format(datetime.now(), args.nsim0, args.nsimx), flush=True)
-cat0 = csiborgtools.read.HaloCatalogue(args.nsim0)
-catx = csiborgtools.read.HaloCatalogue(args.nsimx)
+cat0 = csiborgtools.read.HaloCatalogue(args.nsim0, paths)
+catx = csiborgtools.read.HaloCatalogue(args.nsimx, paths)
 
 
 print("{}: loading simulation {} and converting positions to cell numbers."
       .format(datetime.now(), args.nsim0), flush=True)
-with open(cat0.paths.clump0_path(args.nsim0), "rb") as f:
+with open(paths.clump0_path(args.nsim0), "rb") as f:
     clumps0 = numpy.load(f, allow_pickle=True)
     overlapper.clumps_pos2cell(clumps0)
 print("{}: loading simulation {} and converting positions to cell numbers."
       .format(datetime.now(), args.nsimx), flush=True)
-with open(catx.paths.clump0_path(args.nsimx), 'rb') as f:
+with open(paths.clump0_path(args.nsimx), 'rb') as f:
     clumpsx = numpy.load(f, allow_pickle=True)
     overlapper.clumps_pos2cell(clumpsx)
 
