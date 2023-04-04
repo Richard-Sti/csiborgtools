@@ -125,18 +125,21 @@ class CSiBORGPaths:
         """
         return self._initmatch_path
 
-    @property
-    def ic_ids(self):
+    def ic_ids(self, tonew):
         """
         CSiBORG IC realisation IDs from the list of folders in `self.srcdir`.
 
+        Parameters
+        ----------
+        tonew : bool
+            If `True`, path to the '_new' ICs is returned.
         Returns
         -------
         ids : 1-dimensional array
         """
         files = glob(join(self.srcdir, "ramses_out*"))
         files = [f.split("/")[-1] for f in files]  # Select only file names
-        if self.to_new:
+        if tonew:
             files = [f for f in files if "_new" in f]
             ids = [int(f.split("_")[2]) for f in files]  # Take the IC IDs
         else:
@@ -150,7 +153,7 @@ class CSiBORGPaths:
                 pass
         return numpy.sort(ids)
 
-    def ic_path(self, nsim, to_new):
+    def ic_path(self, nsim, tonew=False):
         """
         Path to a CSiBORG IC realisation folder.
 
@@ -158,15 +161,15 @@ class CSiBORGPaths:
         ----------
         nsim : int
             IC realisation index.
-        to_new : bool
-            If `True`, path to the '_new' ICs is returned.
+        tonew : bool, optional
+            Whether to return the path to the '_new' IC realisation.
 
         Returns
         -------
         path : str
         """
         fname = "ramses_out_{}"
-        if to_new:
+        if tonew:
             fname += "_new"
         return join(self.srcdir, fname.format(nsim))
 
@@ -183,7 +186,7 @@ class CSiBORGPaths:
         -------
         snapshots : 1-dimensional array
         """
-        simpath = self.ic_path(nsim, to_new=False)
+        simpath = self.ic_path(nsim, tonew=False)
         # Get all files in simpath that start with output_
         snaps = glob(join(simpath, "output_*"))
         # Take just the last _00XXXX from each file  and strip zeros
@@ -208,7 +211,7 @@ class CSiBORGPaths:
         cdir = join(self.dumpdir, "initmatch")
         return join(cdir, "clump_{}_{}.npy".format(nsim, "particles"))
 
-    def snapshot_path(self, nsnap, nsim):
+    def snapshot_path(self, nsnap, nsim, tonew=False):
         """
         Path to a CSiBORG IC realisation snapshot.
 
@@ -218,12 +221,14 @@ class CSiBORGPaths:
             Snapshot index.
         nsim : int
             IC realisation index.
+        tonew : bool, optional
+            Whether to return the path to the '_new' IC realisation.
 
         Returns
         -------
         snappath : str
         """
-        simpath = self.ic_path(nsim)
+        simpath = self.ic_path(nsim, tonew=tonew)
         return join(simpath, "output_{}".format(str(nsnap).zfill(5)))
 
 
