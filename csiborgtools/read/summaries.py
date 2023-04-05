@@ -295,6 +295,38 @@ class kNNCDFReader:
         return cdf
 
     @staticmethod
+    def prob_kvolume(cdfs, rs=None, normalise=False):
+        """
+        Calculate the probability that a spherical volume contains :math:`k`=
+        objects from the kNN CDFs.
+
+        Parameters
+        ----------
+        cdf : 4-dimensional array of shape `(nfiles, nmasses, nknn, nrs)`
+            Array of CDFs
+        normalise : bool, optional
+            Whether to normalise the probability to 1.
+
+        Returns
+        -------
+        pk : 4-dimensional array of shape `(nfiles, nmasses, nknn - 1, nrs)`
+        """
+        out = numpy.full_like(cdfs[..., 1:, :], numpy.nan, dtype=numpy.float32)
+
+        for k in range(cdfs.shape[-2] - 1):
+            out[..., k, :] = cdfs[..., k, :] - cdfs[..., k + 1, :]
+
+        if normalise:
+            assert rs is not None, "rs must be provided to normalise."
+            assert rs.ndim == 1
+
+            norm = numpy.nansum(
+                0.5 * (out[..., 1:] + out[..., :-1]) * (rs[1:] - rs[:-1]),
+                axis=-1)
+            out /= norm.reshape(*norm.shape, 1)
+        return out
+
+    @staticmethod
     def cross_files(ic, folder):
         """
         Return the file paths corresponding to the cross-correlation of a given
