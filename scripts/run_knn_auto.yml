@@ -1,0 +1,91 @@
+rmin: 0.1
+rmax: 100
+nneighbours: 8
+nsamples: 10000
+# batch_size: 1000000
+batch_size: null
+neval: 10000
+seed: 42
+
+
+################################################################################
+#                                 totpartmass                                 #
+################################################################################
+
+
+"001":
+  totpartmass:
+    min: 1.e+12
+    max: null
+
+"002":
+  totpartmass:
+    min: 1.e+13
+    max: null
+
+"003":
+  totpartmass:
+    min: 1.e+14
+    max: null
+
+
+################################################################################
+#                        totpartmass + lambda200c                             #
+################################################################################
+
+
+"004":
+  totpartmass:
+    min: 1.e+12
+    max: null
+  lambda200c:
+    min: null
+    max: X
+
+"005":
+  totpartmass:
+    min: 1.e+12
+    max: null
+  lambda200c:
+    min: X
+    max: null
+
+"006":
+  totpartmass:
+    min: 1.e+13
+    max: null
+  lambda200c:
+    min: null
+    max: X
+
+"007":
+  totpartmass:
+    min: 1.e+13
+    max: null
+  lambda200c:
+    min: X
+    max: null
+
+"008":
+  totpartmass:
+    min: 1.e+13
+    max: null
+  lambda200c:
+    min: null
+    max: X
+
+"009":
+  totpartmass:
+    min: 1.e+14
+    max: null
+  lambda200c:
+    min: null
+    max: X
+
+"010":
+  totpartmass:
+    min: 1.e+14
+    max: null
+  lambda200c:
+    min: X
+    max: null
