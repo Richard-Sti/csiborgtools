@@ -10,11 +10,11 @@ runs="mass001 mass001_perm mass002 mass002_perm mass003 mass003_perm mass001_spi
 
 pythoncm="$env $file --runs $runs"
 
-echo $pythoncm
-$pythoncm
+# echo $pythoncm
+# $pythoncm
 
-# cm="addqueue -q $queue -n $nthreads -m $memory $pythoncm"
-# echo "Submitting:"
-# echo $cm
-# echo
-# $cm
+cm="addqueue -q $queue -n $nthreads -m $memory $pythoncm"
+echo "Submitting:"
+echo $cm
+echo
+$cm
