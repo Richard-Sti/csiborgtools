@@ -2,7 +2,7 @@ nthreads=101
 memory=4
 queue="cmb"
 env="/mnt/zfsusers/rstiskalek/csiborgtools/venv_galomatch/bin/python"
-file="run_knn_auto.py"
+file="knn_auto.py"
 
 
 
