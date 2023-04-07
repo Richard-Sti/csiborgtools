@@ -184,7 +184,49 @@ class kNNCDFReader:
     """
     Shortcut object to read in the kNN CDF data.
     """
-    def read(self, files, ks, rmin=None, rmax=None, to_clip=True):
+    def read_auto(self, run, folder, rmin=None, rmax=None, to_clip=True):
+        """
+        Read the autocorrelation kNN CDF data.
+
+        Parameters
+        ----------
+        run : str
+            Run ID to read in.
+        folder : str
+            Path to the folder where the autocorrelation kNN-CDF is stored.
+        rmin : float, optional
+            Minimum separation. By default ignored.
+        rmax : float, optional
+            Maximum separation. By default ignored.
+        to_clip : bool, optional
+            Whether to clip the auto-correlation CDF.
+
+        Returns
+        -------
+        rs : 1-dimensional array of shape `(neval, )`
+        out : 3-dimensional array of shape `(len(files), len(ks), neval)`
+        """
+        files = glob(join(folder, "*_run{}.p".format(run)))
+        for i, file in enumerate(files):
+            data = joblib.load(file)
+            if i == 0:  # Initialise the array
+                out = numpy.full((len(files), *data["cdf"].shape), numpy.nan,
+                                 dtype=numpy.float32)
+                rs = data["rs"]
+            out[i, ...] = data["cdf"]
+
+            if to_clip:
+                out[i, ...] = self.clipped_cdf(out[i, ...])
+
+        # Apply separation cuts
+        mask = (rs >= rmin if rmin is not None else rs > 0)
+        mask &= (rs <= rmax if rmax is not None else rs < numpy.infty)
+        rs = rs[mask]
+        out = out[..., mask]
+
+        return rs, out
+
+    def read_cross(self, files, ks, rmin=None, rmax=None, to_clip=True):
         """
         Read the kNN CDF data can be either the auto- or cross-correlation.
 
@@ -212,6 +254,7 @@ class kNNCDFReader:
         mass_thresholds : 1-dimensional array
             Array of mass thresholds.
         """
+        raise RuntimeError("Not implemented yet.")
         data = joblib.load(files[0])
         if "cdf_0" in data.keys():
             isauto = True
