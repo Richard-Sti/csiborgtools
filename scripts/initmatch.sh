@@ -2,7 +2,7 @@ nthreads=15  # There isn't too much benefit going to too many CPUs...
 memory=32
 queue="berg"
 env="/mnt/zfsusers/rstiskalek/csiborgtools/venv_galomatch/bin/python"
-file="run_initmatch.py"
+file="initmatch.py"
 
 dump_clumps="false"
 

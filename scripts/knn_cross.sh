@@ -2,7 +2,7 @@ nthreads=151
 memory=4
 queue="cmb"
 env="/mnt/zfsusers/rstiskalek/csiborgtools/venv_galomatch/bin/python"
-file="run_knn.py"
+file="knn_cross.py"
 
 rmin=0.01
 rmax=100

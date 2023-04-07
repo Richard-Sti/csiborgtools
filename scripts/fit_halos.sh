@@ -1,10 +1,8 @@
-nthreads=10
-memory=32
+nthreads=100
+memory=3
 queue="berg"
 env="/mnt/zfsusers/rstiskalek/csiborgtools/venv_galomatch/bin/python"
-file="run_fieldprop.py"
-# grid=1024
-# halfwidth=0.1
+file="fit_halos.py"
 
 cm="addqueue -q $queue -n $nthreads -m $memory $env $file"
 

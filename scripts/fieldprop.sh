@@ -1,8 +1,10 @@
-nthreads=1
-memory=30
-queue="cmb"
+nthreads=10
+memory=32
+queue="berg"
 env="/mnt/zfsusers/rstiskalek/csiborgtools/venv_galomatch/bin/python"
-file="run_split_halos.py"
+file="fieldprop.py"
+# grid=1024
+# halfwidth=0.1
 
 cm="addqueue -q $queue -n $nthreads -m $memory $env $file"
 

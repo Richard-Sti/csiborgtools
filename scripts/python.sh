@@ -1,6 +1,6 @@
 #!/bin/bash -l
 echo =========================================================   
-echo Job submitted  date = Fri Mar 31 16:17:57 BST 2023      
+echo Job submitted  date = Fri Apr  7 10:10:12 BST 2023      
 date_start=`date +%s`
 echo $SLURM_JOB_NUM_NODES nodes \( $SMP processes per node \)        
 echo $SLURM_JOB_NUM_NODES hosts used: $SLURM_JOB_NODELIST      
@@ -17,7 +17,7 @@ export MV2_SMP_USE_CMA=0
 
 #which mpirun
 export OMP_NUM_THEADS=1
- /usr/local/shared/slurm/bin/srun -u -n 5 --mpi=pmi2 --mem-per-cpu=7168 nice -n 10 /mnt/zfsusers/rstiskalek/csiborgtools/venv_galomatch/bin/python run_knn.py --rmin 0.05 --rmax 50 --nsamples 100000 --neval 10000
+ /usr/local/shared/slurm/bin/srun -u -n 101 --mpi=pmi2 --mem-per-cpu=4096 nice -n 10 /mnt/zfsusers/rstiskalek/csiborgtools/venv_galomatch/bin/python run_knn_auto.py --runs 001 002 003 004 005 006 007 008 009
 # If we've been checkpointed
 #if [ -n "${DMTCP_CHECKPOINT_DIR}" ]; then
   if [ -d "${DMTCP_CHECKPOINT_DIR}" ]; then

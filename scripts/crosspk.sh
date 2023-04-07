@@ -2,7 +2,7 @@ nthreads=20
 memory=40
 queue="berg"
 env="/mnt/zfsusers/rstiskalek/csiborgtools/venv_galomatch/bin/python"
-file="run_crosspk.py"
+file="crosspk.py"
 grid=1024
 halfwidth=0.13
 

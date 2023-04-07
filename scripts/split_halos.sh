@@ -1,8 +1,8 @@
-nthreads=100
-memory=3
-queue="berg"
+nthreads=1
+memory=30
+queue="cmb"
 env="/mnt/zfsusers/rstiskalek/csiborgtools/venv_galomatch/bin/python"
-file="run_fit_halos.py"
+file="split_halos.py"
 
 cm="addqueue -q $queue -n $nthreads -m $memory $env $file"
 

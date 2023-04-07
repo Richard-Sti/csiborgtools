@@ -3,7 +3,7 @@
 memory=16
 queue="berg"
 env="/mnt/zfsusers/rstiskalek/csiborgtools/venv_galomatch/bin/python"
-file="run_singlematch.py"
+file="singlematch.py"
 
 nmult=1.
 sigma=1.
