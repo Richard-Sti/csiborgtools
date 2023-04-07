@@ -42,10 +42,11 @@ nproc = comm.Get_size()
 parser = ArgumentParser()
 parser.add_argument("--runs", type=str, nargs="+")
 args = parser.parse_args()
-with open('../scripts/run_knn_auto.yml', 'r') as file:
+with open('../scripts/knn_auto.yml', 'r') as file:
     config = yaml.safe_load(file)
 
 Rmax = 155 / 0.705  # Mpc/h high resolution region radius
+minmass = 1e12
 ics = [7444, 7468, 7492, 7516, 7540, 7564, 7588, 7612, 7636, 7660, 7684,
        7708, 7732, 7756, 7780, 7804, 7828, 7852, 7876, 7900, 7924, 7948,
        7972, 7996, 8020, 8044, 8068, 8092, 8116, 8140, 8164, 8188, 8212,
@@ -57,7 +58,7 @@ ics = [7444, 7468, 7492, 7516, 7540, 7564, 7588, 7612, 7636, 7660, 7684,
        9556, 9580, 9604, 9628, 9652, 9676, 9700, 9724, 9748, 9772, 9796,
        9820, 9844]
 dumpdir = "/mnt/extraspace/rstiskalek/csiborg/knn"
-fout = join(dumpdir, "auto", "knncdf_{}_run{}.p")
+fout = join(dumpdir, "auto", "knncdf_{}_{}.p")
 paths = csiborgtools.read.CSiBORGPaths()
 
 
@@ -68,18 +69,35 @@ knncdf = csiborgtools.match.kNN_CDF()
 
 def read_position(selection, cat):
     mask = numpy.ones(len(cat), dtype=bool)  # Initialise a mask to all true
+    toperm = selection.get("perm")
     for key, val in selection.items():       # Loop over features to cut
-        xmin, xmax = val["min"], val["max"]
-        if xmin is not None:
-            mask &= (cat[key] >= xmin)
-        if xmax is not None:
-            mask &= (cat[key] < xmax)
+        if key == "perm":
+            continue
+
+        prop = cat[key]
+        # Never permute the mass feature
+        if key != config["mass_feature"] and toperm:
+            prop = numpy.random.permutation(prop)
+        # First try whether we have a median cut, otherwise try min/max
+        try:
+            median = numpy.median(prop)
+            if val["below_median"]:
+                mask &= (prop < median)
+            else:
+                mask &= (prop >= median)
+        except KeyError:
+            xmin, xmax = val["min"], val["max"]
+            if xmin is not None:
+                mask &= (prop >= xmin)
+            if xmax is not None:
+                mask &= (prop < xmax)
 
     return cat.positions(False)[mask, ...]
 
 
 def do_auto(ic):
-    cat = csiborgtools.read.HaloCatalogue(ic, paths, max_dist=Rmax)
+    cat = csiborgtools.read.HaloCatalogue(
+        ic, paths, min_mass=minmass, max_dist=Rmax)
 
     for run in args.runs:
         _config = config.get(run, None)
@@ -98,7 +116,7 @@ def do_auto(ic):
             random_state=config["seed"], verbose=False)
 
         joblib.dump({"rs": rs, "cdf": cdf},
-                    fout.format(str(ic).zfill(5), str(run).zfill(3)))
+                    fout.format(str(ic).zfill(5), run))
 
 
 ###############################################################################
