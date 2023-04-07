@@ -6,7 +6,7 @@ file="run_knn_auto.py"
 
 
 
-pythoncm="$env $file --runs 001 002 003 004 005 006 007 008 009 010"
+pythoncm="$env $file --runs 001 002 003 004 005 006 007 008 009"
 
 # echo $pythoncm
 # $pythoncm
