@@ -5,6 +5,7 @@ nsamples: 1.e+7
 batch_size: 1.e+6
 neval: 10000
 seed: 42
+mass_feature: totpartmass
 
 
 ################################################################################
@@ -12,20 +13,41 @@ seed: 42
 ################################################################################
 
 
-"001":
+"mass001":
   totpartmass:
     min: 1.e+12
     max: null
+  perm: false
 
-"002":
+"mass001_perm":
+  totpartmass:
+    min: 1.e+12
+    max: null
+  perm: true
+
+"mass002":
   totpartmass:
     min: 1.e+13
     max: null
+  perm: false
 
-"003":
+"mass002_perm":
+  totpartmass:
+    min: 1.e+13
+    max: null
+  perm: true
+
+"mass003":
   totpartmass:
     min: 1.e+14
     max: null
+  perm: false
+
+"mass003_perm":
+  totpartmass:
+    min: 1.e+14
+    max: null
+  perm: true
 
 
 ################################################################################
@@ -33,50 +55,98 @@ seed: 42
 ################################################################################
 
 
-"004":
+"mass001_spinlow":
   totpartmass:
     min: 1.e+12
     max: null
   lambda200c:
-    min: null
-    max: 0.0978  # Median of this mass threshold
+    below_median: true
+  perm: false
 
-"005":
+"mass001_spinlow_perm":
   totpartmass:
     min: 1.e+12
     max: null
   lambda200c:
-    min: 0.0978
-    max: null
+    below_median: true
+  perm: true
 
-"006":
+"mass001_spinhigh":
+  totpartmass:
+    min: 1.e+12
+    max: null
+  lambda200c:
+    below_median: false
+  perm: false
+
+"mass001_spinhigh_perm":
+  totpartmass:
+    min: 1.e+12
+    max: null
+  lambda200c:
+    below_median: false
+  perm: true
+
+"mass002_spinlow":
   totpartmass:
     min: 1.e+13
     max: null
   lambda200c:
-    min: null
-    max: 0.0974   # Median of this mass threshold
+    below_median: true
+  perm: false
 
-"007":
+"mass002_spinlow_perm":
   totpartmass:
     min: 1.e+13
     max: null
   lambda200c:
-    min: 0.0974
-    max: null
+    below_median: true
+  perm: true
 
-"008":
+"mass002_spinhigh":
+  totpartmass:
+    min: 1.e+13
+    max: null
+  lambda200c:
+    below_median: false
+  perm: false
+
+"mass002_spinhigh_perm":
+  totpartmass:
+    min: 1.e+13
+    max: null
+  lambda200c:
+    below_median: false
+  perm: true
+
+"mass003_spinlow":
   totpartmass:
     min: 1.e+14
     max: null
   lambda200c:
-    min: null
-    max: 0.10675  # Median of this mass threshold
+    below_median: true
+  perm: false
 
-"009":
+"mass003_spinlow_perm":
   totpartmass:
     min: 1.e+14
     max: null
   lambda200c:
-    min: 0.10675
+    below_median: true
+  perm: true
+
+"mass_003_spinhigh":
+  totpartmass:
+    min: 1.e+14
     max: null
+  lambda200c:
+    below_median: false
+  perm: false
+
+"mass_003_spinhigh_perm":
+  totpartmass:
+    min: 1.e+14
+    max: null
+  lambda200c:
+    below_median: false
+  perm: true
