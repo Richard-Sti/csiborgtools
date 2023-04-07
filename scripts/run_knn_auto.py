@@ -14,6 +14,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """A script to calculate the KNN-CDF for a set of CSiBORG halo catalogues."""
 from os.path import join
+from warnings import warn
 from argparse import ArgumentParser
 from copy import deepcopy
 from datetime import datetime
@@ -81,16 +82,19 @@ def do_auto(ic):
     cat = csiborgtools.read.HaloCatalogue(ic, paths, max_dist=Rmax)
 
     for run in args.runs:
-        print("Doing run {} for IC {}".format(run, ic))
-        pos = read_position(config[run], cat)
-        print(pos.shape)
+        _config = config.get(run, None)
+        if _config is None:
+            warn("No configuration for run {}.".format(run))
+            continue
+
+        pos = read_position(_config, cat)
         knn = NearestNeighbors()
         knn.fit(pos)
         rs, cdf = knncdf(
             knn, nneighbours=config["nneighbours"], Rmax=Rmax,
             rmin=config["rmin"], rmax=config["rmax"],
-            nsamples=config["nsamples"],
-            neval=config["neval"], batch_size=config["batch_size"],
+            nsamples=int(config["nsamples"]),
+            neval=int(config["neval"]), batch_size=int(config["batch_size"]),
             random_state=config["seed"], verbose=False)
 
         joblib.dump({"rs": rs, "cdf": cdf},
