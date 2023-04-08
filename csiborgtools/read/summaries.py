@@ -204,9 +204,13 @@ class kNNCDFReader:
         Returns
         -------
         rs : 1-dimensional array of shape `(neval, )`
-        out : 3-dimensional array of shape `(len(files), len(ks), neval)`
+            Separations where the CDF is evaluated.
+        cdf: 3-dimensional array of shape `(len(files), len(ks), neval)`
+            Array of CDFs.
         """
-        files = glob(join(folder, "*_run{}.p".format(run)))
+        run += ".p"
+        files = [f for f in glob(join(folder, "*")) if run in f]
+
         for i, file in enumerate(files):
             data = joblib.load(file)
             if i == 0:  # Initialise the array
@@ -338,36 +342,63 @@ class kNNCDFReader:
         return cdf
 
     @staticmethod
-    def prob_kvolume(cdfs, rs=None, normalise=False):
+    def prk(rs, cdf):
         """
-        Calculate the probability that a spherical volume contains :math:`k`=
-        objects from the kNN CDFs.
+        Calculate the PDF of a radius that contains exactly :math:`k` objects.
 
         Parameters
         ----------
-        cdf : 4-dimensional array of shape `(nfiles, nmasses, nknn, nrs)`
+        rs : 1-dimensional array
+            Array of separations where the CDFs are evaluated.
+        cdf : 3-dimensional array of shape `(len(files), len(ks), len(rs))`
             Array of CDFs
-        normalise : bool, optional
-            Whether to normalise the probability to 1.
 
         Returns
         -------
-        pk : 4-dimensional array of shape `(nfiles, nmasses, nknn - 1, nrs)`
+        pk : 3-dimensional array of shape `(len(files), len(ks)- 1, len(rs))`
         """
-        out = numpy.full_like(cdfs[..., 1:, :], numpy.nan, dtype=numpy.float32)
+        assert rs.ndim == 1
+        assert cdf.shape[-1] == rs.size
+        out = numpy.full_like(cdf[..., 1:, :], numpy.nan, dtype=numpy.float32)
 
-        for k in range(cdfs.shape[-2] - 1):
-            out[..., k, :] = cdfs[..., k, :] - cdfs[..., k + 1, :]
+        for k in range(cdf.shape[-2] - 1):
+            out[..., k, :] = cdf[..., k, :] - cdf[..., k + 1, :]
 
-        if normalise:
-            assert rs is not None, "rs must be provided to normalise."
-            assert rs.ndim == 1
-
-            norm = numpy.nansum(
-                0.5 * (out[..., 1:] + out[..., :-1]) * (rs[1:] - rs[:-1]),
-                axis=-1)
-            out /= norm.reshape(*norm.shape, 1)
+        norm = numpy.nansum(
+            0.5 * (out[..., 1:] + out[..., :-1]) * (rs[1:] - rs[:-1]), axis=-1)
+        out /= norm.reshape(*norm.shape, 1)
         return out
+
+    def mean_prk(self, rs, prk):
+        """
+        Calcuculate the median of a radius that contains exactly :math:`k`
+        objects from the various IC realisation.
+
+        Parameters
+        ----------
+        rs : 1-dimensional array
+            Array of separations where the CDFs are evaluated.
+        prk: 3-dimensional array of shape `(len(files), len(ks) - 1, len(rs))`
+            Array of PDF of a radius that contains exactly :math:`k` objects.
+
+        Returns
+        -------
+        out : 3-dimensional array of shape `(len(ks) - 1, len(rs), 2)`
+            Mean :math:`p(r | k)` and its standard deviation, stored along the
+            last dimension, respectively.
+        """
+        assert rs.ndim == 1
+        assert prk.ndim == 3
+        assert prk.shape[-1] == rs.size
+
+        # Calculate the mean and standard deviation
+        mu = numpy.mean(prk, axis=0)
+        std = numpy.std(prk, axis=0)
+        # Normalise again, though this is barely necessary
+        norm = numpy.nansum(
+            0.5 * (mu[..., 1:] + mu[..., :-1]) * (rs[1:] - rs[:-1]), axis=-1)
+        norm = norm.reshape(*norm.shape, 1)
+        return numpy.stack([mu / norm, std / norm], axis=-1)
 
     @staticmethod
     def cross_files(ic, folder):
