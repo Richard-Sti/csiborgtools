@@ -19,6 +19,7 @@ import numpy
 from scipy.interpolate import interp1d
 from scipy.stats import binned_statistic
 from tqdm import tqdm
+from .utils import rvs_in_sphere
 
 
 class kNN_CDF:
@@ -26,39 +27,6 @@ class kNN_CDF:
     Object to calculate the kNN-CDF for a set of CSiBORG halo catalogues from
     their kNN objects.
     """
-    @staticmethod
-    def rvs_in_sphere(nsamples, R, random_state=42, dtype=numpy.float32):
-        """
-        Generate random samples in a sphere of radius `R` centered at the
-        origin.
-
-        Parameters
-        ----------
-        nsamples : int
-            Number of samples to generate.
-        R : float
-            Radius of the sphere.
-        random_state : int, optional
-            Random state for the random number generator.
-        dtype : numpy dtype, optional
-            Data type, by default `numpy.float32`.
-
-        Returns
-        -------
-        samples : 2-dimensional array of shape `(nsamples, 3)`
-        """
-        gen = numpy.random.default_rng(random_state)
-        # Sample spherical coordinates
-        r = gen.uniform(0, 1, nsamples).astype(dtype)**(1/3) * R
-        theta = 2 * numpy.arcsin(gen.uniform(0, 1, nsamples).astype(dtype))
-        phi = 2 * numpy.pi * gen.uniform(0, 1, nsamples).astype(dtype)
-        # Convert to cartesian coordinates
-        x = r * numpy.sin(theta) * numpy.cos(phi)
-        y = r * numpy.sin(theta) * numpy.sin(phi)
-        z = r * numpy.cos(theta)
-
-        return numpy.vstack([x, y, z]).T
-
     @staticmethod
     def cdf_from_samples(r, rmin=None, rmax=None, neval=None,
                          dtype=numpy.float32):
@@ -164,7 +132,7 @@ class kNN_CDF:
         cdfs : 2-dimensional array
             CDFs evaluated at `rs`.
         """
-        rand = self.rvs_in_sphere(nsamples, Rmax, random_state=random_state)
+        rand = rvs_in_sphere(nsamples, Rmax, random_state=random_state)
 
         dist, __ = knn.kneighbors(rand, nneighbours)
         dist = dist.astype(dtype)
@@ -233,7 +201,7 @@ class kNN_CDF:
 
         jointdist = numpy.zeros((batch_size, 2), dtype=dtype)
         for j in range(nbatches):
-            rand = self.rvs_in_sphere(batch_size, Rmax,
+            rand = rvs_in_sphere(batch_size, Rmax,
                                       random_state=random_state + j)
             dist0, __ = knn0.kneighbors(rand, nneighbours)
             dist1, __ = knn1.kneighbors(rand, nneighbours)
@@ -319,7 +287,7 @@ class kNN_CDF:
         cdfs = numpy.zeros((len(knns), nneighbours, neval - 1), dtype=dtype)
         for i, knn in enumerate(tqdm(knns) if verbose else knns):
             for j in range(nbatches):
-                rand = self.rvs_in_sphere(batch_size, Rmax,
+                rand = rvs_in_sphere(batch_size, Rmax,
                                           random_state=random_state + j)
                 dist, __ = knn.kneighbors(rand, nneighbours)
 
