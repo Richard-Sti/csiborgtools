@@ -60,15 +60,15 @@ ics = [7444, 7468, 7492, 7516, 7540, 7564, 7588, 7612, 7636, 7660, 7684,
 dumpdir = "/mnt/extraspace/rstiskalek/csiborg/knn"
 fout = join(dumpdir, "auto", "knncdf_{}_{}.p")
 paths = csiborgtools.read.CSiBORGPaths()
-
-
-###############################################################################
-#                               Analysis                                      #
-###############################################################################
 knncdf = csiborgtools.match.kNN_CDF()
 
-def read_position(selection, cat):
-    mask = numpy.ones(len(cat), dtype=bool)  # Initialise a mask to all true
+###############################################################################
+#                                 Analysis                                    #
+###############################################################################
+
+def read_auto(selection, cat):
+    """Positions for single catalogue auto-correlation."""
+    mask = numpy.ones(len(cat), dtype=bool)  # Initialise a mask
     toperm = selection.get("perm")
     for key, val in selection.items():       # Loop over features to cut
         if key == "perm":
@@ -94,33 +94,87 @@ def read_position(selection, cat):
 
     return cat.positions(False)[mask, ...]
 
+def do_auto(run, cat, ic):
+    """Calculate the kNN-CDF single catalgoue autocorrelation."""
+    _config = config.get(run, None)
+    if _config is None:
+        warn("No configuration for run {}.".format(run))
+        return
 
-def do_auto(ic):
-    cat = csiborgtools.read.HaloCatalogue(
-        ic, paths, min_mass=minmass, max_dist=Rmax)
+    pos = read_auto(_config, cat)
+    knn = NearestNeighbors()
+    knn.fit(pos)
+    rs, cdf = knncdf(
+        knn, nneighbours=config["nneighbours"], Rmax=Rmax,
+        rmin=config["rmin"], rmax=config["rmax"],
+        nsamples=int(config["nsamples"]),
+        neval=int(config["neval"]),
+        batch_size=int(config["batch_size"]),
+        random_state=config["seed"], verbose=False)
 
+    joblib.dump({"rs": rs, "cdf": cdf},
+                fout.format(str(ic).zfill(5), run))
+
+
+def read_cross(selection, cat):
+    """Positions for single catalogue cross-correlation."""
+    mask = numpy.ones(len(cat), dtype=bool)  # Initialise a mask
+    # Mass selection
+    mkind = config["mass_feature"]
+    mmin, mmax = (selection[mkind][p] for p in ("min", "max"))
+    if mmin is not None:
+        mask &= (cat[mkind] >= mmin)
+    if mmax is not None:
+        mask &= (cat[mkind] < mmax)
+
+    # Below and above median mask
+    key = selection["median_cross"]
+    prop = cat[key]
+    med = numpy.nanmedian(prop)
+    mask_low = mask & (prop <= med)
+    mask_high = mask & (prop > med)
+
+    # Return positoins
+    pos = cat.positions(False)
+    return pos[mask_low, ...], pos[mask_high, ...]
+
+
+def do_cross(run, cat, ic):
+    """Calculate the kNN-CDF single catalogue cross-correlation."""
+    _config = config.get(run, None)
+    if _config is None:
+        warn("No configuration for run {}.".format(run))
+        return
+
+    pos_low, pos_high = read_cross(_config, cat)
+    knn_low, knn_high = NearestNeighbors(), NearestNeighbors()
+    knn_low.fit(pos_low)
+    knn_high.fit(pos_high)
+
+    rs, cdf_low, cdf_high, joint_cdf = knncdf.joint(
+        knn_low, knn_high, nneighbours=config["nneighbours"],
+        Rmax=Rmax, rmin=config["rmin"], rmax=config["rmax"],
+        nsamples=int(config["nsamples"]), neval=int(config["neval"]),
+        batch_size=int(config["batch_size"]),
+        random_state=config["seed"])
+
+    corr = knncdf.joint_to_corr(cdf_low, cdf_high, joint_cdf)
+    joblib.dump({"rs": rs, "corr": corr},
+                fout.format(str(ic).zfill(5), run))
+
+
+def do_runs(ic):
+    cat = csiborgtools.read.HaloCatalogue(ic, paths, max_dist=Rmax,
+                                          min_mass=minmass)
     for run in args.runs:
-        _config = config.get(run, None)
-        if _config is None:
-            warn("No configuration for run {}.".format(run))
-            continue
-
-        pos = read_position(_config, cat)
-        knn = NearestNeighbors()
-        knn.fit(pos)
-        rs, cdf = knncdf(
-            knn, nneighbours=config["nneighbours"], Rmax=Rmax,
-            rmin=config["rmin"], rmax=config["rmax"],
-            nsamples=int(config["nsamples"]),
-            neval=int(config["neval"]), batch_size=int(config["batch_size"]),
-            random_state=config["seed"], verbose=False)
-
-        joblib.dump({"rs": rs, "cdf": cdf},
-                    fout.format(str(ic).zfill(5), run))
+        if "cross" in run:
+            do_cross(run, cat, ic)
+        else:
+            do_auto(run, cat, ic)
 
 
 ###############################################################################
-#                          Autocorrelation calculation                        #
+#                             MPI task delegation                             #
 ###############################################################################
 
 
@@ -129,12 +183,12 @@ if nproc > 1:
         tasks = deepcopy(ics)
         master_process(tasks, comm, verbose=True)
     else:
-        worker_process(do_auto, comm, verbose=False)
+        worker_process(do_runs, comm, verbose=False)
 else:
     tasks = deepcopy(ics)
     for task in tasks:
         print("{}: completing task `{}`.".format(datetime.now(), task))
-        do_auto(task)
+        do_runs(task)
 comm.Barrier()
 
 
