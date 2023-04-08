@@ -18,5 +18,3 @@ from .match import (RealisationsMatcher, cosine_similarity,  # noqa
                     calculate_overlap, calculate_overlap_indxs,  # noqa
                     dist_centmass, dist_percentile)  # noqa
 from .num_density import (binned_counts, number_density)  # noqa
-from .knn import kNN_CDF
-# from .correlation import (get_randoms_sphere, sphere_angular_tpcf) # noqa
