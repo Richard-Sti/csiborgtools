@@ -14,40 +14,22 @@ mass_feature: totpartmass
 
 
 "mass001":
-  totpartmass:
-    min: 1.e+12
-    max: null
   perm: false
-
-"mass001_perm":
   totpartmass:
     min: 1.e+12
     max: null
-  perm: true
 
 "mass002":
-  totpartmass:
-    min: 1.e+13
-    max: null
   perm: false
-
-"mass002_perm":
   totpartmass:
     min: 1.e+13
     max: null
-  perm: true
 
 "mass003":
-  totpartmass:
-    min: 1.e+14
-    max: null
   perm: false
-
-"mass003_perm":
   totpartmass:
     min: 1.e+14
     max: null
-  perm: true
 
 
 ################################################################################
@@ -56,36 +38,35 @@ mass_feature: totpartmass
 
 
 "mass001_spinlow":
-  totpartmass:
-    min: 1.e+12
-    max: null
-  lambda200c:
-    below_median: true
   perm: false
-
-"mass001_spinlow_perm":
   totpartmass:
     min: 1.e+12
     max: null
   lambda200c:
     below_median: true
-  perm: true
+
 
 "mass001_spinhigh":
-  totpartmass:
-    min: 1.e+12
-    max: null
-  lambda200c:
-    below_median: false
   perm: false
-
-"mass001_spinhigh_perm":
   totpartmass:
     min: 1.e+12
     max: null
   lambda200c:
     below_median: false
+
+"mass001_spinmedian_perm":  # One for both low and high spin since this is a median cut
+  totpartmass:
+    min: 1.e+12
+    max: null
+  lambda200c:
+    below_median: true
   perm: true
+
+"mass001_spinmedian_cross":
+  median_cross: lambda200c
+  totpartmass:
+    min: 1.e+12
+    max: null
 
 "mass002_spinlow":
   totpartmass:
@@ -95,14 +76,6 @@ mass_feature: totpartmass
     below_median: true
   perm: false
 
-"mass002_spinlow_perm":
-  totpartmass:
-    min: 1.e+13
-    max: null
-  lambda200c:
-    below_median: true
-  perm: true
-
 "mass002_spinhigh":
   totpartmass:
     min: 1.e+13
@@ -111,13 +84,19 @@ mass_feature: totpartmass
     below_median: false
   perm: false
 
-"mass002_spinhigh_perm":
+"mass002_spinmedian_perm":
   totpartmass:
     min: 1.e+13
     max: null
   lambda200c:
     below_median: false
   perm: true
+
+"mass002_spinmedian_cross":
+  median_cross: lambda200c
+  totpartmass:
+    min: 1.e+13
+    max: null
 
 "mass003_spinlow":
   totpartmass:
@@ -127,15 +106,7 @@ mass_feature: totpartmass
     below_median: true
   perm: false
 
-"mass003_spinlow_perm":
-  totpartmass:
-    min: 1.e+14
-    max: null
-  lambda200c:
-    below_median: true
-  perm: true
-
-"mass_003_spinhigh":
+"mass003_spinhigh":
   totpartmass:
     min: 1.e+14
     max: null
@@ -143,10 +114,16 @@ mass_feature: totpartmass
     below_median: false
   perm: false
 
-"mass_003_spinhigh_perm":
+"mass003_spinmedian_perm":
   totpartmass:
     min: 1.e+14
     max: null
   lambda200c:
     below_median: false
   perm: true
+
+"mass003_spinmedian_cross":
+  median_cross: lambda200c
+  totpartmass:
+    min: 1.e+14
+    max: null
