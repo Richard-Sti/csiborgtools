@@ -62,7 +62,7 @@ ics = [7444, 7468, 7492, 7516, 7540, 7564, 7588, 7612, 7636, 7660, 7684,
 dumpdir = "/mnt/extraspace/rstiskalek/csiborg/knn"
 fout_auto = join(dumpdir, "auto", "knncdf_{}.p")
 fout_cross = join(dumpdir, "cross", "knncdf_{}_{}.p")
-paths = csiborgtools.read.CSiBORGPaths()
+paths = csiborgtools.clustering.CSiBORGPaths()
 
 
 ###############################################################################
