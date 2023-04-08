@@ -36,7 +36,7 @@ mass_feature: totpartmass
 #                        totpartmass + lambda200c                             #
 ################################################################################
 
-
+# Spins below median
 "mass001_spinlow":
   perm: false
   totpartmass:
@@ -54,19 +54,63 @@ mass_feature: totpartmass
   lambda200c:
     below_median: false
 
-"mass001_spinmedian_perm":  # One for both low and high spin since this is a median cut
+# Permuted spins below the median, so essentialy just down-sampling
+"mass001_spinmedian_perm":
+  perm: true
   totpartmass:
     min: 1.e+12
     max: null
   lambda200c:
     below_median: true
-  perm: true
 
+# Cross below and above median populations
 "mass001_spinmedian_cross":
   median_cross: lambda200c
+  perm_low: false
+  perm_high: false
   totpartmass:
     min: 1.e+12
     max: null
+
+# Cross two randomly selected populations
+"mass001_spinmedian_cross_perm":
+  median_cross: lambda200c
+  perm_low: true
+  perm_high: true
+  totpartmass:
+    min: 1.e+12
+    max: null
+
+"mass001_spinlow_cross_perm":
+  median_cross: lambda200c
+  perm_low: false
+  perm_high : true
+  totpartmass:
+    min: 1.e+12
+    max: null
+
+"mass001_spinhigh_cross_perm":
+  median_cross: lambda200c
+  perm_low: true
+  perm_high : false
+  totpartmass:
+    min: 1.e+12
+    max: null
+
+# # Cross below and above median populations
+# "mass001_spinmedian_cross":
+#   median_cross: lambda200c
+#   perm: false
+#   totpartmass:
+#     min: 1.e+12
+#     max: null
+
+# "mass001_spinmedian_cross_perm":
+#   median_cross: lambda200c
+#   perm: true
+#   totpartmass:
+#     min: 1.e+12
+#     max: null
 
 "mass002_spinlow":
   totpartmass:
