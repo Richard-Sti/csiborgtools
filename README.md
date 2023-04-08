@@ -7,12 +7,17 @@
 
 
 ## Project Clustering
-- [ ] Add uncertainty to the kNN-CDF autocorrelation?
-- [ ] Add kNN-CDF differences.
-- [ ] Add reading halo catalogues at higher redshifts.
-- [x] Add the joint kNN-CDF calculation.
-- [x] Make kNN-CDF more memory friendly if generating many randoms.
 
+### Longterm
+- [ ] Add uncertainty to the kNN-CDF autocorrelation?
+- [ ] Add reading halo catalogues at higher redshifts.
+
+
+### April 9 2023 Sunday
+- [ ] Add normalised marks calculation.
+- [ ] Add normalised marks to the submission scripts.
+- [ ] Add random marks.
+- [ ] Get started with the 2PCF calculation.
 
 ## Project Environmental Dependence
 - [ ] Add gradient and Hessian of the overdensity field.
