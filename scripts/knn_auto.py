@@ -131,8 +131,16 @@ def read_cross(selection, cat):
     key = selection["median_cross"]
     prop = cat[key]
     med = numpy.nanmedian(prop)
-    mask_low = mask & (prop <= med)
-    mask_high = mask & (prop > med)
+
+    if selection["perm_low"]:
+        mask_low = mask & (numpy.random.permutation(prop) <= med)
+    else:
+        mask_low = mask & (prop <= med)
+
+    if selection["perm_high"]:
+        mask_high = mask & (numpy.random.permutation(prop) > med)
+    else:
+        mask_high = mask & (prop <= med)
 
     # Return positoins
     pos = cat.positions(False)
@@ -159,8 +167,8 @@ def do_cross(run, cat, ic):
         random_state=config["seed"])
 
     corr = knncdf.joint_to_corr(cdf_low, cdf_high, joint_cdf)
-    joblib.dump({"rs": rs, "corr": corr},
-                fout.format(str(ic).zfill(5), run))
+    out = {"rs": rs, "cdf_low": cdf_low, "cdf_high": cdf_high, "corr": corr}
+    joblib.dump(out, fout.format(str(ic).zfill(5), run))
 
 
 def do_runs(ic):
