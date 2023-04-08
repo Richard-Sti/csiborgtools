@@ -210,14 +210,15 @@ class kNNCDFReader:
         """
         run += ".p"
         files = [f for f in glob(join(folder, "*")) if run in f]
+        kind = "corr" if "cross" in run else "cdf"
 
         for i, file in enumerate(files):
             data = joblib.load(file)
             if i == 0:  # Initialise the array
-                out = numpy.full((len(files), *data["cdf"].shape), numpy.nan,
+                out = numpy.full((len(files), *data[kind].shape), numpy.nan,
                                  dtype=numpy.float32)
                 rs = data["rs"]
-            out[i, ...] = data["cdf"]
+            out[i, ...] = data[kind]
 
             if to_clip:
                 out[i, ...] = self.clipped_cdf(out[i, ...])
