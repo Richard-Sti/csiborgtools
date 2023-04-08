@@ -84,9 +84,11 @@ def rvs_on_sphere(nsamples, indeg, random_state=42, dtype=numpy.float32):
         dec = numpy.deg2rad(dec)
     return numpy.vstack([ra, dec]).T
 
+
 ###############################################################################
 #                               RA wrapping                                   #
 ###############################################################################
+
 
 def wrapRA(ra, indeg):
     """
@@ -109,3 +111,43 @@ def wrapRA(ra, indeg):
         warn("No negative right ascension found.", UserWarning())
     ra[mask] += 360 if indeg else 2 * numpy.pi
     return ra
+
+
+###############################################################################
+#                   Secondary assembly bias normalised marks                  #
+###############################################################################
+
+
+def normalised_marks(x, y, nbins):
+    """
+    Calculate the normalised marks of `y` binned by `x`.
+
+    Parameters
+    ----------
+    x : 1-dimensional array
+        Binning variable.
+    y : 1-dimensional array
+        The variable to be marked.
+    nbins : int
+        Number of percentile bins.
+
+    Returns
+    -------
+    marks : 1-dimensional array
+    """
+    assert x.ndim == y.ndim == 1
+    if y.dtype not in [numpy.float32, numpy.float64]:
+        raise NotImplemented("Marks from integers are not supported.")
+
+    bins = numpy.percentile(x, q=numpy.linspace(0, 100, nbins + 1))
+    marks = numpy.full_like(y, numpy.nan)
+    for i in range(nbins):
+        m = (x >= bins[i]) & (x < bins[i + 1])
+        # Calculate the normalised marks of this bin
+        _marks = numpy.full(numpy.sum(m), numpy.nan, dtype=marks.dtype)
+        for n, ind in enumerate(numpy.argsort(y[m])):
+            _marks[ind] = n
+        _marks /= numpy.nanmax(_marks)
+        marks[m] = _marks
+
+    return marks
