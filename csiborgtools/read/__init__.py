@@ -21,3 +21,4 @@ from .outsim import (dump_split, combine_splits)  # noqa
 from .overlap_summary import (PairOverlap, NPairsOverlap, binned_resample_mean) # noqa
 from .knn_summary import kNNCDFReader  # noqa
 from .pk_summary import PKReader  # noqa
+from .tpcf_summary import TPCFReader  # noqa
