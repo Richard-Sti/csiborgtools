@@ -46,6 +46,7 @@ with open('../scripts/knn_auto.yml', 'r') as file:
     config = yaml.safe_load(file)
 
 Rmax = 155 / 0.705  # Mpc/h high resolution region radius
+totvol = 4 * numpy.pi * Rmax**3 / 3
 minmass = 1e12
 ics = [7444, 7468, 7492, 7516, 7540, 7564, 7588, 7612, 7636, 7660, 7684,
        7708, 7732, 7756, 7780, 7804, 7828, 7852, 7876, 7900, 7924, 7948,
@@ -114,12 +115,10 @@ def do_auto(run, cat, ic):
     rs, cdf = knncdf(
         knn, rvs_gen=rvs_gen, nneighbours=config["nneighbours"],
         rmin=config["rmin"], rmax=config["rmax"],
-        nsamples=int(config["nsamples"]),
-        neval=int(config["neval"]),
-        batch_size=int(config["batch_size"]),
-        random_state=config["seed"], verbose=False)
+        nsamples=int(config["nsamples"]), neval=int(config["neval"]),
+        batch_size=int(config["batch_size"]), random_state=config["seed"])
 
-    joblib.dump({"rs": rs, "cdf": cdf},
+    joblib.dump({"rs": rs, "cdf": cdf, "ndensity": pos.shape[0] / totvol},
                 fout.format(str(ic).zfill(5), run))
 
 
