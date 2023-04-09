@@ -18,6 +18,7 @@ Tools for summarising various results.
 from os.path import (join, isfile)
 from glob import glob
 import numpy
+from scipy.special import factorial
 import joblib
 from tqdm import tqdm
 
@@ -343,14 +344,13 @@ class kNNCDFReader:
         return cdf
 
     @staticmethod
-    def prk(rs, cdf):
-        """
-        Calculate the PDF of a radius that contains exactly :math:`k` objects.
+    def prob_k(cdf):
+        r"""
+        Calculate the PDF that a spherical volume of radius :math:`r` contains
+        :math:`k` objects, i.e. :math:`P(k | V = 4 \pi r^3 / 3)`.
 
         Parameters
         ----------
-        rs : 1-dimensional array
-            Array of separations where the CDFs are evaluated.
         cdf : 3-dimensional array of shape `(len(files), len(ks), len(rs))`
             Array of CDFs
 
@@ -358,48 +358,59 @@ class kNNCDFReader:
         -------
         pk : 3-dimensional array of shape `(len(files), len(ks)- 1, len(rs))`
         """
-        assert rs.ndim == 1
-        assert cdf.shape[-1] == rs.size
         out = numpy.full_like(cdf[..., 1:, :], numpy.nan, dtype=numpy.float32)
+        nks = cdf.shape[-2]
+        out[..., 0, :] = 1 - cdf[..., 0, :]
 
-        for k in range(cdf.shape[-2] - 1):
-            out[..., k, :] = cdf[..., k, :] - cdf[..., k + 1, :]
+        for k in range(1, nks - 1):
+            out[..., k, :] = cdf[..., k - 1, :] - cdf[..., k, :]
 
-        norm = numpy.nansum(
-            0.5 * (out[..., 1:] + out[..., :-1]) * (rs[1:] - rs[:-1]), axis=-1)
-        out /= norm.reshape(*norm.shape, 1)
         return out
 
-    def mean_prk(self, rs, prk):
+    def mean_prob_k(self, cdf):
         """
-        Calcuculate the median of a radius that contains exactly :math:`k`
-        objects from the various IC realisation.
+        Calculate the mean PDF that a spherical volume of radius :math:`r`
+        contains :math:`k` objects, i.e. :math:`P(k | V = 4 \pi r^3 / 3)`,
+        averaged over the IC realisations.
+
+        Parameters
+        ----------
+        cdf : 3-dimensional array of shape `(len(files), len(ks), len(rs))`
+            Array of CDFs
+        Returns
+        -------
+        out : 3-dimensional array of shape `(len(ks) - 1, len(rs), 2)`
+            Mean :math:`P(k | V = 4 \pi r^3 / 3) and its standard deviation,
+            stored along the last dimension, respectively.
+        """
+        pk = self.prob_k(cdf)
+        return numpy.stack([numpy.mean(pk, axis=0), numpy.std(pk, axis=0)],
+                           axis=-1)
+
+    def poisson_prob_k(self, rs, k, ndensity):
+        """
+        Calculate the analytical PDF that a spherical volume of
+        radius :math:`r` contains :math:`k` objects, i.e.
+        :math:`P(k | V = 4 \pi r^3 / 3)`, assuming a Poisson field (uniform
+        distribution of points).
 
         Parameters
         ----------
         rs : 1-dimensional array
-            Array of separations where the CDFs are evaluated.
-        prk: 3-dimensional array of shape `(len(files), len(ks) - 1, len(rs))`
-            Array of PDF of a radius that contains exactly :math:`k` objects.
+            Array of separations.
+        k : int
+            Number of objects.
+        ndensity : float
+            Number density of objects.
 
         Returns
         -------
-        out : 3-dimensional array of shape `(len(ks) - 1, len(rs), 2)`
-            Mean :math:`p(r | k)` and its standard deviation, stored along the
-            last dimension, respectively.
+        pk : 1-dimensional array
+            The PDF that a spherical volume of radius :math:`r` contains
+            :math:`k` objects.
         """
-        assert rs.ndim == 1
-        assert prk.ndim == 3
-        assert prk.shape[-1] == rs.size
-
-        # Calculate the mean and standard deviation
-        mu = numpy.mean(prk, axis=0)
-        std = numpy.std(prk, axis=0)
-        # Normalise again, though this is barely necessary
-        norm = numpy.nansum(
-            0.5 * (mu[..., 1:] + mu[..., :-1]) * (rs[1:] - rs[:-1]), axis=-1)
-        norm = norm.reshape(*norm.shape, 1)
-        return numpy.stack([mu / norm, std / norm], axis=-1)
+        V = 4 * numpy.pi / 3 * rs**3
+        return (ndensity * V)**k / factorial(k) * numpy.exp(-ndensity * V)
 
     @staticmethod
     def cross_files(ic, folder):
