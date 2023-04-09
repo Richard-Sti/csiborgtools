@@ -15,7 +15,7 @@
 
 from .readsim import (CSiBORGPaths, ParticleReader, read_mmain, read_initcm, halfwidth_select)  # noqa
 from .halo_cat import (HaloCatalogue, concatenate_clumps)  # noqa
-from .readobs import (PlanckClusters, MCXCClusters, TwoMPPGalaxies,  # noqa
+from .obs import (PlanckClusters, MCXCClusters, TwoMPPGalaxies,  # noqa
                       TwoMPPGroups, SDSS)  # noqa
 from .outsim import (dump_split, combine_splits)  # noqa
 from .overlap_summary import (PairOverlap, NPairsOverlap, binned_resample_mean) # noqa

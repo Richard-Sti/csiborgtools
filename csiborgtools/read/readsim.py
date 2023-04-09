@@ -594,6 +594,11 @@ class ParticleReader:
         return out
 
 
+###############################################################################
+#                       Supplementary reading functions                       #
+###############################################################################
+
+
 def read_mmain(nsim, srcdir, fname="Mmain_{}.npy"):
     """
     Read `mmain` numpy arrays of central halos whose mass contains their
