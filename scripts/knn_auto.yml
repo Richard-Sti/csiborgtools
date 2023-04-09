@@ -1,10 +1,11 @@
 rmin: 0.1
 rmax: 100
-nneighbours: 16
+nneighbours: 64
 nsamples: 1.e+7
 batch_size: 1.e+6
 neval: 10000
 seed: 42
+nbins_marks: 10
 mass_feature: totpartmass
 
 
@@ -14,160 +15,120 @@ mass_feature: totpartmass
 
 
 "mass001":
-  perm: false
-  totpartmass:
+  primary:
+    name: totpartmass
     min: 1.e+12
-    max: null
+    max: 1.e+13
 
 "mass002":
   perm: false
   totpartmass:
     min: 1.e+13
-    max: null
+    max: 1.e+14
 
 "mass003":
   perm: false
   totpartmass:
     min: 1.e+14
-    max: null
 
 
 ################################################################################
 #                        totpartmass + lambda200c                             #
 ################################################################################
 
-# Spins below median
-"mass001_spinlow":
-  perm: false
-  totpartmass:
-    min: 1.e+12
-    max: null
-  lambda200c:
-    below_median: true
 
+"mass001_spinlow":
+  primary:
+    name: totpartmass
+    min: 1.e+12
+    max: 1.e+13
+  secondary:
+    name: lambda200c
+    toperm: false
+    marked: false
+    max: 0.5
 
 "mass001_spinhigh":
-  perm: false
-  totpartmass:
+  primary:
+    name: totpartmass
     min: 1.e+12
-    max: null
-  lambda200c:
-    below_median: false
+    max: 1.e+13
+  secondary:
+    name: lambda200c
+    toperm: false
+    marked: true
+    min: 0.5
 
-# Permuted spins below the median, so essentialy just down-sampling
 "mass001_spinmedian_perm":
-  perm: true
-  totpartmass:
+  primary:
+    name: totpartmass
     min: 1.e+12
-    max: null
-  lambda200c:
-    below_median: true
-
-# Cross below and above median populations
-"mass001_spinmedian_cross":
-  median_cross: lambda200c
-  perm_low: false
-  perm_high: false
-  totpartmass:
-    min: 1.e+12
-    max: null
-
-# Cross two randomly selected populations
-"mass001_spinmedian_cross_perm":
-  median_cross: lambda200c
-  perm_low: true
-  perm_high: true
-  totpartmass:
-    min: 1.e+12
-    max: null
-
-"mass001_spinlow_cross_perm":
-  median_cross: lambda200c
-  perm_low: false
-  perm_high : true
-  totpartmass:
-    min: 1.e+12
-    max: null
-
-"mass001_spinhigh_cross_perm":
-  median_cross: lambda200c
-  perm_low: true
-  perm_high : false
-  totpartmass:
-    min: 1.e+12
-    max: null
-
-# # Cross below and above median populations
-# "mass001_spinmedian_cross":
-#   median_cross: lambda200c
-#   perm: false
-#   totpartmass:
-#     min: 1.e+12
-#     max: null
-
-# "mass001_spinmedian_cross_perm":
-#   median_cross: lambda200c
-#   perm: true
-#   totpartmass:
-#     min: 1.e+12
-#     max: null
+    max: 1.e+13
+  secondary:
+    name: lambda200c
+    toperm: true
+    marked : true
+    min: 0.5
 
 "mass002_spinlow":
-  totpartmass:
+  primary:
+    name: totpartmass
     min: 1.e+13
-    max: null
-  lambda200c:
-    below_median: true
-  perm: false
+    max: 1.e+14
+  secondary:
+    name: lambda200c
+    toperm: false
+    marked: false
+    max: 0.5
 
 "mass002_spinhigh":
-  totpartmass:
+  primary:
+    name: totpartmass
     min: 1.e+13
-    max: null
-  lambda200c:
-    below_median: false
-  perm: false
+    max: 1.e+14
+  secondary:
+    name: lambda200c
+    toperm: false
+    marked: true
+    min: 0.5
 
 "mass002_spinmedian_perm":
-  totpartmass:
+  primary:
+    name: totpartmass
     min: 1.e+13
-    max: null
-  lambda200c:
-    below_median: false
-  perm: true
-
-"mass002_spinmedian_cross":
-  median_cross: lambda200c
-  totpartmass:
-    min: 1.e+13
-    max: null
+    max: 1.e+14
+  secondary:
+    name: lambda200c
+    toperm: true
+    marked : true
+    min: 0.5
 
 "mass003_spinlow":
-  totpartmass:
+  primary:
+    name: totpartmass
     min: 1.e+14
-    max: null
-  lambda200c:
-    below_median: true
-  perm: false
+  secondary:
+    name: lambda200c
+    toperm: false
+    marked: false
+    max: 0.5
 
 "mass003_spinhigh":
-  totpartmass:
+  primary:
+    name: totpartmass
     min: 1.e+14
-    max: null
-  lambda200c:
-    below_median: false
-  perm: false
+  secondary:
+    name: lambda200c
+    toperm: false
+    marked: true
+    min: 0.5
 
 "mass003_spinmedian_perm":
-  totpartmass:
+  primary:
+    name: totpartmass
     min: 1.e+14
-    max: null
-  lambda200c:
-    below_median: false
-  perm: true
-
-"mass003_spinmedian_cross":
-  median_cross: lambda200c
-  totpartmass:
-    min: 1.e+14
-    max: null
+  secondary:
+    name: lambda200c
+    toperm: true
+    marked : true
+    min: 0.5
