@@ -17,8 +17,9 @@
 - [x] Add normalised marks calculation.
 - [x] Add normalised marks to the submission scripts.
 - [x] Verify analytical formula for the kNN of a uniform field.
+- [x] For the cross-correlation try making the second field randoms.
 - [ ] Clean up the reader code.
-- [ ] Correct the crossing script.
+- [x] Correct the crossing script.
 - [ ] Get started with the 2PCF calculation.
 
 ## Project Environmental Dependence
