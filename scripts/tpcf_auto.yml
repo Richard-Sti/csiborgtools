@@ -2,7 +2,7 @@ rpmin: 0.5
 rpmax: 40
 nrpbins: 20
 pimax: 60
-randmult: 10
+randmult: 100
 seed: 42
 nbins_marks: 10
 
@@ -43,7 +43,7 @@ nbins_marks: 10
   secondary:
     name: lambda200c
     toperm: false
-    marked: false
+    marked: true
     max: 0.5
 
 "mass001_spinhigh":
@@ -76,7 +76,7 @@ nbins_marks: 10
   secondary:
     name: lambda200c
     toperm: false
-    marked: false
+    marked: true
     max: 0.5
 
 "mass002_spinhigh":
@@ -108,7 +108,7 @@ nbins_marks: 10
   secondary:
     name: lambda200c
     toperm: false
-    marked: false
+    marked: true
     max: 0.5
 
 "mass003_spinhigh":
