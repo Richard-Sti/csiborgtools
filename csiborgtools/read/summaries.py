@@ -185,45 +185,52 @@ class kNNCDFReader:
     """
     Shortcut object to read in the kNN CDF data.
     """
-    def read_auto(self, run, folder, rmin=None, rmax=None, to_clip=True):
+    def read(self, run, folder, rmin=None, rmax=None, to_clip=True):
         """
-        Read the autocorrelation kNN CDF data.
+        Read the auto- or cross-correlation kNN-CDF data. Infers the type from
+        the data files.
 
         Parameters
         ----------
         run : str
             Run ID to read in.
         folder : str
-            Path to the folder where the autocorrelation kNN-CDF is stored.
+            Path to the folder where the auto-correlation kNN-CDF is stored.
         rmin : float, optional
             Minimum separation. By default ignored.
         rmax : float, optional
             Maximum separation. By default ignored.
         to_clip : bool, optional
-            Whether to clip the auto-correlation CDF.
+            Whether to clip the auto-correlation CDF. Ignored for
+            cross-correlation.
 
         Returns
         -------
         rs : 1-dimensional array of shape `(neval, )`
             Separations where the CDF is evaluated.
-        cdf: 3-dimensional array of shape `(len(files), len(ks), neval)`
-            Array of CDFs.
+        out : 3-dimensional array of shape `(len(files), len(ks), neval)`
+            Array of CDFs or cross-correlations.
         """
         run += ".p"
         files = [f for f in glob(join(folder, "*")) if run in f]
         if len(files) == 0:
             raise RuntimeError("No files found for run `{}`.".format(run[:-2]))
-        kind = "corr" if "cross" in run else "cdf"
 
         for i, file in enumerate(files):
             data = joblib.load(file)
             if i == 0:  # Initialise the array
+                if "corr" in data.keys():
+                    kind = "corr"
+                    isauto = False
+                else:
+                    kind = "cdf"
+                    isauto = True
                 out = numpy.full((len(files), *data[kind].shape), numpy.nan,
                                  dtype=numpy.float32)
                 rs = data["rs"]
             out[i, ...] = data[kind]
 
-            if to_clip:
+            if isauto and to_clip:
                 out[i, ...] = self.clipped_cdf(out[i, ...])
 
         # Apply separation cuts
@@ -233,65 +240,6 @@ class kNNCDFReader:
         out = out[..., mask]
 
         return rs, out
-
-    def read_cross(self, files, ks, rmin=None, rmax=None, to_clip=True):
-        """
-        Read the kNN CDF data can be either the auto- or cross-correlation.
-
-        Parameters
-        ----------
-        files : list of str
-            List of file paths to read in.
-        ks : list of int
-            kNN values to read in.
-        rmin : float, optional
-            Minimum separation. By default ignored.
-        rmax : float, optional
-            Maximum separation. By default ignored.
-        to_clip : bool, optional
-            Whether to clip the auto-correlation CDF. Ignored if reading in the
-            cross-correlation.
-
-        Returns
-        -------
-        rs : 1-dimensional array
-            Array of separations.
-        out : 4-dimensional array
-            Auto-correlation or cross-correlation kNN CDFs. The shape is
-            `(len(files), len(mass_thresholds), len(ks), neval)`.
-        mass_thresholds : 1-dimensional array
-            Array of mass thresholds.
-        """
-        raise RuntimeError("Not implemented yet.")
-        data = joblib.load(files[0])
-        if "cdf_0" in data.keys():
-            isauto = True
-            kind = "cdf"
-        elif "corr_0" in data.keys():
-            isauto = False
-            kind = "corr"
-        else:
-            raise ValueError("Unknown data format.")
-        rs = data["rs"]
-        mass_thresholds = data["mass_threshold"]
-        neval = data["{}_0".format(kind)].shape[1]
-        out = numpy.full((len(files), len(mass_thresholds), len(ks), neval),
-                         numpy.nan, dtype=numpy.float32)
-
-        for i, file in enumerate(tqdm(files)):
-            data = joblib.load(file)
-            for j in range(len(mass_thresholds)):
-                out[i, j, ...] = data["{}_{}".format(kind, j)][ks, :]
-                if isauto and to_clip:
-                    out[i, j, ...] = self.clipped_cdf(out[i, j, ...])
-
-        # Apply separation cuts
-        mask = (rs >= rmin if rmin is not None else rs > 0)
-        mask &= (rs <= rmax if rmax is not None else rs < numpy.infty)
-        rs = rs[mask]
-        out = out[..., mask]
-
-        return rs, out, mass_thresholds
 
     @staticmethod
     def peaked_cdf(cdf, make_copy=True):
