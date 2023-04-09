@@ -22,7 +22,7 @@ class Mock2PCF:
     """
     Tool to calculate the 2PCF of a catalogue.
     """
-    def __call__(self, pos, rvs_gen, nrandom, bins, pimax):
+    def __call__(self, pos, rvs_gen, nrandom, bins, pimax, random_state=42):
         """
         Projected auto-2PCF.
 
@@ -38,6 +38,8 @@ class Mock2PCF:
             Projected separation bins.
         pimax : float
             Maximum line-of-sight separation.
+        random_state : int, optional
+            Random state for the RVS generator.
 
         Returns
         -------
@@ -47,7 +49,7 @@ class Mock2PCF:
             The auto-2PCF.
         """
         assert isinstance(rvs_gen, BaseRVS)
-        rand_pos = rvs_gen(nrandom)
+        rand_pos = rvs_gen(nrandom, random_state=random_state)
 
         dd = DDrppi(autocorr=1, nthreads=1, pimax=pimax, binfile=bins,
                     X1=pos[:, 0], Y1=pos[:, 1], Z1=pos[:, 2], periodic=False)
