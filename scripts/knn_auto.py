@@ -45,7 +45,7 @@ args = parser.parse_args()
 with open('../scripts/knn_auto.yml', 'r') as file:
     config = yaml.safe_load(file)
 
-Rmax = 155 / 0.705  # Mpc/h high resolution region radius
+Rmax = 155 / 0.705  # Mpc (h = 0.705) high resolution region radius
 totvol = 4 * numpy.pi * Rmax**3 / 3
 minmass = 1e12
 ics = [7444, 7468, 7492, 7516, 7540, 7564, 7588, 7612, 7636, 7660, 7684,
