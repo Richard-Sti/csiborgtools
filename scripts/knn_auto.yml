@@ -21,14 +21,14 @@ mass_feature: totpartmass
     max: 1.e+13
 
 "mass002":
-  perm: false
-  totpartmass:
+  primary:
+    name: totpartmass
     min: 1.e+13
     max: 1.e+14
 
 "mass003":
-  perm: false
-  totpartmass:
+  primary:
+    name: totpartmass
     min: 1.e+14
 
 
