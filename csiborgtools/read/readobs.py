@@ -15,18 +15,15 @@
 """
 Scripts to read in observation.
 """
-
-import numpy
 from abc import ABC, abstractproperty
 from os.path import join
+from warnings import warn
+import numpy
+from scipy import constants
 from astropy.io import fits
 from astropy.coordinates import SkyCoord
 from astropy import units
-from scipy import constants
-from warnings import warn
 from ..utils import (cols_to_structured)
-
-F64 = numpy.float64
 
 
 ###############################################################################
@@ -112,8 +109,9 @@ class TwoMPPGalaxies(TextSurvey):
         cat = numpy.genfromtxt(fpath, delimiter="|", )
         cat = cat[cat[:, 12] == 0, :]
         # Pre=allocate array and fillt it
-        cols = [("RA", F64), ("DEC", F64), ("Ksmag", F64), ("ZCMB", F64),
-                ("DIST", F64)]
+        cols = [("RA", numpy.float64), ("DEC", numpy.float64),
+                ("Ksmag", numpy.float64), ("ZCMB", numpy.float64),
+                ("DIST", numpy.float64)]
         data = cols_to_structured(cat.shape[0], cols)
         data["RA"] = cat[:, 1]
         data["DEC"] = cat[:, 2]
@@ -158,8 +156,9 @@ class TwoMPPGroups(TextSurvey):
         """
         cat = numpy.genfromtxt(fpath, delimiter="|", )
         # Pre-allocate and fill the array
-        cols = [("RA", F64), ("DEC", F64), ("K2mag", F64),
-                ("Rich", numpy.int64), ("sigma", F64)]
+        cols = [("RA", numpy.float64), ("DEC", numpy.float64),
+                ("K2mag", numpy.float64), ("Rich", numpy.int64),
+                ("sigma", numpy.float64e)]
         data = cols_to_structured(cat.shape[0], cols)
         data["K2mag"] = cat[:, 3]
         data["Rich"] = cat[:, 4]
