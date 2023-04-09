@@ -211,6 +211,8 @@ class kNNCDFReader:
         """
         run += ".p"
         files = [f for f in glob(join(folder, "*")) if run in f]
+        if len(files) == 0:
+            raise RuntimeError("No files found for run `{}`.".format(run[:-2]))
         kind = "corr" if "cross" in run else "cdf"
 
         for i, file in enumerate(files):
