@@ -66,33 +66,39 @@ knncdf = csiborgtools.clustering.kNN_CDF()
 #                                 Analysis                                    #
 ###############################################################################
 
-def read_auto(selection, cat):
+def read_single(selection, cat):
     """Positions for single catalogue auto-correlation."""
-    mask = numpy.ones(len(cat), dtype=bool)  # Initialise a mask
-    toperm = selection.get("perm")
-    for key, val in selection.items():       # Loop over features to cut
-        if key == "perm":
-            continue
+    mmask = numpy.ones(len(cat), dtype=bool)
+    pos = cat.positions(False)
+    # Primary selection
+    psel = selection["primary"]
+    pmin, pmax = psel.get("min", None), psel.get("max", None)
+    if pmin is not None:
+        mmask &= (cat[psel["name"]] >= pmin)
+    if pmax is not None:
+        mmask &= (cat[psel["name"]] < pmax)
+    pos = pos[mmask, ...]
 
-        prop = cat[key]
-        # Never permute the mass feature
-        if key != config["mass_feature"] and toperm:
-            prop = numpy.random.permutation(prop)
-        # First try whether we have a median cut, otherwise try min/max
-        try:
-            median = numpy.median(prop)
-            if val["below_median"]:
-                mask &= (prop < median)
-            else:
-                mask &= (prop >= median)
-        except KeyError:
-            xmin, xmax = val["min"], val["max"]
-            if xmin is not None:
-                mask &= (prop >= xmin)
-            if xmax is not None:
-                mask &= (prop < xmax)
+    # Secondary selection
+    if "secondary" not in selection:
+        return pos
+    smask = numpy.ones(pos.shape[0], dtype=bool)
+    ssel = selection["secondary"]
+    smin, smax = ssel.get("min", None), ssel.get("max", None)
+    prop = cat[ssel["name"]][mmask]
+    if ssel.get("toperm", False):
+        prop = numpy.random.permutation(prop)
+    if ssel.get("marked", True):
+        x = cat[psel["name"]][mmask]
+        prop = csiborgtools.clustering.normalised_marks(
+            x, prop, nbins=config["nbins_marks"])
 
-    return cat.positions(False)[mask, ...]
+    if smin is not None:
+        smask &= (prop >= smin)
+    if smax is not None:
+        smask &= (prop < smax)
+
+    return pos[smask, ...]
 
 def do_auto(run, cat, ic):
     """Calculate the kNN-CDF single catalgoue autocorrelation."""
@@ -101,11 +107,12 @@ def do_auto(run, cat, ic):
         warn("No configuration for run {}.".format(run))
         return
 
-    pos = read_auto(_config, cat)
+    rvs_gen = csiborgtools.clustering.RVSinsphere(Rmax)
+    pos = read_single(_config, cat)
     knn = NearestNeighbors()
     knn.fit(pos)
     rs, cdf = knncdf(
-        knn, nneighbours=config["nneighbours"], Rmax=Rmax,
+        knn, rvs_gen=rvs_gen, nneighbours=config["nneighbours"],
         rmin=config["rmin"], rmax=config["rmax"],
         nsamples=int(config["nsamples"]),
         neval=int(config["neval"]),
@@ -116,69 +123,11 @@ def do_auto(run, cat, ic):
                 fout.format(str(ic).zfill(5), run))
 
 
-def read_cross(selection, cat):
-    """Positions for single catalogue cross-correlation."""
-    mask = numpy.ones(len(cat), dtype=bool)  # Initialise a mask
-    # Mass selection
-    mkind = config["mass_feature"]
-    mmin, mmax = (selection[mkind][p] for p in ("min", "max"))
-    if mmin is not None:
-        mask &= (cat[mkind] >= mmin)
-    if mmax is not None:
-        mask &= (cat[mkind] < mmax)
-
-    # Below and above median mask
-    key = selection["median_cross"]
-    prop = cat[key]
-    med = numpy.nanmedian(prop)
-
-    if selection["perm_low"]:
-        mask_low = mask & (numpy.random.permutation(prop) <= med)
-    else:
-        mask_low = mask & (prop <= med)
-
-    if selection["perm_high"]:
-        mask_high = mask & (numpy.random.permutation(prop) > med)
-    else:
-        mask_high = mask & (prop <= med)
-
-    # Return positoins
-    pos = cat.positions(False)
-    return pos[mask_low, ...], pos[mask_high, ...]
-
-
-def do_cross(run, cat, ic):
-    """Calculate the kNN-CDF single catalogue cross-correlation."""
-    _config = config.get(run, None)
-    if _config is None:
-        warn("No configuration for run {}.".format(run))
-        return
-
-    pos_low, pos_high = read_cross(_config, cat)
-    knn_low, knn_high = NearestNeighbors(), NearestNeighbors()
-    knn_low.fit(pos_low)
-    knn_high.fit(pos_high)
-
-    rs, cdf_low, cdf_high, joint_cdf = knncdf.joint(
-        knn_low, knn_high, nneighbours=config["nneighbours"],
-        Rmax=Rmax, rmin=config["rmin"], rmax=config["rmax"],
-        nsamples=int(config["nsamples"]), neval=int(config["neval"]),
-        batch_size=int(config["batch_size"]),
-        random_state=config["seed"])
-
-    corr = knncdf.joint_to_corr(cdf_low, cdf_high, joint_cdf)
-    out = {"rs": rs, "cdf_low": cdf_low, "cdf_high": cdf_high, "corr": corr}
-    joblib.dump(out, fout.format(str(ic).zfill(5), run))
-
-
 def do_runs(ic):
     cat = csiborgtools.read.HaloCatalogue(ic, paths, max_dist=Rmax,
                                           min_mass=minmass)
     for run in args.runs:
-        if "cross" in run:
-            do_cross(run, cat, ic)
-        else:
-            do_auto(run, cat, ic)
+        do_auto(run, cat, ic)
 
 
 ###############################################################################
