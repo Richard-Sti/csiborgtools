@@ -44,7 +44,7 @@ nbins_marks: 10
   secondary:
     name: lambda200c
     toperm: false
-    marked: false
+    marked: true
     max: 0.5
 
 "mass001_spinhigh":
@@ -77,7 +77,7 @@ nbins_marks: 10
   secondary:
     name: lambda200c
     toperm: false
-    marked: false
+    marked: true
     max: 0.5
 
 "mass002_spinhigh":
@@ -109,7 +109,7 @@ nbins_marks: 10
   secondary:
     name: lambda200c
     toperm: false
-    marked: false
+    marked: true
     max: 0.5
 
 "mass003_spinhigh":
