@@ -1,0 +1,29 @@
+rmin: 0.1
+rmax: 100
+nneighbours: 64
+nsamples: 1.e+7
+batch_size: 1.e+6
+neval: 10000
+seed: 42
+
+
+################################################################################
+#                                 totpartmass                                 #
+################################################################################
+
+"mass001":
+  primary:
+    name: totpartmass
+    min: 1.e+12
+    max: 1.e+13
+
+"mass002":
+  primary:
+    name: totpartmass
+    min: 1.e+13
+    max: 1.e+14
+
+"mass003":
+  primary:
+    name: totpartmass
+    min: 1.e+14

@@ -6,7 +6,6 @@ batch_size: 1.e+6
 neval: 10000
 seed: 42
 nbins_marks: 10
-mass_feature: totpartmass
 
 
 ################################################################################
