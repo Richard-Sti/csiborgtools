@@ -121,12 +121,41 @@ def do_auto(run, cat, ic):
     joblib.dump({"rs": rs, "cdf": cdf, "ndensity": pos.shape[0] / totvol},
                 fout.format(str(ic).zfill(5), run))
 
+def do_cross_rand(run, cat, ic):
+    """Calculate the kNN-CDF cross catalogue random correlation."""
+    _config = config.get(run, None)
+    if _config is None:
+        warn("No configuration for run {}.".format(run))
+        return
+
+    rvs_gen = csiborgtools.clustering.RVSinsphere(Rmax)
+    knn1, knn2 = NearestNeighbors(), NearestNeighbors()
+
+    pos1 = read_single(_config, cat)
+    knn1.fit(pos1)
+
+    pos2 = rvs_gen(pos1.shape[0])
+    knn2.fit(pos2)
+
+    rs, cdf0, cdf1, joint_cdf = knncdf.joint(
+        knn1, knn2, rvs_gen=rvs_gen, nneighbours=int(config["nneighbours"]),
+        rmin=config["rmin"], rmax=config["rmax"],
+        nsamples=int(config["nsamples"]), neval=int(config["neval"]),
+        batch_size=int(config["batch_size"]), random_state=config["seed"])
+    corr = knncdf.joint_to_corr(cdf0, cdf1, joint_cdf)
+
+    joblib.dump({"rs": rs, "corr": corr}, fout.format(str(ic).zfill(5), run))
+
+
 
 def do_runs(ic):
     cat = csiborgtools.read.HaloCatalogue(ic, paths, max_dist=Rmax,
                                           min_mass=minmass)
     for run in args.runs:
-        do_auto(run, cat, ic)
+        if "random" in run:
+            do_cross_rand(run, cat, ic)
+        else:
+            do_auto(run, cat, ic)
 
 
 ###############################################################################
