@@ -14,9 +14,11 @@
 
 
 ### April 9 2023 Sunday
-- [ ] Add normalised marks calculation.
-- [ ] Add normalised marks to the submission scripts.
-- [ ] Add random marks.
+- [x] Add normalised marks calculation.
+- [x] Add normalised marks to the submission scripts.
+- [x] Verify analytical formula for the kNN of a uniform field.
+- [ ] Clean up the reader code.
+- [ ] Correct the crossing script.
 - [ ] Get started with the 2PCF calculation.
 
 ## Project Environmental Dependence
