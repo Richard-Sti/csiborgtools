@@ -56,3 +56,21 @@ class TPCFReader:
             out[i, ...] = data["wp"]
 
         return rp, out
+
+    def mean_wp(self, wp):
+        r"""
+        Calculate the mean 2PCF and its standard deviation averaged over the
+        IC realisations.
+
+        Parameters
+        ----------
+        wp : 2-dimensional array of shape `(len(files), len(rp))`
+            Array of CDFs
+        Returns
+        -------
+        out : 2-dimensional array of shape `(len(rp), 2)`
+            Mean 2PCF and its standard deviation, stored along the last
+            dimension, respectively.
+        """
+        return numpy.stack([numpy.mean(wp, axis=0), numpy.std(wp, axis=0)],
+                           axis=-1)
