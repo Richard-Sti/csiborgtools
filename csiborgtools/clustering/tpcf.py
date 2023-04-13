@@ -13,8 +13,9 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """2PCF calculation."""
-from Corrfunc.theory.DDrppi import DDrppi
-from Corrfunc.utils import convert_rp_pi_counts_to_wp
+import numpy
+from Corrfunc.theory.DD import DD
+from Corrfunc.utils import convert_3d_counts_to_cf
 from .utils import BaseRVS
 
 
@@ -22,9 +23,9 @@ class Mock2PCF:
     """
     Tool to calculate the 2PCF of a catalogue.
     """
-    def __call__(self, pos, rvs_gen, nrandom, bins, pimax, random_state=42):
+    def __call__(self, pos, rvs_gen, nrandom, bins, random_state=42):
         """
-        Projected auto-2PCF.
+        Calculate the 2PCF from 3D pair counts.
 
         Parameters
         ----------
@@ -35,9 +36,7 @@ class Mock2PCF:
         nrandom : int
             Number of random points to generate.
         bins : 1-dimensional array of shape `(nbins,)`
-            Projected separation bins.
-        pimax : float
-            Maximum line-of-sight separation.
+            Separation bins.
         random_state : int, optional
             Random state for the RVS generator.
 
@@ -45,23 +44,25 @@ class Mock2PCF:
         -------
         rp : 1-dimensional array of shape `(nbins - 1,)`
             Projected separation where the auto-2PCF is evaluated.
-        wp : 1-dimensional array of shape `(nbins - 1,)`
+        xi : 1-dimensional array of shape `(nbins - 1,)`
             The auto-2PCF.
         """
         assert isinstance(rvs_gen, BaseRVS)
-        rand_pos = rvs_gen(nrandom, random_state=random_state)
+        pos = pos.astype(numpy.float64)
+        rand_pos = rvs_gen(nrandom, random_state=random_state,
+                           dtype=numpy.float64)
 
-        dd = DDrppi(autocorr=1, nthreads=1, pimax=pimax, binfile=bins,
-                    X1=pos[:, 0], Y1=pos[:, 1], Z1=pos[:, 2], periodic=False)
-        dr = DDrppi(autocorr=0, nthreads=1, pimax=pimax, binfile=bins,
-                    X1=pos[:, 0], Y1=pos[:, 1], Z1=pos[:, 2], periodic=False,
-                    X2=rand_pos[:, 0], Y2=rand_pos[:, 1], Z2=rand_pos[:, 2])
-        rr = DDrppi(autocorr=1, nthreads=1, pimax=pimax, binfile=bins,
-                    X1=rand_pos[:, 0], Y1=rand_pos[:, 1], Z1=rand_pos[:, 2],
-                    periodic=False)
+        dd = DD(autocorr=1, nthreads=1, binfile=bins,
+                X1=pos[:, 0], Y1=pos[:, 1], Z1=pos[:, 2], periodic=False)
+        dr = DD(autocorr=0, nthreads=1, binfile=bins,
+                X1=pos[:, 0], Y1=pos[:, 1], Z1=pos[:, 2],
+                X2=rand_pos[:, 0], Y2=rand_pos[:, 1], Z2=rand_pos[:, 2],
+                periodic=False)
+        rr = DD(autocorr=1, nthreads=1, binfile=bins,
+                X1=rand_pos[:, 0], Y1=rand_pos[:, 1], Z1=rand_pos[:, 2],
+                periodic=False)
 
         ndata = pos.shape[0]
-        wp = convert_rp_pi_counts_to_wp(ndata, ndata, nrandom, nrandom,
-                                        dd, dr, dr, rr, bins.size - 1, pimax)
+        xi = convert_3d_counts_to_cf(ndata, ndata, nrandom, nrandom, dd, dr, dr, rr)
         rp = 0.5 * (bins[1:] + bins[:-1])
-        return rp, wp
+        return rp, xi
