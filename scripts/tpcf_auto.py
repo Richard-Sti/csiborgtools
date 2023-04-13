@@ -110,7 +110,7 @@ def do_auto(run, cat, ic):
                           numpy.log10(config["rpmax"]), config["nrpbins"] + 1)
     pos = read_single(_config, cat)
     nrandom = int(config["randmult"] * pos.shape[0])
-    rp, wp = tpcf(pos, rvs_gen, nrandom, bins, config["pimax"])
+    rp, wp = tpcf(pos, rvs_gen, nrandom, bins)
 
     joblib.dump({"rp": rp, "wp": wp}, fout.format(str(ic).zfill(5), run))
 

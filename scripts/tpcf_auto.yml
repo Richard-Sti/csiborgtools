@@ -1,7 +1,6 @@
 rpmin: 0.5
 rpmax: 40
 nrpbins: 20
-pimax: 60
 randmult: 100
 seed: 42
 nbins_marks: 10
