@@ -35,13 +35,13 @@ class CSiBORGPaths:
 
     Parameters
     ----------
-    srcdir : str, optional
+    srcdir : str
         Path to the folder where CSiBORG simulations are stored.
-    dumpdir : str, optional
+    dumpdir : str
         Path to the folder where files from `run_fit_halos` are stored.
-    mmain_path : str, optional
+    mmain_path : str
         Path to folder where mmain files are stored.
-    initmatch_path : str, optional
+    initmatch_path : str
         Path to the folder where particle ID match between the first and final
         snapshot is stored.
     """
@@ -50,16 +50,12 @@ class CSiBORGPaths:
     _mmain_path = None
     _initmatch_path = None
 
-    def __init__(self, srcdir="/mnt/extraspace/hdesmond/",
-                 dumpdir="/mnt/extraspace/rstiskalek/csiborg/",
-                 mmain_path="/mnt/zfsusers/hdesmond/Mmain",
-                 initmatch_path="/mnt/extraspace/rstiskalek/csiborg/initmatch/"):  # noqa
-        for path in [srcdir, dumpdir, mmain_path, initmatch_path]:
-            self._check_directory(path)
-        self._srcdir = srcdir
-        self._dumpdir = dumpdir
-        self._mmain_path = mmain_path
-        self._initmatch_path = initmatch_path
+    def __init__(self, srcdir=None, dumpdir=None, mmain_path=None,
+                 initmatch_path=None):
+        self.srcdir = srcdir
+        self.dumpdir = dumpdir
+        self.mmain_path = mmain_path
+        self.initmatch_path = initmatch_path
 
     @staticmethod
     def _check_directory(path):
@@ -75,7 +71,16 @@ class CSiBORGPaths:
         -------
         path : str
         """
+        if self._srcdir is None:
+            raise ValueError("`srcdir` is not set!")
         return self._srcdir
+
+    @srcdir.setter
+    def srcdir(self, path):
+        if path is None:
+            return
+        self._check_directory(path)
+        self._srcdir = path
 
     @property
     def dumpdir(self):
@@ -86,7 +91,16 @@ class CSiBORGPaths:
         -------
         path : str
         """
+        if self._dumpdir is None:
+            raise ValueError("`dumpdir` is not set!")
         return self._dumpdir
+
+    @dumpdir.setter
+    def dumpdir(self, path):
+        if path is None:
+            return
+        self._check_directory(path)
+        self._dumpdir = path
 
     @property
     def temp_dumpdir(self):
@@ -111,7 +125,16 @@ class CSiBORGPaths:
         -------
         path : str
         """
+        if self._mmain_path is None:
+            raise ValueError("`mmain_path` is not set!")
         return self._mmain_path
+
+    @mmain_path.setter
+    def mmain_path(self, path):
+        if path is None:
+            return
+        self._check_directory(path)
+        self._mmain_path = path
 
     @property
     def initmatch_path(self):
@@ -123,7 +146,16 @@ class CSiBORGPaths:
         -------
         path : str
         """
+        if self._initmatch_path is None:
+            raise ValueError("`initmatch_path` is not set!")
         return self._initmatch_path
+
+    @initmatch_path.setter
+    def initmatch_path(self, path):
+        if path is None:
+            return
+        self._check_directory(path)
+        self._initmatch_path = path
 
     def ic_ids(self, tonew):
         """
@@ -211,7 +243,7 @@ class CSiBORGPaths:
         cdir = join(self.dumpdir, "initmatch")
         return join(cdir, "clump_{}_{}.npy".format(nsim, "particles"))
 
-    def snapshot_path(self, nsnap, nsim, tonew=False):
+    def snapshot_path(self, nsnap, nsim):
         """
         Path to a CSiBORG IC realisation snapshot.
 
@@ -221,13 +253,13 @@ class CSiBORGPaths:
             Snapshot index.
         nsim : int
             IC realisation index.
-        tonew : bool, optional
-            Whether to return the path to the '_new' IC realisation.
 
         Returns
         -------
         snappath : str
         """
+        if nsnap == 1:
+            tonew = True
         simpath = self.ic_path(nsim, tonew=tonew)
         return join(simpath, "output_{}".format(str(nsnap).zfill(5)))
 
@@ -244,7 +276,7 @@ class CSiBORGPaths:
         -------
         path : str
         """
-        nsnap = str(maximum(self.get_snapshots(nsim))).zfill(5)
+        nsnap = str(max(self.get_snapshots(nsim))).zfill(5)
         fname = "ramses_out_{}_{}.npy".format(str(self.nsim).zfill(5), nsnap)
         return join(self.dumpdir, fname)
 
@@ -265,7 +297,7 @@ class ParticleReader:
     _paths = None
 
     def __init__(self, paths):
-        assert isinstance(paths, CSiBORGPaths)
+#        assert isinstance(paths, CSiBORGPaths)
         self._paths = paths
 
     @property
@@ -323,7 +355,7 @@ class ParticleReader:
             Opened part files.
         """
         snappath = self.paths.snapshot_path(nsnap, nsim)
-        ncpu = int(self.read_info()["ncpu"])
+        ncpu = int(self.read_info(nsnap, nsim)["ncpu"])
         nsnap = str(nsnap).zfill(5)
         if verbose:
             print("Reading in output `{}` with ncpu = `{}`."
