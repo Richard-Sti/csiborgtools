@@ -118,8 +118,7 @@ for i, nsim in enumerate(paths.ic_ids(tonew=False)):
         out_collected = csiborgtools.read.combine_splits(
             utils.Nsplits, nsnap, nsim, partreader, cols_collect,
             remove_splits=True, verbose=False)
-        fname = join(paths.dumpdir, "ramses_out_{}_{}.npy"
-                     .format(str(nsim).zfill(5), str(nsnap).zfill(5)))
+        fname = paths.hcat_path(nsim)
         print("Saving results to `{}`.".format(fname))
         numpy.save(fname, out_collected)
 

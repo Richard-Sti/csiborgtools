@@ -231,6 +231,23 @@ class CSiBORGPaths:
         simpath = self.ic_path(nsim, tonew=tonew)
         return join(simpath, "output_{}".format(str(nsnap).zfill(5)))
 
+    def hcat_path(self, nsim):
+        """
+        Path to the final snapshot halo catalogue from `fit_halos.py`.
+
+        Parameters
+        ----------
+        nsim : int
+            IC realisation index.
+
+        Returns
+        -------
+        path : str
+        """
+        nsnap = str(maximum(self.get_snapshots(nsim))).zfill(5)
+        fname = "ramses_out_{}_{}.npy".format(str(self.nsim).zfill(5), nsnap)
+        return join(self.dumpdir, fname)
+
 
 ###############################################################################
 #                          Fortran readers                                    #

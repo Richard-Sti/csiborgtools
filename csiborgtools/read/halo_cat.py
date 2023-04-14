@@ -99,9 +99,7 @@ class HaloCatalogue:
         Loads the data, merges with mmain, does various coordinate transforms.
         """
         # Load the processed data
-        fname = "ramses_out_{}_{}.npy".format(
-            str(self.nsim).zfill(5), str(self.nsnap).zfill(5))
-        data = numpy.load(join(self.paths.dumpdir, fname))
+        data = numpy.load(paths.hcat_path(self.nsim))
 
         # Load the mmain file and add it to the data
         mmain = read_mmain(self.nsim, self.paths.mmain_path)
