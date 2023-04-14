@@ -99,7 +99,7 @@ class HaloCatalogue:
         Loads the data, merges with mmain, does various coordinate transforms.
         """
         # Load the processed data
-        data = numpy.load(paths.hcat_path(self.nsim))
+        data = numpy.load(self.paths.hcat_path(self.nsim))
 
         # Load the mmain file and add it to the data
         mmain = read_mmain(self.nsim, self.paths.mmain_path)

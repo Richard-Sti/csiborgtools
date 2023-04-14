@@ -48,21 +48,19 @@ paths = csiborgtools.read.CSiBORGPaths()
 nsims = paths.ic_ids(tonew=True)
 
 # Output files
-dumpdir = "/mnt/extraspace/rstiskalek/csiborg/"
-ftemp = join(dumpdir, "temp_initmatch", "temp_{}_{}_{}.npy")
-fpermcm = join(dumpdir, "initmatch", "clump_{}_cm.npy")
-fpermpart = join(dumpdir, "initmatch", "clump_{}_particles.npy")
+ftemp = join(paths.dumpdir, "temp_initmatch", "temp_{}_{}_{}.npy")
+fpermcm = join(paths.dumpdir, "initmatch", "clump_{}_cm.npy")
+fpermpart = join(paths.dumpdir, "initmatch", "clump_{}_particles.npy")
 
 for nsim in nsims:
     if rank == 0:
         print("{}: reading simulation {}.".format(datetime.now(), nsim),
               flush=True)
-    nsnap_min = min(paths.get_snapshots(nsim))
     nsnap_max = max(paths.get_snapshots(nsim))
     reader = csiborgtools.read.ParticleReader(paths)
 
     # Read and sort the initial particle files by their particle IDs
-    part0 = reader.read_particle(nsnap_min, nsim, ["x", "y", "z", "M", "ID"],
+    part0 = reader.read_particle(1, nsim, ["x", "y", "z", "M", "ID"],
                                  verbose=False)
     part0 = part0[numpy.argsort(part0["ID"])]
 
