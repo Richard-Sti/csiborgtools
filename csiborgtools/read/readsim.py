@@ -384,6 +384,104 @@ class ParticleReader:
 
 
 ###############################################################################
+#                    Summed substructure catalogue                            #
+###############################################################################
+
+class MmainReader:
+    """
+    Object to generate the summed substructure catalogue.
+    """
+    _paths = None
+
+    def __init__(self, paths):
+#        assert isinstance(paths, CSiBORGPaths)
+        self._paths = paths
+
+    @property
+    def paths(self):
+        return self._paths
+
+    def find_parents(self, clumparr):
+        """
+        Find ultimate parent haloes for every clump in a final snapshot.
+
+        Parameters
+        ----------
+        clumparr : structured array
+            Clump array. Read from `ParticleReader.read_clumps`. Must contain
+            `index` and `parent` columns.
+
+        Returns
+        -------
+        parent_arr : 1-dimensional array of shape `(nclumps, )`
+            Array of the ultimate parent halo index for every clump.
+        """
+        clindex = clumparr["index"]
+        parindex = clumparr["parent"]
+
+        # The ultimate parent for every clump
+        parent_arr = numpy.zeros(clindex.size, dtype=numpy.int32)
+        for i in range(clindex.size):
+            tocont = clindex[i] != parindex[i]  # Continue if not a main halo
+            par = parindex[i] # First we try the parent of this clump
+            while tocont:
+                # The element of the array corresponding to the parent clump to
+                # the one we're looking at
+                element = numpy.where(clindex == par)[0][0]
+                # We stop if the parent is its own parent, so a main halo. Else
+                # move onto the parent of the parent. Eventually this is its
+                # own parent and we stop, with ultimate parent=par
+                if clindex[element] == clindex[element]:
+                    tocont = False
+                else:
+                    par = parindex[element]
+            parent_arr[i] = par
+
+        return parent_arr
+
+    def make_mmain(self, nsim):
+        """
+        Make the summed substructure catalogue for a final snapshot. Includes
+        the position of the paren, the summed mass and the fraction of mass in
+        substructure.
+
+        Parameters
+        ----------
+        nsim : int
+            IC realisation index.
+
+        Returns
+        -------
+        mmain : structured array
+        """
+        nsnap = max(self.paths.get_snapshots(nsim))
+        partreader = ParticleReader(self.paths)
+        clumparr = partreader.read_clumps(
+            nsnap, nsim, cols=["index", "parent", "mass_cl", "peak_x", "peak_y", "peak_z"])
+
+        ultimate_parent = self.find_parents(clumparr)
+        mask_main = clumparr["index"] == clumparr["parent"]
+        nmain = numpy.sum(mask_main)
+        # Preallocate already the output array
+        out = cols_to_structured(
+            nmain, [("ID", numpy.int32), ("x", numpy.float32),
+                    ("y", numpy.float32), ("z", numpy.float32),
+                    ("M", numpy.float32), ("subfrac", numpy.float32)])
+        out["ID"] = clumparr["index"][mask_main]
+        # Because for these index == parent
+        for p in ('x', 'y', 'z'):
+            out[p] = clumparr["peak_" + p][mask_main]
+        # We want a total mass for each halo in ID_main
+        for i in range(nmain):
+            # Should include the main halo itself, i.e. its own ultimate parent
+            out["M"][i] = numpy.sum(
+                clumparr["mass_cl"][ultimate_parent == out["ID"][i]])
+
+        out["subfrac"] = 1 - clumparr[mask_main] / out["M"]
+        return out
+
+
+###############################################################################
 #                       Supplementary reading functions                       #
 ###############################################################################
 
