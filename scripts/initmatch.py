@@ -44,7 +44,7 @@ parser = ArgumentParser()
 parser.add_argument("--dump_clumps", type=lambda x: bool(strtobool(x)))
 args = parser.parse_args()
 
-paths = csiborgtools.read.CSiBORGPaths()
+paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
 nsims = paths.ic_ids(tonew=True)
 
 # Output files

@@ -60,7 +60,7 @@ fperm = join(dumpdir, "fields", fname + ".npy")
 dtype = {"names": ["delta", "phi"], "formats": [numpy.float32] * 2}
 
 # CSiBORG simulation paths
-paths = csiborgtools.read.CSiBORGPaths()
+paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
 ics = paths.ic_ids(tonew=False)
 nsims = len(ics)
 

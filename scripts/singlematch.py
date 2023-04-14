@@ -35,7 +35,7 @@ parser.add_argument("--sigma", type=float)
 args = parser.parse_args()
 
 # File paths
-paths = csiborgtools.read.CSiBORGPaths()
+paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
 fout = join(utils.dumpdir, "overlap",
             "cross_{}_{}.npz".format(args.nsim0, args.nsimx))
 smooth_kwargs = {"sigma": args.sigma, "mode": "constant", "cval": 0.0}

@@ -34,7 +34,7 @@ comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 nproc = comm.Get_size()
 
-paths = csiborgtools.read.CSiBORGPaths()
+paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
 dumpdir = "/mnt/extraspace/rstiskalek/csiborg/"
 loaddir = join(dumpdir, "temp")
 cols_collect = [("npart", numpy.int64), ("totpartmass", numpy.float64),

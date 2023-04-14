@@ -60,7 +60,7 @@ ics = [7444, 7468, 7492, 7516, 7540, 7564, 7588, 7612, 7636, 7660, 7684,
        9820, 9844]
 dumpdir = "/mnt/extraspace/rstiskalek/csiborg/knn"
 fout = join(dumpdir, "auto", "knncdf_{}_{}.p")
-paths = csiborgtools.read.CSiBORGPaths()
+paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
 knncdf = csiborgtools.clustering.kNN_CDF()
 
 ###############################################################################
