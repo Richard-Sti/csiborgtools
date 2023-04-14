@@ -12,4 +12,9 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-from .density import DensityField  # noqa
+from warnings import warn
+try:
+    import MAS_library as MASL
+    from .density import DensityField
+except ImportError:
+    warn("MAS_library not found, `DensityField` will not be available", UserWarning)  # noqa
