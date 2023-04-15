@@ -494,39 +494,6 @@ class MmainReader:
 ###############################################################################
 
 
-def read_mmain(nsim, srcdir, fname="Mmain_{}.npy"):
-    """
-    Read `mmain` numpy arrays of central halos whose mass contains their
-    substracture contribution.
-
-    Parameters
-    ----------
-    nsim : int
-        IC realisation index.
-    srcdir : str
-        Path to the folder containing the files.
-    fname : str, optional
-        File name convention.  By default `Mmain_{}.npy`, where the
-        substituted value is `n`.
-
-    Returns
-    -------
-    out : structured array
-        Array with the central halo information.
-    """
-    fpath = join(srcdir, fname.format(nsim))
-    arr = numpy.load(fpath)
-
-    cols = [("index", numpy.int64), ("peak_x", numpy.float64),
-            ("peak_y", numpy.float64), ("peak_z", numpy.float64),
-            ("mass_cl", numpy.float64), ("sub_frac", numpy.float64)]
-    out = cols_to_structured(arr.shape[0], cols)
-    for i, name in enumerate(out.dtype.names):
-        out[name] = arr[:, i]
-
-    return out
-
-
 def read_initcm(nsim, srcdir, fname="clump_{}_cm.npy"):
     """
     Read `clump_cm`, i.e. the center of mass of a clump at redshift z = 70.

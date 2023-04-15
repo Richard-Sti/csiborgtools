@@ -13,7 +13,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 from .paths import CSiBORGPaths
-from .readsim import (ParticleReader, MmainReader, read_mmain, read_initcm, halfwidth_select)  # noqa
+from .readsim import (ParticleReader, MmainReader, read_initcm, halfwidth_select)  # noqa
 from .halo_cat import (HaloCatalogue, concatenate_clumps)  # noqa
 from .obs import (PlanckClusters, MCXCClusters, TwoMPPGalaxies,  # noqa
                       TwoMPPGroups, SDSS)  # noqa
