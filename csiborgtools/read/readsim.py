@@ -303,7 +303,7 @@ class ParticleReader:
 
     def read_clumps(self, nsnap, nsim, cols=None):
         """
-        Read in a clump file `clump_Nsnap.dat`.
+        Read in a clump file `clump_xxXXX.dat`.
 
         Parameters
         ----------
@@ -311,7 +311,6 @@ class ParticleReader:
             Snapshot index.
         nsim : int
             IC realisation index.
-
         cols : list of str, optional.
             Columns to extract. By default `None` and all columns are
             extracted.
@@ -319,48 +318,38 @@ class ParticleReader:
         Returns
         -------
         out : structured array
-            Structured array of the clumps.
         """
         nsnap = str(nsnap).zfill(5)
         fname = join(self.paths.ic_path(nsim, tonew=False),
                      "output_{}".format(nsnap),
                      "clump_{}.dat".format(nsnap))
-        # Check the file exists.
         if not isfile(fname):
-            raise FileExistsError(
-                "Clump file `{}` does not exist.".format(fname))
-
-        # Read in the clump array. This is how the columns must be written!
+            raise FileExistsError("Clump file `{}` does not exist."
+                                  .format(fname))
         data = numpy.genfromtxt(fname)
-        clump_cols = [("index", numpy.int64), ("level", numpy.int64),
-                      ("parent", numpy.int64), ("ncell", numpy.float64),
-                      ("peak_x", numpy.float64), ("peak_y", numpy.float64),
-                      ("peak_z", numpy.float64), ("rho-", numpy.float64),
-                      ("rho+", numpy.float64), ("rho_av", numpy.float64),
-                      ("mass_cl", numpy.float64), ("relevance", numpy.float64)]
-        out0 = cols_to_structured(data.shape[0], clump_cols)
-        for i, name in enumerate(out0.dtype.names):
-            out0[name] = data[:, i]
-        # If take all cols then return
-        if cols is None:
-            return out0
-        # Make sure we have a list
+        # How the data is stored in the clump file.
+        clump_cols = {"index":  (0, numpy.int32),
+                      "level": (1, numpy.int32),
+                      "parent": (2, numpy.int32),
+                      "ncell" : (3, numpy.float32),
+                      "x": (4, numpy.float32),
+                      "y": (5, numpy.float32),
+                      "z": (6, numpy.float32),
+                      "rho-": (7, numpy.float32),
+                      "rho+": (8, numpy.float32),
+                      "rho_av": (9, numpy.float32),
+                      "mass_cl": (10, numpy.float32),
+                      "relevance": (11, numpy.float32),
+                      }
+        # Return the requested columns.
         cols = [cols] if isinstance(cols, str) else cols
-        # Get the indxs of clump_cols to output
-        clump_names = [col[0] for col in clump_cols]
-        indxs = [None] * len(cols)
-        for i, col in enumerate(cols):
-            if col not in clump_names:
-                raise KeyError("Invalid column `{}`, not in the clump file."
-                               .format(col))
-            indxs[i] = clump_names.index(col)
-        # Make an array and fill it
-        out = cols_to_structured(out0.size, [clump_cols[i] for i in indxs])
-        for name in out.dtype.names:
-            out[name] = out0[name]
+        cols = list(clump_cols.keys()) if cols is None else cols
 
+        dtype = [(col, clump_cols[col][1]) for col in cols]
+        out = cols_to_structured(data.shape[0], dtype)
+        for col in cols:
+            out[col] = data[:, clump_cols[col][0]]
         return out
-
 
 ###############################################################################
 #                    Summed substructure catalogue                            #
@@ -373,6 +362,7 @@ class MmainReader:
     _paths = None
 
     def __init__(self, paths):
+        # TODO uncomment in production
 #        assert isinstance(paths, CSiBORGPaths)
         self._paths = paths
 
@@ -444,8 +434,8 @@ class MmainReader:
         """
         nsnap = max(self.paths.get_snapshots(nsim))
         partreader = ParticleReader(self.paths)
-        clumparr = partreader.read_clumps(
-            nsnap, nsim, cols=["index", "parent", "mass_cl", "peak_x", "peak_y", "peak_z"])
+        cols=["index", "parent", "mass_cl", 'x', 'y', 'z']
+        clumparr = partreader.read_clumps(nsnap, nsim, cols)
 
         ultimate_parent = self.find_parents(clumparr, verbose=verbose)
         mask_main = clumparr["index"] == clumparr["parent"]
@@ -458,7 +448,7 @@ class MmainReader:
         out["ID"] = clumparr["index"][mask_main]
         # Because for these index == parent
         for p in ('x', 'y', 'z'):
-            out[p] = clumparr["peak_" + p][mask_main]
+            out[p] = clumparr[p][mask_main]
         # We want a total mass for each halo in ID_main
         for i in range(nmain):
             # Should include the main halo itself, i.e. its own ultimate parent
