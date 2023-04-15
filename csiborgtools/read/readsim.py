@@ -481,9 +481,8 @@ class MmainReader:
             out["M"][i] = numpy.sum(
                 clumparr["mass_cl"][ultimate_parent == out["ID"][i]])
 
-        out["subfrac"] = 1 - clumparr[mask_main] / out["M"]
+        out["subfrac"] = 1 - clumparr["mass_cl"][mask_main] / out["M"]
         return out
-
 
 ###############################################################################
 #                       Supplementary reading functions                       #
