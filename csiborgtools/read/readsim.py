@@ -416,7 +416,8 @@ class MmainReader:
         Returns
         -------
         parent_arr : 1-dimensional array of shape `(nclumps, )`
-            Array of the ultimate parent halo index for every clump.
+            The ultimate parent halo index for every clump, i.e. referring to
+            its ultimate parent clump.
         """
         clindex = clumparr["index"]
         parindex = clumparr["parent"]
@@ -457,6 +458,10 @@ class MmainReader:
         Returns
         -------
         mmain : structured array
+            The `mmain` catalogue.
+        ultimate_parent : 1-dimensional array of shape `(nclumps,)`
+            The ultimate parent halo index for every clump, i.e. referring to
+            its ultimate parent clump.
         """
         nsnap = max(self.paths.get_snapshots(nsim))
         partreader = ParticleReader(self.paths)
@@ -482,7 +487,7 @@ class MmainReader:
                 clumparr["mass_cl"][ultimate_parent == out["ID"][i]])
 
         out["subfrac"] = 1 - clumparr["mass_cl"][mask_main] / out["M"]
-        return out
+        return out, ultimate_parent
 
 ###############################################################################
 #                       Supplementary reading functions                       #
