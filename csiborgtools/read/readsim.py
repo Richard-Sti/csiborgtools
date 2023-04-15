@@ -19,7 +19,7 @@ from os.path import (join, isfile)
 from warnings import warn
 import numpy
 from scipy.io import FortranFile
-from tqdm import tqdm
+from tqdm import (tqdm, trange)
 from ..utils import (cols_to_structured)
 
 ###############################################################################
@@ -344,7 +344,7 @@ class ParticleReader:
             Structured array of the clumps.
         """
         nsnap = str(nsnap).zfill(5)
-        fname = join(self.paths.ic_path(nsim, to_new=False),
+        fname = join(self.paths.ic_path(nsim, tonew=False),
                      "output_{}".format(nsnap),
                      "clump_{}.dat".format(nsnap))
         # Check the file exists.
@@ -401,7 +401,7 @@ class MmainReader:
     def paths(self):
         return self._paths
 
-    def find_parents(self, clumparr):
+    def find_parents(self, clumparr, verbose=False):
         """
         Find ultimate parent haloes for every clump in a final snapshot.
 
@@ -410,6 +410,8 @@ class MmainReader:
         clumparr : structured array
             Clump array. Read from `ParticleReader.read_clumps`. Must contain
             `index` and `parent` columns.
+        verbose : bool, optional
+            Verbosity flag.
 
         Returns
         -------
@@ -421,7 +423,7 @@ class MmainReader:
 
         # The ultimate parent for every clump
         parent_arr = numpy.zeros(clindex.size, dtype=numpy.int32)
-        for i in range(clindex.size):
+        for i in trange(clindex.size) if verbose else range(clindex.size):
             tocont = clindex[i] != parindex[i]  # Continue if not a main halo
             par = parindex[i] # First we try the parent of this clump
             while tocont:
@@ -439,7 +441,7 @@ class MmainReader:
 
         return parent_arr
 
-    def make_mmain(self, nsim):
+    def make_mmain(self, nsim, verbose=False):
         """
         Make the summed substructure catalogue for a final snapshot. Includes
         the position of the paren, the summed mass and the fraction of mass in
@@ -449,6 +451,8 @@ class MmainReader:
         ----------
         nsim : int
             IC realisation index.
+        verbose : bool, optional
+            Verbosity flag.
 
         Returns
         -------
@@ -459,7 +463,7 @@ class MmainReader:
         clumparr = partreader.read_clumps(
             nsnap, nsim, cols=["index", "parent", "mass_cl", "peak_x", "peak_y", "peak_z"])
 
-        ultimate_parent = self.find_parents(clumparr)
+        ultimate_parent = self.find_parents(clumparr, verbose=verbose)
         mask_main = clumparr["index"] == clumparr["parent"]
         nmain = numpy.sum(mask_main)
         # Preallocate already the output array
