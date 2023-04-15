@@ -116,7 +116,7 @@ def do_auto(run, cat, ic):
 
 
 def do_runs(ic):
-    cat = csiborgtools.read.Catalogue(ic, paths, max_dist=Rmax,
+    cat = csiborgtools.read.ClumpsCatalogue(ic, paths, max_dist=Rmax,
                                           min_mass=minmass)
     for run in args.runs:
         do_auto(run, cat, ic)

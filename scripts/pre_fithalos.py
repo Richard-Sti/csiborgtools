@@ -35,8 +35,6 @@ rank = comm.Get_rank()
 nproc = comm.Get_size()
 
 paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
-dumpdir = "/mnt/extraspace/rstiskalek/csiborg/"
-loaddir = join(dumpdir, "temp")
 cols_collect = [("npart", numpy.int64), ("totpartmass", numpy.float64),
                 ("Rs", numpy.float64), ("vx", numpy.float64),
                 ("vy", numpy.float64), ("vz", numpy.float64),

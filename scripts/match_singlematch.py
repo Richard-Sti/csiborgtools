@@ -44,8 +44,8 @@ overlapper = csiborgtools.match.ParticleOverlap()
 # Load catalogues
 print("{}: loading catalogues {} and {}."
       .format(datetime.now(), args.nsim0, args.nsimx), flush=True)
-cat0 = csiborgtools.read.Catalogue(args.nsim0, paths)
-catx = csiborgtools.read.Catalogue(args.nsimx, paths)
+cat0 = csiborgtools.read.ClumpsCatalogue(args.nsim0, paths)
+catx = csiborgtools.read.ClumpsCatalogue(args.nsimx, paths)
 
 
 print("{}: loading simulation {} and converting positions to cell numbers."
