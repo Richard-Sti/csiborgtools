@@ -12,20 +12,18 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-"""
-Script to split particles into smaller files according to their clump
-membership for faster manipulation. Currently does this for the maximum
-snapshot of each simulation. Running this requires a lot of memory.
-"""
-from mpi4py import MPI
+"""Script to split particles to indivudual files according to their clump."""
 from datetime import datetime
+from mpi4py import MPI
+from tqdm import tqdm
+import numpy
+from TaskmasterMPI import master_process, worker_process
 try:
     import csiborgtools
 except ModuleNotFoundError:
     import sys
     sys.path.append("../")
     import csiborgtools
-import utils
 
 # Get MPI things
 comm = MPI.COMM_WORLD
@@ -33,26 +31,49 @@ rank = comm.Get_rank()
 nproc = comm.Get_size()
 
 paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
-sims = paths.get_ics(False)
-partcols = ["x", "y", "z", "vx", "vy", "vz", "M", "level"]
+verbose = nproc == 1
+partcols = ["x", "y", "z", "vx", "vy", "vz", "M"]
 
-jobs = csiborgtools.fits.split_jobs(len(sims), nproc)[rank]
-for icount, sim_index in enumerate(jobs):
-    print("{}: rank {} working {} / {} jobs."
-          .format(datetime.now(), rank, icount + 1, len(jobs)), flush=True)
-    nsim = sims[sim_index]
+
+def do_split(nsim):
     nsnap = max(paths.get_snapshots(nsim))
-    partreader = csiborgtools.read.ParticleReader(paths)
-    # Load the clumps, particles' clump IDs and particles.
-    clumps = partreader.read_clumps(nsnap, nsim)
-    particle_clumps = partreader.read_clumpid(nsnap, nsim, verbose=False)
-    particles = partreader.read_particle(nsnap, nsim, partcols, verbose=False)
-    # Drop all particles whose clump index is 0 (not assigned to any halo)
-    particle_clumps, particles = partreader.drop_zero_indx(
-        particle_clumps, particles)
-    # Dump it!
-    csiborgtools.fits.dump_split_particles(particles, particle_clumps, clumps,
-                                           utils.Nsplits, nsnap, nsim, paths,
-                                           verbose=False)
+    reader = csiborgtools.read.ParticleReader(paths)
 
-print("All finished!", flush=True)
+    # Load the particles and their clump IDs
+    particles = reader.read_particle(nsnap, nsim, partcols, verbose=verbose)
+    particle_clumps = reader.read_clumpid(nsnap, nsim, verbose=verbose)
+    # Drop all particles whose clump index is 0 (not assigned to any clump)
+    assigned_mask = particle_clumps != 0
+    particle_clumps = particle_clumps[assigned_mask]
+    particles = particles[assigned_mask]
+    # Load the clump indices
+    clumpinds = reader.read_clumps(nsnap, nsim, cols="index")["index"]
+
+    # Some of the clumps have no particles, so we will save empty array
+    with_particles = numpy.isin(clumpinds, particle_clumps)
+    for i, clind in enumerate(tqdm(clumpinds) if verbose else clumpinds):
+        if with_particles[i]:
+            out = particles[particle_clumps == clind]
+        else:
+            out = numpy.array([], dtype=numpy.float32)
+        numpy.save(paths.split_path(clind, nsnap, nsim), out)
+
+
+###############################################################################
+#                             MPI task delegation                             #
+###############################################################################
+
+
+if nproc > 1:
+    if rank == 0:
+        tasks = list(paths.get_ics(tonew=False))
+        master_process(tasks, comm, verbose=True)
+    else:
+        worker_process(do_split, comm, verbose=False)
+else:
+    tasks = paths.get_ics(tonew=False)
+    for task in tasks:
+        print("{}: completing task `{}`.".format(datetime.now(), task))
+        do_split(task)
+
+comm.Barrier()
