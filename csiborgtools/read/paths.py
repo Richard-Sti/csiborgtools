@@ -163,14 +163,12 @@ class CSiBORGPaths:
         -------
         path : str
         """
-        fdir = join(self.postdir, "split", "ic_{}".format(str(nsim).zfill(5)))
+        fdir = join(self.postdir, "split", "ic_{}".format(str(nsim).zfill(5)),
+                    "out_{}".format(str(nsnap).zfill(5)))
         if not isdir(fdir):
             mkdir(fdir)
             warn("Created directory `{}`.".format(fdir), UserWarning)
-        return join(
-            fdir,
-            "out_{}_{}.npy".format(str(nsnap).zfill(5), clumpid)
-            )
+        return join(fdir, "clump_{}.npy".format(clumpid))
 
     def get_ics(self, tonew):
         """
