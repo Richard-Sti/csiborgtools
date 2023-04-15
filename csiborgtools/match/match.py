@@ -121,9 +121,9 @@ class RealisationsMatcher:
 
         Parameters
         ----------
-        cat0 : :py:class:`csiborgtools.read.HaloCatalogue`
+        cat0 : :py:class:`csiborgtools.read.Catalogue`
             Halo catalogue of the reference simulation.
-        catx : :py:class:`csiborgtools.read.HaloCatalogue`
+        catx : :py:class:`csiborgtools.read.Catalogue`
             Halo catalogue of the cross simulation.
         clumps0 : list of structured arrays
             List of clump structured arrays of the reference simulation, keys

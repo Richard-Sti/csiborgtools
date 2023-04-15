@@ -15,13 +15,13 @@
 """CSiBORG halo catalogue."""
 import numpy
 from sklearn.neighbors import NearestNeighbors
-from .readsim import (read_mmain, read_initcm)
+from .readsim import read_initcm
 from .paths import CSiBORGPaths
 from ..utils import (flip_cols, add_columns)
 from ..units import (BoxUnits, cartesian_to_radec)
 
 
-class HaloCatalogue:
+class Catalogue:
     r"""
     Processed halo catalogue, the data should be calculated in `run_fit_halos`.
 
@@ -100,8 +100,9 @@ class HaloCatalogue:
         data = numpy.load(self.paths.hcat_path(self.nsim))
 
         # Load the mmain file and add it to the data
-        mmain = read_mmain(self.nsim, self.paths.mmain_dir)
-        data = self.merge_mmain_to_clumps(data, mmain)
+        # TODO: read the mmain here
+#        mmain = read_mmain(self.nsim, self.paths.mmain_dir)
+#        data = self.merge_mmain_to_clumps(data, mmain)
         flip_cols(data, "peak_x", "peak_z")
 
         # Cut on number of particles and finite m200. Do not change! Hardcoded

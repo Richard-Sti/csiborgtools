@@ -87,11 +87,11 @@ def do_cross(run, ics):
     rvs_gen = csiborgtools.clustering.RVSinsphere(Rmax)
     knn1, knn2 = NearestNeighbors(), NearestNeighbors()
 
-    cat1 = csiborgtools.read.HaloCatalogue(ics[0], paths, max_dist=Rmax)
+    cat1 = csiborgtools.read.Catalogue(ics[0], paths, max_dist=Rmax)
     pos1 = read_single(_config, cat1)
     knn1.fit(pos1)
 
-    cat2 = csiborgtools.read.HaloCatalogue(ics[1], paths, max_dist=Rmax)
+    cat2 = csiborgtools.read.Catalogue(ics[1], paths, max_dist=Rmax)
     pos2 = read_single(_config, cat2)
     knn2.fit(pos2)
 
