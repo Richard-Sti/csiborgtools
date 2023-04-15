@@ -18,7 +18,8 @@ Functions to read in the particle and clump files.
 import numpy
 from os.path import join
 from sklearn.neighbors import NearestNeighbors
-from .readsim import (CSiBORGPaths, read_mmain, read_initcm)
+from .readsim import (read_mmain, read_initcm)
+from .paths import CSiBORGPaths
 from ..utils import (flip_cols, add_columns)
 from ..units import (BoxUnits, cartesian_to_radec)
 
