@@ -86,6 +86,8 @@ class CSiBORGPaths:
         """
         Path to a temporary dumping folder.
 
+        TODO: this will soon go.
+
         Returns
         -------
         path : str
