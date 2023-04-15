@@ -111,7 +111,6 @@ def dump_split_particles(particles, particle_clumps, clumps, n_splits,
 
     # The starting clump index of each split
     splits = distribute_halos(n_splits, clumps)
-    fname = join(paths.temp_dumpdir, "out_{}_snap_{}_{}.npz")
 
     tot = 0
     for n in trange(n_splits) if verbose else range(n_splits):
@@ -130,7 +129,7 @@ def dump_split_particles(particles, particle_clumps, clumps, n_splits,
                 "with no particles.".format(n, indxs.size, npart_unique))
         # Dump it!
         tot += mask.sum()
-        fout = fname.format(nsim, nsnap, n)
+        fout = paths.split_path(nsnap, nsim, n, "clumps")
         numpy.savez(fout, particles[mask], particle_clumps[mask], clumps[i:j])
 
     # There are particles whose clump ID is > 1 and have no counterpart in the
@@ -192,8 +191,7 @@ def load_split_particles(nsplit, nsnap, nsim, paths, remove_split=False):
     clumps : 1-dimensional array
         Clumps belonging to this split.
     """
-    fname = join(paths.temp_dumpdir,
-                 "out_{}_snap_{}_{}.npz".format(nsim, nsnap, nsplit))
+    fname = paths.split_path(nsnap, nsim, nsplit, "clumps")
     file = numpy.load(fname)
     particles, clump_indxs, clumps = (file[f] for f in file.files)
     if remove_split:

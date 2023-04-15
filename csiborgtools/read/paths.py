@@ -138,6 +138,32 @@ class CSiBORGPaths:
             "{}_{}.npy".format(kind, str(nsim).zfill(5))
             )
 
+    def split_path(self, nsnap, nsim, nsplit, kind):
+        """
+        Path to the `split` files from `pre_splithalos`. Individual files
+        contain particles belonging to several clumps/parent halos.
+
+        Parameters
+        ----------
+        nsnap : int
+            Snapshot index.
+        nsim : int
+            IC realisation index.
+        nsplit : int
+            Split index.
+
+        Returns
+        -------
+        path : str
+        """
+        assert kind in ["clumps", "parents"]
+        return join(
+            self.postdir,
+            "split_{}".format(kind),
+            "out_{}_{}_{}.npz".format(
+                str(nsim).zfill(5), str(nsnap).zfill(5), nsplit)
+            )
+
     def get_ics(self, tonew):
         """
         Get CSiBORG IC realisation IDs from the list of folders in
