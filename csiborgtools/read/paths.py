@@ -27,8 +27,9 @@ class CSiBORGPaths:
     srcdir : str
         Path to the folder where CSiBORG simulations are stored.
     dumpdir : str
+        TODO: fix this docstring.
         Path to the folder where files from `run_fit_halos` are stored.
-    mmain_path : str
+    _mmain_dir : str
         Path to folder where mmain files are stored.
     initmatch_path : str
         Path to the folder where particle ID match between the first and final
@@ -36,14 +37,11 @@ class CSiBORGPaths:
     """
     _srcdir = None
     _dumpdir = None
-    _mmain_path = None
     _initmatch_path = None
 
-    def __init__(self, srcdir=None, dumpdir=None, mmain_path=None,
-                 initmatch_path=None):
+    def __init__(self, srcdir=None, dumpdir=None, initmatch_path=None):
         self.srcdir = srcdir
         self.dumpdir = dumpdir
-        self.mmain_path = mmain_path
         self.initmatch_path = initmatch_path
 
     @staticmethod
@@ -105,25 +103,26 @@ class CSiBORGPaths:
             raise IOError("Invalid directory `{}`.".format(fpath))
         return fpath
 
-    @property
-    def mmain_path(self):
+    def mmain_path(self, nsnap, nsim):
         """
-        Path to the folder where mmain files are stored.
+        Path to the `mmain` files summed substructure files.
+
+        Parameters
+        ----------
+        nsnap : int
+            Snapshot index.
+        nsim : int
+            IC realisation index.
 
         Returns
         -------
         path : str
         """
-        if self._mmain_path is None:
-            raise ValueError("`mmain_path` is not set!")
-        return self._mmain_path
-
-    @mmain_path.setter
-    def mmain_path(self, path):
-        if path is None:
-            return
-        self._check_directory(path)
-        self._mmain_path = path
+        return join(
+            self.dumpdir,
+            "mmain",
+            "mmain_{}_{}.npz".format(str(nsim).zfill(5), str(nsnap).zfill(5))
+            )
 
     @property
     def initmatch_path(self):
@@ -214,24 +213,6 @@ class CSiBORGPaths:
         snaps = [int(snap.split('_')[-1].lstrip('0')) for snap in snaps]
         return numpy.sort(snaps)
 
-    def clump0_path(self, nsim):
-        """
-        Path to a single dumped clump's particles. Expected to point to a
-        dictonary whose keys are the clump indices and items structured
-        arrays with the clump's particles in the initial snapshot.
-
-        Parameters
-        ----------
-        nsim : int
-            IC realisation index.
-
-        Returns
-        -------
-        path : str
-        """
-        cdir = join(self.dumpdir, "initmatch")
-        return join(cdir, "clump_{}_{}.npy".format(nsim, "particles"))
-
     def snapshot_path(self, nsnap, nsim):
         """
         Path to a CSiBORG IC realisation snapshot.
@@ -251,6 +232,24 @@ class CSiBORGPaths:
             tonew = True
         simpath = self.ic_path(nsim, tonew=tonew)
         return join(simpath, "output_{}".format(str(nsnap).zfill(5)))
+
+    def clump0_path(self, nsim):
+        """
+        Path to a single dumped clump's particles. Expected to point to a
+        dictonary whose keys are the clump indices and items structured
+        arrays with the clump's particles in the initial snapshot.
+
+        Parameters
+        ----------
+        nsim : int
+            IC realisation index.
+
+        Returns
+        -------
+        path : str
+        """
+        cdir = join(self.dumpdir, "initmatch")
+        return join(cdir, "clump_{}_{}.npy".format(nsim, "particles"))
 
     def hcat_path(self, nsim):
         """
