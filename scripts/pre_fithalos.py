@@ -54,7 +54,7 @@ for i, nsim in enumerate(paths.get_ics(tonew=False)):
     nsnap = max(paths.get_snapshots(nsim))
     box = csiborgtools.units.BoxUnits(nsnap, nsim, paths)
 
-    jobs = csiborgtools.fits.split_jobs(utils.Nsplits, nproc)[rank]
+    jobs = csiborgtools.utils.split_jobs(utils.Nsplits, nproc)[rank]
     for nsplit in jobs:
         parts, part_clumps, clumps = csiborgtools.fits.load_split_particles(
             nsplit, nsnap, nsim, paths, remove_split=False)

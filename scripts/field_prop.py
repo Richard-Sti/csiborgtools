@@ -64,7 +64,7 @@ paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
 ics = paths.get_ics(tonew=False)
 nsims = len(ics)
 
-for n in csiborgtools.fits.split_jobs(nsims, nproc)[rank]:
+for n in csiborgtools.utils.split_jobs(nsims, nproc)[rank]:
     print("Rank {}@{}: working on {}th IC.".format(rank, datetime.now(), n),
           flush=True)
     nsim = ics[n]

@@ -59,7 +59,7 @@ fout = join(dumpdir, "crosspk",
             "out_{}_{}" + "_{}.p".format(args.halfwidth))
 
 
-jobs = csiborgtools.fits.split_jobs(nsims, nproc)[rank]
+jobs = csiborgtools.utils.split_jobs(nsims, nproc)[rank]
 for n in jobs:
     print("Rank {}@{}: saving {}th delta.".format(rank, datetime.now(), n))
     nsim = ics[n]
@@ -99,7 +99,7 @@ for i in range(nsims):
     combs.append((i, i))
 prev_delta = [-1, None, None, None]  # i, delta, aexp, length
 
-jobs = csiborgtools.fits.split_jobs(len(combs), nproc)[rank]
+jobs = csiborgtools.utils.split_jobs(len(combs), nproc)[rank]
 for n in jobs:
     i, j = combs[n]
     print("Rank {}@{}: combination {}.".format(rank, datetime.now(), (i, j)))

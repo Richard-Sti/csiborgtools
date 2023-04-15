@@ -85,7 +85,7 @@ for nsim in nsims:
     unique_clumpids = numpy.unique(clump_ids)
 
     njobs = unique_clumpids.size
-    jobs = csiborgtools.fits.split_jobs(njobs, nproc)[rank]
+    jobs = csiborgtools.utils.split_jobs(njobs, nproc)[rank]
     for i in jobs:
         n = unique_clumpids[i]
         x0 = part0[clump_ids == n]
