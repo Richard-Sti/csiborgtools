@@ -26,15 +26,15 @@ class CSiBORGPaths:
     ----------
     srcdir : str
         Path to the folder where the RAMSES outputs are stored.
-    dumpdir : str
+    postdir: str
         Path to the folder where post-processed files are stored.
     """
     _srcdir = None
-    _dumpdir = None
+    _postdir = None
 
-    def __init__(self, srcdir=None, dumpdir=None):
+    def __init__(self, srcdir=None, postdir=None):
         self.srcdir = srcdir
-        self.dumpdir = dumpdir
+        self.postdir = postdir
 
     @staticmethod
     def _check_directory(path):
@@ -62,24 +62,24 @@ class CSiBORGPaths:
         self._srcdir = path
 
     @property
-    def dumpdir(self):
+    def postdir(self):
         """
-        Path to the folder where files from `run_fit_halos` are stored.
+        Path to the folder where post-processed files are stored.
 
         Returns
         -------
         path : str
         """
-        if self._dumpdir is None:
-            raise ValueError("`dumpdir` is not set!")
-        return self._dumpdir
+        if self._postdir is None:
+            raise ValueError("`postdir` is not set!")
+        return self._postdir
 
-    @dumpdir.setter
-    def dumpdir(self, path):
+    @postdir.setter
+    def postdir(self, path):
         if path is None:
             return
         self._check_directory(path)
-        self._dumpdir = path
+        self._postdir = path
 
     @property
     def temp_dumpdir(self):
@@ -111,7 +111,7 @@ class CSiBORGPaths:
         path : str
         """
         return join(
-            self.dumpdir,
+            self.postdir,
             "mmain",
             "mmain_{}_{}.npz".format(str(nsim).zfill(5), str(nsnap).zfill(5))
             )
@@ -133,7 +133,7 @@ class CSiBORGPaths:
         """
         assert kind in ["cm", "particles"]
         return join(
-            self.dumpdir,
+            self.postdir,
             "initmatch",
             "{}_{}.npy".format(kind, str(nsim).zfill(5))
             )
@@ -242,4 +242,4 @@ class CSiBORGPaths:
         """
         nsnap = str(max(self.get_snapshots(nsim))).zfill(5)
         fname = "ramses_out_{}_{}.npy".format(str(self.nsim).zfill(5), nsnap)
-        return join(self.dumpdir, fname)
+        return join(self.postdir, fname)
