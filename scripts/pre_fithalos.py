@@ -48,7 +48,7 @@ cols_collect = [("npart", numpy.int64), ("totpartmass", numpy.float64),
                 ("m500", numpy.float64), ("lambda200c", numpy.float64)]
 
 
-for i, nsim in enumerate(paths.ic_ids(tonew=False)):
+for i, nsim in enumerate(paths.get_ics(tonew=False)):
     if rank == 0:
         print("{}: calculating {}th simulation.".format(datetime.now(), i))
     nsnap = max(paths.get_snapshots(nsim))

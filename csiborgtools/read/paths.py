@@ -145,9 +145,10 @@ class CSiBORGPaths:
         self._check_directory(path)
         self._initmatch_path = path
 
-    def ic_ids(self, tonew):
+    def get_ics(self, tonew):
         """
-        CSiBORG IC realisation IDs from the list of folders in `self.srcdir`.
+        Get CSiBORG IC realisation IDs from the list of folders in
+        `self.srcdir`.
 
         Parameters
         ----------

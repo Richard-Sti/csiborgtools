@@ -61,7 +61,7 @@ dtype = {"names": ["delta", "phi"], "formats": [numpy.float32] * 2}
 
 # CSiBORG simulation paths
 paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
-ics = paths.ic_ids(tonew=False)
+ics = paths.get_ics(tonew=False)
 nsims = len(ics)
 
 for n in csiborgtools.fits.split_jobs(nsims, nproc)[rank]:

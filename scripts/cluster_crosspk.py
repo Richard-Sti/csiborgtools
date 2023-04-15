@@ -49,7 +49,7 @@ MAS = "CIC"  # mass asignment scheme
 paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
 box = csiborgtools.units.BoxUnits(paths)
 reader = csiborgtools.read.ParticleReader(paths)
-ics = paths.ic_ids(tonew=False)
+ics = paths.get_ics(tonew=False)
 nsims = len(ics)
 
 # File paths

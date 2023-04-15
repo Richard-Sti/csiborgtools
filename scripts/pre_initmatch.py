@@ -45,7 +45,7 @@ parser.add_argument("--dump_clumps", type=lambda x: bool(strtobool(x)))
 args = parser.parse_args()
 
 paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
-nsims = paths.ic_ids(tonew=True)
+nsims = paths.get_ics(tonew=True)
 
 # Output files
 ftemp = join(paths.dumpdir, "temp_initmatch", "temp_{}_{}_{}.npy")
