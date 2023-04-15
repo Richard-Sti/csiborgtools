@@ -25,10 +25,9 @@ class CSiBORGPaths:
     Parameters
     ----------
     srcdir : str
-        Path to the folder where CSiBORG simulations are stored.
+        Path to the folder where the RAMSES outputs are stored.
     dumpdir : str
-        TODO: fix this docstring.
-        Path to the folder where files from `run_fit_halos` are stored.
+        Path to the folder where post-processed files are stored.
     """
     _srcdir = None
     _dumpdir = None
