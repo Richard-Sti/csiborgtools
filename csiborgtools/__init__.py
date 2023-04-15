@@ -18,5 +18,4 @@ from csiborgtools import (read, match, utils, units, fits, field, clustering)  #
 paths_glamdring = {
     "srcdir": "/mnt/extraspace/hdesmond/",
     "dumpdir": "/mnt/extraspace/rstiskalek/csiborg/",
-    "mmain_path": "/mnt/zfsusers/hdesmond/Mmain",
     "initmatch_path": "/mnt/extraspace/rstiskalek/csiborg/initmatch/"}
