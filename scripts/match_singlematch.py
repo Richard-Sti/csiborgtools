@@ -50,12 +50,13 @@ catx = csiborgtools.read.HaloCatalogue(args.nsimx, paths)
 
 print("{}: loading simulation {} and converting positions to cell numbers."
       .format(datetime.now(), args.nsim0), flush=True)
-with open(paths.clump0_path(args.nsim0), "rb") as f:
+
+with open(paths.initmatch_path(args.nsim0, "particles"), "rb") as f:
     clumps0 = numpy.load(f, allow_pickle=True)
     overlapper.clumps_pos2cell(clumps0)
 print("{}: loading simulation {} and converting positions to cell numbers."
       .format(datetime.now(), args.nsimx), flush=True)
-with open(paths.clump0_path(args.nsimx), 'rb') as f:
+with open(paths.initmatch_path(args.nsimx, "particles"), 'rb') as f:
     clumpsx = numpy.load(f, allow_pickle=True)
     overlapper.clumps_pos2cell(clumpsx)
 

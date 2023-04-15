@@ -29,20 +29,13 @@ class CSiBORGPaths:
     dumpdir : str
         TODO: fix this docstring.
         Path to the folder where files from `run_fit_halos` are stored.
-    _mmain_dir : str
-        Path to folder where mmain files are stored.
-    initmatch_path : str
-        Path to the folder where particle ID match between the first and final
-        snapshot is stored.
     """
     _srcdir = None
     _dumpdir = None
-    _initmatch_path = None
 
-    def __init__(self, srcdir=None, dumpdir=None, initmatch_path=None):
+    def __init__(self, srcdir=None, dumpdir=None):
         self.srcdir = srcdir
         self.dumpdir = dumpdir
-        self.initmatch_path = initmatch_path
 
     @staticmethod
     def _check_directory(path):
@@ -124,26 +117,27 @@ class CSiBORGPaths:
             "mmain_{}_{}.npz".format(str(nsim).zfill(5), str(nsnap).zfill(5))
             )
 
-    @property
-    def initmatch_path(self):
+    def initmatch_path(self, nsim, kind):
         """
-        Path to the folder where the match between the first and final
-        snapshot is stored.
+        Path to the `initmatch` files where the clump match between the
+        initial and final snapshot is stored.
+
+        Parameters
+        ----------
+        nsim : int
+            IC realisation index.
+        kind : str
+            Type of match.  Can be either `cm` or `particles`.
 
         Returns
         -------
-        path : str
         """
-        if self._initmatch_path is None:
-            raise ValueError("`initmatch_path` is not set!")
-        return self._initmatch_path
-
-    @initmatch_path.setter
-    def initmatch_path(self, path):
-        if path is None:
-            return
-        self._check_directory(path)
-        self._initmatch_path = path
+        assert kind in ["cm", "particles"]
+        return join(
+            self.dumpdir,
+            "initmatch",
+            "{}_{}.npy".format(kind, str(nsim).zfill(5))
+            )
 
     def get_ics(self, tonew):
         """
@@ -233,24 +227,6 @@ class CSiBORGPaths:
             tonew = True
         simpath = self.ic_path(nsim, tonew=tonew)
         return join(simpath, "output_{}".format(str(nsnap).zfill(5)))
-
-    def clump0_path(self, nsim):
-        """
-        Path to a single dumped clump's particles. Expected to point to a
-        dictonary whose keys are the clump indices and items structured
-        arrays with the clump's particles in the initial snapshot.
-
-        Parameters
-        ----------
-        nsim : int
-            IC realisation index.
-
-        Returns
-        -------
-        path : str
-        """
-        cdir = join(self.dumpdir, "initmatch")
-        return join(cdir, "clump_{}_{}.npy".format(nsim, "particles"))
 
     def hcat_path(self, nsim):
         """

@@ -17,5 +17,5 @@ from csiborgtools import (read, match, utils, units, fits, field, clustering)  #
 # Arguments to csiborgtools.read.CSiBORGPaths.
 paths_glamdring = {
     "srcdir": "/mnt/extraspace/hdesmond/",
-    "dumpdir": "/mnt/extraspace/rstiskalek/csiborg/",
-    "initmatch_path": "/mnt/extraspace/rstiskalek/csiborg/initmatch/"}
+    "dumpdir": "/mnt/extraspace/rstiskalek/csiborg/"
+    }
