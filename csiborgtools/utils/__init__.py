@@ -22,3 +22,28 @@ from .recarray_manip import (cols_to_structured, add_columns, rm_columns,  # noq
 def now(tz=None):
     """Shortcut to `datetime.datetime.now`."""
     return datetime.now(tz=tz)
+
+
+def split_jobs(njobs, ncpu):
+    """
+    Split `njobs` amongst `ncpu`.
+
+    Parameters
+    ----------
+    njobs : int
+        Number of jobs.
+    ncpu : int
+        Number of CPUs.
+
+    Returns
+    -------
+    jobs : list of lists of integers
+        Outer list of each CPU and inner lists for CPU's jobs.
+    """
+    njobs_per_cpu, njobs_remainder = divmod(njobs, ncpu)
+    jobs = numpy.arange(njobs_per_cpu * ncpu).reshape((njobs_per_cpu, ncpu)).T
+    jobs = jobs.tolist()
+    for i in range(njobs_remainder):
+        jobs[i].append(njobs_per_cpu * ncpu + i)
+
+    return jobs
