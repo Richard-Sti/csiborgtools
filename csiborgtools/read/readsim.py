@@ -262,7 +262,7 @@ class ParticleReader:
         """
         nsnap = str(nsnap).zfill(5)
         cpu = str(cpu + 1).zfill(5)
-        fpath = join(self.paths.ic_path(nsim, to_new=False),
+        fpath = join(self.paths.ic_path(nsim, tonew=False),
                      "output_{}".format(nsnap),
                      "unbinding_{}.out{}".format(nsnap, cpu))
         return FortranFile(fpath)
@@ -300,28 +300,6 @@ class ParticleReader:
             ff.close()
 
         return clumpid
-
-    @staticmethod
-    def drop_zero_indx(clump_ids, particles):
-        """
-        Drop from `clump_ids` and `particles` entries whose clump index is 0.
-
-        Parameters
-        ----------
-        clump_ids : 1-dimensional array
-            Array of clump IDs.
-        particles : structured array
-            Array of the particle data.
-
-        Returns
-        -------
-        clump_ids : 1-dimensional array
-            The array of clump IDs after removing zero clump ID entries.
-        particles : structured array
-            The particle data after removing zero clump ID entries.
-        """
-        mask = clump_ids != 0
-        return clump_ids[mask], particles[mask]
 
     def read_clumps(self, nsnap, nsim, cols=None):
         """
@@ -373,7 +351,8 @@ class ParticleReader:
         indxs = [None] * len(cols)
         for i, col in enumerate(cols):
             if col not in clump_names:
-                raise KeyError("...")
+                raise KeyError("Invalid column `{}`, not in the clump file."
+                               .format(col))
             indxs[i] = clump_names.index(col)
         # Make an array and fill it
         out = cols_to_structured(out0.size, [clump_cols[i] for i in indxs])
