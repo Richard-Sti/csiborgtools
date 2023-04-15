@@ -12,11 +12,8 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-"""
-Functions to read in the particle and clump files.
-"""
+"""CSiBORG halo catalogue."""
 import numpy
-from os.path import join
 from sklearn.neighbors import NearestNeighbors
 from .readsim import (read_mmain, read_initcm)
 from .paths import CSiBORGPaths
@@ -112,7 +109,9 @@ class HaloCatalogue:
 
         # Now also load the initial positions
         if load_init:
-            initcm = read_initcm(self.nsim, self.paths.initmatch_path)
+
+            initcm = read_initcm(self.nsim,
+                                 self.paths.initmatch_path(self.nsim, "cm"))
             if initcm is not None:
                 data = self.merge_initmatch_to_clumps(data, initcm)
                 flip_cols(data, "x0", "z0")
