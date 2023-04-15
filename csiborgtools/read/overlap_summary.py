@@ -26,7 +26,7 @@ class PairOverlap:
 
     Parameters
     ----------
-    cat0, catx: :py:class:`csiborgtools.read.Catalogue`
+    cat0, catx: :py:class:`csiborgtools.read.ClumpsCatalogue`
         Halo catalogues corresponding to the reference and cross
         simulations.
     fskel : str, optional
@@ -408,7 +408,7 @@ class PairOverlap:
 
         Returns
         -------
-        out : :py:class:`csiborgtools.read.Catalogue` or array
+        out : :py:class:`csiborgtools.read.ClumpsCatalogue` or array
         """
         if key is None:
             return self._cat0
@@ -429,7 +429,7 @@ class PairOverlap:
 
         Returns
         -------
-        out : :py:class:`csiborgtools.read.Catalogue` or array
+        out : :py:class:`csiborgtools.read.ClumpsCatalogue` or array
         """
         if key is None:
             return self._catx
@@ -456,9 +456,9 @@ class NPairsOverlap:
 
     Parameters
     ----------
-    cat0 : :py:class:`csiborgtools.read.Catalogue`
+    cat0 : :py:class:`csiborgtools.read.ClumpsCatalogue`
         Reference simulation halo catalogue.
-    catxs : list of :py:class:`csiborgtools.read.Catalogue`
+    catxs : list of :py:class:`csiborgtools.read.ClumpsCatalogue`
         List of cross simulation halo catalogues.
     fskel : str, optional
         Path to the overlap. By default `None`, i.e.
