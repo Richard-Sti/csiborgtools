@@ -13,7 +13,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """CSiBORG paths manager."""
-from os import mkdir
+from os import (mkdir, makedirs)
 from os.path import (join, isdir)
 from warnings import warn
 from glob import glob
@@ -166,7 +166,7 @@ class CSiBORGPaths:
         fdir = join(self.postdir, "split", "ic_{}".format(str(nsim).zfill(5)),
                     "out_{}".format(str(nsnap).zfill(5)))
         if not isdir(fdir):
-            mkdir(fdir)
+            makedirs(fdir)
             warn("Created directory `{}`.".format(fdir), UserWarning)
         return join(fdir, "clump_{}.npy".format(clumpid))
 
