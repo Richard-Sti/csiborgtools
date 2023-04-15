@@ -13,7 +13,9 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """CSiBORG paths manager."""
+from os import mkdir
 from os.path import (join, isdir)
+from warnings import warn
 from glob import glob
 import numpy
 
@@ -112,9 +114,12 @@ class CSiBORGPaths:
         -------
         path : str
         """
+        fdir = join(self.postdir, "mmain")
+        if not isdir(fdir):
+            mkdir(fdir)
+            warn("Created directory `{}`.".format(fdir), UserWarning)
         return join(
-            self.postdir,
-            "mmain",
+            fdir,
             "mmain_{}_{}.npz".format(str(nsim).zfill(5), str(nsnap).zfill(5))
             )
 
@@ -134,36 +139,37 @@ class CSiBORGPaths:
         -------
         """
         assert kind in ["cm", "particles"]
-        return join(
-            self.postdir,
-            "initmatch",
-            "{}_{}.npy".format(kind, str(nsim).zfill(5))
-            )
+        fdir = join(self.postdir, "initmatch")
+        if not isdir(fdir):
+            mkdir(fdir)
+            warn("Created directory `{}`.".format(fdir), UserWarning)
+        return join(fdir, "{}_{}.npy".format(kind, str(nsim).zfill(5)))
 
-    def split_path(self, nsnap, nsim, nsplit, kind):
+    def split_path(self, clumpid, nsnap, nsim):
         """
         Path to the `split` files from `pre_splithalos`. Individual files
-        contain particles belonging to several clumps/parent halos.
+        contain particles belonging to a single clump.
 
         Parameters
         ----------
+        clumpid : int
+            Clump ID.
         nsnap : int
             Snapshot index.
         nsim : int
             IC realisation index.
-        nsplit : int
-            Split index.
 
         Returns
         -------
         path : str
         """
-        assert kind in ["clumps", "parents"]
+        fdir = join(self.postdir, "split", "ic_{}".format(str(nsim).zfill(5)))
+        if not isdir(fdir):
+            mkdir(fdir)
+            warn("Created directory `{}`.".format(fdir), UserWarning)
         return join(
-            self.postdir,
-            "split_{}".format(kind),
-            "out_{}_{}_{}.npz".format(
-                str(nsim).zfill(5), str(nsnap).zfill(5), nsplit)
+            fdir,
+            "out_{}_{}.npy".format(str(nsnap).zfill(5), clumpid)
             )
 
     def get_ics(self, tonew):
@@ -250,8 +256,7 @@ class CSiBORGPaths:
         -------
         snappath : str
         """
-        if nsnap == 1:
-            tonew = True
+        tonew = nsnap == 1
         simpath = self.ic_path(nsim, tonew=tonew)
         return join(simpath, "output_{}".format(str(nsnap).zfill(5)))
 
