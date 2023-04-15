@@ -103,7 +103,7 @@ class HaloCatalogue:
         data = numpy.load(self.paths.hcat_path(self.nsim))
 
         # Load the mmain file and add it to the data
-        mmain = read_mmain(self.nsim, self.paths.mmain_path)
+        mmain = read_mmain(self.nsim, self.paths.mmain_dir)
         data = self.merge_mmain_to_clumps(data, mmain)
         flip_cols(data, "peak_x", "peak_z")
 
