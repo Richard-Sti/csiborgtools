@@ -13,8 +13,6 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """kNN-CDF reader."""
-from os.path import join
-from glob import glob
 import numpy
 from scipy.special import factorial
 import joblib
@@ -23,9 +21,33 @@ import joblib
 class kNNCDFReader:
     """
     Shortcut object to read in the kNN CDF data.
-    TODO: edit the paths here.
+
+    Parameters
+    ----------
+    paths : py:class`csiborgtools.read.CSiBORGPaths`
     """
-    def read(self, run, folder, rmin=None, rmax=None, to_clip=True):
+    _paths = None
+
+    def __init__(self, paths):
+        self.paths = paths
+
+    @property
+    def paths(self):
+        """
+        Paths manager
+
+        Parameters
+        ----------
+        paths : py:class`csiborgtools.read.CSiBORGPaths`
+        """
+        return self._paths
+
+    @paths.setter
+    def paths(self, paths):
+        # assert isinstance(paths, CSiBORGPaths)  # REMOVE
+        self._paths = paths
+
+    def read(self, run, kind, rmin=None, rmax=None, to_clip=True):
         """
         Read the auto- or cross-correlation kNN-CDF data. Infers the type from
         the data files.
@@ -34,8 +56,8 @@ class kNNCDFReader:
         ----------
         run : str
             Run ID to read in.
-        folder : str
-            Path to the folder where the auto-correlation kNN-CDF is stored.
+        kind : str
+            Type of correlation. Can be either `auto` or `cross`.
         rmin : float, optional
             Minimum separation. By default ignored.
         rmax : float, optional
@@ -51,10 +73,9 @@ class kNNCDFReader:
         out : 3-dimensional array of shape `(len(files), len(ks), neval)`
             Array of CDFs or cross-correlations.
         """
-        run += ".p"
-        files = [f for f in glob(join(folder, "*")) if run in f]
+        files = self.paths.knn_path(run, kind)
         if len(files) == 0:
-            raise RuntimeError("No files found for run `{}`.".format(run[:-2]))
+            raise RuntimeError("No files found for run `{}`.".format(run))
 
         for i, file in enumerate(files):
             data = joblib.load(file)
@@ -201,22 +222,3 @@ class kNNCDFReader:
         """
         V = 4 * numpy.pi / 3 * rs**3
         return (ndensity * V)**k / factorial(k) * numpy.exp(-ndensity * V)
-
-    @staticmethod
-    def cross_files(ic, folder):
-        """
-        Return the file paths corresponding to the cross-correlation of a given
-        IC.
-
-        Parameters
-        ----------
-        ic : int
-            The desired IC.
-        folder : str
-            The folder containing the cross-correlation files.
-
-        Returns
-        -------
-        filepath : list of str
-        """
-        return [file for file in glob(join(folder, "*")) if str(ic) in file]

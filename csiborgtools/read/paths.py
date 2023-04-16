@@ -15,14 +15,14 @@
 """CSiBORG paths manager."""
 from os import (mkdir, makedirs)
 from os.path import (join, isdir)
-from warnings import warn
 from glob import glob
+from warnings import warn
 import numpy
 
 
 class CSiBORGPaths:
     """
-    Paths manager for CSiBORG IC realisations.
+   Paths manager for CSiBORG IC realisations.
 
     Parameters
     ----------
@@ -271,18 +271,19 @@ class CSiBORGPaths:
         fname = "ramses_out_{}_{}.npy".format(str(self.nsim).zfill(5), nsnap)
         return join(self.postdir, fname)
 
-    def knn_path(self, nsim, kind, run):
+    def knn_path(self, run, kind, nsim=None):
         """
-        Path to the `knn` files.
+        Path to the `knn` files. If `nsim` is no specified returns a list of
+        files for this run for all available simulations.
 
         Parameters
         ----------
-        nsnap : int
-            Snapshot index.
-        kind : str
-            Type of correlation. Can be either `auto` or `cross`.
         run : str
             Type of run.
+        kind : str
+            Type of correlation. Can be either `auto` or `cross`.
+        nsim : int
+            IC realisation index.
 
         Returns
         -------
@@ -293,4 +294,9 @@ class CSiBORGPaths:
         if not isdir(fdir):
             makedirs(fdir)
             warn("Created directory `{}`.".format(fdir), UserWarning)
-        return join(fdir, "knncdf_{}_{}.p".format(str(nsim).zfill(5), run))
+        if nsim is not None:
+            return join(fdir, "knncdf_{}_{}.p".format(str(nsim).zfill(5), run))
+
+        files = glob(join(fdir, "knncdf*"))
+        run = '_' + run + '_'
+        return [f for f in files if run in f]
