@@ -65,6 +65,7 @@ tpcf = csiborgtools.clustering.Mock2PCF()
 #                                 Analysis                                    #
 ###############################################################################
 
+
 def read_single(selection, cat):
     """Positions for single catalogue auto-correlation."""
     mmask = numpy.ones(len(cat), dtype=bool)
@@ -99,6 +100,7 @@ def read_single(selection, cat):
 
     return pos[smask, ...]
 
+
 def do_auto(run, cat, ic):
     _config = config.get(run, None)
     if _config is None:
@@ -112,12 +114,11 @@ def do_auto(run, cat, ic):
     nrandom = int(config["randmult"] * pos.shape[0])
     rp, wp = tpcf(pos, rvs_gen, nrandom, bins)
 
-    joblib.dump({"rp": rp, "wp": wp}, fout.format(str(ic).zfill(5), run))
+    joblib.dump({"rp": rp, "wp": wp}, paths.tpcfauto_path(run, ic))
 
 
 def do_runs(ic):
-    cat = csiborgtools.read.ClumpsCatalogue(ic, paths, max_dist=Rmax,
-                                          min_mass=minmass)
+    cat = csiborgtools.read.ClumpsCatalogue(ic, paths, maxdist=Rmax)
     for run in args.runs:
         do_auto(run, cat, ic)
 

@@ -327,3 +327,30 @@ class CSiBORGPaths:
         files = glob(join(fdir, "knncdf*"))
         run = "__" + run
         return [f for f in files if run in f]
+
+    def tpcfauto_path(self, run, nsim=None):
+        """
+        Path to the `tpcf` auto-correlation files. If `nsim` is not specified
+        returns a list of files for this run for all available simulations.
+
+        Parameters
+        ----------
+        run : str
+            Type of run.
+        nsim : int, optional
+            IC realisation index.
+
+        Returns
+        -------
+        path : str
+        """
+        fdir = join(self.postdir, "tpcf", "auto")
+        if not isdir(fdir):
+            makedirs(fdir)
+            warn("Created directory `{}`.".format(fdir), UserWarning)
+        if nsim is not None:
+            return join(fdir, "tpcf{}_{}.p".format(str(nsim).zfill(5), run))
+
+        files = glob(join(fdir, "tpcf*"))
+        run = "__" + run
+        return [f for f in files if run in f]
