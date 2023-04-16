@@ -37,7 +37,7 @@ class ParticleReader:
     _paths = None
 
     def __init__(self, paths):
-#        assert isinstance(paths, CSiBORGPaths)
+#        assert isinstance(paths, CSiBORGPaths)  # REMOVE
         self._paths = paths
 
     @property
@@ -362,8 +362,7 @@ class MmainReader:
     _paths = None
 
     def __init__(self, paths):
-        # TODO uncomment in production
-#        assert isinstance(paths, CSiBORGPaths)
+#        assert isinstance(paths, CSiBORGPaths)  # REMOVE
         self._paths = paths
 
     @property
