@@ -145,15 +145,12 @@ class CSiBORGPaths:
             warn("Created directory `{}`.".format(fdir), UserWarning)
         return join(fdir, "{}_{}.npy".format(kind, str(nsim).zfill(5)))
 
-    def split_path(self, clumpid, nsnap, nsim):
+    def split_path(self, nsnap, nsim):
         """
-        Path to the `split` files from `pre_splithalos`. Individual files
-        contain particles belonging to a single clump.
+        Path to the `split` files from `pre_splithalos`.
 
         Parameters
         ----------
-        clumpid : int
-            Clump ID.
         nsnap : int
             Snapshot index.
         nsim : int
@@ -163,12 +160,12 @@ class CSiBORGPaths:
         -------
         path : str
         """
-        fdir = join(self.postdir, "split", "ic_{}".format(str(nsim).zfill(5)),
-                    "out_{}".format(str(nsnap).zfill(5)))
+        fdir = join(self.postdir, "split")
         if not isdir(fdir):
-            makedirs(fdir)
+            mkdir(fdir)
             warn("Created directory `{}`.".format(fdir), UserWarning)
-        return join(fdir, "clump_{}.npy".format(clumpid))
+        return join(fdir, "clumps_{}_{}.npz"
+                    .format(str(nsim).zfill(5), str(nsnap).zfill(5)))
 
     def get_ics(self, tonew):
         """
@@ -274,3 +271,27 @@ class CSiBORGPaths:
         nsnap = str(max(self.get_snapshots(nsim))).zfill(5)
         fname = "ramses_out_{}_{}.npy".format(str(self.nsim).zfill(5), nsnap)
         return join(self.postdir, fname)
+
+    def knn_path(self, nsim, kind, run):
+        """
+        Path to the `knn` files.
+
+        Parameters
+        ----------
+        nsnap : int
+            Snapshot index.
+        kind : str
+            Type of correlation. Can be either `auto` or `cross`.
+        run : str
+            Type of run.
+
+        Returns
+        -------
+        path : str
+        """
+        assert kind in ["auto", "cross"]
+        fdir = join(self.postdir, "knn", kind)
+        if not isdir(fdir):
+            makedirs(fdir)
+            warn("Created directory `{}`.".format(fdir), UserWarning)
+        return join(fdir, "knncdf_{}_{}.p".format(str(nsim).zfill(5), run))
