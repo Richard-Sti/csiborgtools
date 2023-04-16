@@ -26,6 +26,7 @@ from ..utils import (cols_to_structured)
 #                       Fortran particle reader                               #
 ###############################################################################
 
+
 class ParticleReader:
     """
     Shortcut to read in particle files along with their corresponding clumps.
@@ -37,7 +38,7 @@ class ParticleReader:
     _paths = None
 
     def __init__(self, paths):
-#        assert isinstance(paths, CSiBORGPaths)  # REMOVE
+        # assert isinstance(paths, CSiBORGPaths)  # REMOVE
         self._paths = paths
 
     @property
@@ -331,7 +332,7 @@ class ParticleReader:
         clump_cols = {"index":  (0, numpy.int32),
                       "level": (1, numpy.int32),
                       "parent": (2, numpy.int32),
-                      "ncell" : (3, numpy.float32),
+                      "ncell": (3, numpy.float32),
                       "x": (4, numpy.float32),
                       "y": (5, numpy.float32),
                       "z": (6, numpy.float32),
@@ -351,9 +352,11 @@ class ParticleReader:
             out[col] = data[:, clump_cols[col][0]]
         return out
 
+
 ###############################################################################
 #                    Summed substructure catalogue                            #
 ###############################################################################
+
 
 class MmainReader:
     """
@@ -362,7 +365,7 @@ class MmainReader:
     _paths = None
 
     def __init__(self, paths):
-#        assert isinstance(paths, CSiBORGPaths)  # REMOVE
+        # assert isinstance(paths, CSiBORGPaths)  # REMOVE
         self._paths = paths
 
     @property
@@ -394,7 +397,7 @@ class MmainReader:
         parent_arr = numpy.zeros(clindex.size, dtype=numpy.int32)
         for i in trange(clindex.size) if verbose else range(clindex.size):
             tocont = clindex[i] != parindex[i]  # Continue if not a main halo
-            par = parindex[i] # First we try the parent of this clump
+            par = parindex[i]  # First we try the parent of this clump
             while tocont:
                 # The element of the array corresponding to the parent clump to
                 # the one we're looking at
@@ -433,7 +436,7 @@ class MmainReader:
         """
         nsnap = max(self.paths.get_snapshots(nsim))
         partreader = ParticleReader(self.paths)
-        cols=["index", "parent", "mass_cl", 'x', 'y', 'z']
+        cols = ["index", "parent", "mass_cl", 'x', 'y', 'z']
         clumparr = partreader.read_clumps(nsnap, nsim, cols)
 
         ultimate_parent = self.find_parents(clumparr, verbose=verbose)
