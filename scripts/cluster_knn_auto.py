@@ -13,7 +13,6 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """A script to calculate the KNN-CDF for a set of CSiBORG halo catalogues."""
-from os.path import join
 from warnings import warn
 from argparse import ArgumentParser
 from copy import deepcopy
@@ -65,6 +64,7 @@ knncdf = csiborgtools.clustering.kNN_CDF()
 #                                 Analysis                                    #
 ###############################################################################
 
+
 def read_single(selection, cat):
     """Positions for single catalogue auto-correlation."""
     mmask = numpy.ones(len(cat), dtype=bool)
@@ -99,6 +99,7 @@ def read_single(selection, cat):
 
     return pos[smask, ...]
 
+
 def do_auto(run, cat, ic):
     """Calculate the kNN-CDF single catalgoue autocorrelation."""
     _config = config.get(run, None)
@@ -117,7 +118,7 @@ def do_auto(run, cat, ic):
         batch_size=int(config["batch_size"]), random_state=config["seed"])
 
     joblib.dump({"rs": rs, "cdf": cdf, "ndensity": pos.shape[0] / totvol},
-                paths.knn_path(ic, "auto", run))
+                paths.knn_path(run, "auto", ic))
 
 
 def do_cross_rand(run, cat, ic):
@@ -142,12 +143,11 @@ def do_cross_rand(run, cat, ic):
         nsamples=int(config["nsamples"]), neval=int(config["neval"]),
         batch_size=int(config["batch_size"]), random_state=config["seed"])
     corr = knncdf.joint_to_corr(cdf0, cdf1, joint_cdf)
-    joblib.dump({"rs": rs, "corr": corr}, paths.knn_path(ic, "auto", run))
+    joblib.dump({"rs": rs, "corr": corr}, paths.knn_path(run, "auto", ic))
 
 
 def do_runs(ic):
-    cat = csiborgtools.read.ClumpsCatalogue(ic, paths, max_dist=Rmax,
-                                          min_mass=minmass)
+    cat = csiborgtools.read.ClumpsCatalogue(ic, paths, maxdist=Rmax)
     for run in args.runs:
         if "random" in run:
             do_cross_rand(run, cat, ic)
