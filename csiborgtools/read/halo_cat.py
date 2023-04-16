@@ -13,50 +13,72 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """CSiBORG halo catalogue."""
+from abc import ABC
 import numpy
 from sklearn.neighbors import NearestNeighbors
-from .readsim import read_initcm
+from .readsim import (ParticleReader, read_initcm)
 from .paths import CSiBORGPaths
 from ..utils import (flip_cols, add_columns)
 from ..units import (BoxUnits, cartesian_to_radec)
 
 
-class Catalogue:
-    r"""
-    Processed halo catalogue, the data should be calculated in `run_fit_halos`.
-
-    Parameters
-    ----------
-    nsim : int
-        IC realisation index.
-    paths : py:class`csiborgtools.read.CSiBORGPaths`
-        CSiBORG paths object.
-    min_mass : float, optional
-        The minimum :math:`M_{rm tot} / M_\odot` mass. By default no threshold.
-    max_dist : float, optional
-        The maximum comoving distance of a halo. By default no upper limit.
-    load_init : bool, optional
-        Whether to load the initial snapshot information. By default False.
+class BaseCatalogue(ABC):
     """
+    Base (sub)halo catalogue
+    """
+    _data = None
     _paths = None
     _nsim = None
-    _data = None
-    _selmask = None
-
-    def __init__(self, nsim, paths, min_mass=None, max_dist=None,
-                 load_init=False):
-        assert isinstance(paths, CSiBORGPaths)
-        self._nsim = nsim
-        self._paths = paths
-        self._set_data(min_mass, max_dist, load_init)
 
     @property
     def nsim(self):
+        """
+        The IC realisation index.
+
+        Returns
+        -------
+        nsim : int
+        """
+        if self._nsim is None:
+            raise RuntimeError("`nsim` is not set!")
         return self._nsim
+
+    @nsim.setter
+    def nsim(self, nsim):
+        assert isinstance(nsim, int)
+        self._nsim = nsim
 
     @property
     def paths(self):
+        """
+        CSiBORG paths manager.
+
+        Returns
+        -------
+        paths : :py:class:`csiborgtools.read.CSiBORGPaths`
+        """
+        if self._paths is None:
+            raise RuntimeError("`paths` is not set!")
         return self._paths
+
+    @paths.setter
+    def paths(self, paths):
+        # TODO uncomment
+        # assert isinstance(paths, CSiBORGPaths)
+        self._paths = paths
+
+    @property
+    def data(self):
+        """
+        The catalogue.
+
+        Returns
+        -------
+        data : structured array
+        """
+        if self._data is None:
+            raise RuntimeError("Catalogue data not loaded!")
+        return self._data
 
     @property
     def nsnap(self):
@@ -81,166 +103,43 @@ class Catalogue:
         """
         return BoxUnits(self.nsnap, self.nsim, self.paths)
 
-    @property
-    def data(self):
-        """
-        Halo catalogue.
-
-        Returns
-        -------
-        cat : structured array
-        """
-        return self._data
-
-    def _set_data(self, min_mass, max_dist, load_init):
-        """
-        Loads the data, merges with mmain, does various coordinate transforms.
-        """
-        # Load the processed data
-        data = numpy.load(self.paths.hcat_path(self.nsim))
-
-        # Load the mmain file and add it to the data
-        # TODO: read the mmain here
-#        mmain = read_mmain(self.nsim, self.paths.mmain_dir)
-#        data = self.merge_mmain_to_clumps(data, mmain)
-        flip_cols(data, "peak_x", "peak_z")
-
-        # Cut on number of particles and finite m200. Do not change! Hardcoded
-        data = data[(data["npart"] > 100) & numpy.isfinite(data["m200"])]
-
-        # Now also load the initial positions
-        if load_init:
-
-            initcm = read_initcm(self.nsim,
-                                 self.paths.initmatch_path(self.nsim, "cm"))
-            if initcm is not None:
-                data = self.merge_initmatch_to_clumps(data, initcm)
-                flip_cols(data, "x0", "z0")
-
-#        # Calculate redshift
-#        pos = [data["peak_{}".format(p)] - 0.5 for p in ("x", "y", "z")]
-#        vel = [data["v{}".format(p)] for p in ("x", "y", "z")]
-#        zpec = self.box.box2pecredshift(*vel, *pos)
-#        zobs = self.box.box2obsredshift(*vel, *pos)
-#        zcosmo = self.box.box2cosmoredshift(
-#            sum(pos[i]**2 for i in range(3))**0.5)
-#        data = add_columns(data, [zpec, zobs, zcosmo],
-#                           ["zpec", "zobs", "zcosmo"])
-
-        # Unit conversion
-        convert_cols = ["m200", "m500", "totpartmass", "mass_mmain",
-                        "r200", "r500", "Rs", "rho0",
-                        "peak_x", "peak_y", "peak_z"]
-        data = self.box.convert_from_boxunits(data, convert_cols)
-
-        # Now calculate spherical coordinates
-        d, ra, dec = cartesian_to_radec(
-            data["peak_x"], data["peak_y"], data["peak_z"])
-        data = add_columns(data, [d, ra, dec], ["dist", "ra", "dec"])
-
-        # And do the unit transform
-        if load_init and initcm is not None:
-            data = self.box.convert_from_boxunits(
-                data, ["x0", "y0", "z0", "lagpatch"])
-
-        # Convert all that is not an integer to float32
-        names = list(data.dtype.names)
-        formats = []
-        for name in names:
-            if data[name].dtype.char in numpy.typecodes["AllInteger"]:
-                formats.append(numpy.int32)
-            else:
-                formats.append(numpy.float32)
-        dtype = numpy.dtype({"names": names, "formats": formats})
-
-        # Apply cuts on distance and total particle mass if any
-        data = data[data["dist"] < max_dist] if max_dist is not None else data
-        data = (data[data["totpartmass"] > min_mass]
-                if min_mass is not None else data)
-
-        self._data = data.astype(dtype)
-
-    def merge_mmain_to_clumps(self, clumps, mmain):
-        """
-        Merge columns from the `mmain` files to the `clump` file, matches them
-        by their halo index while assuming that the indices `index` in both
-        arrays are sorted.
-
-        Parameters
-        ----------
-        clumps : structured array
-            Clumps structured array.
-        mmain : structured array
-            Parent halo array whose information is to be merged into `clumps`.
-
-        Returns
-        -------
-        out : structured array
-            Array with added columns.
-        """
-        X = numpy.full((clumps.size, 2), numpy.nan)
-        # Mask of which clumps have a mmain index
-        mask = numpy.isin(clumps["index"], mmain["index"])
-
-        X[mask, 0] = mmain["mass_cl"]
-        X[mask, 1] = mmain["sub_frac"]
-        return add_columns(clumps, X, ["mass_mmain", "sub_frac"])
-
-    def merge_initmatch_to_clumps(self, clumps, initcat):
-        """
-        Merge columns from the `init_cm` files to the `clump` file.
-
-        Parameters
-        ----------
-        clumps : structured array
-            Clumps structured array.
-        initcat : structured array
-            Catalog with the clumps initial centre of mass at z = 70.
-
-        Returns
-        -------
-        out : structured array
-        """
-        # There are more initcat clumps, so check which ones have z = 0
-        # and then downsample
-        mask = numpy.isin(initcat["ID"], clumps["index"])
-        initcat = initcat[mask]
-        # Now the index ordering should match
-        if not numpy.alltrue(initcat["ID"] == clumps["index"]):
-            raise ValueError(
-                "Ordering of `initcat` and `clumps` is inconsistent.")
-
-        X = numpy.full((clumps.size, 4), numpy.nan)
-        for i, p in enumerate(['x', 'y', 'z', "lagpatch"]):
-            X[:, i] = initcat[p]
-        return add_columns(clumps, X, ["x0", "y0", "z0", "lagpatch"])
-
-    def positions(self, in_initial=False):
+    def position(self, in_initial=False, cartesian=True):
         r"""
-        Cartesian position components of halos in :math:`\mathrm{cMpc}`.
+        Position components. If Cartesian, then in :math:`\mathrm{cMpc}`. If
+        spherical, then radius is in :math:`\mathrm{cMpc}`, RA in
+        :math:`[0, 360)` degrees and DEC in :math:`[-90, 90]` degrees. Note
+        that the position is defined as the minimum of the gravitationl
+        potential.
 
         Parameters
         ----------
         in_initial : bool, optional
-            Whether to define the kNN on the initial or final snapshot.
+            Whether to return the initial snapshot positions.
+        cartesian : bool, optional
+            Whether to return the Cartesian or spherical position components.
+            By default Cartesian.
 
         Returns
         -------
-        pos : 2-dimensional array of shape `(nhalos, 3)`
+        pos : 2-dimensional array of shape `(nobjects, 3)`
         """
         if in_initial:
-            ps = ["x0", "y0", "z0"]
+            ps = ['x0', 'y0', 'z0']
         else:
-            ps = ["peak_x", "peak_y", "peak_z"]
-        return numpy.vstack([self[p] for p in ps]).T
+            ps = ['x', 'y', 'z']
+        pos = [self[p] for p in ps]
+        if cartesian:
+            return numpy.vstack(pos).T
+        else:
+            return numpy.vstack([cartesian_to_radec(*pos)]).T
 
-    def velocities(self):
+    def velocity(self):
         """
-        Cartesian velocity components of halos. Likely in box units.
+        Cartesian velocity components in box units.
 
         Returns
         -------
-        vel : 2-dimensional array of shape `(nhalos, 3)`
+        vel : 2-dimensional array of shape `(nobjects, 3)`
         """
         return numpy.vstack([self["v{}".format(p)] for p in ("x", "y", "z")]).T
 
@@ -251,13 +150,13 @@ class Catalogue:
 
         Returns
         -------
-        angmom : 2-dimensional array of shape `(nhalos, 3)`
+        angmom : 2-dimensional array of shape `(nobjects, 3)`
         """
         return numpy.vstack([self["L{}".format(p)] for p in ("x", "y", "z")]).T
 
     def knn(self, in_initial):
         """
-        kNN object of all halo positions.
+        kNN object fitted on all catalogue objects.
 
         Parameters
         ----------
@@ -308,10 +207,208 @@ class Catalogue:
         initpars = ["x0", "y0", "z0"]
         if key in initpars and key not in self.keys:
             raise RuntimeError("Initial positions are not set!")
-        return self._data[key]
+        return self.data[key]
 
     def __len__(self):
         return self.data.size
+
+
+class ClumpsCatalogue(BaseCatalogue):
+    r"""
+    Clumps catalogue, defined in the final snapshot.
+
+    TODO:
+        Add fitted quantities.
+        Add threshold on number of particles
+
+    Parameters
+    ----------
+    nsim : int
+        IC realisation index.
+    paths : py:class`csiborgtools.read.CSiBORGPaths`
+        CSiBORG paths object.
+    maxdist : float, optional
+        The maximum comoving distance of a halo. By default
+        :math:`155.5 / 0.705 ~ \mathrm{Mpc}` with assumed :math:`h = 0.705`,
+        which corresponds to the high-resolution region.
+    """
+    def __init__(self, nsim, paths, maxdist=155.5 / 0.705):
+        self.nsim = nsim
+        self.paths = paths
+        # Read in the clumps from the final snapshot
+        partreader = ParticleReader(self.paths)
+        cols=["index", "parent", 'x', 'y', 'z', "mass_cl"]
+        data = partreader.read_clumps(self.nsnap, self.nsim, cols=cols)
+        # Overwrite the parent with the ultimate parent
+        mmain = numpy.load(self.paths.mmain_path(self.nsnap, self.nsim))
+        data["parent"] = mmain["ultimate_parent"]
+
+        # Flip positions and convert from code units to cMpc. Convert M too
+        flip_cols(data, "x", "z")
+        for p in ('x', 'y', 'z'):
+            data[p] -= 0.5
+        data = self.box.convert_from_boxunits(data, ['x', 'y', 'z', "mass_cl"])
+
+        mask = numpy.sqrt(data['x']**2 + data['y']**2 + data['z']**2) < maxdist
+        self._data = data[mask]
+
+    @property
+    def ismain(self):
+        """
+        Whether the clump is a main halo.
+
+        Returns
+        -------
+        ismain : 1-dimensional array
+        """
+        return self["index"] == self["parent"]
+
+    def _set_data(self, min_mass, max_dist, load_init):
+        """
+        TODO: old later remove.
+        Loads the data, merges with mmain, does various coordinate transforms.
+        """
+        # Load the processed data
+        data = numpy.load(self.paths.hcat_path(self.nsim))
+
+        # Load the mmain file and add it to the data
+        # TODO: read the mmain here
+#        mmain = read_mmain(self.nsim, self.paths.mmain_dir)
+#        data = self.merge_mmain_to_clumps(data, mmain)
+        flip_cols(data, "peak_x", "peak_z")
+
+        # Cut on number of particles and finite m200. Do not change! Hardcoded
+        data = data[(data["npart"] > 100) & numpy.isfinite(data["m200"])]
+
+        # Now also load the initial positions
+        if load_init:
+
+            initcm = read_initcm(self.nsim,
+                                 self.paths.initmatch_path(self.nsim, "cm"))
+            if initcm is not None:
+                data = self.merge_initmatch_to_clumps(data, initcm)
+                flip_cols(data, "x0", "z0")
+
+        # Unit conversion
+        convert_cols = ["m200", "m500", "totpartmass", "mass_mmain",
+                        "r200", "r500", "Rs", "rho0",
+                        "peak_x", "peak_y", "peak_z"]
+        data = self.box.convert_from_boxunits(data, convert_cols)
+
+        # And do the unit transform
+        if load_init and initcm is not None:
+            data = self.box.convert_from_boxunits(
+                data, ["x0", "y0", "z0", "lagpatch"])
+
+        # Convert all that is not an integer to float32
+        names = list(data.dtype.names)
+        formats = []
+        for name in names:
+            if data[name].dtype.char in numpy.typecodes["AllInteger"]:
+                formats.append(numpy.int32)
+            else:
+                formats.append(numpy.float32)
+        dtype = numpy.dtype({"names": names, "formats": formats})
+
+        # Apply cuts on distance and total particle mass if any
+        data = data[data["dist"] < max_dist] if max_dist is not None else data
+        data = (data[data["totpartmass"] > min_mass]
+                if min_mass is not None else data)
+
+        self._data = data.astype(dtype)
+
+    def merge_mmain_to_clumps(self, clumps, mmain):
+        """
+        TODO: old, later remove.
+        Merge columns from the `mmain` files to the `clump` file, matches them
+        by their halo index while assuming that the indices `index` in both
+        arrays are sorted.
+
+        Parameters
+        ----------
+        clumps : structured array
+            Clumps structured array.
+        mmain : structured array
+            Parent halo array whose information is to be merged into `clumps`.
+
+        Returns
+        -------
+        out : structured array
+            Array with added columns.
+        """
+        X = numpy.full((clumps.size, 2), numpy.nan)
+        # Mask of which clumps have a mmain index
+        mask = numpy.isin(clumps["index"], mmain["index"])
+
+        X[mask, 0] = mmain["mass_cl"]
+        X[mask, 1] = mmain["sub_frac"]
+        return add_columns(clumps, X, ["mass_mmain", "sub_frac"])
+
+    def merge_initmatch_to_clumps(self, clumps, initcat):
+        """
+        TODO: old, later remove.
+        Merge columns from the `init_cm` files to the `clump` file.
+
+        Parameters
+        ----------
+        clumps : structured array
+            Clumps structured array.
+        initcat : structured array
+            Catalog with the clumps initial centre of mass at z = 70.
+
+        Returns
+        -------
+        out : structured array
+        """
+        # There are more initcat clumps, so check which ones have z = 0
+        # and then downsample
+        mask = numpy.isin(initcat["ID"], clumps["index"])
+        initcat = initcat[mask]
+        # Now the index ordering should match
+        if not numpy.alltrue(initcat["ID"] == clumps["index"]):
+            raise ValueError(
+                "Ordering of `initcat` and `clumps` is inconsistent.")
+
+        X = numpy.full((clumps.size, 4), numpy.nan)
+        for i, p in enumerate(['x', 'y', 'z', "lagpatch"]):
+            X[:, i] = initcat[p]
+        return add_columns(clumps, X, ["x0", "y0", "z0", "lagpatch"])
+
+
+class HaloCatalogue(BaseCatalogue):
+    """
+    Halo catalogue, i.e. parent halos with summed substructure, defined in the
+    final snapshot.
+
+    TODO:
+        Add the fitted quantities
+        Add threshold on number of particles
+
+    Parameters
+    ----------
+    nsim : int
+        IC realisation index.
+    paths : py:class`csiborgtools.read.CSiBORGPaths`
+        CSiBORG paths object.
+    maxdist : float, optional
+        The maximum comoving distance of a halo. By default
+        :math:`155.5 / 0.705 ~ \mathrm{Mpc}` with assumed :math:`h = 0.705`,
+        which corresponds to the high-resolution region.
+    """
+    def __init__(self, nsim, paths, maxdist=155.5 / 0.705):
+        self.nsim = nsim
+        self.paths = paths
+        # Read in the mmain catalogue of summed substructure
+        mmain = numpy.load(self.paths.mmain_path(self.nsnap, self.nsim))
+        data = mmain["mmain"]
+        # Flip positions and convert from code units to cMpc. Convert M too
+        flip_cols(data, "x", "z")
+        for p in ('x', 'y', 'z'):
+            data[p] -= 0.5
+        data = self.box.convert_from_boxunits(data, ['x', 'y', 'z', 'M'])
+
+        mask = numpy.sqrt(data['x']**2 + data['y']**2 + data['z']**2) < maxdist
+        self._data = data[mask]
 
 
 ###############################################################################
