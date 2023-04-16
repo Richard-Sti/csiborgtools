@@ -105,6 +105,7 @@ if nproc > 1:
         worker_process(do_split, comm, verbose=False)
 else:
     tasks = paths.get_ics(tonew=False)
+    tasks = [tasks[0]]  # REMOVE
     for task in tasks:
         print("{}: completing task `{}`.".format(datetime.now(), task))
         do_split(task)
