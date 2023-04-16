@@ -2,17 +2,11 @@
 
 
 ##  Project Overlap
-- [x] Test the mmain calculation
-- [x] Add a new mmain calculation script
-- [x] Fix pathing to initmatch
-- [x] Fix the split halo calculation
-
-- [ ] Clear up split and fit calculation. Instead of splitting dump each halo individually.
-- [ ] Add incorporating the new mmain files.
-- [ ] Make a split between mmain and subclump catalogues? If so, calculate overlaps only for mmain?
-- [ ] Correct for what halos calculating properties. Do both?
-- [ ] Make splits for parent halos so that we can calculate their properties.
-
+- [ ] Sort out the splitting of individual clumps
+- [ ] Update the fitting scripts to work for clumps and parent halos.
+- [ ] Calculated fitted quantities for clumps and parent halos and add them to the catalogues.
+- [ ] Update overlap scripts to work with summed parent halos.
+- [ ] Update the clustering scripts to work with clumps instead.
 
 - [ ] Calculate the overlap between all 101 IC realisations on DiRAC.
 
