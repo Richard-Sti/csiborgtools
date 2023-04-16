@@ -34,6 +34,7 @@ nproc = comm.Get_size()
 paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
 mmain_reader = csiborgtools.read.MmainReader(paths)
 
+
 def do_mmain(nsim):
     nsnap = max(paths.get_snapshots(nsim))
     # NOTE: currently works for highest snapshot anyway
@@ -44,6 +45,7 @@ def do_mmain(nsim):
 ###############################################################################
 #                             MPI task delegation                             #
 ###############################################################################
+
 
 if nproc > 1:
     if rank == 0:

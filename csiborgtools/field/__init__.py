@@ -14,7 +14,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 from warnings import warn
 try:
-    import MAS_library as MASL
-    from .density import DensityField
+    import MAS_library as MASL  # noqa
+    from .density import DensityField  # noqa
 except ImportError:
     warn("MAS_library not found, `DensityField` will not be available", UserWarning)  # noqa

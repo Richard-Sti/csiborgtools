@@ -16,7 +16,6 @@
 A script to fit halos (concentration, ...). The particle array of each CSiBORG
 realisation must have been split in advance by `runsplit_halos`.
 """
-from os.path import join
 from datetime import datetime
 import numpy
 from mpi4py import MPI

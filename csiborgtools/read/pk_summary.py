@@ -81,8 +81,8 @@ class PKReader:
                 x = pk.k3D
                 sel = (kmin < x) & (x < kmax)
                 ks = x[sel].astype(self.dtype)
-                pks = numpy.full((len(self.get_ics), numpy.sum(sel)), numpy.nan,
-                                 dtype=self.dtype)
+                pks = numpy.full((len(self.get_ics), numpy.sum(sel)),
+                                 numpy.nan, dtype=self.dtype)
             pks[i, :] = pk.Pk[sel, 0, 0]
 
         return ks, pks

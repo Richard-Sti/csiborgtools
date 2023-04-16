@@ -236,7 +236,7 @@ class ClumpsCatalogue(BaseCatalogue):
         self.paths = paths
         # Read in the clumps from the final snapshot
         partreader = ParticleReader(self.paths)
-        cols=["index", "parent", 'x', 'y', 'z', "mass_cl"]
+        cols = ["index", "parent", 'x', 'y', 'z', "mass_cl"]
         data = partreader.read_clumps(self.nsnap, self.nsim, cols=cols)
         # Overwrite the parent with the ultimate parent
         mmain = numpy.load(self.paths.mmain_path(self.nsnap, self.nsim))
@@ -375,7 +375,7 @@ class ClumpsCatalogue(BaseCatalogue):
 
 
 class HaloCatalogue(BaseCatalogue):
-    """
+    r"""
     Halo catalogue, i.e. parent halos with summed substructure, defined in the
     final snapshot.
 

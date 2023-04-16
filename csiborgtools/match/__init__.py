@@ -12,7 +12,6 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-
 from .match import (RealisationsMatcher, cosine_similarity,  # noqa
                     ParticleOverlap, get_clumplims, fill_delta, fill_delta_indxs,  # noqa
                     calculate_overlap, calculate_overlap_indxs,  # noqa
