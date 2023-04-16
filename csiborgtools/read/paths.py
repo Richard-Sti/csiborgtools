@@ -271,26 +271,23 @@ class CSiBORGPaths:
         fname = "ramses_out_{}_{}.npy".format(str(self.nsim).zfill(5), nsnap)
         return join(self.postdir, fname)
 
-    def knn_path(self, run, kind, nsim=None):
+    def knnauto_path(self, run, nsim=None):
         """
-        Path to the `knn` files. If `nsim` is no specified returns a list of
-        files for this run for all available simulations.
+        Path to the `knn` auto-correlation files. If `nsim` is not specified
+        returns a list of files for this run for all available simulations.
 
         Parameters
         ----------
         run : str
             Type of run.
-        kind : str
-            Type of correlation. Can be either `auto` or `cross`.
-        nsim : int
+        nsim : int, optional
             IC realisation index.
 
         Returns
         -------
         path : str
         """
-        assert kind in ["auto", "cross"]
-        fdir = join(self.postdir, "knn", kind)
+        fdir = join(self.postdir, "knn", "auto")
         if not isdir(fdir):
             makedirs(fdir)
             warn("Created directory `{}`.".format(fdir), UserWarning)
@@ -298,5 +295,35 @@ class CSiBORGPaths:
             return join(fdir, "knncdf_{}_{}.p".format(str(nsim).zfill(5), run))
 
         files = glob(join(fdir, "knncdf*"))
-        run = '_' + run + '_'
+        run = "__" + run
+        return [f for f in files if run in f]
+
+    def knncross_path(self, run, nsims=None):
+        """
+        Path to the `knn` cross-correlation files. If `nsims` is not specified
+        returns a list of files for this run for all available simulations.
+
+        Parameters
+        ----------
+        run : str
+            Type of run.
+        nsims : len-2 tuple of int, optional
+            IC realisation indices.
+
+        Returns
+        -------
+        path : str
+        """
+        fdir = join(self.postdir, "knn", "cross")
+        if not isdir(fdir):
+            makedirs(fdir)
+            warn("Created directory `{}`.".format(fdir), UserWarning)
+        if nsims is not None:
+            assert isinstance(nsims, (list, tuple)) and len(nsims) == 2
+            nsim0 = str(nsims[0]).zfill(5)
+            nsimx = str(nsims[1]).zfill(5)
+            return join(fdir, "knncdf_{}_{}__{}.p".format(nsim0, nsimx, run))
+
+        files = glob(join(fdir, "knncdf*"))
+        run = "__" + run
         return [f for f in files if run in f]
