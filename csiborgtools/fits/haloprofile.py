@@ -14,6 +14,9 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 Halo profiles functions and posteriors.
+
+TODO:
+    Get rid of the Jax things.. we really don't need this here.
 """
 from jax import numpy as jnumpy
 from jax import grad

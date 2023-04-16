@@ -13,317 +13,182 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """A clump object."""
+from abc import ABC
 import numpy
+from ..units import BoxUnits
 
 
-class Clump:
+class BaseStructure(ABC):
     r"""
     A clump object handling operations with its particles.
-
-    Parameters
-    ----------
-    x : 1-dimensional array
-        Particle coordinates along the x-axis.
-    y : 1-dimensional array
-        Particle coordinates along the y-axis.
-    z : 1-dimensional array
-        Particle coordinates along the z-axis.
-    m : 1-dimensional array
-        Particle masses.
-    x0 : float
-        Clump center coordinate along the x-axis.
-    y0 : float
-        Clump center coordinate along the y-axis.
-    z0 : float
-        Clump center coordinate along the z-axis.
-    clump_mass : float, optional
-        Mass of the clump. By default not set.
-    vx : 1-dimensional array, optional
-        Particle velocity along the x-axis. By default not set.
-    vy : 1-dimensional array, optional
-        Particle velocity along the y-axis. By default not set.
-    vz : 1-dimensional array, optional
-        Particle velocity along the z-axis. By default not set.
-    index : int, optional
-        The halo finder index of this clump. By default not set.
-    rhoc : float, optional
-        The critical density :math:`\rho_c` at this snapshot in box units. By
-        default not set.
-    G : float, optional
-        The gravitational constant :math:`G` in box units. By default not set.
     """
-    _pos = None
-    _clump_pos = None
-    _clump_mass = None
-    _vel = None
-    _index = None
-    _rhoc = None
-    _G = None
+    _particles = None
+    _info = None
+    _box = None
 
-    def __init__(self, x, y, z, m, x0, y0, z0, clump_mass=None,
-                 vx=None, vy=None, vz=None, index=None, rhoc=None, G=None):
-        self._pos = numpy.vstack([x - x0, y - y0, z - z0]).T
-        self._clump_pos = numpy.asarray((x0, y0, z0))
-        assert clump_mass is None or isinstance(clump_mass, float)
-        self._clump_mass = clump_mass
-        if all(v is not None for v in (vx, vy, vz)):
-            self._vel = numpy.vstack([vx, vy, vz]).T
-            assert self._vel.shape == self.pos.shape
-        assert m.ndim == 1 and m.size == self.Npart
-        self._m = m
-        assert index is None or (isinstance(index, (int, numpy.int64)) and index >= 0)  # noqa
-        self._index = index
-        assert rhoc is None or rhoc > 0
-        self._rhoc = rhoc
-        assert G is None or G > 0
-        self._G = G
+    @property
+    def particles(self):
+        """
+        Particle array.
+
+        Returns
+        -------
+        particles : structured array
+        """
+        return self._particles
+
+    @particles.setter
+    def particles(self, particles):
+        pars = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'M']
+        assert all(p in particles.dtype.names for p in pars)
+        self._particles = particles
+
+    @property
+    def info(self):
+        """
+        Array containing information from the clump finder.
+
+        Returns
+        -------
+        info : structured array
+        """
+        return self._info
+
+    @info.setter
+    def info(self, info):
+        # TODO turn this into a structured array and add some checks
+        self._info = info
+
+    @property
+    def box(self):
+        """
+        CSiBORG box object handling unit conversion.
+
+        Returns
+        -------
+        box : :py:class:`csiborgtools.units.BoxUnits`
+        """
+        return self._box
+
+    @box.setter
+    def box(self, box):
+        assert isinstance(box, BoxUnits)
+        self._box = box
 
     @property
     def pos(self):
         """
-        Cartesian particle coordinates centered at the clump.
+        Cartesian particle coordinates centered at the object.
 
         Returns
         -------
         pos : 2-dimensional array of shape `(n_particles, 3)`.
         """
-        return self._pos
-
-    @property
-    def Npart(self):
-        """
-        Number of particles associated with this clump.
-
-        Returns
-        -------
-        Npart : int
-        """
-        return self.pos.shape[0]
+        ps = ('x', 'y', 'z')
+        return numpy.vstack([self[p] - self.info[p] for p in ps]).T
 
     @property
     def r(self):
         """
-        Radial distance of the particles from the clump peak.
+        Radial separation of the particles from the centre of the object.
 
         Returns
         -------
         r : 1-dimensional array of shape `(n_particles, )`.
         """
-        return numpy.sum(self.pos**2, axis=1)**0.5
-
-    @property
-    def rmin(self):
-        """
-        The minimum radial distance of a particle.
-
-        Returns
-        -------
-        rmin : float
-        """
-        return numpy.min(self.r)
-
-    @property
-    def rmax(self):
-        """
-        The maximum radial distance of a particle.
-
-        Returns
-        -------
-        rmin : float
-        """
-        return numpy.max(self.r)
-
-    @property
-    def clump_pos(self):
-        """
-        Cartesian position components of the clump.
-
-        Returns
-        -------
-        pos : 1-dimensional array of shape `(3, )`
-        """
-        return self._clump_pos
-
-    @property
-    def clump_mass(self):
-        """
-        Clump mass.
-
-        Returns
-        -------
-        mass : float
-        """
-        if self._clump_mass is None:
-            raise ValueError("Clump mass `clump_mass` has not been set.")
-        return self._clump_mass
+        return numpy.linalg.norm(self.pos, axis=1)
 
     @property
     def vel(self):
         """
-        Cartesian velocity components of the clump.
+        Cartesian particle velocity components.
 
         Returns
         -------
         vel : 2-dimensional array of shape (`n_particles, 3`)
         """
-        if self._vel is None:
-            raise ValueError("Velocities `vel` have not been set.")
-        return self._vel
+        return numpy.vstack([self[p] for p in ("vx", "vy", "vz")]).T
 
     @property
-    def m(self):
+    def cmass(self):
         """
-        Particle masses.
-
-        Returns
-        -------
-        m : 1-dimensional array of shape `(n_particles, )`
-        """
-        return self._m
-
-    @property
-    def center_mass(self):
-        """
-        Cartesian position components of the clump centre of mass. Note that
-        this is already in a frame centered at the clump's potential minimum.
+        Cartesian position components of the object's centre of mass. Note that
+        this is already in a frame centered at the clump's potential minimum,
+        so its distance from origin indicates the separation of the centre of
+        mass and potential minimum.
 
         Returns
         -------
         cm : 1-dimensional array of shape `(3, )`
         """
-        return numpy.average(self.pos, axis=0, weights=self.m)
+        return numpy.average(self.pos, axis=0, weights=self['M'])
 
     @property
     def angular_momentum(self):
         """
-        Clump angular momentum in the box coordinates.
+        Angular momentum in the box coordinates.
+
+        NOTE: here also change velocities to the CM and appropriately edit the
+        docs.
 
         Returns
         -------
         J : 1-dimensional array or shape `(3, )`
         """
-        J = numpy.cross(self.pos - self.center_mass, self.vel)
+        J = numpy.cross(self.pos - self.cmass, self.vel)
         return numpy.einsum("i,ij->j", self.m, J)
 
-    @property
-    def lambda200c(self):
+    def lambda_bullock(self, ):
         r"""
-        Clump Bullock spin, see Eq. 5 in [1], in a radius of
-        :math:`R_{\rm 200c}`.
+        Bullock spin, see Eq. 5 in [1], in a radius of :math:`R_{\rm x}`.
+
+        TODO: docs and correct this function. Watch out up to where calculating
+
+        Parameters
+        ----------
+        delta : int or float
+            Overdensity multiple...
+        n_particles_min : int
+            Minimum number of enclosed particles for a radius to be
+            considered trustworthy.
+
+        Returns
+        -------
+        lambda_bullock : float
 
         References
         ----------
         [1] A Universal Angular Momentum Profile for Galactic Halos; 2001;
         Bullock, J. S.;  Dekel, A.;  Kolatt, T. S.;  Kravtsov, A. V.;
         Klypin, A. A.;  Porciani, C.;  Primack, J. R.
-
-        Returns
-        -------
-        lambda200c : float
         """
         J = self.angular_momentum
         R, M = self.spherical_overdensity_mass(200)
         V = numpy.sqrt(self.G * M / R)
         return numpy.linalg.norm(J) / (numpy.sqrt(2) * M * V * R)
 
-    @property
-    def index(self):
+    def enclosed_mass(self, rmax, rmin=0):
         """
-        Halo finder clump index.
-
-        Returns
-        -------
-        hindex : int
-        """
-        if self._index is None:
-            raise ValueError("Halo index `hindex` has not been set.")
-        return self._index
-
-    @property
-    def rhoc(self):
-        r"""
-        Critical density :math:`\rho_c` at this snapshot in box units.
-
-        Returns
-        -------
-        rhoc : float
-        """
-        if self._rhoc is None:
-            raise ValueError("The critical density `rhoc` has not been set.")
-        return self._rhoc
-
-    @property
-    def G(self):
-        r"""
-        Gravitational constant :math:`G` in box units.
-
-        Returns
-        -------
-        G : float
-        """
-        if self._G is None:
-            raise ValueError("The grav. constant `G` has not been set.")
-        return self._G
-
-    @property
-    def total_particle_mass(self):
-        """
-        Total mass of all particles.
-
-        Returns
-        -------
-        tot_mass : float
-        """
-        return numpy.sum(self.m)
-
-    @property
-    def mean_particle_pos(self):
-        """
-        Mean Cartesian particle coordinate. Not centered at the halo!
-
-        Returns
-        -------
-        pos : 1-dimensional array of shape `(3, )`
-        """
-        return numpy.mean(self.pos + self.clump_pos, axis=0)
-
-    def enclosed_spherical_mass(self, rmax, rmin=0):
-        """
-        Enclosed spherical mass between two radii in box units.
-
-        Parameters
-        ----------
-        rmax : float
-            The maximum radial distance.
-        rmin : float, optional
-            The minimum radial distance. By default 0.
-
-        Returns
-        -------
-        M_enclosed : float
-            The enclosed mass.
-        """
-        return numpy.sum(self.m[(self.r >= rmin) & (self.r <= rmax)])
-
-    def enclosed_spherical_volume(self, rmax, rmin=0):
-        """
-        Enclosed spherical volume within two radii in box units.
+        Sum of particle masses between two radii.
 
         Parameters
         ----------
         rmax : float
             Maximum radial distance.
         rmin : float, optional
-            Minimum radial distance. By default 0.
+            Minimum radial distance.
 
         Returns
         -------
-        vol : float
+        enclosed_mass : float
         """
-        return 4 * numpy.pi / 3 * (rmax**3 - rmin**3)
+        r = self.r
+        return numpy.sum(self['M'][(r >= rmin) & (r <= rmax)])
 
-    def spherical_overdensity_mass(self, delta, n_particles_min=10):
+    def spherical_overdensity_mass(self, delta, npart_min=10):
         r"""
+        TODO: docs
+
         Spherical overdensity mass and radius. The mass is defined as the
         enclosed mass within a radius of where the mean enclosed spherical
         density reaches a multiple of the critical radius at a given redshift
@@ -351,83 +216,45 @@ class Clump:
         mx :  float
             Corresponding spherical enclosed mass.
         """
-        # If single `delta` turn to list
-        delta = [delta] if isinstance(delta, (float, int)) else delta
-        # If given a list or tuple turn to array
-        _istlist = isinstance(delta, (list, tuple))
-        delta = numpy.asarray(delta, dtype=float) if _istlist else delta
+        # We first sort the particles in an increasing separation
+        rs = self.r
+        order = numpy.argsort(rs)
+        rs = rs[order]
+        cmass = numpy.cumsum(self['M'])  # Cumulative mass
+        # We calculate the enclosed volume and indices where it is above target
+        vol = 4 * numpy.pi / 3 * (rs**3 - rs[0]**3)
+        ks = numpy.where([cmass / vol > delta * self.box.rhoc])[0]
+        if ks.size == 0:  # Never above the threshold?
+            return numpy.nan, numpy.nan
+        k = numpy.maximum(ks)
+        if k < npart_min:  # Too few particles?
+            return numpy.nan, numpy.nan
+        return rs[k], cmass[k]
 
-        # Ordering of deltas
-        order_delta = numpy.argsort(delta)
-        # Sort the particles
-        order_particles = numpy.argsort(self.r)[::-1]
-        # Density to aim for
-        n_delta = delta.size
-        target_density = delta * self.rhoc
-
-        # The sum of particle masses, starting from the outside
-        # Adds the furtherst particle ensure that the 0th index is tot mass
-        cummass_ordered = (self.total_particle_mass
-                           + self.m[order_particles][0]
-                           - numpy.cumsum(self.m[order_particles]))
-        # Enclosed volumes at particle radii
-        volumes = self.enclosed_spherical_volume(self.r[order_particles])
-        densities = cummass_ordered / volumes
-
-        # Pre-allocate arrays
-        rfound = numpy.full_like(delta, numpy.nan)
-        mfound = numpy.full_like(rfound, numpy.nan)
-
-        for n in order_delta:
-            overdense_mask = densities > target_density[n]
-
-            # Enforce that we have at least several particles enclosed
-            if numpy.sum(overdense_mask) < n_particles_min:
-                continue
-            # The outermost particle radius where the overdensity is achieved
-            k = numpy.where(overdense_mask)[0][0]
-            rfound[n] = self.r[order_particles][k]
-            mfound[n] = cummass_ordered[k]
-
-        # If only one delta return simply numbers
-        if n_delta == 1:
-            rfound = rfound[0]
-            mfound = mfound[0]
-
-        return rfound, mfound
-
-    @classmethod
-    def from_arrays(cls, particles, clump, rhoc=None, G=None):
-        r"""
-        Initialises `Clump` from `particles` containing the relevant particle
-        information and its `clump` information.
-
-        Paramaters
-        ----------
-        particles : structured array
-            Array of particles belonging to this clump. Must contain
-            `["x", "y", "z", "M"]` and optionally also `["vx", "vy", "vz"]`.
-        clump : array
-            A slice of a `clumps` array corresponding to this clump. Must
-            contain `["peak_x", "peak_y", "peak_z", "mass_cl"]`.
-        rhoc : float, optional
-            The critical density :math:`\rho_c` at this snapshot in box units.
-            By default not set.
-        G : float, optional
-            The gravitational constant :math:`G` in box units. By default not
-            set.
+    @property
+    def keys(self):
+        """
+        Particle array keys.
 
         Returns
         -------
-        clump : `Clump`
+        key : list of str
         """
-        x, y, z, m = (particles[p] for p in ["x", "y", "z", "M"])
-        x0, y0, z0, cl_mass, hindex = (
-            clump[p] for p in ["peak_x", "peak_y", "peak_z", "mass_cl",
-                               "index"])
-        try:
-            vx, vy, vz = (particles[p] for p in ["vx", "vy", "vz"])
-        except ValueError:
-            vx, vy, vz = None, None, None
-        return cls(x, y, z, m, x0, y0, z0, cl_mass,
-                   vx, vy, vz, hindex, rhoc, G)
+        return self.data.dtype.names
+
+    def __getitem__(self, key):
+        if key not in self.keys:
+            raise RuntimeError("Invalid key `{}`!".format(key))
+        return self.particles[key]
+
+    def __len__(self):
+        return self.particles.size
+
+
+class Clump(BaseStructure):
+
+    def __init__(self, particles, info, box):
+        self.particles = particles
+        self.info = info
+        self.box = box
+

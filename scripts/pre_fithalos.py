@@ -17,15 +17,15 @@ A script to fit halos (concentration, ...). The particle array of each CSiBORG
 realisation must have been split in advance by `runsplit_halos`.
 """
 from datetime import datetime
-import numpy
 from mpi4py import MPI
+import numpy
 try:
     import csiborgtools
 except ModuleNotFoundError:
     import sys
     sys.path.append("../")
     import csiborgtools
-import utils
+# import utils
 
 
 # Get MPI things
@@ -34,6 +34,8 @@ rank = comm.Get_rank()
 nproc = comm.Get_size()
 
 paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
+partreader =csiborgtools.read.ParticleReader(paths)
+
 cols_collect = [("npart", numpy.int64), ("totpartmass", numpy.float64),
                 ("Rs", numpy.float64), ("vx", numpy.float64),
                 ("vy", numpy.float64), ("vz", numpy.float64),
@@ -44,14 +46,48 @@ cols_collect = [("npart", numpy.int64), ("totpartmass", numpy.float64),
                 ("r500", numpy.float64), ("m200", numpy.float64),
                 ("m500", numpy.float64), ("lambda200c", numpy.float64)]
 
+def fit_clump(particles, clump, box):
+
+
+
+
+    out["npart"][n] = clump.Npart
+    out["rmin"][n] = clump.rmin
+    out["rmax"][n] = clump.rmax
+    out["totpartmass"][n] = clump.total_particle_mass
+    out["vx"][n] = numpy.average(clump.vel[:, 0], weights=clump.m)
+    out["vy"][n] = numpy.average(clump.vel[:, 1], weights=clump.m)
+    out["vz"][n] = numpy.average(clump.vel[:, 2], weights=clump.m)
+    out["Lx"][n], out["Ly"][n], out["Lz"][n] = clump.angular_momentum
+
+
 
 for i, nsim in enumerate(paths.get_ics(tonew=False)):
     if rank == 0:
-        print("{}: calculating {}th simulation.".format(datetime.now(), i))
+        print("{}: calculating {}th simulation `{}`."
+              .format(datetime.now(), i, nsim), flush=True)
     nsnap = max(paths.get_snapshots(nsim))
     box = csiborgtools.units.BoxUnits(nsnap, nsim, paths)
 
-    jobs = csiborgtools.utils.split_jobs(utils.Nsplits, nproc)[rank]
+    # Archive of clumps, keywords are their clump IDs
+    particle_archive = paths.split_path(nsnap, nsim)
+    clumpsarr = partreader.read_clumps(nsnap, nsim,
+                                       cols=["index", 'x', 'y', 'z'])
+    clumpid2arrpos = {ind: ii for ii, ind in enumerate(clumpsarr["index"])}
+
+
+    nclumps = len(particle_archive.files)
+    # Fit 5000 clumps at a time, then dump results
+    batchsize = 5000
+
+    # This rank does these `batchsize` clumps/halos
+    jobs = csiborgtools.utils.split_jobs(nclumps, nclumps // batchsize)[rank]
+    for clumpid in jobs:
+        ... = fit_clump(particle_archive[str(clumpid)], clumpsarr[clumpid2arrpos[clumpid]])
+
+
+
+    jobs = csiborgtools.utils.split_jobs(nclumps, nproc)[rank]
     for nsplit in jobs:
         parts, part_clumps, clumps = csiborgtools.fits.load_split_particles(
             nsplit, nsnap, nsim, paths, remove_split=False)
