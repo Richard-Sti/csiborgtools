@@ -63,8 +63,7 @@ class BaseCatalogue(ABC):
 
     @paths.setter
     def paths(self, paths):
-        # TODO uncomment
-        # assert isinstance(paths, CSiBORGPaths)
+        # assert isinstance(paths, CSiBORGPaths)  # REMOVE
         self._paths = paths
 
     @property
