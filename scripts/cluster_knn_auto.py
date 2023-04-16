@@ -118,7 +118,7 @@ def do_auto(run, cat, ic):
         batch_size=int(config["batch_size"]), random_state=config["seed"])
 
     joblib.dump({"rs": rs, "cdf": cdf, "ndensity": pos.shape[0] / totvol},
-                paths.knn_path(run, "auto", ic))
+                paths.knnauto_path(run,  ic))
 
 
 def do_cross_rand(run, cat, ic):
@@ -143,7 +143,7 @@ def do_cross_rand(run, cat, ic):
         nsamples=int(config["nsamples"]), neval=int(config["neval"]),
         batch_size=int(config["batch_size"]), random_state=config["seed"])
     corr = knncdf.joint_to_corr(cdf0, cdf1, joint_cdf)
-    joblib.dump({"rs": rs, "corr": corr}, paths.knn_path(run, "auto", ic))
+    joblib.dump({"rs": rs, "corr": corr}, paths.knnauto_path(run, ic))
 
 
 def do_runs(ic):

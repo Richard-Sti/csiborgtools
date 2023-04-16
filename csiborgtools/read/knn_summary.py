@@ -73,7 +73,11 @@ class kNNCDFReader:
         out : 3-dimensional array of shape `(len(files), len(ks), neval)`
             Array of CDFs or cross-correlations.
         """
-        files = self.paths.knn_path(run, kind)
+        assert kind in ["auto", "cross"]
+        if kind == "auto":
+            files = self.paths.knnauto_path(run)
+        else:
+            files = self.paths.knncross_path(run)
         if len(files) == 0:
             raise RuntimeError("No files found for run `{}`.".format(run))
 

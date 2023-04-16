@@ -16,7 +16,6 @@
 from warnings import warn
 from os.path import join
 from argparse import ArgumentParser
-from copy import deepcopy
 from datetime import datetime
 from itertools import combinations
 from mpi4py import MPI
@@ -67,6 +66,7 @@ knncdf = csiborgtools.clustering.kNN_CDF()
 #                               Analysis                                      #
 ###############################################################################
 
+
 def read_single(selection, cat):
     mmask = numpy.ones(len(cat), dtype=bool)
     pos = cat.positions(False)
@@ -78,6 +78,7 @@ def read_single(selection, cat):
     if pmax is not None:
         mmask &= (cat[psel["name"]] < pmax)
     return pos[mmask, ...]
+
 
 def do_cross(run, ics):
     _config = config.get(run, None)
@@ -102,9 +103,8 @@ def do_cross(run, ics):
         batch_size=int(config["batch_size"]), random_state=config["seed"])
 
     corr = knncdf.joint_to_corr(cdf0, cdf1, joint_cdf)
+    joblib.dump({"rs": rs, "corr": corr}, paths.knncross_path(run, ics))
 
-    joblib.dump({"rs": rs, "corr": corr},
-                fout.format(str(ics[0]).zfill(5), str(ics[1]).zfill(5), run))
 
 def do_runs(ics):
     print(ics)
