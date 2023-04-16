@@ -23,6 +23,7 @@ import joblib
 class kNNCDFReader:
     """
     Shortcut object to read in the kNN CDF data.
+    TODO: edit the paths here.
     """
     def read(self, run, folder, rmin=None, rmax=None, to_clip=True):
         """
