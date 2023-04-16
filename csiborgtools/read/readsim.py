@@ -38,12 +38,23 @@ class ParticleReader:
     _paths = None
 
     def __init__(self, paths):
-        # assert isinstance(paths, CSiBORGPaths)  # REMOVE
-        self._paths = paths
+        self.paths = paths
 
     @property
     def paths(self):
+        """
+        Paths manager
+
+        Parameters
+        ----------
+        paths : py:class`csiborgtools.read.CSiBORGPaths`
+        """
         return self._paths
+
+    @paths.setter
+    def paths(self, paths):
+        # assert isinstance(paths, CSiBORGPaths)  # REMOVE
+        self._paths = paths
 
     def read_info(self, nsnap, nsim):
         """
