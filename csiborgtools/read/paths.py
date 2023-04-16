@@ -88,15 +88,14 @@ class CSiBORGPaths:
         """
         Path to a temporary dumping folder.
 
-        TODO: this will soon go.
-
         Returns
         -------
         path : str
         """
-        fpath = join(self.dumpdir, "temp")
+        fpath = join(self.postdir, "temp")
         if not isdir(fpath):
-            raise IOError("Invalid directory `{}`.".format(fpath))
+            mkdir(fpath)
+            warn("Created directory `{}`.".format(fpath), UserWarning)
         return fpath
 
     def mmain_path(self, nsnap, nsim):
