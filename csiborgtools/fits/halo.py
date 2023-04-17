@@ -140,35 +140,6 @@ class BaseStructure(ABC):
         J = numpy.cross(self.pos - self.cmass, self.vel)
         return numpy.einsum("i,ij->j", self.m, J)
 
-    def lambda_bullock(self, ):
-        r"""
-        Bullock spin, see Eq. 5 in [1], in a radius of :math:`R_{\rm x}`.
-
-        TODO: docs and correct this function. Watch out up to where calculating
-
-        Parameters
-        ----------
-        delta : int or float
-            Overdensity multiple...
-        n_particles_min : int
-            Minimum number of enclosed particles for a radius to be
-            considered trustworthy.
-
-        Returns
-        -------
-        lambda_bullock : float
-
-        References
-        ----------
-        [1] A Universal Angular Momentum Profile for Galactic Halos; 2001;
-        Bullock, J. S.;  Dekel, A.;  Kolatt, T. S.;  Kravtsov, A. V.;
-        Klypin, A. A.;  Porciani, C.;  Primack, J. R.
-        """
-        J = self.angular_momentum
-        R, M = self.spherical_overdensity_mass(200)
-        V = numpy.sqrt(self.G * M / R)
-        return numpy.linalg.norm(J) / (numpy.sqrt(2) * M * V * R)
-
     def enclosed_mass(self, rmax, rmin=0):
         """
         Sum of particle masses between two radii.
@@ -186,6 +157,37 @@ class BaseStructure(ABC):
         """
         r = self.r
         return numpy.sum(self['M'][(r >= rmin) & (r <= rmax)])
+
+    def lambda_bullock(self, radius, npart_min=10):
+        r"""
+        Bullock spin, see Eq. 5 in [1], in a radius of `radius`, which should
+        define to some overdensity radius.
+
+        Parameters
+        ----------
+        radius : float
+            Radius in which to calculate the spin.
+        npart_min : int
+            Minimum number of enclosed particles for a radius to be
+            considered trustworthy.
+
+        Returns
+        -------
+        lambda_bullock : float
+
+        References
+        ----------
+        [1] A Universal Angular Momentum Profile for Galactic Halos; 2001;
+        Bullock, J. S.;  Dekel, A.;  Kolatt, T. S.;  Kravtsov, A. V.;
+        Klypin, A. A.;  Porciani, C.;  Primack, J. R.
+        """
+        mask = self.r <= radius
+        if numpy.sum(mask) < npart_min:
+            return numpy.nan
+        mass = self.enclosed_mass(radius)
+        V = numpy.sqrt(self.box.box_G * mass / radius)
+        return (numpy.linalg.norm(self.angular_momentum[mask])
+                / (numpy.sqrt(2) * mass * V * radius))
 
     def spherical_overdensity_mass(self, delta, npart_min=10):
         r"""
