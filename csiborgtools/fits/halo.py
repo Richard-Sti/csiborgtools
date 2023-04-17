@@ -14,12 +14,13 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """A clump object."""
 from abc import ABC
+
 import numpy
 
 
 class BaseStructure(ABC):
-    r"""
-    A clump object handling operations with its particles.
+    """
+    Basic structure object for handling operations on its particles.
     """
     _particles = None
     _info = None
@@ -189,27 +190,17 @@ class BaseStructure(ABC):
         return (numpy.linalg.norm(self.angular_momentum[mask])
                 / (numpy.sqrt(2) * mass * V * radius))
 
-    def spherical_overdensity_mass(self, delta, npart_min=10):
+    def spherical_overdensity_mass(self, delta_mult, npart_min=10):
         r"""
-        TODO: docs
-
-        Spherical overdensity mass and radius. The mass is defined as the
-        enclosed mass within a radius of where the mean enclosed spherical
-        density reaches a multiple of the critical radius at a given redshift
-        `self.rho_c`.
-
-        Starts from the furthest particle, working its way inside the halo
-        through an ordered list of particles. The corresponding values is the
-        radial distance of the first particle whose addition sufficiently
-        increases the mean density.
-
+        Calculate spherical overdensity mass and radius. The mass is defined as
+        the enclosed mass within an outermost radius where the mean enclosed
+        spherical density reaches a multiple of the critical density `delta`.
 
         Parameters
         ----------
-        delta : list of int or float
-            The :math:`\delta_{\rm x}` parameters where :math:`\mathrm{x}` is
-            the overdensity multiple.
-        n_particles_min : int
+        delta_mult : list of int or float
+            Overdensity multiple.
+        npart_min : int
             Minimum number of enclosed particles for a radius to be
             considered trustworthy.
 
@@ -227,7 +218,7 @@ class BaseStructure(ABC):
         cmass = numpy.cumsum(self['M'])  # Cumulative mass
         # We calculate the enclosed volume and indices where it is above target
         vol = 4 * numpy.pi / 3 * (rs**3 - rs[0]**3)
-        ks = numpy.where([cmass / vol > delta * self.box.rhoc])[0]
+        ks = numpy.where([cmass / vol > delta_mult * self.box.rhoc])[0]
         if ks.size == 0:  # Never above the threshold?
             return numpy.nan, numpy.nan
         k = numpy.maximum(ks)
@@ -256,9 +247,39 @@ class BaseStructure(ABC):
 
 
 class Clump(BaseStructure):
+    """
+    Clump object to handle operations on its particles.
 
+    Parameters
+    ----------
+    particles : structured array
+        Particle array. Must contain `['x', 'y', 'z', 'vx', 'vy', 'vz', 'M']`.
+    info : structured array
+        Array containing information from the clump finder.
+    box : :py:class:`csiborgtools.read.BoxUnits`
+        Box units object.
+    """
     def __init__(self, particles, info, box):
         self.particles = particles
         self.info = info
         self.box = box
 
+
+class Halo(BaseStructure):
+    """
+    Ultimate halo object to handle operations on its particles, i.e. the summed
+    particles halo.
+
+    Parameters
+    ----------
+    particles : structured array
+        Particle array. Must contain `['x', 'y', 'z', 'vx', 'vy', 'vz', 'M']`.
+    info : structured array
+        Array containing information from the clump finder.
+    box : :py:class:`csiborgtools.read.BoxUnits`
+        Box units object.
+    """
+    def __init__(self, particles, info, box):
+        self.particles = particles
+        self.info = info
+        self.box = box
