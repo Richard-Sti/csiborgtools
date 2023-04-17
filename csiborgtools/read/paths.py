@@ -13,10 +13,11 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """CSiBORG paths manager."""
-from os import (mkdir, makedirs)
-from os.path import (join, isdir)
 from glob import glob
+from os import makedirs, mkdir
+from os.path import isdir, join
 from warnings import warn
+
 import numpy
 
 
@@ -95,7 +96,8 @@ class CSiBORGPaths:
         fpath = join(self.postdir, "temp")
         if not isdir(fpath):
             mkdir(fpath)
-            warn("Created directory `{}`.".format(fpath), UserWarning)
+            warn("Created directory `{}`.".format(fpath), UserWarning,
+                 stacklevel=1)
         return fpath
 
     def mmain_path(self, nsnap, nsim):
@@ -116,7 +118,8 @@ class CSiBORGPaths:
         fdir = join(self.postdir, "mmain")
         if not isdir(fdir):
             mkdir(fdir)
-            warn("Created directory `{}`.".format(fdir), UserWarning)
+            warn("Created directory `{}`.".format(fdir), UserWarning,
+                 stacklevel=1)
         return join(
             fdir,
             "mmain_{}_{}.npz".format(str(nsim).zfill(5), str(nsnap).zfill(5))
@@ -136,12 +139,14 @@ class CSiBORGPaths:
 
         Returns
         -------
+        path : str
         """
         assert kind in ["cm", "particles"]
         fdir = join(self.postdir, "initmatch")
         if not isdir(fdir):
             mkdir(fdir)
-            warn("Created directory `{}`.".format(fdir), UserWarning)
+            warn("Created directory `{}`.".format(fdir), UserWarning,
+                 stacklevel=1)
         return join(fdir, "{}_{}.npy".format(kind, str(nsim).zfill(5)))
 
     def split_path(self, nsnap, nsim):
@@ -162,7 +167,8 @@ class CSiBORGPaths:
         fdir = join(self.postdir, "split")
         if not isdir(fdir):
             mkdir(fdir)
-            warn("Created directory `{}`.".format(fdir), UserWarning)
+            warn("Created directory `{}`.".format(fdir), UserWarning,
+                 stacklevel=1)
         return join(fdir, "clumps_{}_{}.npz"
                     .format(str(nsim).zfill(5), str(nsnap).zfill(5)))
 
@@ -175,6 +181,7 @@ class CSiBORGPaths:
         ----------
         tonew : bool
             If `True`, path to the '_new' ICs is returned.
+
         Returns
         -------
         ids : 1-dimensional array
@@ -290,7 +297,8 @@ class CSiBORGPaths:
         fdir = join(self.postdir, "knn", "auto")
         if not isdir(fdir):
             makedirs(fdir)
-            warn("Created directory `{}`.".format(fdir), UserWarning)
+            warn("Created directory `{}`.".format(fdir), UserWarning,
+                 stacklevel=1)
         if nsim is not None:
             return join(fdir, "knncdf_{}_{}.p".format(str(nsim).zfill(5), run))
 
@@ -317,7 +325,8 @@ class CSiBORGPaths:
         fdir = join(self.postdir, "knn", "cross")
         if not isdir(fdir):
             makedirs(fdir)
-            warn("Created directory `{}`.".format(fdir), UserWarning)
+            warn("Created directory `{}`.".format(fdir), UserWarning,
+                 stacklevel=1)
         if nsims is not None:
             assert isinstance(nsims, (list, tuple)) and len(nsims) == 2
             nsim0 = str(nsims[0]).zfill(5)
@@ -347,7 +356,8 @@ class CSiBORGPaths:
         fdir = join(self.postdir, "tpcf", "auto")
         if not isdir(fdir):
             makedirs(fdir)
-            warn("Created directory `{}`.".format(fdir), UserWarning)
+            warn("Created directory `{}`.".format(fdir), UserWarning,
+                 stacklevel=1)
         if nsim is not None:
             return join(fdir, "tpcf{}_{}.p".format(str(nsim).zfill(5), run))
 
