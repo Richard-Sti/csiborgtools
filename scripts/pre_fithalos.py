@@ -17,15 +17,16 @@ A script to fit halos (concentration, ...). The particle array of each CSiBORG
 realisation must have been split in advance by `runsplit_halos`.
 """
 from datetime import datetime
-from mpi4py import MPI
+
 import numpy
+from mpi4py import MPI
+
 try:
     import csiborgtools
 except ModuleNotFoundError:
     import sys
     sys.path.append("../")
     import csiborgtools
-# import utils
 
 
 # Get MPI things
