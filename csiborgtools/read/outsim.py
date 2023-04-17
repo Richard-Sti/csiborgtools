@@ -15,9 +15,10 @@
 """
 I/O functions for analysing the CSiBORG realisations.
 """
-import numpy
-from os.path import join
 from os import remove
+from os.path import join
+
+import numpy
 from tqdm import trange
 
 

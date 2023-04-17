@@ -68,7 +68,7 @@ for i, nsim in enumerate(paths.get_ics(tonew=False)):
         print("{}: calculating {}th simulation `{}`."
               .format(datetime.now(), i, nsim), flush=True)
     nsnap = max(paths.get_snapshots(nsim))
-    box = csiborgtools.units.BoxUnits(nsnap, nsim, paths)
+    box = csiborgtools.read.BoxUnits(nsnap, nsim, paths)
 
     # Archive of clumps, keywords are their clump IDs
     particle_archive = paths.split_path(nsnap, nsim)

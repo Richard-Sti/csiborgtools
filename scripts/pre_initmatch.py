@@ -19,14 +19,16 @@ are grouped in a clump at present redshift.
 Optionally also dumps the clumps information, however watch out as this will
 eat up a lot of memory.
 """
-from gc import collect
-from os.path import join
-from os import remove
 from argparse import ArgumentParser
 from datetime import datetime
 from distutils.util import strtobool
+from gc import collect
+from os import remove
+from os.path import join
+
 import numpy
 from mpi4py import MPI
+
 try:
     import csiborgtools
 except ModuleNotFoundError:

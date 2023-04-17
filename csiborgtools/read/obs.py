@@ -18,13 +18,14 @@ Scripts to read in observation.
 from abc import ABC, abstractproperty
 from os.path import join
 from warnings import warn
-import numpy
-from scipy import constants
-from astropy.io import fits
-from astropy.coordinates import SkyCoord
-from astropy import units
-from ..utils import (cols_to_structured)
 
+import numpy
+from astropy import units
+from astropy.coordinates import SkyCoord
+from astropy.io import fits
+from scipy import constants
+
+from .utils import cols_to_structured
 
 ###############################################################################
 #                           Text survey base class                            #
@@ -101,10 +102,8 @@ class TwoMPPGalaxies(TextSurvey):
         self._set_data(fpath)
 
     def _set_data(self, fpath):
-        """
-        Set the catalogue
-        """
         from scipy.constants import c
+
         # Read the catalogue and select non-fake galaxies
         cat = numpy.genfromtxt(fpath, delimiter="|", )
         cat = cat[cat[:, 12] == 0, :]
@@ -151,9 +150,6 @@ class TwoMPPGroups(TextSurvey):
         self._set_data(fpath)
 
     def _set_data(self, fpath):
-        """
-        Set the catalogue
-        """
         cat = numpy.genfromtxt(fpath, delimiter="|", )
         # Pre-allocate and fill the array
         cols = [("RA", numpy.float64), ("DEC", numpy.float64),
@@ -218,13 +214,12 @@ class FitsSurvey(ABC):
 
     @h.setter
     def h(self, h):
-        """Sets the little h."""
         self._h = h
 
     @staticmethod
     def _check_in_list(member, members, kind):
         """
-        Checks that `member` is a member of a list `members`, `kind` is a
+        Check that `member` is a member of a list `members`, `kind` is a
         member type name.
         """
         if member not in members:
@@ -247,7 +242,7 @@ class FitsSurvey(ABC):
     @abstractproperty
     def size(self):
         """
-        Number of samples in the catalogue.
+        Return the number of samples in the catalogue.
 
         Returns
         -------
@@ -274,7 +269,7 @@ class FitsSurvey(ABC):
 
     @selection_mask.setter
     def selection_mask(self, mask):
-        """Sets the selection mask."""
+        """Set the selection mask."""
         if not (isinstance(mask, numpy.ndarray)
                 and mask.ndim == 1
                 and mask.dtype == bool):
@@ -311,6 +306,7 @@ class FitsSurvey(ABC):
         Parameters
         ----------
         key : str
+            FITS key.
 
         Returns
         -------
@@ -331,7 +327,7 @@ class FitsSurvey(ABC):
 
     def make_mask(self, steps):
         """
-        Make a survey mask from a series of steps. Expected to look e.g. like
+        Make a survey mask from a series of steps, expected to look as below.
 
         ```
         def steps(cls):
@@ -343,6 +339,7 @@ class FitsSurvey(ABC):
         Parameters
         ----------
         steps : list of steps
+            Selection steps.
 
         Returns
         -------
@@ -359,20 +356,17 @@ class FitsSurvey(ABC):
         return out
 
     def __getitem__(self, key):
-        """
-        Return values for this `key`. If in both return from `routine_keys`.
-        """
         # Check duplicates
         if key in self.routine_keys and key in self.fits_keys:
             warn("Key `{}` found in both `routine_keys` and `fits_keys`. "
-                 "Returning `routine_keys` value.".format(key), UserWarning)
+                 "Returning `routine_keys` value.".format(key), stacklevel=1)
 
         if key in self.routine_keys:
             func, args = self.routines[key]
             out = func(*args)
         elif key in self.fits_keys:
             warn("Returning a FITS property. Be careful about little h!",
-                 UserWarning)
+                 stacklevel=1)
             out = self.get_fitsitem(key)
         else:
             raise KeyError("Unrecognised key `{}`.".format(key))
@@ -541,7 +535,7 @@ class MCXCClusters(FitsSurvey):
         return self.get_fitsitem(key) * 1e14 * (self._hdata / self.h)**2
 
     def _lum(self, key):
-        """Get luminosity. Puts back units to be in ergs/s"""
+        """Get luminosity, puts back units to be in ergs/s."""
         return self.get_fitsitem(key) * 1e44 * (self._hdata / self.h)**2
 
 ###############################################################################
@@ -669,14 +663,14 @@ class SDSS(FitsSurvey):
         return self._absmag(photo, band1) - self._absmag(photo, band2)
 
     def _dist(self):
-        """
-        Get the corresponding distance estimate from `ZDIST`, which is defined
-        as:
+        r"""
+        Get the corresponding distance estimate from `ZDIST`, defined as below.
+
             "Distance estimate using pecular velocity model of Willick et al.
             (1997), expressed as a redshift equivalent; multiply by c/H0 for
             Mpc"
 
-        Converts little h.
+        Distance is converted to math:`h != 1` units.
         """
         return self.get_fitsitem("ZDIST") * constants.c * 1e-3 / (100 * self.h)
 

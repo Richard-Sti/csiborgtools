@@ -13,8 +13,10 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """2PCF reader."""
-import numpy
 import joblib
+import numpy
+
+from .paths import CSiBORGPaths
 
 
 class TPCFReader:
@@ -33,7 +35,7 @@ class TPCFReader:
     @property
     def paths(self):
         """
-        Paths manager
+        Paths manager.
 
         Parameters
         ----------
@@ -43,7 +45,7 @@ class TPCFReader:
 
     @paths.setter
     def paths(self, paths):
-        # assert isinstance(paths, CSiBORGPaths)  # REMOVE
+        assert isinstance(paths, CSiBORGPaths)
         self._paths = paths
 
     def read(self, run):

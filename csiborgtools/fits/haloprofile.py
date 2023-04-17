@@ -23,6 +23,7 @@ from jax import grad
 import numpy
 from scipy.optimize import minimize_scalar
 from scipy.stats import uniform
+
 from .halo import Clump
 
 

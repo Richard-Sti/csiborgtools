@@ -16,9 +16,11 @@
 Script to generate the mmain files, i.e. sums up the substructe of children.
 """
 from datetime import datetime
-from mpi4py import MPI
+
 import numpy
+from mpi4py import MPI
 from TaskmasterMPI import master_process, worker_process
+
 try:
     import csiborgtools
 except ModuleNotFoundError:

@@ -13,15 +13,17 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """Script to split particles to indivudual files according to their clump."""
-from os.path import join
-from os import remove
-from glob import glob
-from gc import collect
 from datetime import datetime
-from mpi4py import MPI
-from tqdm import tqdm
+from gc import collect
+from glob import glob
+from os import remove
+from os.path import join
+
 import numpy
+from mpi4py import MPI
 from TaskmasterMPI import master_process, worker_process
+from tqdm import tqdm
+
 try:
     import csiborgtools
 except ModuleNotFoundError:

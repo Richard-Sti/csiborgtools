@@ -73,7 +73,7 @@ for n in csiborgtools.utils.split_jobs(nsims, nproc)[rank]:
     nsim = ics[n]
     nsnap = max(paths.get_snapshots(nsim))
     reader = csiborgtools.read.ParticleReader(paths)
-    box = csiborgtools.units.BoxUnits(nsnap, nsim, paths)
+    box = csiborgtools.read.BoxUnits(nsnap, nsim, paths)
 
     # Read particles and select a subset of them
     particles = reader.read_particle(nsnap, nsim, ["x", "y", "z", "M"],

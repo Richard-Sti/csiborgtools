@@ -15,6 +15,7 @@
 """
 Support for matching halos between CSiBORG IC realisations.
 """
+from datetime import datetime
 from gc import collect
 
 import numpy
@@ -22,8 +23,7 @@ from numba import jit
 from scipy.ndimage import gaussian_filter
 from tqdm import tqdm, trange
 
-from ..read import concatenate_clumps
-from ..utils import now
+from .utils import concatenate_clumps
 
 ###############################################################################
 #                  Realisations matcher for calculating overlaps              #
@@ -150,7 +150,8 @@ class RealisationsMatcher:
             Overlaps with the cross catalogue.
         """
         # Query the KNN
-        verbose and print("{}: querying the KNN.".format(now()), flush=True)
+        verbose and print("{}: querying the KNN."
+                          .format(datetime.now()), flush=True)
         match_indxs = radius_neighbours(
             catx.knn(select_initial=True), cat0.positions(in_initial=True),
             radiusX=cat0["lagpatch"], radiusKNN=catx["lagpatch"],

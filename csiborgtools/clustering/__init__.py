@@ -14,8 +14,14 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 from warnings import warn
 
-from .knn import kNN_CDF  # noqa
-from .utils import BaseRVS, RVSinbox, RVSinsphere, RVSonsphere, normalised_marks  # noqa
+from csiborgtools.clustering.knn import kNN_CDF  # noqa
+from csiborgtools.clustering.utils import (  # noqa
+    BaseRVS,
+    RVSinbox,
+    RVSinsphere,
+    RVSonsphere,
+    normalised_marks,
+)
 
 try:
     import Corrfunc  # noqa

@@ -13,17 +13,19 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """A script to calculate the KNN-CDF for a set of CSiBORG halo catalogues."""
-from warnings import warn
-from os.path import join
 from argparse import ArgumentParser
 from datetime import datetime
 from itertools import combinations
-from mpi4py import MPI
-from TaskmasterMPI import master_process, worker_process
-import numpy
-from sklearn.neighbors import NearestNeighbors
+from os.path import join
+from warnings import warn
+
 import joblib
+import numpy
 import yaml
+from mpi4py import MPI
+from sklearn.neighbors import NearestNeighbors
+from TaskmasterMPI import master_process, worker_process
+
 try:
     import csiborgtools
 except ModuleNotFoundError:
@@ -83,7 +85,7 @@ def read_single(selection, cat):
 def do_cross(run, ics):
     _config = config.get(run, None)
     if _config is None:
-        warn("No configuration for run {}.".format(run))
+        warn("No configuration for run {}.".format(run), stacklevel=1)
         return
     rvs_gen = csiborgtools.clustering.RVSinsphere(Rmax)
     knn1, knn2 = NearestNeighbors(), NearestNeighbors()

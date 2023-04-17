@@ -16,12 +16,12 @@
 Density field and cross-correlation calculations.
 """
 from warnings import warn
-from tqdm import trange
-import numpy
+
 import MAS_library as MASL
+import numpy
 import Pk_library as PKL
 import smoothing_library as SL
-from ..units import (BoxUnits, radec_to_cartesian)
+from tqdm import trange
 
 
 class DensityField:
@@ -56,8 +56,7 @@ class DensityField:
     def __init__(self, particles, boxsize, box, MAS="CIC"):
         self.particles = particles
         assert boxsize > 0
-        self._boxsize = boxsize
-        assert isinstance(box, BoxUnits)
+        self.boxsize = boxsize
         self.box = box
         assert MAS in ["NGP", "CIC", "TSC", "PCS"]
         self._MAS = MAS
@@ -103,6 +102,14 @@ class DensityField:
         """
         return self._box
 
+    @box.setter
+    def box(self, box):
+        try:
+            assert box._name  == "box_units"
+            self._box = box
+        except AttributeError as err:
+            raise TypeError from err
+
     @property
     def MAS(self):
         """
@@ -117,7 +124,7 @@ class DensityField:
     @staticmethod
     def _force_f32(x, name):
         if x.dtype != numpy.float32:
-            warn("Converting `{}` to float32.".format(name))
+            warn("Converting `{}` to float32.".format(name), stacklevel=1)
             x = x.astype(numpy.float32)
         return x
 
@@ -348,13 +355,15 @@ class DensityField:
         -------
         interp_field : (list of) 1-dimensional array of shape `(n_samples,).
         """
-        self._force_f32(pos, "pos")
-        X = numpy.vstack(
-            radec_to_cartesian(*(pos[:, i] for i in range(3)), isdeg)).T
-        X = X.astype(numpy.float32)
-        # Place the observer at the center of the box
-        X += 0.5 * self.boxsize
-        return self.evaluate_field(*field, pos=X)
+        # TODO: implement this
+        raise NotImplementedError("This method is not yet implemented.")
+#         self._force_f32(pos, "pos")
+#         X = numpy.vstack(
+#             radec_to_cartesian(*(pos[:, i] for i in range(3)), isdeg)).T
+#         X = X.astype(numpy.float32)
+#         # Place the observer at the center of the box
+#         X += 0.5 * self.boxsize
+#         return self.evaluate_field(*field, pos=X)
 
     @staticmethod
     def gravitational_field_norm(gx, gy, gz):

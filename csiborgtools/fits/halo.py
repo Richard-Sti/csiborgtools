@@ -15,7 +15,6 @@
 """A clump object."""
 from abc import ABC
 import numpy
-from ..units import BoxUnits
 
 
 class BaseStructure(ABC):
@@ -72,8 +71,11 @@ class BaseStructure(ABC):
 
     @box.setter
     def box(self, box):
-        assert isinstance(box, BoxUnits)
-        self._box = box
+        try:
+            assert box._name  == "box_units"
+            self._box = box
+        except AttributeError as err:
+            raise TypeError from err
 
     @property
     def pos(self):

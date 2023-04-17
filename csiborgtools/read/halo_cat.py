@@ -14,17 +14,19 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """CSiBORG halo catalogue."""
 from abc import ABC
+
 import numpy
 from sklearn.neighbors import NearestNeighbors
-from .readsim import (ParticleReader, read_initcm)
+
+from .box_units import BoxUnits
 from .paths import CSiBORGPaths
-from ..utils import (flip_cols, add_columns)
-from ..units import (BoxUnits, cartesian_to_radec)
+from .readsim import ParticleReader, read_initcm
+from .utils import add_columns, cartesian_to_radec, flip_cols
 
 
 class BaseCatalogue(ABC):
     """
-    Base (sub)halo catalogue
+    Base (sub)halo catalogue.
     """
     _data = None
     _paths = None
@@ -63,7 +65,7 @@ class BaseCatalogue(ABC):
 
     @paths.setter
     def paths(self, paths):
-        # assert isinstance(paths, CSiBORGPaths)  # REMOVE
+        assert isinstance(paths, CSiBORGPaths)
         self._paths = paths
 
     @property
@@ -101,6 +103,14 @@ class BaseCatalogue(ABC):
         box : :py:class:`csiborgtools.units.BoxUnits`
         """
         return BoxUnits(self.nsnap, self.nsim, self.paths)
+
+    @box.setter
+    def box(self, box):
+        try:
+            assert box._name  == "box_units"
+            self._box = box
+        except AttributeError as err:
+            raise TypeError from err
 
     def position(self, in_initial=False, cartesian=True):
         r"""
@@ -408,46 +418,3 @@ class HaloCatalogue(BaseCatalogue):
 
         mask = numpy.sqrt(data['x']**2 + data['y']**2 + data['z']**2) < maxdist
         self._data = data[mask]
-
-
-###############################################################################
-#                           Useful functions                                  #
-###############################################################################
-
-
-def concatenate_clumps(clumps):
-    """
-    Concatenate an array of clumps to a single array containing all particles.
-
-    Parameters
-    ----------
-    clumps : list of structured arrays
-
-    Returns
-    -------
-    particles : structured array
-    """
-    # Count how large array will be needed
-    N = 0
-    for clump, __ in clumps:
-        N += clump.size
-    # Infer dtype of positions
-    if clumps[0][0]['x'].dtype.char in numpy.typecodes["AllInteger"]:
-        posdtype = numpy.int32
-    else:
-        posdtype = numpy.float32
-
-    # Pre-allocate array
-    dtype = {"names": ['x', 'y', 'z', 'M'],
-             "formats": [posdtype] * 3 + [numpy.float32]}
-    particles = numpy.full(N, numpy.nan, dtype)
-
-    # Fill it one clump by another
-    start = 0
-    for clump, __ in clumps:
-        end = start + clump.size
-        for p in ('x', 'y', 'z', 'M'):
-            particles[p][start:end] = clump[p]
-        start = end
-
-    return particles

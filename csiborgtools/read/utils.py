@@ -13,9 +13,67 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-Utilility functions for manipulation structured arrays.
+Various coordinate transformations.
 """
 import numpy
+
+###############################################################################
+#                          Coordinate transforms                              #
+###############################################################################
+
+
+def cartesian_to_radec(x, y, z):
+    """
+    Calculate the radial distance, right ascension in [0, 360) degrees and
+    declination [-90, 90] degrees. Note, the observer should be placed in the
+    middle of the box.
+
+    Parameters
+    ----------
+    x, y, z : 1-dimensional arrays
+        Cartesian coordinates.
+
+    Returns
+    -------
+    dist, ra, dec : 1-dimensional arrays
+        Radial distance, right ascension and declination.
+    """
+    dist = numpy.sqrt(x**2 + y**2 + z**2)
+    dec = numpy.rad2deg(numpy.arcsin(z/dist))
+    ra = numpy.rad2deg(numpy.arctan2(y, x))
+    # Make sure RA in the correct range
+    ra[ra < 0] += 360
+    return dist, ra, dec
+
+
+def radec_to_cartesian(dist, ra, dec, isdeg=True):
+    """
+    Convert distance, right ascension and declination to Cartesian coordinates.
+
+    Parameters
+    ----------
+    dist, ra, dec : 1-dimensional arrays
+        Spherical coordinates.
+    isdeg : bool, optional
+        Whether `ra` and `dec` are in degres. By default `True`.
+
+    Returns
+    -------
+    x, y, z : 1-dimensional arrays
+        Cartesian coordinates.
+    """
+    if isdeg:
+        ra = numpy.deg2rad(ra)
+        dec = numpy.deg2rad(dec)
+    x = dist * numpy.cos(dec) * numpy.cos(ra)
+    y = dist * numpy.cos(dec) * numpy.sin(ra)
+    z = dist * numpy.sin(dec)
+    return x, y, z
+
+
+###############################################################################
+#                          Array manipulation                                 #
+###############################################################################
 
 
 def cols_to_structured(N, cols):
@@ -108,7 +166,7 @@ def rm_columns(arr, cols):
 
     # Get a new dtype without the cols to be deleted
     new_dtype = []
-    for dtype, name in zip(arr.dtype.descr, arr.dtype.names):
+    for dtype, name in zip(arr.dtype.descr, arr.dtype.names, strict=True):
         if name not in cols:
             new_dtype.append(dtype)
 

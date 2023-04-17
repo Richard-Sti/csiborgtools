@@ -12,8 +12,16 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-from .match import (RealisationsMatcher, cosine_similarity,  # noqa
-                    ParticleOverlap, get_clumplims, fill_delta, fill_delta_indxs,  # noqa
-                    calculate_overlap, calculate_overlap_indxs,  # noqa
-                    dist_centmass, dist_percentile)  # noqa
-from .num_density import (binned_counts, number_density)  # noqa
+from csiborgtools.match.match import (  # noqa
+    ParticleOverlap,
+    RealisationsMatcher,
+    calculate_overlap,
+    calculate_overlap_indxs,
+    cosine_similarity,
+    dist_centmass,
+    dist_percentile,
+    fill_delta,
+    fill_delta_indxs,
+    get_clumplims,
+)
+from csiborgtools.match.num_density import binned_counts, number_density  # noqa

@@ -16,11 +16,11 @@
 Simulation box unit transformations.
 """
 import numpy
-from scipy.interpolate import interp1d
+from astropy import constants, units
 from astropy.cosmology import LambdaCDM
-from astropy import (constants, units)
-from ..read import ParticleReader
+from scipy.interpolate import interp1d
 
+from .readsim import ParticleReader
 
 # Map of unit conversions
 CONV_NAME = {
@@ -44,6 +44,7 @@ class BoxUnits:
     paths : py:class`csiborgtools.read.CSiBORGPaths`
         CSiBORG paths object.
     """
+    _name = "box_units"
     _cosmo = None
 
     def __init__(self, nsnap, nsim, paths):

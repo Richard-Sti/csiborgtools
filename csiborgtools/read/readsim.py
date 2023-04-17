@@ -22,7 +22,8 @@ import numpy
 from scipy.io import FortranFile
 from tqdm import tqdm, trange
 
-from ..utils import cols_to_structured
+from .paths import CSiBORGPaths
+from .utils import cols_to_structured
 
 ###############################################################################
 #                       Fortran particle reader                               #
@@ -378,7 +379,7 @@ class MmainReader:
     _paths = None
 
     def __init__(self, paths):
-        # assert isinstance(paths, CSiBORGPaths)  # REMOVE
+        assert isinstance(paths, CSiBORGPaths)  # REMOVE
         self._paths = paths
 
     @property

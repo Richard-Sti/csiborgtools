@@ -12,13 +12,18 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-from .paths import CSiBORGPaths  # noqa
-from .readsim import (ParticleReader, MmainReader, read_initcm, halfwidth_select)  # noqa
-from .halo_cat import (ClumpsCatalogue, HaloCatalogue, concatenate_clumps)  # noqa
-from .obs import (PlanckClusters, MCXCClusters, TwoMPPGalaxies,  # noqa
-                      TwoMPPGroups, SDSS)  # noqa
-from .outsim import (dump_split, combine_splits)  # noqa
-from .overlap_summary import (PairOverlap, NPairsOverlap, binned_resample_mean) # noqa
+from .halo_cat import ClumpsCatalogue, HaloCatalogue  # noqa
 from .knn_summary import kNNCDFReader  # noqa
+from .obs import (  # noqa
+    SDSS,
+    MCXCClusters,
+    PlanckClusters,
+    TwoMPPGalaxies,
+    TwoMPPGroups,
+)
+from .outsim import combine_splits, dump_split  # noqa
+from .overlap_summary import NPairsOverlap, PairOverlap, binned_resample_mean  # noqa
+from .paths import CSiBORGPaths  # noqa
 from .pk_summary import PKReader  # noqa
+from .readsim import MmainReader, ParticleReader, halfwidth_select, read_initcm  # noqa
 from .tpcf_summary import TPCFReader  # noqa

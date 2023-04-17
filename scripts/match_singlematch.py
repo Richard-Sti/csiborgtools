@@ -13,17 +13,20 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """A script to calculate overlap between two CSiBORG realisations."""
-from os.path import join
 from argparse import ArgumentParser
 from datetime import datetime
+from os.path import join
+
 import numpy
 from scipy.ndimage import gaussian_filter
+
 try:
     import csiborgtools
 except ModuleNotFoundError:
     import sys
     sys.path.append("../")
     import csiborgtools
+
 import utils
 
 # Argument parser
