@@ -13,8 +13,8 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """Power spectrum reader."""
-import numpy
 import joblib
+import numpy
 from tqdm import tqdm
 
 
@@ -46,7 +46,7 @@ class PKReader:
     @staticmethod
     def _set_klim(kmin, kmax):
         """
-        Sets limits on the wavenumber to 0 and infinity if `None`s provided.
+        Set limits on the wavenumber to 0 and infinity if `None`s provided.
         """
         if kmin is None:
             kmin = 0
@@ -62,7 +62,7 @@ class PKReader:
         ----------
         kmin : float, optional
             The minimum wavenumber. By default `None`, i.e. 0.
-        kmin : float, optional
+        kmax : float, optional
             The maximum wavenumber. By default `None`, i.e. infinity.
 
         Returns
@@ -99,7 +99,7 @@ class PKReader:
             The second IC ID.
         kmin : float, optional
             The minimum wavenumber. By default `None`, i.e. 0.
-        kmin : float, optional
+        kmax : float, optional
             The maximum wavenumber. By default `None`, i.e. infinity.
 
         Returns
@@ -133,7 +133,7 @@ class PKReader:
         ----------
         kmin : float, optional
             The minimum wavenumber. By default `None`, i.e. 0.
-        kmin : float, optional
+        kmax : float, optional
             The maximum wavenumber. By default `None`, i.e. infinity.
 
         Returns
