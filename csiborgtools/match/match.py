@@ -16,13 +16,14 @@
 Support for matching halos between CSiBORG IC realisations.
 """
 from gc import collect
+
 import numpy
-from scipy.ndimage import gaussian_filter
 from numba import jit
-from tqdm import (tqdm, trange)
+from scipy.ndimage import gaussian_filter
+from tqdm import tqdm, trange
+
 from ..read import concatenate_clumps
 from ..utils import now
-
 
 ###############################################################################
 #                  Realisations matcher for calculating overlaps              #
@@ -47,24 +48,20 @@ class RealisationsMatcher:
         The mass kind whose similarity is to be checked. Must be a valid
         catalogue key. By default `totpartmass`, i.e. the total particle
         mass associated with a halo.
-    overlapper_kwargs : dict, optional
-        Keyword arguments passed to `ParticleOverlapper`.
-
     """
     _nmult = None
     _dlogmass = None
     _mass_kind = None
     _overlapper = None
 
-    def __init__(self, nmult=1., dlogmass=2., mass_kind="totpartmass",
-                 overlapper_kwargs={}):
+    def __init__(self, nmult=1., dlogmass=2., mass_kind="totpartmass"):
         assert nmult > 0
         assert dlogmass > 0
         assert isinstance(mass_kind, str)
         self._nmult = nmult
         self._dlogmass = dlogmass
         self._mass_kind = mass_kind
-        self._overlapper = ParticleOverlap(**overlapper_kwargs)
+        self._overlapper = ParticleOverlap()
 
     @property
     def nmult(self):
@@ -133,7 +130,7 @@ class RealisationsMatcher:
             List of clump structured arrays of the cross simulation, keys must
             include `x`, `y`, `z` and `M`. The positions must already be
             converted to cell numbers.
-        delta_bcgk : 3-dimensional array
+        delta_bckg : 3-dimensional array
             Summed background density field of the reference and cross
             simulations calculated with particles assigned to halos at the
             final snapshot. Assumed to only be sampled in cells
@@ -229,7 +226,7 @@ class RealisationsMatcher:
             List of clump structured arrays of the cross simulation, keys must
             include `x`, `y`, `z` and `M`. The positions must already be
             converted to cell numbers.
-        delta_bcgk : 3-dimensional array
+        delta_bckg : 3-dimensional array
             Smoothed summed background density field of the reference and cross
             simulations calculated with particles assigned to halos at the
             final snapshot. Assumed to only be sampled in cells
@@ -582,7 +579,7 @@ class ParticleOverlap:
             must include `x`, `y`, `z` and `M`.
         cellmins : len-3 tuple
             Tuple of left-most cell ID in the full box.
-        delta_bcgk : 3-dimensional array
+        delta_bckg : 3-dimensional array
             Summed background density field of the reference and cross
             simulations calculated with particles assigned to halos at the
             final snapshot. Assumed to only be sampled in cells
@@ -735,7 +732,7 @@ def calculate_overlap(delta1, delta2, cellmins, delta_bckg):
         Density field of the second halo.
     cellmins : len-3 tuple
         Tuple of left-most cell ID in the full box.
-    delta_bcgk : 3-dimensional array
+    delta_bckg : 3-dimensional array
         Summed background density field of the reference and cross simulations
         calculated with particles assigned to halos at the final snapshot.
         Assumed to only be sampled in cells :math:`[512, 1536)^3`.
@@ -787,7 +784,7 @@ def calculate_overlap_indxs(delta1, delta2, cellmins, delta_bckg, nonzero,
         Density field of the second halo.
     cellmins : len-3 tuple
         Tuple of left-most cell ID in the full box.
-    delta_bcgk : 3-dimensional array
+    delta_bckg : 3-dimensional array
         Summed background density field of the reference and cross simulations
         calculated with particles assigned to halos at the final snapshot.
         Assumed to only be sampled in cells :math:`[512, 1536)^3`.
@@ -876,8 +873,8 @@ def dist_percentile(dist, qs, distmax=0.075):
     return x
 
 
-def radius_neighbours(knn, X, radiusX, radiusKNN, nmult=1., enforce_in32=False,
-                      verbose=True):
+def radius_neighbours(knn, X, radiusX, radiusKNN, nmult=1.,
+                      enforce_int32=False, verbose=True):
     """
     Find all neigbours of a trained KNN model whose center of mass separation
     is less than `nmult` times the sum of their respective radii.
@@ -922,7 +919,7 @@ def radius_neighbours(knn, X, radiusX, radiusKNN, nmult=1., enforce_in32=False,
         # so we take the first item where appropriate
         mask = (dist[0] / (radiusX[i] + radiusKNN[indx[0]])) < nmult
         indxs[i] = indx[0][mask]
-        if enforce_in32:
+        if enforce_int32:
             indxs[i] = indxs[i].astype(numpy.int32)
 
     return numpy.asarray(indxs, dtype=object)
