@@ -12,11 +12,19 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-import numpy
 from datetime import datetime
-from .recarray_manip import (cols_to_structured, add_columns, rm_columns,  # noqa
-                             list_to_ndarray, array_to_structured,  # noqa
-                             flip_cols, extract_from_structured)  # noqa
+
+import numpy
+
+from .recarray_manip import (  # noqa
+    add_columns,
+    array_to_structured,
+    cols_to_structured,
+    extract_from_structured,
+    flip_cols,
+    list_to_ndarray,
+    rm_columns,
+)
 
 
 def now(tz=None):
