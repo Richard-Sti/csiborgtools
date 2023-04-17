@@ -13,9 +13,9 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """kNN-CDF reader."""
+import joblib
 import numpy
 from scipy.special import factorial
-import joblib
 
 
 class kNNCDFReader:
@@ -34,7 +34,7 @@ class kNNCDFReader:
     @property
     def paths(self):
         """
-        Paths manager
+        Paths manager.
 
         Parameters
         ----------
