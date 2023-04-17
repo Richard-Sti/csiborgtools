@@ -15,12 +15,14 @@
 """
 Functions to read in the particle and clump files.
 """
-from os.path import (join, isfile)
+from os.path import isfile, join
 from warnings import warn
+
 import numpy
 from scipy.io import FortranFile
-from tqdm import (tqdm, trange)
-from ..utils import (cols_to_structured)
+from tqdm import tqdm, trange
+
+from ..utils import cols_to_structured
 
 ###############################################################################
 #                       Fortran particle reader                               #
@@ -43,7 +45,7 @@ class ParticleReader:
     @property
     def paths(self):
         """
-        Paths manager
+        Paths manager.
 
         Parameters
         ----------
@@ -84,7 +86,7 @@ class ParticleReader:
 
         keys = info[eqs - 1]
         vals = info[eqs + 1]
-        return {key: val for key, val in zip(keys, vals)}
+        return {key: val for key, val in zip(keys, vals, strict=True)}
 
     def open_particle(self, nsnap, nsim, verbose=True):
         """
@@ -144,7 +146,7 @@ class ParticleReader:
     @staticmethod
     def read_sp(dtype, partfile):
         """
-        Utility function to read a single particle file.
+        Read a single particle file.
 
         Parameters
         ----------
@@ -242,7 +244,7 @@ class ParticleReader:
         for cpu in iters:
             i = start_ind[cpu]
             j = nparts[cpu]
-            for (fname, fdtype) in zip(fnames, fdtypes):
+            for (fname, fdtype) in zip(fnames, fdtypes, strict=True):
                 if fname in pars_extract:
                     out[fname][i:i + j] = self.read_sp(fdtype, partfiles[cpu])
                 else:
@@ -499,7 +501,8 @@ def read_initcm(nsim, srcdir, fname="clump_{}_cm.npy"):
     try:
         return numpy.load(fpath)
     except FileNotFoundError:
-        warn("File {} does not exist.".format(fpath))
+        warn("File {} does not exist.".format(fpath), UserWarning,
+             stacklevel=1)
         return None
 
 
