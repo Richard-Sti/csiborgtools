@@ -13,10 +13,10 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """Clustering support functions."""
-from abc import (ABC, abstractmethod)
+from abc import ABC, abstractmethod
 from warnings import warn
-import numpy
 
+import numpy
 
 ###############################################################################
 #                            Random points                                    #
@@ -148,7 +148,7 @@ def wrapRA(ra, indeg):
     """
     mask = ra < 0
     if numpy.sum(mask) == 0:
-        warn("No negative right ascension found.", UserWarning())
+        warn("No negative right ascension found.", UserWarning, stacklevel=1)
     ra[mask] += 360 if indeg else 2 * numpy.pi
     return ra
 
