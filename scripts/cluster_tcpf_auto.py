@@ -13,16 +13,18 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """A script to calculate the auto-2PCF of CSiBORG catalogues."""
-from os.path import join
-from warnings import warn
 from argparse import ArgumentParser
 from copy import deepcopy
 from datetime import datetime
+from os.path import join
+from warnings import warn
+
+import joblib
+import numpy
+import yaml
 from mpi4py import MPI
 from TaskmasterMPI import master_process, worker_process
-import numpy
-import joblib
-import yaml
+
 try:
     import csiborgtools
 except ModuleNotFoundError:
@@ -104,7 +106,7 @@ def read_single(selection, cat):
 def do_auto(run, cat, ic):
     _config = config.get(run, None)
     if _config is None:
-        warn("No configuration for run {}.".format(run))
+        warn("No configuration for run {}.".format(run), stacklevel=1)
         return
 
     rvs_gen = csiborgtools.clustering.RVSinsphere(Rmax)
