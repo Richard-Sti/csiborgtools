@@ -13,11 +13,12 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-kNN-CDF calculation
+kNN-CDF calculation.
 """
 import numpy
 from scipy.interpolate import interp1d
 from scipy.stats import binned_statistic
+
 from .utils import BaseRVS
 
 
@@ -105,7 +106,7 @@ class kNN_CDF:
             Catalogue NN object.
         rvs_gen : :py:class:`csiborgtools.clustering.BaseRVS`
             Uniform RVS generator matching `knn`.
-        neighbours : int
+        nneighbours : int
             Maximum number of neighbours to use for the kNN-CDF calculation.
         nsamples : int
             Number of random points to sample for the knn-CDF calculation.
@@ -155,7 +156,7 @@ class kNN_CDF:
             NN object of the second catalogue.
         rvs_gen : :py:class:`csiborgtools.clustering.BaseRVS`
             Uniform RVS generator matching `knn1` and `knn2`.
-        neighbours : int
+        nneighbours : int
             Maximum number of neighbours to use for the kNN-CDF calculation.
         Rmax : float
             Maximum radius of the sphere in which to sample random points for
@@ -246,7 +247,7 @@ class kNN_CDF:
             Catalogue NN object.
         rvs_gen : :py:class:`csiborgtools.clustering.BaseRVS`
             Uniform RVS generator matching `knn1` and `knn2`.
-        neighbours : int
+        nneighbours : int
             Maximum number of neighbours to use for the kNN-CDF calculation.
         nsamples : int
             Number of random points to sample for the knn-CDF calculation.
