@@ -16,17 +16,20 @@
 MPI script to evaluate field properties at the galaxy positions.
 """
 from argparse import ArgumentParser
-from os.path import join
-from os import remove
 from datetime import datetime
+from os import remove
+from os.path import join
+
 import numpy
 from mpi4py import MPI
+
 try:
     import csiborgtools
 except ModuleNotFoundError:
     import sys
     sys.path.append("../")
     import csiborgtools
+
 import utils
 
 dumpdir = "/mnt/extraspace/rstiskalek/csiborg/"
