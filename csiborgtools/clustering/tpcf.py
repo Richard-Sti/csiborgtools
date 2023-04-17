@@ -16,6 +16,7 @@
 import numpy
 from Corrfunc.theory.DD import DD
 from Corrfunc.utils import convert_3d_counts_to_cf
+
 from .utils import BaseRVS
 
 
