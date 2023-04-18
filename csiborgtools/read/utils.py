@@ -22,64 +22,59 @@ import numpy
 ###############################################################################
 
 
-def cartesian_to_radec(X, isdeg=True):
+def cartesian_to_radec(X, indeg=True):
     """
-    Calculate the radial distance, right ascension in [0, 360) degrees and
-    declination [-90, 90] degrees. Note, the observer should be placed in the
-    middle of the box.
+    Calculate the radial distance, RA, dec from Cartesian coordinates. Note,
+    RA is in range [0, 360) degrees and dec in range [-90, 90] degrees.
 
     Parameters
     ----------
     X : 2-dimensional array `(nsamples, 3)`
         Cartesian coordinates.
+    indeg : bool, optional
+        Whether to return RA and DEC in degrees.
+
+    Returns
+    -------
+    out : 2-dimensional array `(nsamples, 3)`
+        Radial distance, RA and dec.
+    """
+    x, y, z = X[:, 0], X[:, 1], X[:, 2]
+    dist = numpy.linalg.norm(X, axis=1)
+    dec = numpy.arcsin(z/dist)
+    ra = numpy.arctan2(y, x)
+    ra[ra < 0] += 2 * numpy.pi  # Wrap RA to [0, 2pi)
+    if indeg:
+        ra = numpy.rad2deg(ra)
+        dec = numpy.rad2deg(dec)
+    return numpy.vstack([dist, ra, dec]).T
+
+
+def radec_to_cartesian(X, isdeg=True):
+    """
+    Calculate Cartesian coordinates from radial distance, RA, dec. Note, RA is
+    expected in range [0, 360) degrees and dec in range [-90, 90] degrees.
+
+    Parameters
+    ----------
+    X : 2-dimensional array `(nsamples, 3)`
+        Radial distance, RA and dec.
     isdeg : bool, optional
         Whether to return RA and DEC in degrees.
 
     Returns
     -------
     out : 2-dimensional array `(nsamples, 3)`
-        Radial distance, right ascension and declination.
-    """
-    x, y, z = X[:, 0], X[:, 1], X[:, 2]
-
-    r = numpy.linalg.norm(X, axis=1)
-    theta = numpy.arccos(z / r)
-    phi = numpy.sign(y) * numpy.arccos(x / numpy.sqrt(x**2 + y**2))
-
-    phi[phi < 0] += 2 * numpy.pi  # Wrap phi to [0, 2pi)
-    theta -= numpy.pi / 2         # Wrap theta to [-pi/2, pi/2]
-    if isdeg:
-        theta = numpy.rad2deg(theta)
-        phi = numpy.rad2deg(phi)
-    return numpy.vstack((r, phi, theta)).T
-
-
-def radec_to_cartesian(X, isdeg=True):
-    """
-    Convert distance, right ascension and declination to Cartesian coordinates.
-
-    Parameters
-    ----------
-    X : 2-dimensional array `(nsamples, 3)`
-        Radial distance, right ascension and declination.
-    isdeg : bool, optional
-        Whether right ascension and declination are in degrees.
-
-    Returns
-    -------
-    X : 2-dimensional array `(nsamples, 3)`
         Cartesian coordinates.
     """
-    r, phi, theta = X[:, 0], X[:, 1], X[:, 2]
+    dist, ra, dec = X[:, 0], X[:, 1], X[:, 2]
     if isdeg:
-        phi = numpy.deg2rad(phi)
-        theta = numpy.deg2rad(theta)
-    theta += numpy.pi / 2  # Wrap theta to [0, pi]
-
-    x = r * numpy.sin(theta) * numpy.cos(phi)
-    y = r * numpy.sin(theta) * numpy.sin(phi)
-    z = r * numpy.cos(theta)
-    return numpy.vstack([x, y, z]).T
+        ra = numpy.deg2rad(ra)
+        dec = numpy.deg2rad(dec)
+    x = numpy.cos(dec) * numpy.cos(ra)
+    y = numpy.cos(dec) * numpy.sin(ra)
+    z = numpy.sin(dec)
+    return dist * numpy.vstack([x, y, z]).T
 
 
 ###############################################################################
