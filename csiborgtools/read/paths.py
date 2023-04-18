@@ -23,15 +23,16 @@ import numpy
 
 class CSiBORGPaths:
     """
-   Paths manager for CSiBORG IC realisations.
+    Paths manager for CSiBORG IC realisations.
 
-    Parameters
-    ----------
-    srcdir : str
-        Path to the folder where the RAMSES outputs are stored.
-    postdir: str
-        Path to the folder where post-processed files are stored.
+     Parameters
+     ----------
+     srcdir : str
+         Path to the folder where the RAMSES outputs are stored.
+     postdir: str
+         Path to the folder where post-processed files are stored.
     """
+
     _srcdir = None
     _postdir = None
 
@@ -96,8 +97,7 @@ class CSiBORGPaths:
         fpath = join(self.postdir, "temp")
         if not isdir(fpath):
             mkdir(fpath)
-            warn("Created directory `{}`.".format(fpath), UserWarning,
-                 stacklevel=1)
+            warn("Created directory `{}`.".format(fpath), UserWarning, stacklevel=1)
         return fpath
 
     def mmain_path(self, nsnap, nsim):
@@ -118,12 +118,10 @@ class CSiBORGPaths:
         fdir = join(self.postdir, "mmain")
         if not isdir(fdir):
             mkdir(fdir)
-            warn("Created directory `{}`.".format(fdir), UserWarning,
-                 stacklevel=1)
+            warn("Created directory `{}`.".format(fdir), UserWarning, stacklevel=1)
         return join(
-            fdir,
-            "mmain_{}_{}.npz".format(str(nsim).zfill(5), str(nsnap).zfill(5))
-            )
+            fdir, "mmain_{}_{}.npz".format(str(nsim).zfill(5), str(nsnap).zfill(5))
+        )
 
     def initmatch_path(self, nsim, kind):
         """
@@ -145,8 +143,7 @@ class CSiBORGPaths:
         fdir = join(self.postdir, "initmatch")
         if not isdir(fdir):
             mkdir(fdir)
-            warn("Created directory `{}`.".format(fdir), UserWarning,
-                 stacklevel=1)
+            warn("Created directory `{}`.".format(fdir), UserWarning, stacklevel=1)
         return join(fdir, "{}_{}.npy".format(kind, str(nsim).zfill(5)))
 
     def split_path(self, nsnap, nsim):
@@ -167,10 +164,10 @@ class CSiBORGPaths:
         fdir = join(self.postdir, "split")
         if not isdir(fdir):
             mkdir(fdir)
-            warn("Created directory `{}`.".format(fdir), UserWarning,
-                 stacklevel=1)
-        return join(fdir, "clumps_{}_{}.npz"
-                    .format(str(nsim).zfill(5), str(nsnap).zfill(5)))
+            warn("Created directory `{}`.".format(fdir), UserWarning, stacklevel=1)
+        return join(
+            fdir, "clumps_{}_{}.npz".format(str(nsim).zfill(5), str(nsnap).zfill(5))
+        )
 
     def get_ics(self, tonew):
         """
@@ -194,7 +191,7 @@ class CSiBORGPaths:
         else:
             files = [f for f in files if "_inv" not in f]  # Remove inv. ICs
             files = [f for f in files if "_new" not in f]  # Remove _new
-            files = [f for f in files if "OLD" not in f]   # Remove _old
+            files = [f for f in files if "OLD" not in f]  # Remove _old
             ids = [int(f.split("_")[-1]) for f in files]
             try:
                 ids.remove(5511)
@@ -239,7 +236,7 @@ class CSiBORGPaths:
         # Get all files in simpath that start with output_
         snaps = glob(join(simpath, "output_*"))
         # Take just the last _00XXXX from each file  and strip zeros
-        snaps = [int(snap.split('_')[-1].lstrip('0')) for snap in snaps]
+        snaps = [int(snap.split("_")[-1].lstrip("0")) for snap in snaps]
         return numpy.sort(snaps)
 
     def snapshot_path(self, nsnap, nsim):
@@ -261,22 +258,31 @@ class CSiBORGPaths:
         simpath = self.ic_path(nsim, tonew=tonew)
         return join(simpath, "output_{}".format(str(nsnap).zfill(5)))
 
-    def hcat_path(self, nsim):
+    def structfit_path(self, nsnap, nsim, kind):
         """
-        Path to the final snapshot halo catalogue from `fit_halos.py`.
+        Path to the clump or halo catalogue from `fit_halos.py`.
 
         Parameters
         ----------
+        nsnap : int
+            Snapshot index.
         nsim : int
             IC realisation index.
+        kind : str
+            Type of catalogue.  Can be either `clumps` or `halos`.
 
         Returns
         -------
         path : str
         """
-        nsnap = str(max(self.get_snapshots(nsim))).zfill(5)
-        fname = "ramses_out_{}_{}.npy".format(str(self.nsim).zfill(5), nsnap)
-        return join(self.postdir, fname)
+        assert kind in ["clumps", "halos"]
+        fdir = join(self.postdir, "structfit")
+        if not isdir(fdir):
+            mkdir(fdir)
+            warn("Created directory `{}`.".format(fdir), UserWarning, stacklevel=1)
+
+        fname = "{}_out_{}_{}.npy".format(kind, str(nsim).zfill(5), str(nsnap).zfill(5))
+        return join(fdir, fname)
 
     def knnauto_path(self, run, nsim=None):
         """
@@ -297,8 +303,7 @@ class CSiBORGPaths:
         fdir = join(self.postdir, "knn", "auto")
         if not isdir(fdir):
             makedirs(fdir)
-            warn("Created directory `{}`.".format(fdir), UserWarning,
-                 stacklevel=1)
+            warn("Created directory `{}`.".format(fdir), UserWarning, stacklevel=1)
         if nsim is not None:
             return join(fdir, "knncdf_{}_{}.p".format(str(nsim).zfill(5), run))
 
@@ -325,8 +330,7 @@ class CSiBORGPaths:
         fdir = join(self.postdir, "knn", "cross")
         if not isdir(fdir):
             makedirs(fdir)
-            warn("Created directory `{}`.".format(fdir), UserWarning,
-                 stacklevel=1)
+            warn("Created directory `{}`.".format(fdir), UserWarning, stacklevel=1)
         if nsims is not None:
             assert isinstance(nsims, (list, tuple)) and len(nsims) == 2
             nsim0 = str(nsims[0]).zfill(5)
@@ -356,8 +360,7 @@ class CSiBORGPaths:
         fdir = join(self.postdir, "tpcf", "auto")
         if not isdir(fdir):
             makedirs(fdir)
-            warn("Created directory `{}`.".format(fdir), UserWarning,
-                 stacklevel=1)
+            warn("Created directory `{}`.".format(fdir), UserWarning, stacklevel=1)
         if nsim is not None:
             return join(fdir, "tpcf{}_{}.p".format(str(nsim).zfill(5), run))
 
