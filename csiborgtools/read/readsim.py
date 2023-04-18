@@ -87,7 +87,8 @@ class ParticleReader:
 
         keys = info[eqs - 1]
         vals = info[eqs + 1]
-        return {key: val for key, val in zip(keys, vals, strict=True)}
+        # trunk-ignore(ruff/B905)
+        return {key: val for key, val in zip(keys, vals)}
 
     def open_particle(self, nsnap, nsim, verbose=True):
         """
@@ -245,7 +246,8 @@ class ParticleReader:
         for cpu in iters:
             i = start_ind[cpu]
             j = nparts[cpu]
-            for (fname, fdtype) in zip(fnames, fdtypes, strict=True):
+            # trunk-ignore(ruff/B905)
+            for (fname, fdtype) in zip(fnames, fdtypes):
                 if fname in pars_extract:
                     out[fname][i:i + j] = self.read_sp(fdtype, partfiles[cpu])
                 else:

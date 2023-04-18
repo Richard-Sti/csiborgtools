@@ -21,7 +21,6 @@ from .obs import (  # noqa
     TwoMPPGalaxies,
     TwoMPPGroups,
 )
-from .outsim import combine_splits, dump_split  # noqa
 from .overlap_summary import NPairsOverlap, PairOverlap, binned_resample_mean  # noqa
 from .paths import CSiBORGPaths  # noqa
 from .pk_summary import PKReader  # noqa
