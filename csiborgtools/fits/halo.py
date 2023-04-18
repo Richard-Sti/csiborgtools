@@ -22,6 +22,7 @@ class BaseStructure(ABC):
     """
     Basic structure object for handling operations on its particles.
     """
+
     _particles = None
     _info = None
     _box = None
@@ -39,7 +40,7 @@ class BaseStructure(ABC):
 
     @particles.setter
     def particles(self, particles):
-        pars = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'M']
+        pars = ["x", "y", "z", "vx", "vy", "vz", "M"]
         assert all(p in particles.dtype.names for p in pars)
         self._particles = particles
 
@@ -73,7 +74,7 @@ class BaseStructure(ABC):
     @box.setter
     def box(self, box):
         try:
-            assert box._name  == "box_units"
+            assert box._name == "box_units"
             self._box = box
         except AttributeError as err:
             raise TypeError from err
@@ -87,7 +88,7 @@ class BaseStructure(ABC):
         -------
         pos : 2-dimensional array of shape `(n_particles, 3)`.
         """
-        ps = ('x', 'y', 'z')
+        ps = ("x", "y", "z")
         return numpy.vstack([self[p] - self.info[p] for p in ps]).T
 
     @property
@@ -123,7 +124,7 @@ class BaseStructure(ABC):
         -------
         cm : 1-dimensional array of shape `(3, )`
         """
-        return numpy.average(self.pos, axis=0, weights=self['M'])
+        return numpy.average(self.pos, axis=0, weights=self["M"])
 
     def angular_momentum(self):
         """
@@ -134,8 +135,8 @@ class BaseStructure(ABC):
         J : 1-dimensional array or shape `(3, )`
         """
         pos = self.pos - self.cmass()
-        vel = self.vel - numpy.average(self.vel, axis=0, weights=self['M'])
-        return numpy.einsum("i,ij->j", self['M'], numpy.cross(pos, vel))
+        vel = self.vel - numpy.average(self.vel, axis=0, weights=self["M"])
+        return numpy.einsum("i,ij->j", self["M"], numpy.cross(pos, vel))
 
     def enclosed_mass(self, rmax, rmin=0):
         """
@@ -153,7 +154,7 @@ class BaseStructure(ABC):
         enclosed_mass : float
         """
         r = self.r()
-        return numpy.sum(self['M'][(r >= rmin) & (r <= rmax)])
+        return numpy.sum(self["M"][(r >= rmin) & (r <= rmax)])
 
     def lambda_bullock(self, radius, npart_min=10):
         r"""
@@ -183,8 +184,9 @@ class BaseStructure(ABC):
             return numpy.nan
         mass = self.enclosed_mass(radius)
         V = numpy.sqrt(self.box.box_G * mass / radius)
-        return (numpy.linalg.norm(self.angular_momentum[mask])
-                / (numpy.sqrt(2) * mass * V * radius))
+        return numpy.linalg.norm(self.angular_momentum[mask]) / (
+            numpy.sqrt(2) * mass * V * radius
+        )
 
     def spherical_overdensity_mass(self, delta_mult, npart_min=10):
         r"""
@@ -211,9 +213,9 @@ class BaseStructure(ABC):
         rs = self.r()
         order = numpy.argsort(rs)
         rs = rs[order]
-        cmass = numpy.cumsum(self['M'])  # Cumulative mass
+        cmass = numpy.cumsum(self["M"])  # Cumulative mass
         # We calculate the enclosed volume and indices where it is above target
-        vol = 4 * numpy.pi / 3 * (rs**3 - rs[0]**3)
+        vol = 4 * numpy.pi / 3 * (rs**3 - rs[0] ** 3)
         ks = numpy.where(cmass / vol > delta_mult * self.box.box_rhoc)[0]
         if ks.size == 0:  # Never above the threshold?
             return numpy.nan, numpy.nan
@@ -255,6 +257,7 @@ class Clump(BaseStructure):
     box : :py:class:`csiborgtools.read.BoxUnits`
         Box units object.
     """
+
     def __init__(self, particles, info, box):
         self.particles = particles
         self.info = info
@@ -275,6 +278,7 @@ class Halo(BaseStructure):
     box : :py:class:`csiborgtools.read.BoxUnits`
         Box units object.
     """
+
     def __init__(self, particles, info, box):
         self.particles = particles
         self.info = info
