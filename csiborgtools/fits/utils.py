@@ -1,4 +1,4 @@
-# Copyright (C) 2022 Richard Stiskalek
+# Copyright (C) 2022 Richard Stiskalek, Deaglan Bartlett
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by the
 # Free Software Foundation; either version 3 of the License, or (at your
@@ -12,6 +12,32 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-from .halo import Clump, Halo  # noqa
-from .haloprofile import NFWPosterior, NFWProfile  # noqa
-from .utils import split_jobs  # noqa
+"""Fitting utility functions."""
+
+import numpy
+
+
+def split_jobs(njobs, ncpu):
+    """
+    Split `njobs` amongst `ncpu`.
+
+    Parameters
+    ----------
+    njobs : int
+        Number of jobs.
+    ncpu : int
+        Number of CPUs.
+
+    Returns
+    -------
+    jobs : list of lists of integers
+        Outer list of each CPU and inner lists for CPU's jobs.
+    """
+    njobs_per_cpu, njobs_remainder = divmod(njobs, ncpu)
+    jobs = numpy.arange(njobs_per_cpu * ncpu).reshape((njobs_per_cpu, ncpu)).T
+
+    jobs = jobs.tolist()
+    for i in range(njobs_remainder):
+        jobs[i].append(njobs_per_cpu * ncpu + i)
+
+    return jobs
