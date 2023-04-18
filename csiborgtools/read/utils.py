@@ -22,7 +22,7 @@ import numpy
 ###############################################################################
 
 
-def cartesian_to_radec(x, y, z):
+def cartesian_to_radec(X, isdeg=True):
     """
     Calculate the radial distance, right ascension in [0, 360) degrees and
     declination [-90, 90] degrees. Note, the observer should be placed in the
@@ -30,45 +30,56 @@ def cartesian_to_radec(x, y, z):
 
     Parameters
     ----------
-    x, y, z : 1-dimensional arrays
+    X : 2-dimensional array `(nsamples, 3)`
         Cartesian coordinates.
+    isdeg : bool, optional
+        Whether to return RA and DEC in degrees.
 
     Returns
     -------
-    dist, ra, dec : 1-dimensional arrays
+    out : 2-dimensional array `(nsamples, 3)`
         Radial distance, right ascension and declination.
     """
-    dist = numpy.sqrt(x**2 + y**2 + z**2)
-    dec = numpy.rad2deg(numpy.arcsin(z/dist))
-    ra = numpy.rad2deg(numpy.arctan2(y, x))
-    # Make sure RA in the correct range
-    ra[ra < 0] += 360
-    return dist, ra, dec
+    x, y, z = X[:, 0], X[:, 1], X[:, 2]
+
+    r = numpy.linalg.norm(X, axis=1)
+    theta = numpy.arccos(z / r)
+    phi = numpy.sign(y) * numpy.arccos(x / numpy.sqrt(x**2 + y**2))
+
+    phi[phi < 0] += 2 * numpy.pi  # Wrap phi to [0, 2pi)
+    theta -= numpy.pi / 2         # Wrap theta to [-pi/2, pi/2]
+    if isdeg:
+        theta = numpy.rad2deg(theta)
+        phi = numpy.rad2deg(phi)
+    return numpy.vstack((r, phi, theta)).T
 
 
-def radec_to_cartesian(dist, ra, dec, isdeg=True):
+def radec_to_cartesian(X, isdeg=True):
     """
     Convert distance, right ascension and declination to Cartesian coordinates.
 
     Parameters
     ----------
-    dist, ra, dec : 1-dimensional arrays
-        Spherical coordinates.
+    X : 2-dimensional array `(nsamples, 3)`
+        Radial distance, right ascension and declination.
     isdeg : bool, optional
-        Whether `ra` and `dec` are in degres. By default `True`.
+        Whether right ascension and declination are in degrees.
 
     Returns
     -------
-    x, y, z : 1-dimensional arrays
+    X : 2-dimensional array `(nsamples, 3)`
         Cartesian coordinates.
     """
+    r, phi, theta = X[:, 0], X[:, 1], X[:, 2]
     if isdeg:
-        ra = numpy.deg2rad(ra)
-        dec = numpy.deg2rad(dec)
-    x = dist * numpy.cos(dec) * numpy.cos(ra)
-    y = dist * numpy.cos(dec) * numpy.sin(ra)
-    z = dist * numpy.sin(dec)
-    return x, y, z
+        phi = numpy.deg2rad(phi)
+        theta = numpy.deg2rad(theta)
+    theta += numpy.pi / 2  # Wrap theta to [0, pi]
+
+    x = r * numpy.sin(theta) * numpy.cos(phi)
+    y = r * numpy.sin(theta) * numpy.sin(phi)
+    z = r * numpy.cos(theta)
+    return numpy.vstack([x, y, z]).T
 
 
 ###############################################################################
