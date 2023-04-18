@@ -145,18 +145,18 @@ for i, nsim in enumerate(paths.get_ics(tonew=False)):
     # Wait until all jobs finished before moving to another simulation
     comm.Barrier()
 
-    # Use the rank 0 to combine outputs for this CSiBORG realisation
-    if rank == 0:
-        print("Collecting results!")
-        partreader = csiborgtools.read.ParticleReader(paths)
-        out_collected = csiborgtools.read.combine_splits(
-            utils.Nsplits, nsnap, nsim, partreader, cols_collect,
-            remove_splits=True, verbose=False)
-        fname = paths.hcat_path(nsim)
-        print("Saving results to `{}`.".format(fname))
-        numpy.save(fname, out_collected)
-
-    comm.Barrier()
-
-if rank == 0:
-    print("All finished! See ya!")
+#     # Use the rank 0 to combine outputs for this CSiBORG realisation
+#     if rank == 0:
+#         print("Collecting results!")
+#         partreader = csiborgtools.read.ParticleReader(paths)
+#         out_collected = csiborgtools.read.combine_splits(
+#             utils.Nsplits, nsnap, nsim, partreader, cols_collect,
+#             remove_splits=True, verbose=False)
+#         fname = paths.hcat_path(nsim)
+#         print("Saving results to `{}`.".format(fname))
+#         numpy.save(fname, out_collected)
+#
+#     comm.Barrier()
+#
+# if rank == 0:
+#     print("All finished! See ya!")
