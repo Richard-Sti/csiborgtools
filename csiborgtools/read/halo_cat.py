@@ -21,7 +21,7 @@ from sklearn.neighbors import NearestNeighbors
 from .box_units import BoxUnits
 from .paths import CSiBORGPaths
 from .readsim import ParticleReader
-from .utils import cartesian_to_radec, flip_cols
+from .utils import cartesian_to_radec, flip_cols, radec_to_cartesian
 
 
 class BaseCatalogue(ABC):
@@ -47,7 +47,6 @@ class BaseCatalogue(ABC):
 
     @nsim.setter
     def nsim(self, nsim):
-        assert isinstance(nsim, int)
         self._nsim = nsim
 
     @property
@@ -136,11 +135,10 @@ class BaseCatalogue(ABC):
             ps = ['x0', 'y0', 'z0']
         else:
             ps = ['x', 'y', 'z']
-        pos = [self[p] for p in ps]
-        if cartesian:
-            return numpy.vstack(pos).T
-        else:
-            return numpy.vstack([cartesian_to_radec(*pos)]).T
+        pos = numpy.vstack([self[p] for p in ps]).T
+        if not cartesian:
+            pos = cartesian_to_radec(pos)
+        return pos
 
     def velocity(self):
         """
@@ -207,6 +205,64 @@ class BaseCatalogue(ABC):
         knn = self.knn(in_initial)
         return knn.radius_neighbors(X, radius, sort_results=True)
 
+    def angular_neighbours(self, X, ang_radius, rad_tolerance=None):
+        r"""
+        Find nearest neighbours within `ang_radius` of query points `X`.
+        Optionally applies radial tolerance, which is expected to be in
+        :math:`\mathrm{cMpc}`.
+
+        Parameters
+        ----------
+        X : 2-dimensional array of shape `(n_queries, 2)` or `(n_queries, 3)`
+            Query positions. If 2-dimensional, then RA and DEC in degrees.
+            If 3-dimensional, then radial distance in :math:`\mathrm{cMpc}`,
+            RA and DEC in degrees.
+        ang_radius : float
+            Angular radius in degrees.
+        rad_tolerance : float, optional
+            Radial tolerance in :math:`\mathrm{cMpc}`.
+
+        Returns
+        -------
+        dist : array of 1-dimensional arrays of shape `(n_neighbours,)`
+            Distance of each neighbour to the query point.
+        ind : array of 1-dimensional arrays of shape `(n_neighbours,)`
+            Indices of each neighbour in this catalogue.
+        """
+        assert X.ndim == 2
+        # We first get positions of haloes in this catalogue, store their
+        # radial distance and normalise them to unit vectors.
+        pos = self.position(in_initial=False, cartesian=True)
+        raddist = numpy.linalg.norm(pos, axis=1)
+        pos /= raddist.reshape(-1, 1)
+        # We convert RAdec query positions to unit vectors. If no radial
+        # distance provided add it.
+        if X.shape[1] == 2:
+            X = numpy.vstack([numpy.ones_like(X[:, 0]), X[:, 0], X[:, 1]]).T
+            radquery = None
+        else:
+            radquery = X[:, 0]
+
+        X = radec_to_cartesian(X)
+        knn = NearestNeighbors(metric="cosine")
+        knn.fit(pos)
+        # Convert angular radius to cosine difference.
+        metric_maxdist = 1 - numpy.cos(numpy.deg2rad(ang_radius))
+        dist, ind = knn.radius_neighbors(X, radius=metric_maxdist,
+                                         sort_results=True)
+        # And the cosine difference to angular distance.
+        for i in range(X.shape[0]):
+            dist[i] = numpy.rad2deg(numpy.arccos(1 - dist[i]))
+
+        # Apply the radial tolerance
+        if rad_tolerance is not None:
+            assert radquery is not None
+            for i in range(X.shape[0]):
+                mask = numpy.abs(raddist[ind[i]] - radquery) < rad_tolerance
+                dist[i] = dist[i][mask]
+                ind[i] = ind[i][mask]
+        return dist, ind
+
     @property
     def keys(self):
         """Catalogue keys."""
@@ -240,8 +296,12 @@ class ClumpsCatalogue(BaseCatalogue):
         The maximum comoving distance of a halo. By default
         :math:`155.5 / 0.705 ~ \mathrm{Mpc}` with assumed :math:`h = 0.705`,
         which corresponds to the high-resolution region.
+    minmass : len-2 tuple, optional
+        Minimum mass. The first element is the catalogue key and the second is
+        the value.
     """
-    def __init__(self, nsim, paths, maxdist=155.5 / 0.705):
+    def __init__(self, nsim, paths, maxdist=155.5 / 0.705,
+                 minmass=("mass_cl", 1e12)):
         self.nsim = nsim
         self.paths = paths
         # Read in the clumps from the final snapshot
@@ -259,6 +319,7 @@ class ClumpsCatalogue(BaseCatalogue):
         data = self.box.convert_from_boxunits(data, ['x', 'y', 'z', "mass_cl"])
 
         mask = numpy.sqrt(data['x']**2 + data['y']**2 + data['z']**2) < maxdist
+        mask &= data[minmass[0]] > minmass[1]
         self._data = data[mask]
 
     @property
@@ -292,8 +353,12 @@ class HaloCatalogue(BaseCatalogue):
         The maximum comoving distance of a halo. By default
         :math:`155.5 / 0.705 ~ \mathrm{Mpc}` with assumed :math:`h = 0.705`,
         which corresponds to the high-resolution region.
+    minmass : len-2 tuple
+        Minimum mass. The first element is the catalogue key and the second is
+        the value.
     """
-    def __init__(self, nsim, paths, maxdist=155.5 / 0.705):
+    def __init__(self, nsim, paths, maxdist=155.5 / 0.705,
+                 minmass=('M', 1e12)):
         self.nsim = nsim
         self.paths = paths
         # Read in the mmain catalogue of summed substructure
@@ -306,4 +371,5 @@ class HaloCatalogue(BaseCatalogue):
         data = self.box.convert_from_boxunits(data, ['x', 'y', 'z', 'M'])
 
         mask = numpy.sqrt(data['x']**2 + data['y']**2 + data['z']**2) < maxdist
+        mask &= data[minmass[0]] > minmass[1]
         self._data = data[mask]
