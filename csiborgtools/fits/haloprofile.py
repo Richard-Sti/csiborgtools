@@ -12,14 +12,7 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-"""
-Halo profiles functions and posteriors.
-
-TODO:
-    Get rid of the Jax things.. we really don't need this here.
-"""
-from jax import numpy as jnumpy
-from jax import grad
+"""Halo profiles functions and posteriors."""
 import numpy
 from scipy.optimize import minimize_scalar
 from scipy.stats import uniform
@@ -29,96 +22,68 @@ from .halo import Clump
 
 class NFWProfile:
     r"""
-    The Navarro-Frenk-White (NFW) density profile defined as
+    The Navarro-Frenk-White (NFW) density profile.
 
     .. math::
-        \rho(r) = \frac{\rho_0}{x(1 + x)^2}
+        \rho(r) = \frac{\rho_0}{x(1 + x)^2},
 
-    where :math:`x = r / R_s` with free parameters :math:`R_s, \rho_0`.
-
-    Parameters
-    ----------
-    Rs : float
-        Scale radius :math:`R_s`.
-    rho0 : float
-        NFW density parameter :math:`\rho_0`.
+    :math:`x = r / R_s` and its free paramaters are :math:`R_s, \rho_0`: scale
+    radius and NFW density parameter.
     """
+
     @staticmethod
     def profile(r, Rs, rho0):
-        r"""
-        Halo profile evaluated at :math:`r`.
+        """
+        Evaluate the halo profile at `r`.
 
         Parameters
         ----------
-        r : float or 1-dimensional array
-            Radial distance :math:`r`.
+        r : 1-dimensional array
+            Radial distance.
         Rs : float
-            Scale radius :math:`R_s`.
+            Scale radius.
         rho0 : float
-            NFW density parameter :math:`\rho_0`.
+            NFW density parameter.
 
         Returns
         -------
-        density : float or 1-dimensional array
-            Density of the NFW profile at :math:`r`.
+        density : 1-dimensional array
         """
         x = r / Rs
         return rho0 / (x * (1 + x)**2)
 
     @staticmethod
-    def logprofile(r, Rs, rho0, use_jax=False):
-        r"""
-        Natural logarithm of the halo profile evaluated at :math:`r`.
-
-        Parameters
-        ----------
-        r : float or 1-dimensional array
-            Radial distance :math:`r`.
-        Rs : float
-            Scale radius :math:`R_s`.
-        rho0 : float
-            NFW density parameter :math:`\rho_0`.
-        use_jax : bool, optional
-            Whether to use `JAX` expressions. By default `False`.
-
-        Returns
-        -------
-        logdensity : float or 1-dimensional array
-            Logarithmic density of the NFW profile at :math:`r`.
-        """
-        log = jnumpy.log if use_jax else numpy.log
+    def _logprofile(r, Rs, rho0):
+        """Natural logarithm of `NFWPprofile.profile(...)`."""
         x = r / Rs
-        return log(rho0) - log(x) - 2 * log(1 + x)
+        return numpy.log(rho0) - numpy.log(x) - 2 * numpy.log(1 + x)
 
     @staticmethod
-    def enclosed_mass(r, Rs, rho0, use_jax=False):
+    def mass(r, Rs, rho0):
         r"""
-        Enclosed mass  of a NFW profile in radius :math:`r`.
+        Calculate the enclosed mass of a NFW profile in radius `r`.
 
         Parameters
         ----------
-        r : float or 1-dimensional array
-            Radial distance :math:`r`.
+        r : 1-dimensional array
+            Radial distance.
         Rs : float
-            Scale radius :math:`R_s`.
+            Scale radius.
         rho0 : float
-            NFW density parameter :math:`\rho_0`.
-        use_jax : bool, optional
-            Whether to use `JAX` expressions. By default `False`.
+            NFW density parameter.
 
         Returns
         -------
-        M : float or 1-dimensional array
+        M : 1-dimensional array
             The enclosed mass.
         """
-        log = jnumpy.log if use_jax else numpy.log
         x = r / Rs
-        out = log(1 + x) - x / (1 + x)
+        out = numpy.log(1 + x) - x / (1 + x)
         return 4 * numpy.pi * rho0 * Rs**3 * out
 
-    def bounded_enclosed_mass(self, rmin, rmax, Rs, rho0, use_jax=False):
+    def bounded_mass(self, rmin, rmax, Rs, rho0):
         r"""
-        Calculate the enclosed mass between :math:`r_min <= r <= r_max`.
+        Calculate the enclosed mass between `rmin` and `rmax`.
 
         Parameters
         ----------
@@ -129,51 +94,46 @@ class NFWProfile:
         Rs : float
             Scale radius :math:`R_s`.
         rho0 : float
-            NFW density parameter :math:`\rho_0`.
-        use_jax : bool, optional
-            Whether to use `JAX` expressions. By default `False`.
+            NFW density parameter.
 
         Returns
         -------
         M : float
             Enclosed mass within the radial range.
         """
-        return (self.enclosed_mass(rmax, Rs, rho0, use_jax)
-                - self.enclosed_mass(rmin, Rs, rho0, use_jax))
+        return self.mass(rmax, Rs, rho0) - self.mass(rmin, Rs, rho0)
 
     def pdf(self, r, Rs, rmin, rmax):
         r"""
-        The radial probability density function of the NFW profile calculated
-        as
+        Calculate the radial PDF of the NFW profile, defined below.
 
         .. math::
-            \frac{4\pi r^2 \rho(r)} {M(r_\min, r_\max)}
+            \frac{4\pi r^2 \rho(r)} {M(r_\min, r_\max)},
 
         where :math:`M(r_\min, r_\max)` is the enclosed mass between
         :math:`r_\min` and :math:`r_\max'. Note that the dependance on
-        :math:`\rho_0` is cancelled.
+        :math:`\rho_0` is cancelled and must be accounted for in the
+        normalisation term to match the total mass.
 
         Parameters
         ----------
-        r : float or 1-dimensional array
-            Radial distance :math:`r`.
+        r : 1-dimensional array
+            Radial distance.
         Rs : float
-            Scale radius :math:`R_s`.
+            Scale radius.
         rmin : float
-            Minimum radius.
+            Minimum radius to evaluate the PDF (denominator term).
         rmax : float
-            Maximum radius.
+            Maximum radius to evaluate the PDF (denominator term).
 
         Returns
         -------
-        pdf : float or 1-dimensional array
-            Probability density of the NFW profile at :math:`r`.
+        pdf : 1-dimensional array
         """
-
         norm = self.bounded_enclosed_mass(rmin, rmax, Rs, 1)
         return 4 * numpy.pi * r**2 * self.profile(r, Rs, 1) / norm
 
-    def rvs(self, rmin, rmax, Rs, N=1):
+    def rvs(self, rmin, rmax, Rs, size=1):
         """
         Generate random samples from the NFW profile via rejection sampling.
 
@@ -184,8 +144,8 @@ class NFWProfile:
         rmax : float
             Maximum radius.
         Rs : float
-            Scale radius :math:`R_s`.
-        N : int, optional
+            Scale radius.
+        size : int, optional
             Number of samples to generate. By default 1.
 
         Returns
@@ -194,15 +154,15 @@ class NFWProfile:
             Samples following the NFW profile.
         """
         gen = uniform(rmin, rmax-rmin)
-        samples = numpy.full(N, numpy.nan)
-        for i in range(N):
+        samples = numpy.full(size, numpy.nan)
+        for i in range(size):
             while True:
                 r = gen.rvs()
                 if self.pdf(r, Rs, rmin, rmax) > numpy.random.rand():
                     samples[i] = r
                     break
 
-        if N == 1:
+        if size == 1:
             return samples[0]
         return samples
 
@@ -210,11 +170,10 @@ class NFWProfile:
 class NFWPosterior(NFWProfile):
     r"""
     Posterior for fitting the NFW profile in the range specified by the
-    closest particle and the :math:`r_{200c}` radius. The likelihood is
-    calculated as
+    closest particle and the :math:`r_{200c}` radius, calculated as below.
 
     .. math::
-        \frac{4\pi r^2 \rho(r)} {M(r_{\min} r_{200c})} \frac{m}{M / N}
+        \frac{4\pi r^2 \rho(r)} {M(r_{\min} r_{200c})} \frac{m}{M / N},
 
     where :math:`M(r_{\min} r_{200c}))` is the NFW enclosed mass between the
     closest particle and the :math:`r_{200c}` radius, :math:`m` is the particle
@@ -227,18 +186,9 @@ class NFWPosterior(NFWProfile):
     clump : `Clump`
         Clump object containing the particles and clump information.
     """
-    _clump = None
-    _binsguess = 10
-    _r = None
-    _Npart = None
-    _m = None
-    _rmin = None
-    _rmax = None
 
-    def __init__(self, clump):
-        # Initialise the NFW profile
+    def __init__(self):
         super().__init__()
-        self.clump = clump
 
     @property
     def clump(self):
@@ -252,97 +202,12 @@ class NFWPosterior(NFWProfile):
         """
         return self._clump
 
-    @property
-    def r(self):
-        r"""
-        Radial distance of particles used to fit the NFW profile, i.e. the ones
-        whose radial distance is less than :math:`R_{\rm 200c}`.
-
-        Returns
-        -------
-        r : 1-dimensional array
-        """
-        return self._r
-
-    @property
-    def Npart(self):
-        r"""
-        Number of particles used to fit the NFW profile, i.e. the ones
-        whose radial distance is less than :math:`R_{\rm 200c}`.
-
-        Returns
-        -------
-        Npart : int
-        """
-        return self._Npart
-
-    @property
-    def m(self):
-        r"""
-        Mass of particles used to fit the NFW profile, i.e. the ones
-        whose radial distance is less than :math:`R_{\rm 200c}`.
-
-        Returns
-        -------
-        r : 1-dimensional array
-        """
-        return self._m
-
-    @property
-    def rmin(self):
-        """
-        The minimum radial distance of a particle.
-
-        Returns
-        -------
-        rmin : float
-        """
-        return self._rmin
-
-    @property
-    def rmax(self):
-        r"""
-        The maximum radial distance used to fit the profile, here takem to be
-        the :math:`R_{\rm 200c}`.
-
-        Returns
-        -------
-        rmax : float
-        """
-        return self._rmax
-
     @clump.setter
     def clump(self, clump):
-        """Sets `clump` and precalculates useful things."""
-        if not isinstance(clump, Clump):
-            raise TypeError(
-                "`clump` must be :py:class:`csiborgtools.fits.Clump` type. "
-                "Currently `{}`".format(type(clump)))
+        assert isinstance(clump, Clump)
         self._clump = clump
-        # The minimum separation
-        rmin = self.clump.rmin
-        rmax, __ = self.clump.spherical_overdensity_mass(200)
-        # Set the distances
-        self._rmin = rmin
-        self._rmax = rmax
-        # Set particles that will be used to fit the halo
-        mask_r200 = (self.clump.r >= rmin) & (self.clump.r <= rmax)
-        self._r = self.clump.r[mask_r200]
-        self._m = self.clump.m[mask_r200]
-        self._Npart = self._r.size
-        # Ensure that the minimum separation is > 0 for finite log
-        if self.rmin > 0:
-            self._logrmin = numpy.log10(self.rmin)
-        else:
-            self._logrmin = numpy.log10(numpy.min(self.r[self.r > 0]))
-        self._logrmax = numpy.log10(self.rmax)
-        self._logprior_volume = numpy.log(self._logrmax - self._logrmin)
-        # Precalculate useful things
-        self._logMtot = numpy.log(numpy.sum(self.m))
-        gamma = 4 * numpy.pi * self.r**2 * self.m * self.Npart
-        self._ll0 = numpy.sum(numpy.log(gamma)) - self.Npart * self._logMtot
 
-    def rho0_from_Rs(self, Rs):
+    def rho0_from_Rs(self, Rs, rmin, rmax, mass):
         r"""
         Obtain :math:`\rho_0` of the NFW profile from the integral constraint
         on total mass. Calculated as the ratio between the total particle mass
@@ -350,75 +215,96 @@ class NFWPosterior(NFWProfile):
 
         Parameters
         ----------
-        logRs : float
+        Rs : float
             Logarithmic scale factor in units matching the coordinates.
+        rmin : float
+            Minimum radial distance of particles used to fit the profile.
+        rmax : float
+            Maximum radial distance of particles used to fit the profile.
+        mass : float
+            Mass enclosed within the radius used to fit the NFW profile.
 
         Returns
         -------
         rho0: float
         """
-        Mtot = numpy.exp(self._logMtot)
-        Mnfw_norm = self.bounded_enclosed_mass(self.rmin, self.rmax, Rs, 1)
-        return Mtot / Mnfw_norm
+        return mass / self.bounded_enclosed_mass(rmin, rmax, Rs, 1)
 
-    def logprior(self, logRs):
+    def initlogRs(self, r, rmin, rmax, binsguess=10):
         r"""
-        Logarithmic uniform prior on :math:`\log R_{\rm s}`.
+        Calculate the most often occuring value of :math:`r` used as initial
+        guess of :math:`R_{\rm s}` since :math:`r^2 \rho(r)` peaks at
+        :math:`r = R_{\rm s}`.
+
+        Parameters
+        ----------
+        r : 1-dimensional array
+            Radial distance of particles used to fit the profile.
+        rmin : float
+            Minimum radial distance of particles used to fit the profile.
+        rmax : float
+            Maximum radial distance of particles used to fit the profile.
+        binsguess : int
+            Number of bins to initially guess :math:`R_{\rm s}`.
+
+        Returns
+        -------
+        initlogRs : float
+        """
+        bins = numpy.linspace(rmin, rmax, binsguess)
+        counts, edges = numpy.histogram(r, bins)
+        return numpy.log10(edges[numpy.argmax(counts)])
+
+
+    def logprior(self, logRs, rmin, rmax):
+        r"""
+        Logarithmic uniform prior on :math:`\log R_{\rm s}`. Unnormalised but
+        that does not matter.
 
         Parameters
         ----------
         logRs : float
-            Logarithmic scale factor in units matching the coordinates.
+            Logarithmic scale factor.
+        rmin : float
+            Minimum radial distance of particles used to fit the profile.
+        rmax : float
+            Maximum radial distance of particles used to fit the profile.
 
         Returns
         -------
         lp : float
         """
-        if not self._logrmin < logRs < self._logrmax:
+        if not rmin < 10**logRs < rmax:
             return - numpy.infty
-        return - self._logprior_volume
+        return 0.
 
-    def loglikelihood(self, logRs, use_jax=False):
+    def loglikelihood(self, logRs, r, rmin, rmax, npart):
         """
         Logarithmic likelihood.
 
         Parameters
         ----------
+        r : 1-dimensional array
+            Radial distance of particles used to fit the profile.
         logRs : float
             Logarithmic scale factor in units matching the coordinates.
-        use_jax : bool, optional
-            Whether to use `JAX` expressions. By default `False`.
+        rmin : float
+            Minimum radial distance of particles used to fit the profile.
+        rmax : float
+            Maximum radial distance of particles used to fit the profile.
+        npart : int
+            Number of particles used to fit the profile.
 
         Returns
         -------
         ll : float
         """
         Rs = 10**logRs
-        log = jnumpy.log if use_jax else numpy.log
-        # Expected enclosed mass from a NFW
-        Mnfw = self.bounded_enclosed_mass(self.rmin, self.rmax,
-                                          Rs, 1, use_jax)
-        fsum = jnumpy.sum if use_jax else numpy.sum
-        ll = fsum(self.logprofile(self.r, Rs, 1, use_jax)) + self._ll0
-        return ll - self.Npart * log(Mnfw)
+        mnfw = self.bounded_mass(rmin, rmax, Rs, 1)
+        return numpy.sum(self._logprofile(r, Rs, 1)) - npart * numpy.log(mnfw)
 
-    @property
-    def initlogRs(self):
-        r"""
-        The most often occuring value of :math:`r` used as initial guess of
-        :math:`R_{\rm s}` since :math:`r^2 \rho(r)` peaks at
-        :math:`r = R_{\rm s}`.
 
-        Returns
-        -------
-        initlogRs : float
-        """
-        bins = numpy.linspace(self.rmin, self.rmax,
-                              self._binsguess)
-        counts, edges = numpy.histogram(self.r, bins)
-        return numpy.log10(edges[numpy.argmax(counts)])
-
-    def __call__(self, logRs, use_jax=False):
+    def __call__(self, logRs, r, rmin, rmax, npart):
         """
         Logarithmic posterior. Sum of the logarithmic prior and likelihood.
 
@@ -426,83 +312,64 @@ class NFWPosterior(NFWProfile):
         ----------
         logRs : float
             Logarithmic scale factor in units matching the coordinates.
-        use_jax : bool, optional
-            Whether to use `JAX` expressions. By default `False`.
+        r : 1-dimensional array
+            Radial distance of particles used to fit the profile.
+        rmin : float
+            Minimum radial distance of particles used to fit the profile.
+        rmax : float
+            Maximum radial distance of particles used to fit the profile.
+        npart : int
+            Number of particles used to fit the profile.
 
         Returns
         -------
         lpost : float
         """
-        lp = self.logprior(logRs)
+        lp = self.logprior(logRs, rmin, rmax)
         if not numpy.isfinite(lp):
             return - numpy.infty
-        return self.loglikelihood(logRs, use_jax) + lp
+        return self.loglikelihood(logRs, r, rmin, rmax, npart) + lp
 
-    def uncertainty_at_maxpost(self, logRs_max):
+    def fit(self, clump, eps=1e-4):
         r"""
-        Calculate Gaussian approximation of the uncertainty at `logRs_max`, the
-        maximum a-posteriori estimate. This is the square root of the negative
-        inverse 2nd derivate of the logarithimic posterior with respect to the
-        logarithm of the scale factor. This is only valid `logRs_max` is the
-        maximum of the posterior!
+        Fit the NFW profile. If the fit is not converged returns NaNs.
 
-        This uses `JAX`. The functions should be compiled but unless there is
-        a need for more speed this is fine as it is.
-
-        Parameters
-        ----------
-        logRs_max : float
-            Position :math:`\log R_{\rm s}` to evaluate the uncertainty. Must
-            be the maximum.
-
-        Returns
-        -------
-        uncertainty : float
-        """
-        def f(x):
-            return self(x, use_jax=True)
-
-        # Evaluate the second derivative
-        h = grad(grad(f))(logRs_max)
-        h = float(h)
-        if not h < 0:
-            return numpy.nan
-        return (- 1 / h)**0.5
-
-    def maxpost_logRs(self, calc_err=False, eps=1e-4):
-        r"""
-        Maximum a-posteriori estimate of the scale radius
-        :math:`\log R_{\rm s}`. Returns the scale radius if the fit converged,
-        otherwise `numpy.nan`. Checks whether
-        :math:`log r_{\rm max} / R_{\rm s} > \epsilon`, where
+        Checks whether :math:`log r_{\rm max} / R_{\rm s} > \epsilon`,
         to ensure that the scale radius is not too close to the boundary which
         occurs if the fit fails.
 
         Parameters
         ----------
-        calc_err : bool, optional
-            Optional toggle to calculate the uncertainty on the scale radius.
-            By default false.
+        clump : :py:class:`csiborgtools.fits.Clump`
+            Clump being fitted.
+        eps : float
+            Tolerance to ensure we are sufficiently far from math:`R_{200c}`.
 
         Returns
         -------
-        logRs: float
-            Log scale radius.
-        uncertainty : float
-            Uncertainty on the scale radius. Calculated following
-            `self.uncertainty_at_maxpost`.
+        Rs: float
+            Best fit scale radius.
+        rho0: float
+            Best fit NFW central density.
         """
+        assert isinstance(clump, Clump)
+        r = clump.r
+        rmin = numpy.min(r)
+        rmax, mtot = clump.spherical_overdensity_mass(200)
+        npart = numpy.sum((rmin <= r) & (r <= rmax))
+
         # Loss function to optimize
         def loss(logRs):
-            return - self(logRs)
+            return - self(logRs, r, rmin, rmax, npart)
 
-        res = minimize_scalar(loss, bounds=(self._logrmin, self._logrmax),
-                              method='bounded')
+        res = minimize_scalar(
+            loss, bounds=(numpy.log10(rmin), numpy.log10(rmax)),
+            method='bounded')
 
-        if self._logrmax - res.x < eps:
+        if numpy.log10(rmax) - res.x < eps:
             res.success = False
-
         if not res.success:
             return numpy.nan, numpy.nan
-        e_logRs = self.uncertainty_at_maxpost(res.x) if calc_err else numpy.nan
-        return res.x, e_logRs
+
+        rho0 = self.rho0_from_Rs(10**res.x, rmin, rmax, mtot)
+        return 10**res.x, rho0
