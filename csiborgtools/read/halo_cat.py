@@ -20,8 +20,8 @@ from sklearn.neighbors import NearestNeighbors
 
 from .box_units import BoxUnits
 from .paths import CSiBORGPaths
-from .readsim import ParticleReader, read_initcm
-from .utils import add_columns, cartesian_to_radec, flip_cols
+from .readsim import ParticleReader
+from .utils import cartesian_to_radec, flip_cols
 
 
 class BaseCatalogue(ABC):
@@ -271,117 +271,6 @@ class ClumpsCatalogue(BaseCatalogue):
         ismain : 1-dimensional array
         """
         return self["index"] == self["parent"]
-
-    def _set_data(self, min_mass, max_dist, load_init):
-        """
-        TODO: old later remove.
-        Loads the data, merges with mmain, does various coordinate transforms.
-        """
-        # Load the processed data
-        data = numpy.load(self.paths.hcat_path(self.nsim))
-
-        # Load the mmain file and add it to the data
-        # TODO: read the mmain here
-#        mmain = read_mmain(self.nsim, self.paths.mmain_dir)
-#        data = self.merge_mmain_to_clumps(data, mmain)
-        flip_cols(data, "peak_x", "peak_z")
-
-        # Cut on number of particles and finite m200. Do not change! Hardcoded
-        data = data[(data["npart"] > 100) & numpy.isfinite(data["m200"])]
-
-        # Now also load the initial positions
-        if load_init:
-
-            initcm = read_initcm(self.nsim,
-                                 self.paths.initmatch_path(self.nsim, "cm"))
-            if initcm is not None:
-                data = self.merge_initmatch_to_clumps(data, initcm)
-                flip_cols(data, "x0", "z0")
-
-        # Unit conversion
-        convert_cols = ["m200", "m500", "totpartmass", "mass_mmain",
-                        "r200", "r500", "Rs", "rho0",
-                        "peak_x", "peak_y", "peak_z"]
-        data = self.box.convert_from_boxunits(data, convert_cols)
-
-        # And do the unit transform
-        if load_init and initcm is not None:
-            data = self.box.convert_from_boxunits(
-                data, ["x0", "y0", "z0", "lagpatch"])
-
-        # Convert all that is not an integer to float32
-        names = list(data.dtype.names)
-        formats = []
-        for name in names:
-            if data[name].dtype.char in numpy.typecodes["AllInteger"]:
-                formats.append(numpy.int32)
-            else:
-                formats.append(numpy.float32)
-        dtype = numpy.dtype({"names": names, "formats": formats})
-
-        # Apply cuts on distance and total particle mass if any
-        data = data[data["dist"] < max_dist] if max_dist is not None else data
-        data = (data[data["totpartmass"] > min_mass]
-                if min_mass is not None else data)
-
-        self._data = data.astype(dtype)
-
-    def merge_mmain_to_clumps(self, clumps, mmain):
-        """
-        TODO: old, later remove.
-        Merge columns from the `mmain` files to the `clump` file, matches them
-        by their halo index while assuming that the indices `index` in both
-        arrays are sorted.
-
-        Parameters
-        ----------
-        clumps : structured array
-            Clumps structured array.
-        mmain : structured array
-            Parent halo array whose information is to be merged into `clumps`.
-
-        Returns
-        -------
-        out : structured array
-            Array with added columns.
-        """
-        X = numpy.full((clumps.size, 2), numpy.nan)
-        # Mask of which clumps have a mmain index
-        mask = numpy.isin(clumps["index"], mmain["index"])
-
-        X[mask, 0] = mmain["mass_cl"]
-        X[mask, 1] = mmain["sub_frac"]
-        return add_columns(clumps, X, ["mass_mmain", "sub_frac"])
-
-    def merge_initmatch_to_clumps(self, clumps, initcat):
-        """
-        TODO: old, later remove.
-        Merge columns from the `init_cm` files to the `clump` file.
-
-        Parameters
-        ----------
-        clumps : structured array
-            Clumps structured array.
-        initcat : structured array
-            Catalog with the clumps initial centre of mass at z = 70.
-
-        Returns
-        -------
-        out : structured array
-        """
-        # There are more initcat clumps, so check which ones have z = 0
-        # and then downsample
-        mask = numpy.isin(initcat["ID"], clumps["index"])
-        initcat = initcat[mask]
-        # Now the index ordering should match
-        if not numpy.alltrue(initcat["ID"] == clumps["index"]):
-            raise ValueError(
-                "Ordering of `initcat` and `clumps` is inconsistent.")
-
-        X = numpy.full((clumps.size, 4), numpy.nan)
-        for i, p in enumerate(['x', 'y', 'z', "lagpatch"]):
-            X[:, i] = initcat[p]
-        return add_columns(clumps, X, ["x0", "y0", "z0", "lagpatch"])
 
 
 class HaloCatalogue(BaseCatalogue):
