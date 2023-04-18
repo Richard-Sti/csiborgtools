@@ -12,6 +12,7 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+from .box_units import BoxUnits  # noqa
 from .halo_cat import ClumpsCatalogue, HaloCatalogue  # noqa
 from .knn_summary import kNNCDFReader  # noqa
 from .obs import (  # noqa

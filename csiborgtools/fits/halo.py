@@ -235,7 +235,7 @@ class BaseStructure(ABC):
         -------
         key : list of str
         """
-        return self.data.dtype.names
+        return self.particles.dtype.names
 
     def __getitem__(self, key):
         if key not in self.keys:
