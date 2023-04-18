@@ -27,4 +27,4 @@ from .paths import CSiBORGPaths  # noqa
 from .pk_summary import PKReader  # noqa
 from .readsim import MmainReader, ParticleReader, halfwidth_select, read_initcm  # noqa
 from .tpcf_summary import TPCFReader  # noqa
-from .utils import cartesian_to_radec, radec_to_cartesian
+from .utils import cartesian_to_radec, radec_to_cartesian  # noqa
