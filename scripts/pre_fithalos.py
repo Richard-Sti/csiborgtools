@@ -17,6 +17,7 @@ A script to fit halos (concentration, ...). The particle array of each CSiBORG
 realisation must have been split in advance by `runsplit_halos`.
 """
 from datetime import datetime
+from os.path import join
 
 import numpy
 from mpi4py import MPI
@@ -25,6 +26,7 @@ try:
     import csiborgtools
 except ModuleNotFoundError:
     import sys
+
     sys.path.append("../")
     import csiborgtools
 
@@ -35,128 +37,93 @@ rank = comm.Get_rank()
 nproc = comm.Get_size()
 
 paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
-partreader =csiborgtools.read.ParticleReader(paths)
+partreader = csiborgtools.read.ParticleReader(paths)
+nfwpost = csiborgtools.fits.NFWPosterior()
+ftemp = join(paths.temp_dumpdir, "fit_clump_{}_{}_{}.npy")
+cols_collect = [
+    ("npart", numpy.int64),
+    ("totpartmass", numpy.float64),
+    ("vx", numpy.float64),
+    ("vy", numpy.float64),
+    ("vz", numpy.float64),
+    ("conc", numpy.float64),
+    ("rho0", numpy.float64),
+    ("r200", numpy.float64),
+    ("r500", numpy.float64),
+    ("m200", numpy.float64),
+    ("m500", numpy.float64),
+    ("lambda200", numpy.float64),
+]
 
-cols_collect = [("npart", numpy.int64), ("totpartmass", numpy.float64),
-                ("Rs", numpy.float64), ("vx", numpy.float64),
-                ("vy", numpy.float64), ("vz", numpy.float64),
-                ("Lx", numpy.float64), ("Ly", numpy.float64),
-                ("Lz", numpy.float64), ("rho0", numpy.float64),
-                ("conc", numpy.float64), ("rmin", numpy.float64),
-                ("rmax", numpy.float64), ("r200", numpy.float64),
-                ("r500", numpy.float64), ("m200", numpy.float64),
-                ("m500", numpy.float64), ("lambda200c", numpy.float64)]
 
 def fit_clump(particles, clump, box):
+    obj = csiborgtools.fits.Clump(particles, clump, box)
 
-
-
-
-    out["npart"][n] = clump.Npart
-    out["rmin"][n] = clump.rmin
-    out["rmax"][n] = clump.rmax
-    out["totpartmass"][n] = clump.total_particle_mass
-    out["vx"][n] = numpy.average(clump.vel[:, 0], weights=clump.m)
-    out["vy"][n] = numpy.average(clump.vel[:, 1], weights=clump.m)
-    out["vz"][n] = numpy.average(clump.vel[:, 2], weights=clump.m)
-    out["Lx"][n], out["Ly"][n], out["Lz"][n] = clump.angular_momentum
-
+    out = {}
+    out["npart"] = len(obj)
+    out["totpartmass"] = numpy.sum(obj["M"])
+    out["vx"] = numpy.average(clump.vel[:, 0], weights=obj["M"])
+    out["vy"] = numpy.average(clump.vel[:, 1], weights=obj["M"])
+    out["vz"] = numpy.average(clump.vel[:, 2], weights=obj["M"])
+    out["r200"], out["m200"] = obj.spherical_overdensity_mass(200)
+    out["r500"], out["m500"] = obj.spherical_overdensity_mass(500)
+    if out["npart"] > 10 and numpy.isfinite(out["r200"]):
+        Rs, rho0 = nfwpost.fit(obj)
+        out["conc"] = Rs / out["r200"]
+        out["rho0"] = rho0
+    if numpy.isfinite(out["r200"]):
+        out["lambda200"] = obj.lambda_bullock(out["r200"])
 
 
 for i, nsim in enumerate(paths.get_ics(tonew=False)):
     if rank == 0:
-        print("{}: calculating {}th simulation `{}`."
-              .format(datetime.now(), i, nsim), flush=True)
+        print(
+            "{}: calculating {}th simulation `{}`.".format(datetime.now(), i, nsim),
+            flush=True,
+        )
     nsnap = max(paths.get_snapshots(nsim))
     box = csiborgtools.read.BoxUnits(nsnap, nsim, paths)
 
     # Archive of clumps, keywords are their clump IDs
     particle_archive = paths.split_path(nsnap, nsim)
-    clumpsarr = partreader.read_clumps(nsnap, nsim,
-                                       cols=["index", 'x', 'y', 'z'])
+    nclumps = len(particle_archive.files)
+    clumpsarr = partreader.read_clumps(nsnap, nsim, cols=["index", "x", "y", "z"])
     clumpid2arrpos = {ind: ii for ii, ind in enumerate(clumpsarr["index"])}
 
+    # We split the clumps among the processes. Each CPU calculates a fraction
+    # of them and dumps the results in a structured array.
+    jobs = csiborgtools.utils.split_jobs(nclumps, nproc)
+    out = csiborgtools.read.cols_to_structured(len(jobs[rank]), cols_collect)
+    for clumpid in jobs[rank]:
+        _out = fit_clump(
+            particle_archive[str(clumpid)], clumpsarr[clumpid2arrpos[clumpid]], box
+        )
 
-    nclumps = len(particle_archive.files)
-    # Fit 5000 clumps at a time, then dump results
-    batchsize = 5000
+        for key in _out.keys():
+            out[key][clumpid] = _out[key]
 
-    # This rank does these `batchsize` clumps/halos
-    jobs = csiborgtools.utils.split_jobs(nclumps, nclumps // batchsize)[rank]
-    for clumpid in jobs:
-        ... = fit_clump(particle_archive[str(clumpid)], clumpsarr[clumpid2arrpos[clumpid]])
-
-
-
-    jobs = csiborgtools.utils.split_jobs(nclumps, nproc)[rank]
-    for nsplit in jobs:
-        parts, part_clumps, clumps = csiborgtools.fits.load_split_particles(
-            nsplit, nsnap, nsim, paths, remove_split=False)
-
-        N = clumps.size
-        cols = [("index", numpy.int64), ("npart", numpy.int64),
-                ("totpartmass", numpy.float64), ("Rs", numpy.float64),
-                ("rho0", numpy.float64), ("conc", numpy.float64),
-                ("lambda200c", numpy.float64), ("vx", numpy.float64),
-                ("vy", numpy.float64), ("vz", numpy.float64),
-                ("Lx", numpy.float64), ("Ly", numpy.float64),
-                ("Lz", numpy.float64), ("rmin", numpy.float64),
-                ("rmax", numpy.float64), ("r200", numpy.float64),
-                ("r500", numpy.float64), ("m200", numpy.float64),
-                ("m500", numpy.float64)]
-        out = csiborgtools.utils.cols_to_structured(N, cols)
-        out["index"] = clumps["index"]
-
-        for n in range(N):
-            # Pick clump and its particles
-            xs = csiborgtools.fits.pick_single_clump(n, parts, part_clumps,
-                                                     clumps)
-            clump = csiborgtools.fits.Clump.from_arrays(
-                *xs, rhoc=box.box_rhoc, G=box.box_G)
-            out["npart"][n] = clump.Npart
-            out["rmin"][n] = clump.rmin
-            out["rmax"][n] = clump.rmax
-            out["totpartmass"][n] = clump.total_particle_mass
-            out["vx"][n] = numpy.average(clump.vel[:, 0], weights=clump.m)
-            out["vy"][n] = numpy.average(clump.vel[:, 1], weights=clump.m)
-            out["vz"][n] = numpy.average(clump.vel[:, 2], weights=clump.m)
-            out["Lx"][n], out["Ly"][n], out["Lz"][n] = clump.angular_momentum
-
-            # Spherical overdensity radii and masses
-            rs, ms = clump.spherical_overdensity_mass([200, 500])
-            out["r200"][n] = rs[0]
-            out["r500"][n] = rs[1]
-            out["m200"][n] = ms[0]
-            out["m500"][n] = ms[1]
-            out["lambda200c"][n] = clump.lambda200c
-
-            # NFW profile fit
-            if clump.Npart > 10 and numpy.isfinite(out["r200"][n]):
-                nfwpost = csiborgtools.fits.NFWPosterior(clump)
-                logRs, __ = nfwpost.maxpost_logRs()
-                Rs = 10**logRs
-                if not numpy.isnan(logRs):
-                    out["Rs"][n] = Rs
-                    out["rho0"][n] = nfwpost.rho0_from_Rs(Rs)
-                    out["conc"][n] = out["r200"][n] / Rs
-
-        csiborgtools.read.dump_split(out, nsplit, nsnap, nsim, paths)
-
-    # Wait until all jobs finished before moving to another simulation
+    fout = ftemp.format(str(nsim).zfill(5), str(nsnap).zfill(5), rank)
+    print("{}: rank {} saving to `{}`.".format(datetime.now(), rank, fout), flush=True)
+    numpy.save(fout, out)
+    # We saved this CPU's results in a temporary file. Wait now for the other
+    # CPUs and then collect results from the 0th rank and save them.
     comm.Barrier()
 
-#     # Use the rank 0 to combine outputs for this CSiBORG realisation
-#     if rank == 0:
-#         print("Collecting results!")
-#         partreader = csiborgtools.read.ParticleReader(paths)
-#         out_collected = csiborgtools.read.combine_splits(
-#             utils.Nsplits, nsnap, nsim, partreader, cols_collect,
-#             remove_splits=True, verbose=False)
-#         fname = paths.hcat_path(nsim)
-#         print("Saving results to `{}`.".format(fname))
-#         numpy.save(fname, out_collected)
-#
-#     comm.Barrier()
-#
-# if rank == 0:
-#     print("All finished! See ya!")
+    if rank == 0:
+        print(
+            "{}: collecting results for simulation `{}`.".format(datetime.now(), nsim),
+            flush=True,
+        )
+        out = csiborgtools.read.cols_to_structured(nclumps, cols_collect)
+        k = 0
+        for i in range(nproc):
+            inp = numpy.load(ftemp.format(str(nsim).zfill(5), str(nsnap).zfill(5), i))
+            for j in range(jobs[i]):
+                for key in inp.dtype.names:
+                    out[key][k] = inp[key][j]
+                k += 1
+
+        numpy.save(paths.structfit_path(nsnap, nsim, "clumps"), out)
+
+    # We now wait before moving on to another simulation.
+    comm.Barrier()
