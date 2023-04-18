@@ -187,9 +187,6 @@ class NFWPosterior(NFWProfile):
         Clump object containing the particles and clump information.
     """
 
-    def __init__(self):
-        super().__init__()
-
     @property
     def clump(self):
         """
@@ -228,7 +225,7 @@ class NFWPosterior(NFWProfile):
         -------
         rho0: float
         """
-        return mass / self.bounded_enclosed_mass(rmin, rmax, Rs, 1)
+        return mass / self.bounded_mass(rmin, rmax, Rs, 1)
 
     def initlogRs(self, r, rmin, rmax, binsguess=10):
         r"""
@@ -351,10 +348,12 @@ class NFWPosterior(NFWProfile):
             Best fit NFW central density.
         """
         assert isinstance(clump, Clump)
-        r = clump.r
+        r = clump.r()
         rmin = numpy.min(r)
         rmax, mtot = clump.spherical_overdensity_mass(200)
-        npart = numpy.sum((rmin <= r) & (r <= rmax))
+        mask = (rmin <= r) & (r <= rmax)
+        npart = numpy.sum(mask)
+        r = r[mask]
 
         # Loss function to optimize
         def loss(logRs):
