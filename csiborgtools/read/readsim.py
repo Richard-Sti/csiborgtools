@@ -56,7 +56,7 @@ class ParticleReader:
 
     @paths.setter
     def paths(self, paths):
-        # assert isinstance(paths, CSiBORGPaths)  # REMOVE
+        assert isinstance(paths, CSiBORGPaths)
         self._paths = paths
 
     def read_info(self, nsnap, nsim):
