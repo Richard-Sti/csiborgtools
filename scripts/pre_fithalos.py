@@ -21,6 +21,7 @@ from os.path import join
 
 import numpy
 from mpi4py import MPI
+from tqdm import tqdm
 
 try:
     import csiborgtools
@@ -62,9 +63,9 @@ def fit_clump(particles, clump, box):
     out = {}
     out["npart"] = len(obj)
     out["totpartmass"] = numpy.sum(obj["M"])
-    out["vx"] = numpy.average(clump.vel[:, 0], weights=obj["M"])
-    out["vy"] = numpy.average(clump.vel[:, 1], weights=obj["M"])
-    out["vz"] = numpy.average(clump.vel[:, 2], weights=obj["M"])
+    out["vx"] = numpy.average(obj.vel[:, 0], weights=obj["M"])
+    out["vy"] = numpy.average(obj.vel[:, 1], weights=obj["M"])
+    out["vz"] = numpy.average(obj.vel[:, 2], weights=obj["M"])
     out["r200"], out["m200"] = obj.spherical_overdensity_mass(200)
     out["r500"], out["m500"] = obj.spherical_overdensity_mass(500)
     if out["npart"] > 10 and numpy.isfinite(out["r200"]):
@@ -73,6 +74,7 @@ def fit_clump(particles, clump, box):
         out["rho0"] = rho0
     if numpy.isfinite(out["r200"]):
         out["lambda200"] = obj.lambda_bullock(out["r200"])
+    return out
 
 
 for i, nsim in enumerate(paths.get_ics(tonew=False)):
@@ -85,22 +87,26 @@ for i, nsim in enumerate(paths.get_ics(tonew=False)):
     box = csiborgtools.read.BoxUnits(nsnap, nsim, paths)
 
     # Archive of clumps, keywords are their clump IDs
-    particle_archive = paths.split_path(nsnap, nsim)
+    particle_archive = numpy.load(paths.split_path(nsnap, nsim))
     nclumps = len(particle_archive.files)
     clumpsarr = partreader.read_clumps(nsnap, nsim, cols=["index", "x", "y", "z"])
     clumpid2arrpos = {ind: ii for ii, ind in enumerate(clumpsarr["index"])}
 
     # We split the clumps among the processes. Each CPU calculates a fraction
     # of them and dumps the results in a structured array.
-    jobs = csiborgtools.utils.split_jobs(nclumps, nproc)
+    jobs = csiborgtools.fits.split_jobs(nclumps, nproc)
     out = csiborgtools.read.cols_to_structured(len(jobs[rank]), cols_collect)
-    for clumpid in jobs[rank]:
-        _out = fit_clump(
-            particle_archive[str(clumpid)], clumpsarr[clumpid2arrpos[clumpid]], box
-        )
+    for i in tqdm(jobs[rank]) if nproc == 1 else jobs[rank]:
+        clumpid = clumpsarr["index"][i]
+        try:
+            _out = fit_clump(
+                particle_archive[str(clumpid)], clumpsarr[clumpid2arrpos[clumpid]], box
+            )
+        except KeyError:
+            pass
 
         for key in _out.keys():
-            out[key][clumpid] = _out[key]
+            out[key][i] = _out[key]
 
     fout = ftemp.format(str(nsim).zfill(5), str(nsnap).zfill(5), rank)
     print("{}: rank {} saving to `{}`.".format(datetime.now(), rank, fout), flush=True)
