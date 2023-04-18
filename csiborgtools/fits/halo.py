@@ -91,17 +91,6 @@ class BaseStructure(ABC):
         return numpy.vstack([self[p] - self.info[p] for p in ps]).T
 
     @property
-    def r(self):
-        """
-        Radial separation of the particles from the centre of the object.
-
-        Returns
-        -------
-        r : 1-dimensional array of shape `(n_particles, )`.
-        """
-        return numpy.linalg.norm(self.pos, axis=1)
-
-    @property
     def vel(self):
         """
         Cartesian particle velocity components.
@@ -112,13 +101,23 @@ class BaseStructure(ABC):
         """
         return numpy.vstack([self[p] for p in ("vx", "vy", "vz")]).T
 
-    @property
+    def r(self):
+        """
+        Calculate the radial separation of the particles from the centre of the
+        object.
+
+        Returns
+        -------
+        r : 1-dimensional array of shape `(n_particles, )`.
+        """
+        return numpy.linalg.norm(self.pos, axis=1)
+
     def cmass(self):
         """
-        Cartesian position components of the object's centre of mass. Note that
-        this is already in a frame centered at the clump's potential minimum,
-        so its distance from origin indicates the separation of the centre of
-        mass and potential minimum.
+        Calculate Cartesian position components of the object's centre of mass.
+        Note that this is already in a frame centered at the clump's potential
+        minimum, so its distance from origin indicates the separation of the
+        centre of mass and potential minimum.
 
         Returns
         -------
@@ -126,20 +125,17 @@ class BaseStructure(ABC):
         """
         return numpy.average(self.pos, axis=0, weights=self['M'])
 
-    @property
     def angular_momentum(self):
         """
-        Angular momentum in the box coordinates.
-
-        NOTE: here also change velocities to the CM and appropriately edit the
-        docs.
+        Calculate angular momentum in the box coordinates.
 
         Returns
         -------
         J : 1-dimensional array or shape `(3, )`
         """
-        J = numpy.cross(self.pos - self.cmass, self.vel)
-        return numpy.einsum("i,ij->j", self.m, J)
+        pos = self.pos - self.cmass()
+        vel = self.vel - numpy.average(self.vel, axis=0, weights=self['M'])
+        return numpy.einsum("i,ij->j", self['M'], numpy.cross(pos, vel))
 
     def enclosed_mass(self, rmax, rmin=0):
         """
@@ -156,7 +152,7 @@ class BaseStructure(ABC):
         -------
         enclosed_mass : float
         """
-        r = self.r
+        r = self.r()
         return numpy.sum(self['M'][(r >= rmin) & (r <= rmax)])
 
     def lambda_bullock(self, radius, npart_min=10):
@@ -212,16 +208,16 @@ class BaseStructure(ABC):
             Corresponding spherical enclosed mass.
         """
         # We first sort the particles in an increasing separation
-        rs = self.r
+        rs = self.r()
         order = numpy.argsort(rs)
         rs = rs[order]
         cmass = numpy.cumsum(self['M'])  # Cumulative mass
         # We calculate the enclosed volume and indices where it is above target
         vol = 4 * numpy.pi / 3 * (rs**3 - rs[0]**3)
-        ks = numpy.where([cmass / vol > delta_mult * self.box.rhoc])[0]
+        ks = numpy.where(cmass / vol > delta_mult * self.box.box_rhoc)[0]
         if ks.size == 0:  # Never above the threshold?
             return numpy.nan, numpy.nan
-        k = numpy.maximum(ks)
+        k = numpy.max(ks)
         if k < npart_min:  # Too few particles?
             return numpy.nan, numpy.nan
         return rs[k], cmass[k]
