@@ -113,30 +113,50 @@ class BaseStructure(ABC):
         """
         return numpy.linalg.norm(self.pos, axis=1)
 
-    def cmass(self):
+    def cmass(self, rmax, rmin):
         """
         Calculate Cartesian position components of the object's centre of mass.
         Note that this is already in a frame centered at the clump's potential
         minimum, so its distance from origin indicates the separation of the
         centre of mass and potential minimum.
 
+        Parameters
+        ----------
+        rmax : float
+            Maximum radius for particles to be included in the calculation.
+        rmin : float
+            Minimum radius for particles to be included in the calculation.
+
         Returns
         -------
         cm : 1-dimensional array of shape `(3, )`
         """
-        return numpy.average(self.pos, axis=0, weights=self["M"])
+        r = self.r()
+        mask = (r >= rmin) & (r <= rmax)
+        return numpy.average(self.pos[mask], axis=0, weights=self["M"][mask])
 
-    def angular_momentum(self):
+    def angular_momentum(self, rmax, rmin=0):
         """
         Calculate angular momentum in the box coordinates.
+
+        Parameters
+        ----------
+        rmax : float
+            Maximum radius for particles to be included in the calculation.
+        rmin : float
+            Minimum radius for particles to be included in the calculation.
 
         Returns
         -------
         J : 1-dimensional array or shape `(3, )`
         """
-        pos = self.pos - self.cmass()
-        vel = self.vel - numpy.average(self.vel, axis=0, weights=self["M"])
-        return numpy.einsum("i,ij->j", self["M"], numpy.cross(pos, vel))
+        r = self.r()
+        mask = (r >= rmin) & (r <= rmax)
+        pos = self.pos[mask] - self.cmass(rmax, rmin)
+        # Velocitities in the object CM frame
+        vel = self.vel[mask]
+        vel -= numpy.average(self.vel[mask], axis=0, weights=self["M"][mask])
+        return numpy.einsum("i,ij->j", self["M"][mask], numpy.cross(pos, vel))
 
     def enclosed_mass(self, rmax, rmin=0):
         """
@@ -179,12 +199,12 @@ class BaseStructure(ABC):
         Bullock, J. S.;  Dekel, A.;  Kolatt, T. S.;  Kravtsov, A. V.;
         Klypin, A. A.;  Porciani, C.;  Primack, J. R.
         """
-        mask = self.r <= radius
+        mask = self.r() <= radius
         if numpy.sum(mask) < npart_min:
             return numpy.nan
         mass = self.enclosed_mass(radius)
         V = numpy.sqrt(self.box.box_G * mass / radius)
-        return numpy.linalg.norm(self.angular_momentum[mask]) / (
+        return numpy.linalg.norm(self.angular_momentum(radius)) / (
             numpy.sqrt(2) * mass * V * radius
         )
 
