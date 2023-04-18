@@ -208,11 +208,12 @@ class BaseStructure(ABC):
             numpy.sqrt(2) * mass * V * radius
         )
 
-    def spherical_overdensity_mass(self, delta_mult, npart_min=10):
+    def spherical_overdensity_mass(self, delta_mult, npart_min=10, kind="crit"):
         r"""
         Calculate spherical overdensity mass and radius. The mass is defined as
         the enclosed mass within an outermost radius where the mean enclosed
-        spherical density reaches a multiple of the critical density `delta`.
+        spherical density reaches a multiple of the critical density `delta`
+        (times the matter density if `kind` is `matter`).
 
         Parameters
         ----------
@@ -221,6 +222,8 @@ class BaseStructure(ABC):
         npart_min : int
             Minimum number of enclosed particles for a radius to be
             considered trustworthy.
+        kind : str
+            Either `crit` or `matter`, for critical or matter overdensity
 
         Returns
         -------
@@ -229,6 +232,9 @@ class BaseStructure(ABC):
         mx :  float
             Corresponding spherical enclosed mass.
         """
+        # Quick check of inputs
+        assert kind in ["crit", "matter"]
+
         # We first sort the particles in an increasing separation
         rs = self.r()
         order = numpy.argsort(rs)
@@ -236,7 +242,11 @@ class BaseStructure(ABC):
         cmass = numpy.cumsum(self["M"])  # Cumulative mass
         # We calculate the enclosed volume and indices where it is above target
         vol = 4 * numpy.pi / 3 * (rs**3 - rs[0] ** 3)
-        ks = numpy.where(cmass / vol > delta_mult * self.box.box_rhoc)[0]
+
+        target_density = delta_mult * self.box.box_rhoc
+        if kind == "matter":
+            target_density *= self.box.cosmo.Om0
+        ks = numpy.where(cmass / vol > target_density)[0]
         if ks.size == 0:  # Never above the threshold?
             return numpy.nan, numpy.nan
         k = numpy.max(ks)
