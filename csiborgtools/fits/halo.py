@@ -239,14 +239,15 @@ class BaseStructure(ABC):
         rs = self.r()
         order = numpy.argsort(rs)
         rs = rs[order]
-        cmass = numpy.cumsum(self["M"])  # Cumulative mass
+        cmass = numpy.cumsum(self["M"][order])  # Cumulative mass
         # We calculate the enclosed volume and indices where it is above target
         vol = 4 * numpy.pi / 3 * (rs**3 - rs[0] ** 3)
 
         target_density = delta_mult * self.box.box_rhoc
         if kind == "matter":
             target_density *= self.box.cosmo.Om0
-        ks = numpy.where(cmass / vol > target_density)[0]
+        with numpy.errstate(divide="ignore"):
+            ks = numpy.where(cmass / vol > target_density)[0]
         if ks.size == 0:  # Never above the threshold?
             return numpy.nan, numpy.nan
         k = numpy.max(ks)
