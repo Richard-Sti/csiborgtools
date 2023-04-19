@@ -12,7 +12,7 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-from csiborgtools.match.match import (  # noqa
+from .match import (  # noqa
     ParticleOverlap,
     RealisationsMatcher,
     calculate_overlap,
@@ -24,4 +24,5 @@ from csiborgtools.match.match import (  # noqa
     fill_delta_indxs,
     get_clumplims,
 )
-from csiborgtools.match.num_density import binned_counts, number_density  # noqa
+from .num_density import binned_counts, number_density  # noqa
+from .utils import concatenate_clumps  # noqa
