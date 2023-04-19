@@ -299,31 +299,45 @@ class ClumpsCatalogue(BaseCatalogue):
     minmass : len-2 tuple, optional
         Minimum mass. The first element is the catalogue key and the second is
         the value.
+    rawdata : bool, optional
+        Whether to return the raw data. In this case applies no cuts and
+        transformations.
     """
 
-    def __init__(self, nsim, paths, maxdist=155.5 / 0.705, minmass=("mass_cl", 1e12)):
+    def __init__(
+        self,
+        nsim,
+        paths,
+        maxdist=155.5 / 0.705,
+        minmass=("mass_cl", 1e12),
+        rawdata=False,
+    ):
         self.nsim = nsim
         self.paths = paths
         # Read in the clumps from the final snapshot
         partreader = ParticleReader(self.paths)
         cols = ["index", "parent", "x", "y", "z", "mass_cl"]
-        data = partreader.read_clumps(self.nsnap, self.nsim, cols=cols)
+        self._data = partreader.read_clumps(self.nsnap, self.nsim, cols=cols)
         # Overwrite the parent with the ultimate parent
         mmain = numpy.load(self.paths.mmain_path(self.nsnap, self.nsim))
-        data["parent"] = mmain["ultimate_parent"]
+        self._data["parent"] = mmain["ultimate_parent"]
 
-        # Flip positions and convert from code units to cMpc. Convert M too
-        flip_cols(data, "x", "z")
-        for p in ("x", "y", "z"):
-            data[p] -= 0.5
-        data = self.box.convert_from_boxunits(data, ["x", "y", "z", "mass_cl"])
-        mask = numpy.ones(data.size, dtype=bool)
-        if maxdist is not None:
-            dist = numpy.sqrt(data["x"] ** 2 + data["y"] ** 2 + data["z"] ** 2)
-            mask &= dist < maxdist
-        if minmass is not None:
-            mask &= data[minmass[0]] > minmass[1]
-        self._data = data[mask]
+        # If the raw data is not required, then start applying transformations
+        # and cuts.
+        if not rawdata:
+            flip_cols(self._data, "x", "z")
+            for p in ("x", "y", "z"):
+                self._data[p] -= 0.5
+            self._data = self.box.convert_from_boxunits(
+                self._data, ["x", "y", "z", "mass_cl"]
+            )
+            if maxdist is not None:
+                dist = numpy.sqrt(
+                    self._data["x"] ** 2 + self._data["y"] ** 2 + self._data["z"] ** 2
+                )
+                self._data = self._data[dist < maxdist]
+            if minmass is not None:
+                self._data = self._data[self._data[minmass[0]] > minmass[1]]
 
     @property
     def ismain(self):
@@ -359,24 +373,32 @@ class HaloCatalogue(BaseCatalogue):
     minmass : len-2 tuple
         Minimum mass. The first element is the catalogue key and the second is
         the value.
+    rawdata : bool, optional
+        Whether to return the raw data. In this case applies no cuts and
+        transformations.
     """
 
-    def __init__(self, nsim, paths, maxdist=155.5 / 0.705, minmass=("M", 1e12)):
+    def __init__(
+        self, nsim, paths, maxdist=155.5 / 0.705, minmass=("M", 1e12), rawdata=False
+    ):
         self.nsim = nsim
         self.paths = paths
         # Read in the mmain catalogue of summed substructure
         mmain = numpy.load(self.paths.mmain_path(self.nsnap, self.nsim))
-        data = mmain["mmain"]
-        # Flip positions and convert from code units to cMpc. Convert M too
-        flip_cols(data, "x", "z")
-        for p in ("x", "y", "z"):
-            data[p] -= 0.5
-        data = self.box.convert_from_boxunits(data, ["x", "y", "z", "M"])
+        self._data = mmain["mmain"]
+        if not rawdata:
+            # Flip positions and convert from code units to cMpc. Convert M too
+            flip_cols(self._data, "x", "z")
+            for p in ("x", "y", "z"):
+                self._data[p] -= 0.5
+            self._data = self.box.convert_from_boxunits(
+                self._data, ["x", "y", "z", "M"]
+            )
 
-        mask = numpy.ones(data.size, dtype=bool)
-        if maxdist is not None:
-            dist = numpy.sqrt(data["x"] ** 2 + data["y"] ** 2 + data["z"] ** 2)
-            mask &= dist < maxdist
-        if minmass is not None:
-            mask &= data[minmass[0]] > minmass[1]
-        self._data = data[mask]
+            if maxdist is not None:
+                dist = numpy.sqrt(
+                    self._data["x"] ** 2 + self._data["y"] ** 2 + self._data["z"] ** 2
+                )
+                self._data = self._data[dist < maxdist]
+            if minmass is not None:
+                self._data = self._data[self._data[minmass[0]] > minmass[1]]
