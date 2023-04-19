@@ -349,24 +349,31 @@ class NFWPosterior(NFWProfile):
         """
         assert isinstance(clump, Clump)
         r = clump.r()
-        rmin = numpy.min(r)
+        rmin = numpy.min(r[r > 0])  # First particle that is not at r = 0
         rmax, mtot = clump.spherical_overdensity_mass(200)
         mask = (rmin <= r) & (r <= rmax)
         npart = numpy.sum(mask)
         r = r[mask]
 
-        # Loss function to optimize
         def loss(logRs):
             return -self(logRs, r, rmin, rmax, npart)
+
+        # Define optimisation boundaries. Check whether they are finite and
+        # that rmax > rmin. If not, then return NaN.
+        bounds = (numpy.log10(rmin), numpy.log10(rmax))
+        if not (numpy.all(numpy.isfinite(bounds)) and bounds[0] < bounds[1]):
+            return numpy.nan, numpy.nan
 
         res = minimize_scalar(
             loss, bounds=(numpy.log10(rmin), numpy.log10(rmax)), method="bounded"
         )
-
+        # Check whether the fit converged to radius sufficienly far from `rmax`
+        # and that its a success. Otherwise return NaNs.
         if numpy.log10(rmax) - res.x < eps:
             res.success = False
         if not res.success:
             return numpy.nan, numpy.nan
-
+        # Additionally we also wish to calculate the central density from the
+        # mass (integral) constraint.
         rho0 = self.rho0_from_Rs(10**res.x, rmin, rmax, mtot)
         return 10**res.x, rho0
