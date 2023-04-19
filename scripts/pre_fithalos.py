@@ -16,6 +16,7 @@
 A script to fit halos (concentration, ...). The particle array of each CSiBORG
 realisation must have been split in advance by `runsplit_halos`.
 """
+from argparse import ArgumentParser
 from datetime import datetime
 from os.path import join
 
@@ -30,6 +31,10 @@ except ModuleNotFoundError:
 
     sys.path.append("../")
     import csiborgtools
+
+parser = ArgumentParser()
+parser.add_argument("--kind", type=str, choices=["halos", "clumps"])
+args = parser.parse_args()
 
 
 # Get MPI things
@@ -92,9 +97,8 @@ for i, nsim in enumerate(paths.get_ics(tonew=False)):
 
     # Archive of clumps, keywords are their clump IDs
     particle_archive = numpy.load(paths.split_path(nsnap, nsim))
-    nclumps = len(particle_archive.files)
     clumpsarr = partreader.read_clumps(nsnap, nsim, cols=["index", "x", "y", "z"])
-    clumpid2arrpos = {ind: ii for ii, ind in enumerate(clumpsarr["index"])}
+    nclumps = clumpsarr.size
 
     # We split the clumps among the processes. Each CPU calculates a fraction
     # of them and dumps the results in a structured array.
@@ -110,7 +114,7 @@ for i, nsim in enumerate(paths.get_ics(tonew=False)):
             part = None
 
         if part is not None:
-            _out = fit_clump(part, clumpsarr[clumpid2arrpos[clumpid]], box)
+            _out = fit_clump(part, clumpsarr[i], box)
 
         for key in _out.keys():
             out[key][i] = _out[key]
