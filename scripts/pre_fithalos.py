@@ -125,9 +125,7 @@ def load_parent_particles(clumpid, particle_archive, clumps_cat):
 
 
 # We now start looping over all simulations
-# for i, nsim in enumerate(paths.get_ics(tonew=False)):
-ics = paths.get_ics(tonew=False)[:3]
-for i, nsim in enumerate(ics):
+for i, nsim in enumerate(paths.get_ics(tonew=False)):
     if rank == 0:
         print(
             "{}: calculating {}th simulation `{}`.".format(datetime.now(), i, nsim),
