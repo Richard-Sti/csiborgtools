@@ -171,6 +171,7 @@ for i, nsim in enumerate(paths.get_ics(tonew=False)):
                 out[key][i] = _out[key]
         else:
             out["index"][i] = clumpid
+            out["npart"][i] = 0
 
     fout = ftemp.format(str(nsim).zfill(5), str(nsnap).zfill(5), rank)
     if nproc == 0:
