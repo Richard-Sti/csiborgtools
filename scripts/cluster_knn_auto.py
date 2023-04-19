@@ -29,6 +29,7 @@ try:
     import csiborgtools
 except ModuleNotFoundError:
     import sys
+
     sys.path.append("../")
     import csiborgtools
 
@@ -43,23 +44,13 @@ nproc = comm.Get_size()
 parser = ArgumentParser()
 parser.add_argument("--runs", type=str, nargs="+")
 args = parser.parse_args()
-with open('../scripts/knn_auto.yml', 'r') as file:
+with open("../scripts/knn_auto.yml", "r") as file:
     config = yaml.safe_load(file)
 
 Rmax = 155 / 0.705  # Mpc (h = 0.705) high resolution region radius
 totvol = 4 * numpy.pi * Rmax**3 / 3
-minmass = 1e12
-ics = [7444, 7468, 7492, 7516, 7540, 7564, 7588, 7612, 7636, 7660, 7684,
-       7708, 7732, 7756, 7780, 7804, 7828, 7852, 7876, 7900, 7924, 7948,
-       7972, 7996, 8020, 8044, 8068, 8092, 8116, 8140, 8164, 8188, 8212,
-       8236, 8260, 8284, 8308, 8332, 8356, 8380, 8404, 8428, 8452, 8476,
-       8500, 8524, 8548, 8572, 8596, 8620, 8644, 8668, 8692, 8716, 8740,
-       8764, 8788, 8812, 8836, 8860, 8884, 8908, 8932, 8956, 8980, 9004,
-       9028, 9052, 9076, 9100, 9124, 9148, 9172, 9196, 9220, 9244, 9268,
-       9292, 9316, 9340, 9364, 9388, 9412, 9436, 9460, 9484, 9508, 9532,
-       9556, 9580, 9604, 9628, 9652, 9676, 9700, 9724, 9748, 9772, 9796,
-       9820, 9844]
 paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
+ics = paths.get_ics(False)
 knncdf = csiborgtools.clustering.kNN_CDF()
 
 ###############################################################################
@@ -75,9 +66,9 @@ def read_single(selection, cat):
     psel = selection["primary"]
     pmin, pmax = psel.get("min", None), psel.get("max", None)
     if pmin is not None:
-        mmask &= (cat[psel["name"]] >= pmin)
+        mmask &= cat[psel["name"]] >= pmin
     if pmax is not None:
-        mmask &= (cat[psel["name"]] < pmax)
+        mmask &= cat[psel["name"]] < pmax
     pos = pos[mmask, ...]
 
     # Secondary selection
@@ -92,12 +83,13 @@ def read_single(selection, cat):
     if ssel.get("marked", True):
         x = cat[psel["name"]][mmask]
         prop = csiborgtools.clustering.normalised_marks(
-            x, prop, nbins=config["nbins_marks"])
+            x, prop, nbins=config["nbins_marks"]
+        )
 
     if smin is not None:
-        smask &= (prop >= smin)
+        smask &= prop >= smin
     if smax is not None:
-        smask &= (prop < smax)
+        smask &= prop < smax
 
     return pos[smask, ...]
 
@@ -106,8 +98,7 @@ def do_auto(run, cat, ic):
     """Calculate the kNN-CDF single catalgoue autocorrelation."""
     _config = config.get(run, None)
     if _config is None:
-        warn("No configuration for run {}.".format(run), UserWarning,
-             stacklevel=1)
+        warn("No configuration for run {}.".format(run), UserWarning, stacklevel=1)
         return
 
     rvs_gen = csiborgtools.clustering.RVSinsphere(Rmax)
@@ -115,21 +106,28 @@ def do_auto(run, cat, ic):
     knn = NearestNeighbors()
     knn.fit(pos)
     rs, cdf = knncdf(
-        knn, rvs_gen=rvs_gen, nneighbours=config["nneighbours"],
-        rmin=config["rmin"], rmax=config["rmax"],
-        nsamples=int(config["nsamples"]), neval=int(config["neval"]),
-        batch_size=int(config["batch_size"]), random_state=config["seed"])
+        knn,
+        rvs_gen=rvs_gen,
+        nneighbours=config["nneighbours"],
+        rmin=config["rmin"],
+        rmax=config["rmax"],
+        nsamples=int(config["nsamples"]),
+        neval=int(config["neval"]),
+        batch_size=int(config["batch_size"]),
+        random_state=config["seed"],
+    )
 
-    joblib.dump({"rs": rs, "cdf": cdf, "ndensity": pos.shape[0] / totvol},
-                paths.knnauto_path(run,  ic))
+    joblib.dump(
+        {"rs": rs, "cdf": cdf, "ndensity": pos.shape[0] / totvol},
+        paths.knnauto_path(run, ic),
+    )
 
 
 def do_cross_rand(run, cat, ic):
     """Calculate the kNN-CDF cross catalogue random correlation."""
     _config = config.get(run, None)
     if _config is None:
-        warn("No configuration for run {}.".format(run), UserWarning,
-             stacklevel=1)
+        warn("No configuration for run {}.".format(run), UserWarning, stacklevel=1)
         return
 
     rvs_gen = csiborgtools.clustering.RVSinsphere(Rmax)
@@ -142,10 +140,17 @@ def do_cross_rand(run, cat, ic):
     knn2.fit(pos2)
 
     rs, cdf0, cdf1, joint_cdf = knncdf.joint(
-        knn1, knn2, rvs_gen=rvs_gen, nneighbours=int(config["nneighbours"]),
-        rmin=config["rmin"], rmax=config["rmax"],
-        nsamples=int(config["nsamples"]), neval=int(config["neval"]),
-        batch_size=int(config["batch_size"]), random_state=config["seed"])
+        knn1,
+        knn2,
+        rvs_gen=rvs_gen,
+        nneighbours=int(config["nneighbours"]),
+        rmin=config["rmin"],
+        rmax=config["rmax"],
+        nsamples=int(config["nsamples"]),
+        neval=int(config["neval"]),
+        batch_size=int(config["batch_size"]),
+        random_state=config["seed"],
+    )
     corr = knncdf.joint_to_corr(cdf0, cdf1, joint_cdf)
     joblib.dump({"rs": rs, "corr": corr}, paths.knnauto_path(run, ic))
 
