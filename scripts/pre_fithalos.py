@@ -42,18 +42,20 @@ partreader = csiborgtools.read.ParticleReader(paths)
 nfwpost = csiborgtools.fits.NFWPosterior()
 ftemp = join(paths.temp_dumpdir, "fit_clump_{}_{}_{}.npy")
 cols_collect = [
-    ("npart", numpy.int64),
-    ("totpartmass", numpy.float64),
-    ("vx", numpy.float64),
-    ("vy", numpy.float64),
-    ("vz", numpy.float64),
-    ("conc", numpy.float64),
-    ("rho0", numpy.float64),
-    ("r200", numpy.float64),
-    ("r500", numpy.float64),
-    ("m200", numpy.float64),
-    ("m500", numpy.float64),
-    ("lambda200", numpy.float64),
+    ("npart", numpy.int32),
+    ("totpartmass", numpy.float32),
+    ("vx", numpy.float32),
+    ("vy", numpy.float32),
+    ("vz", numpy.float32),
+    ("conc", numpy.float32),
+    ("rho0", numpy.float32),
+    ("r200c", numpy.float32),
+    ("r500c", numpy.float32),
+    ("m200c", numpy.float32),
+    ("m500c", numpy.float32),
+    ("lambda200c", numpy.float32),
+    ("r200m", numpy.float32),
+    ("m200m", numpy.float32),
 ]
 
 
@@ -66,14 +68,16 @@ def fit_clump(particles, clump, box):
     out["vx"] = numpy.average(obj.vel[:, 0], weights=obj["M"])
     out["vy"] = numpy.average(obj.vel[:, 1], weights=obj["M"])
     out["vz"] = numpy.average(obj.vel[:, 2], weights=obj["M"])
-    out["r200"], out["m200"] = obj.spherical_overdensity_mass(200)
-    out["r500"], out["m500"] = obj.spherical_overdensity_mass(500)
-    if out["npart"] > 10 and numpy.isfinite(out["r200"]):
+    out["r200c"], out["m200c"] = obj.spherical_overdensity_mass(200, kind="crit")
+    out["r500c"], out["m500c"] = obj.spherical_overdensity_mass(500, kind="crit")
+    if out["npart"] > 10 and numpy.isfinite(out["r200c"]):
         Rs, rho0 = nfwpost.fit(obj)
-        out["conc"] = Rs / out["r200"]
+        out["conc"] = Rs / out["r200c"]
         out["rho0"] = rho0
-    if numpy.isfinite(out["r200"]):
-        out["lambda200"] = obj.lambda_bullock(out["r200"])
+    if numpy.isfinite(out["r200c"]):
+        out["lambda200c"] = obj.lambda_bullock(out["r200c"])
+
+    out["r200m"], out["m200m"] = obj.spherical_overdensity_mass(200, kind="matter")
     return out
 
 
@@ -98,12 +102,15 @@ for i, nsim in enumerate(paths.get_ics(tonew=False)):
     out = csiborgtools.read.cols_to_structured(len(jobs[rank]), cols_collect)
     for i in tqdm(jobs[rank]) if nproc == 1 else jobs[rank]:
         clumpid = clumpsarr["index"][i]
+        # We check whether this clump has some associated particles and then
+        # fit it and store the results in `out`.
         try:
-            _out = fit_clump(
-                particle_archive[str(clumpid)], clumpsarr[clumpid2arrpos[clumpid]], box
-            )
+            part = particle_archive[str(clumpid)]
         except KeyError:
-            pass
+            part = None
+
+        if part is not None:
+            _out = fit_clump(part, clumpsarr[clumpid2arrpos[clumpid]], box)
 
         for key in _out.keys():
             out[key][i] = _out[key]
@@ -120,16 +127,20 @@ for i, nsim in enumerate(paths.get_ics(tonew=False)):
             "{}: collecting results for simulation `{}`.".format(datetime.now(), nsim),
             flush=True,
         )
+        # We write to the output array. Load data from each CPU and append to
+        # the output array.
         out = csiborgtools.read.cols_to_structured(nclumps, cols_collect)
         k = 0
         for i in range(nproc):
             inp = numpy.load(ftemp.format(str(nsim).zfill(5), str(nsnap).zfill(5), i))
-            for j in range(jobs[i]):
+            for j in jobs[i]:
                 for key in inp.dtype.names:
                     out[key][k] = inp[key][j]
                 k += 1
 
-        numpy.save(paths.structfit_path(nsnap, nsim, "clumps"), out)
+        fout = paths.structfit_path(nsnap, nsim, "clumps")
+        print("Saving to `{}`.".format(fout), flush=True)
+        numpy.save(fout, out)
 
     # We now wait before moving on to another simulation.
     comm.Barrier()
