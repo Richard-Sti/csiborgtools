@@ -12,7 +12,10 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-"""Script to split particles to indivudual files according to their clump."""
+"""
+Script to split particles to individual files according to their clump. This is
+useful for calculating the halo properties directly from the particles.
+"""
 from datetime import datetime
 from gc import collect
 from glob import glob
@@ -28,6 +31,7 @@ try:
     import csiborgtools
 except ModuleNotFoundError:
     import sys
+
     sys.path.append("../")
     import csiborgtools
 
@@ -38,7 +42,7 @@ nproc = comm.Get_size()
 
 paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
 verbose = nproc == 1
-partcols = ['x', 'y', 'z', "vx", "vy", "vz", 'M']
+partcols = ["x", "y", "z", "vx", "vy", "vz", "M"]
 
 
 def do_split(nsim):
@@ -46,8 +50,8 @@ def do_split(nsim):
     reader = csiborgtools.read.ParticleReader(paths)
     ftemp_base = join(
         paths.temp_dumpdir,
-        "split_{}_{}".format(str(nsim).zfill(5), str(nsnap).zfill(5))
-        )
+        "split_{}_{}".format(str(nsim).zfill(5), str(nsnap).zfill(5)),
+    )
     ftemp = ftemp_base + "_{}.npz"
 
     # Load the particles and their clump IDs
@@ -85,7 +89,7 @@ def do_split(nsim):
     # Now load back in every temporary file, combine them into a single
     # dictionary  and save as a single .npz file.
     out = {}
-    for file in glob(ftemp_base + '*'):
+    for file in glob(ftemp_base + "*"):
         inp = numpy.load(file)
         for key in inp.files:
             out.update({key: inp[key]})
@@ -107,7 +111,6 @@ if nproc > 1:
         worker_process(do_split, comm, verbose=False)
 else:
     tasks = paths.get_ics(tonew=False)
-    tasks = [tasks[0]]  # REMOVE
     for task in tasks:
         print("{}: completing task `{}`.".format(datetime.now(), task))
         do_split(task)
