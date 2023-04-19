@@ -72,22 +72,25 @@ def fit_clump(particles, clump_info, box):
     obj = csiborgtools.fits.Clump(particles, clump_info, box)
 
     out = {}
+    if numpy.isnan(clump_info["index"]):
+        print("Why am I NaN?", flush=True)
     out["index"] = clump_info["index"]
     out["npart"] = len(obj)
     out["totpartmass"] = numpy.sum(obj["M"])
-    out["vx"] = numpy.average(obj.vel[:, 0], weights=obj["M"])
-    out["vy"] = numpy.average(obj.vel[:, 1], weights=obj["M"])
-    out["vz"] = numpy.average(obj.vel[:, 2], weights=obj["M"])
+    for i, v in enumerate(["vx", "vy", "vz"]):
+        out[v] = numpy.average(obj.vel[:, i], weights=obj["M"])
+    # Overdensity masses
     out["r200c"], out["m200c"] = obj.spherical_overdensity_mass(200, kind="crit")
     out["r500c"], out["m500c"] = obj.spherical_overdensity_mass(500, kind="crit")
+    out["r200m"], out["m200m"] = obj.spherical_overdensity_mass(200, kind="matter")
+    # NFW fit
     if out["npart"] > 10 and numpy.isfinite(out["r200c"]):
         Rs, rho0 = nfwpost.fit(obj)
         out["conc"] = Rs / out["r200c"]
         out["rho0"] = rho0
+    # Spin within R200c
     if numpy.isfinite(out["r200c"]):
         out["lambda200c"] = obj.lambda_bullock(out["r200c"])
-
-    out["r200m"], out["m200m"] = obj.spherical_overdensity_mass(200, kind="matter")
     return out
 
 
@@ -108,7 +111,6 @@ def load_parent_particles(clumpid, particle_archive, clumps_cat):
     Load a parent halo's particles.
     """
     indxs = clumps_cat["index"][clumps_cat["parent"] == clumpid]
-
     # We first load the particles of each clump belonging to this parent and then
     # concatenate them for further analysis.
     clumps = []
@@ -124,7 +126,8 @@ def load_parent_particles(clumpid, particle_archive, clumps_cat):
 
 # We now start looping over all simulations
 # for i, nsim in enumerate(paths.get_ics(tonew=False)):
-for i, nsim in enumerate([7444]):
+ics = paths.get_ics(tonew=False)[:3]
+for i, nsim in enumerate(ics):
     if rank == 0:
         print(
             "{}: calculating {}th simulation `{}`.".format(datetime.now(), i, nsim),
@@ -136,7 +139,7 @@ for i, nsim in enumerate([7444]):
     # Archive of clumps, keywords are their clump IDs
     particle_archive = numpy.load(paths.split_path(nsnap, nsim))
     clumps_cat = csiborgtools.read.ClumpsCatalogue(
-        nsim, paths, maxdist=None, minmass=None, rawdata=True
+        nsim, paths, maxdist=None, minmass=None, rawdata=True, load_fitted=False
     )
     # We check whether we fit halos or clumps, will be indexing over different
     # iterators.
@@ -161,11 +164,15 @@ for i, nsim in enumerate([7444]):
         else:
             part = load_clump_particles(clumpid, particle_archive)
 
+        # We fit the particles if there are any. If not we assign the index,
+        # otherwise it would be NaN converted to integers (-2147483648) and
+        # yield an error further down.
         if part is not None:
             _out = fit_clump(part, clumps_cat[j], box)
-
-        for key in _out.keys():
-            out[key][i] = _out[key]
+            for key in _out.keys():
+                out[key][i] = _out[key]
+        else:
+            out["index"][i] = clumpid
 
     fout = ftemp.format(str(nsim).zfill(5), str(nsnap).zfill(5), rank)
     if nproc == 0:
@@ -185,10 +192,9 @@ for i, nsim in enumerate([7444]):
         # We write to the output array. Load data from each CPU and append to
         # the output array.
         out = csiborgtools.read.cols_to_structured(ntasks, cols_collect)
+        clumpid2outpos = {indx: i for i, indx in enumerate(clumps_cat["index"])}
         for i in range(nproc):
             inp = numpy.load(ftemp.format(str(nsim).zfill(5), str(nsnap).zfill(5), i))
-            clumpid2outpos = {clumps_cat["index"][i]: i for i in range(len(clumps_cat))}
-
             for j, clumpid in enumerate(inp["index"]):
                 k = clumpid2outpos[clumpid]
                 for key in inp.dtype.names:
