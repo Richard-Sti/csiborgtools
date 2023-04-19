@@ -24,11 +24,27 @@ from .readsim import ParticleReader
 
 # Map of unit conversions
 CONV_NAME = {
-    "length": ['x', 'y', 'z', "peak_x", "peak_y", "peak_z", "Rs", "rmin",
-               "rmax", "r200", "r500", "x0", "y0", "z0", "lagpatch"],
-    "mass": ["mass_cl", "totpartmass", "m200", "m500", "mass_mmain", 'M'],
-    "density": ["rho0"]
-    }
+    "length": [
+        "x",
+        "y",
+        "z",
+        "peak_x",
+        "peak_y",
+        "peak_z",
+        "Rs",
+        "rmin",
+        "rmax",
+        "r200c",
+        "r500c",
+        "r200m",
+        "x0",
+        "y0",
+        "z0",
+        "lagpatch",
+    ],
+    "mass": ["mass_cl", "totpartmass", "m200c", "m500c", "mass_mmain", "M", "m200m"],
+    "density": ["rho0"],
+}
 
 
 class BoxUnits:
@@ -53,15 +69,29 @@ class BoxUnits:
         """
         partreader = ParticleReader(paths)
         info = partreader.read_info(nsnap, nsim)
-        pars = ["boxlen", "time", "aexp", "H0",
-                "omega_m", "omega_l", "omega_k", "omega_b",
-                "unit_l", "unit_d", "unit_t"]
+        pars = [
+            "boxlen",
+            "time",
+            "aexp",
+            "H0",
+            "omega_m",
+            "omega_l",
+            "omega_k",
+            "omega_b",
+            "unit_l",
+            "unit_d",
+            "unit_t",
+        ]
         for par in pars:
             setattr(self, "_" + par, float(info[par]))
 
-        self._cosmo = LambdaCDM(H0=self._H0, Om0=self._omega_m,
-                                Ode0=self._omega_l, Tcmb0=2.725 * units.K,
-                                Ob0=self._omega_b)
+        self._cosmo = LambdaCDM(
+            H0=self._H0,
+            Om0=self._omega_m,
+            Ode0=self._omega_l,
+            Tcmb0=2.725 * units.K,
+            Ob0=self._omega_b,
+        )
         self._Msuncgs = constants.M_sun.cgs.value  # Solar mass in grams
 
     @property
@@ -108,7 +138,7 @@ class BoxUnits:
         -------
         G : float
         """
-        return constants.G.cgs.value * (self._unit_d * self._unit_t ** 2)
+        return constants.G.cgs.value * (self._unit_d * self._unit_t**2)
 
     @property
     def box_H0(self):
@@ -142,7 +172,7 @@ class BoxUnits:
         rhoc : float
         """
 
-        return 3 * self.box_H0 ** 2 / (8 * numpy.pi * self.box_G)
+        return 3 * self.box_H0**2 / (8 * numpy.pi * self.box_G)
 
     def box2kpc(self, length):
         r"""
@@ -227,7 +257,7 @@ class BoxUnits:
         cosmo_redshift : foat
             Cosmological redshift.
         """
-        x = numpy.linspace(0., 1., 5001)
+        x = numpy.linspace(0.0, 1.0, 5001)
         y = self.cosmo.comoving_distance(x)
         return interp1d(y, x)(self.box2mpc(dist))
 
@@ -254,7 +284,7 @@ class BoxUnits:
         """
         # Peculiar velocity along the radial distance
         r = numpy.vstack([px - p0x, py - p0y, pz - p0z]).T
-        norm = numpy.sum(r**2, axis=1)**0.5
+        norm = numpy.sum(r**2, axis=1) ** 0.5
         v = numpy.vstack([vx, vy, vz]).T
         vpec = numpy.sum(r * v, axis=1) / norm
         # Ratio between the peculiar velocity and speed of light
@@ -284,7 +314,7 @@ class BoxUnits:
             Observed redshift.
         """
         r = numpy.vstack([px - p0x, py - p0y, pz - p0z]).T
-        zcosmo = self.box2cosmoredshift(numpy.sum(r**2, axis=1)**0.5)
+        zcosmo = self.box2cosmoredshift(numpy.sum(r**2, axis=1) ** 0.5)
         zpec = self.box2pecredshift(vx, vy, vz, px, py, pz, p0x, p0y, p0z)
         return (1 + zpec) * (1 + zcosmo) - 1
 
@@ -337,8 +367,7 @@ class BoxUnits:
         density : float
             Density in :math:`M_\odot / \mathrm{pc}^3`.
         """
-        return (density * self._unit_d / self._Msuncgs
-                * (units.Mpc.to(units.cm))**3)
+        return density * self._unit_d / self._Msuncgs * (units.Mpc.to(units.cm)) ** 3
 
     def dens2box(self, density):
         r"""
@@ -355,8 +384,7 @@ class BoxUnits:
         density : float
             Density in box units.
         """
-        return (density / self._unit_d * self._Msuncgs
-                / (units.Mpc.to(units.cm))**3)
+        return density / self._unit_d * self._Msuncgs / (units.Mpc.to(units.cm)) ** 3
 
     def convert_from_boxunits(self, data, names):
         r"""
@@ -389,8 +417,8 @@ class BoxUnits:
         transforms = {
             "length": self.box2mpc,
             "mass": self.box2solarmass,
-            "density": self.box2dens
-            }
+            "density": self.box2dens,
+        }
 
         for name in names:
             # Check that the name is even in the array
@@ -407,7 +435,8 @@ class BoxUnits:
             # If nothing found
             if not found:
                 raise NotImplementedError(
-                    "Conversion of `{}` is not defined.".format(name))
+                    "Conversion of `{}` is not defined.".format(name)
+                )
 
             # Center at the observer
             if name in ["peak_x", "peak_y", "peak_z", "x0", "y0", "z0"]:
