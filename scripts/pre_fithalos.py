@@ -91,7 +91,7 @@ def fit_clump(particles, clump_info, box):
     return out
 
 
-def load_clump_particles(clumpid, particle_archive, clumps_cat):
+def load_clump_particles(clumpid, particle_archive):
     """
     Load a clump's particles from the particle archive. If it is not there, i.e
     clump has no associated particles, return `None`.
@@ -113,7 +113,7 @@ def load_parent_particles(clumpid, particle_archive, clumps_cat):
     # concatenate them for further analysis.
     clumps = []
     for ind in indxs:
-        parts = load_clump_particles(ind, particle_archive, clumps_cat)
+        parts = load_clump_particles(ind, particle_archive)
         if parts is not None:
             clumps.append([parts, None])
 
@@ -122,7 +122,9 @@ def load_parent_particles(clumpid, particle_archive, clumps_cat):
     return csiborgtools.match.concatenate_clumps(clumps, include_velocities=True)
 
 
-for i, nsim in enumerate(paths.get_ics(tonew=False)):
+# We now start looping over all simulations
+# for i, nsim in enumerate(paths.get_ics(tonew=False)):
+for i, nsim in enumerate([7444]):
     if rank == 0:
         print(
             "{}: calculating {}th simulation `{}`.".format(datetime.now(), i, nsim),
@@ -134,7 +136,7 @@ for i, nsim in enumerate(paths.get_ics(tonew=False)):
     # Archive of clumps, keywords are their clump IDs
     particle_archive = numpy.load(paths.split_path(nsnap, nsim))
     clumps_cat = csiborgtools.read.ClumpsCatalogue(
-        nsim, paths, maxdist=None, minmass=None
+        nsim, paths, maxdist=None, minmass=None, rawdata=True
     )
     # We check whether we fit halos or clumps, will be indexing over different
     # iterators.
@@ -146,27 +148,30 @@ for i, nsim in enumerate(paths.get_ics(tonew=False)):
     # We split the clumps among the processes. Each CPU calculates a fraction
     # of them and dumps the results in a structured array. Even if we are
     # calculating parent halo this index runs over all clumps.
-    jobs = csiborgtools.fits.split_jobs(ntasks, nproc)
-    out = csiborgtools.read.cols_to_structured(len(jobs[rank]), cols_collect)
-    for i in tqdm(jobs[rank]) if nproc == 1 else jobs[rank]:
+    jobs = csiborgtools.fits.split_jobs(ntasks, nproc)[rank]
+    out = csiborgtools.read.cols_to_structured(len(jobs), cols_collect)
+    for i, j in enumerate(tqdm(jobs)) if nproc == 1 else enumerate(jobs):
         # If we are fitting halos and this clump is not a main, then continue.
-        if args.kind == "halos" and not ismain[i]:
+        if args.kind == "halos" and not ismain[j]:
             continue
 
-        clumpid = clumps_cat["index"][i]
+        clumpid = clumps_cat["index"][j]
         if args.kind == "halos":
             part = load_parent_particles(clumpid, particle_archive, clumps_cat)
         else:
-            part = load_clump_particles(clumpid, particle_archive, clumps_cat)
+            part = load_clump_particles(clumpid, particle_archive)
 
         if part is not None:
-            _out = fit_clump(part, clumps_cat[i], box)
+            _out = fit_clump(part, clumps_cat[j], box)
 
         for key in _out.keys():
             out[key][i] = _out[key]
 
     fout = ftemp.format(str(nsim).zfill(5), str(nsnap).zfill(5), rank)
-    print("{}: rank {} saving to `{}`.".format(datetime.now(), rank, fout), flush=True)
+    if nproc == 0:
+        print(
+            "{}: rank {} saving to `{}`.".format(datetime.now(), rank, fout), flush=True
+        )
     numpy.save(fout, out)
     # We saved this CPU's results in a temporary file. Wait now for the other
     # CPUs and then collect results from the 0th rank and save them.
@@ -180,13 +185,14 @@ for i, nsim in enumerate(paths.get_ics(tonew=False)):
         # We write to the output array. Load data from each CPU and append to
         # the output array.
         out = csiborgtools.read.cols_to_structured(ntasks, cols_collect)
-        k = 0
         for i in range(nproc):
             inp = numpy.load(ftemp.format(str(nsim).zfill(5), str(nsnap).zfill(5), i))
-            for j in jobs[i]:
+            clumpid2outpos = {clumps_cat["index"][i]: i for i in range(len(clumps_cat))}
+
+            for j, clumpid in enumerate(inp["index"]):
+                k = clumpid2outpos[clumpid]
                 for key in inp.dtype.names:
                     out[key][k] = inp[key][j]
-                k += 1
 
         # If we were analysing main halos, then remove array indices that do
         # not correspond to parent halos.
