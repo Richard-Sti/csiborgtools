@@ -28,6 +28,7 @@ class BaseCatalogue(ABC):
     """
     Base (sub)halo catalogue.
     """
+
     _data = None
     _paths = None
     _nsim = None
@@ -106,7 +107,7 @@ class BaseCatalogue(ABC):
     @box.setter
     def box(self, box):
         try:
-            assert box._name  == "box_units"
+            assert box._name == "box_units"
             self._box = box
         except AttributeError as err:
             raise TypeError from err
@@ -132,9 +133,9 @@ class BaseCatalogue(ABC):
         pos : 2-dimensional array of shape `(nobjects, 3)`
         """
         if in_initial:
-            ps = ['x0', 'y0', 'z0']
+            ps = ["x0", "y0", "z0"]
         else:
-            ps = ['x', 'y', 'z']
+            ps = ["x", "y", "z"]
         pos = numpy.vstack([self[p] for p in ps]).T
         if not cartesian:
             pos = cartesian_to_radec(pos)
@@ -248,8 +249,7 @@ class BaseCatalogue(ABC):
         knn.fit(pos)
         # Convert angular radius to cosine difference.
         metric_maxdist = 1 - numpy.cos(numpy.deg2rad(ang_radius))
-        dist, ind = knn.radius_neighbors(X, radius=metric_maxdist,
-                                         sort_results=True)
+        dist, ind = knn.radius_neighbors(X, radius=metric_maxdist, sort_results=True)
         # And the cosine difference to angular distance.
         for i in range(X.shape[0]):
             dist[i] = numpy.rad2deg(numpy.arccos(1 - dist[i]))
@@ -300,13 +300,13 @@ class ClumpsCatalogue(BaseCatalogue):
         Minimum mass. The first element is the catalogue key and the second is
         the value.
     """
-    def __init__(self, nsim, paths, maxdist=155.5 / 0.705,
-                 minmass=("mass_cl", 1e12)):
+
+    def __init__(self, nsim, paths, maxdist=155.5 / 0.705, minmass=("mass_cl", 1e12)):
         self.nsim = nsim
         self.paths = paths
         # Read in the clumps from the final snapshot
         partreader = ParticleReader(self.paths)
-        cols = ["index", "parent", 'x', 'y', 'z', "mass_cl"]
+        cols = ["index", "parent", "x", "y", "z", "mass_cl"]
         data = partreader.read_clumps(self.nsnap, self.nsim, cols=cols)
         # Overwrite the parent with the ultimate parent
         mmain = numpy.load(self.paths.mmain_path(self.nsnap, self.nsim))
@@ -314,12 +314,15 @@ class ClumpsCatalogue(BaseCatalogue):
 
         # Flip positions and convert from code units to cMpc. Convert M too
         flip_cols(data, "x", "z")
-        for p in ('x', 'y', 'z'):
+        for p in ("x", "y", "z"):
             data[p] -= 0.5
-        data = self.box.convert_from_boxunits(data, ['x', 'y', 'z', "mass_cl"])
-
-        mask = numpy.sqrt(data['x']**2 + data['y']**2 + data['z']**2) < maxdist
-        mask &= data[minmass[0]] > minmass[1]
+        data = self.box.convert_from_boxunits(data, ["x", "y", "z", "mass_cl"])
+        mask = numpy.ones(data.size, dtype=bool)
+        if maxdist is not None:
+            dist = numpy.sqrt(data["x"] ** 2 + data["y"] ** 2 + data["z"] ** 2)
+            mask &= dist < maxdist
+        if minmass is not None:
+            mask &= data[minmass[0]] > minmass[1]
         self._data = data[mask]
 
     @property
@@ -357,8 +360,8 @@ class HaloCatalogue(BaseCatalogue):
         Minimum mass. The first element is the catalogue key and the second is
         the value.
     """
-    def __init__(self, nsim, paths, maxdist=155.5 / 0.705,
-                 minmass=('M', 1e12)):
+
+    def __init__(self, nsim, paths, maxdist=155.5 / 0.705, minmass=("M", 1e12)):
         self.nsim = nsim
         self.paths = paths
         # Read in the mmain catalogue of summed substructure
@@ -366,10 +369,14 @@ class HaloCatalogue(BaseCatalogue):
         data = mmain["mmain"]
         # Flip positions and convert from code units to cMpc. Convert M too
         flip_cols(data, "x", "z")
-        for p in ('x', 'y', 'z'):
+        for p in ("x", "y", "z"):
             data[p] -= 0.5
-        data = self.box.convert_from_boxunits(data, ['x', 'y', 'z', 'M'])
+        data = self.box.convert_from_boxunits(data, ["x", "y", "z", "M"])
 
-        mask = numpy.sqrt(data['x']**2 + data['y']**2 + data['z']**2) < maxdist
-        mask &= data[minmass[0]] > minmass[1]
+        mask = numpy.ones(data.size, dtype=bool)
+        if maxdist is not None:
+            dist = numpy.sqrt(data["x"] ** 2 + data["y"] ** 2 + data["z"] ** 2)
+            mask &= dist < maxdist
+        if minmass is not None:
+            mask &= data[minmass[0]] > minmass[1]
         self._data = data[mask]
