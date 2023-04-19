@@ -133,13 +133,13 @@ class CSiBORGPaths:
         nsim : int
             IC realisation index.
         kind : str
-            Type of match.  Can be either `cm` or `particles`.
+            Type of match.  Can be either `fit` or `particles`.
 
         Returns
         -------
         path : str
         """
-        assert kind in ["cm", "particles"]
+        assert kind in ["fit", "particles"]
         fdir = join(self.postdir, "initmatch")
         if not isdir(fdir):
             mkdir(fdir)
