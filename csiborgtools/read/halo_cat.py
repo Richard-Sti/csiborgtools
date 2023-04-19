@@ -21,7 +21,7 @@ from sklearn.neighbors import NearestNeighbors
 from .box_units import BoxUnits
 from .paths import CSiBORGPaths
 from .readsim import ParticleReader
-from .utils import cartesian_to_radec, flip_cols, radec_to_cartesian
+from .utils import add_columns, cartesian_to_radec, flip_cols, radec_to_cartesian
 
 
 class BaseCatalogue(ABC):
@@ -282,13 +282,9 @@ class ClumpsCatalogue(BaseCatalogue):
     r"""
     Clumps catalogue, defined in the final snapshot.
 
-    TODO:
-        Add fitted quantities.
-        Add threshold on number of particles
-
     Parameters
     ----------
-    nsim : int
+    sim : int
         IC realisation index.
     paths : py:class`csiborgtools.read.CSiBORGPaths`
         CSiBORG paths object.
@@ -299,6 +295,8 @@ class ClumpsCatalogue(BaseCatalogue):
     minmass : len-2 tuple, optional
         Minimum mass. The first element is the catalogue key and the second is
         the value.
+    load_fitted : bool, optional
+        Whether to load fitted quantities.
     rawdata : bool, optional
         Whether to return the raw data. In this case applies no cuts and
         transformations.
@@ -310,6 +308,7 @@ class ClumpsCatalogue(BaseCatalogue):
         paths,
         maxdist=155.5 / 0.705,
         minmass=("mass_cl", 1e12),
+        load_fitted=True,
         rawdata=False,
     ):
         self.nsim = nsim
@@ -322,6 +321,12 @@ class ClumpsCatalogue(BaseCatalogue):
         mmain = numpy.load(self.paths.mmain_path(self.nsnap, self.nsim))
         self._data["parent"] = mmain["ultimate_parent"]
 
+        if load_fitted:
+            fits = numpy.load(paths.structfit_path(self.nsnap, nsim, "clumps"))
+            cols = [col for col in fits.dtype.names if col != "index"]
+            X = [fits[col] for col in cols]
+            self._data = add_columns(self._data, X, cols)
+
         # If the raw data is not required, then start applying transformations
         # and cuts.
         if not rawdata:
@@ -329,7 +334,21 @@ class ClumpsCatalogue(BaseCatalogue):
             for p in ("x", "y", "z"):
                 self._data[p] -= 0.5
             self._data = self.box.convert_from_boxunits(
-                self._data, ["x", "y", "z", "mass_cl"]
+                self._data,
+                [
+                    "x",
+                    "y",
+                    "z",
+                    "mass_cl",
+                    "totpartmass",
+                    "rho0",
+                    "r200c",
+                    "r500c",
+                    "m200c",
+                    "m500c",
+                    "r200m",
+                    "m200m",
+                ],
             )
             if maxdist is not None:
                 dist = numpy.sqrt(
@@ -358,7 +377,6 @@ class HaloCatalogue(BaseCatalogue):
 
     TODO:
         Add the fitted quantities
-        Add threshold on number of particles
 
     Parameters
     ----------
