@@ -200,7 +200,7 @@ for i, nsim in enumerate(paths.get_ics(tonew=False)):
         if args.kind == "halos":
             out = out[ismain]
 
-        fout = paths.structfit_path(nsnap, nsim, "clumps")
+        fout = paths.structfit_path(nsnap, nsim, args.kind)
         print("Saving to `{}`.".format(fout), flush=True)
         numpy.save(fout, out)
 
