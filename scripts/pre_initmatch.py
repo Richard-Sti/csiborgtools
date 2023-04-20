@@ -25,6 +25,7 @@ from os.path import join
 
 import numpy
 from mpi4py import MPI
+from tqdm import tqdm
 
 try:
     import csiborgtools
@@ -94,7 +95,7 @@ for i, nsim in enumerate(paths.get_ics(tonew=True)):
     )
     parent_ids = cat["index"][cat.ismain]
     jobs = csiborgtools.read.split_jobs(parent_ids.size, nproc)[rank]
-    for i in jobs:
+    for i in tqdm(jobs) if nproc == 1 else jobs:
         clid = parent_ids[i]
         mmain_indxs = cat["index"][cat["parent"] == clid]
 
