@@ -96,7 +96,7 @@ for i, nsim in enumerate(paths.get_ics(tonew=True)):
     cat = csiborgtools.read.ClumpsCatalogue(
         nsim, paths, load_fitted=False, rawdata=True
     )
-    parent_ids = cat["index"][cat.ismain]
+    parent_ids = cat["index"][cat.ismain][:500]
     jobs = csiborgtools.fits.split_jobs(parent_ids.size, nproc)[rank]
     for i in tqdm(jobs) if verbose else jobs:
         clid = parent_ids[i]
@@ -146,8 +146,8 @@ for i, nsim in enumerate(paths.get_ics(tonew=True)):
 
         # We now optionally collect the individual clumps and store them in an archive,
         # which has the benefit of being a single file that can be easily read in.
-        if args.dump_clumps:
-            print("{}: collecting particle...".format(datetime.now()), flush=True)
+        if args.dump:
+            print("{}: collecting particles...".format(datetime.now()), flush=True)
             out = {}
             for clid in parent_ids:
                 fpath = ftemp.format(nsim, clid, "particles")
