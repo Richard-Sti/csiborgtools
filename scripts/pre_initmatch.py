@@ -40,6 +40,7 @@ except ModuleNotFoundError:
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 nproc = comm.Get_size()
+verbose = nproc == 1
 
 # Argument parser
 parser = ArgumentParser()
@@ -47,7 +48,7 @@ parser.add_argument("--dump", type=lambda x: bool(strtobool(x)))
 args = parser.parse_args()
 paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
 partreader = csiborgtools.read.ParticleReader(paths)
-ftemp = join(paths.tempdumpdir, "initmatch_{}_{}_{}.npy")
+ftemp = join(paths.temp_dumpdir, "initmatch_{}_{}_{}.npy")
 
 # We loop over all particles and then use MPI when matching halos to the
 # initial snapshot and dumping them.
@@ -59,11 +60,13 @@ for i, nsim in enumerate(paths.get_ics(tonew=True)):
     # We first load particles in the initial and final snapshots and sort them
     # by their particle IDs so that we can match them by array position.
     # `clump_ids` are the clump IDs of particles.
-    part0 = partreader.read_particle(1, nsim, ["x", "y", "z", "M", "ID"], verbose=False)
+    part0 = partreader.read_particle(
+        1, nsim, ["x", "y", "z", "M", "ID"], verbose=verbose
+    )
     part0 = part0[numpy.argsort(part0["ID"])]
 
-    pid = partreader.read_particle(nsnap, nsim, ["ID"], verbose=False)["ID"]
-    clump_ids = partreader.read_clumpid(nsnap, nsim, verbose=False)
+    pid = partreader.read_particle(nsnap, nsim, ["ID"], verbose=verbose)["ID"]
+    clump_ids = partreader.read_clumpid(nsnap, nsim, verbose=verbose)
     clump_ids = clump_ids[numpy.argsort(pid)]
     # Release the particle IDs, we will not need them anymore now that both
     # particle arrays are matched in ordering.
@@ -95,7 +98,7 @@ for i, nsim in enumerate(paths.get_ics(tonew=True)):
     )
     parent_ids = cat["index"][cat.ismain]
     jobs = csiborgtools.read.split_jobs(parent_ids.size, nproc)[rank]
-    for i in tqdm(jobs) if nproc == 1 else jobs:
+    for i in tqdm(jobs) if verbose else jobs:
         clid = parent_ids[i]
         mmain_indxs = cat["index"][cat["parent"] == clid]
 
