@@ -72,9 +72,6 @@ def fit_clump(particles, clump_info, box):
     obj = csiborgtools.fits.Clump(particles, clump_info, box)
 
     out = {}
-    if numpy.isnan(clump_info["index"]):
-        print("Why am I NaN?", flush=True)
-    out["index"] = clump_info["index"]
     out["npart"] = len(obj)
     out["totpartmass"] = numpy.sum(obj["M"])
     for i, v in enumerate(["vx", "vy", "vz"]):
@@ -152,11 +149,13 @@ for i, nsim in enumerate(paths.get_ics(tonew=False)):
     jobs = csiborgtools.fits.split_jobs(ntasks, nproc)[rank]
     out = csiborgtools.read.cols_to_structured(len(jobs), cols_collect)
     for i, j in enumerate(tqdm(jobs)) if nproc == 1 else enumerate(jobs):
+        clumpid = clumps_cat["index"][j]
+        out["index"][i] = clumpid
+
         # If we are fitting halos and this clump is not a main, then continue.
         if args.kind == "halos" and not ismain[j]:
             continue
 
-        clumpid = clumps_cat["index"][j]
         if args.kind == "halos":
             part = load_parent_particles(clumpid, particle_archive, clumps_cat)
         else:
@@ -169,9 +168,6 @@ for i, nsim in enumerate(paths.get_ics(tonew=False)):
             _out = fit_clump(part, clumps_cat[j], box)
             for key in _out.keys():
                 out[key][i] = _out[key]
-        else:
-            out["index"][i] = clumpid
-            out["npart"][i] = 0
 
     fout = ftemp.format(str(nsim).zfill(5), str(nsnap).zfill(5), rank)
     if nproc == 0:
