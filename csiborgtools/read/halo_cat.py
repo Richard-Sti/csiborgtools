@@ -390,6 +390,8 @@ class HaloCatalogue(BaseCatalogue):
         the value.
     load_fitted : bool, optional
         Whether to load fitted quantities.
+    load_initial : bool, optional
+        Whether to load initial positions.
     rawdata : bool, optional
         Whether to return the raw data. In this case applies no cuts and
         transformations.
@@ -402,6 +404,7 @@ class HaloCatalogue(BaseCatalogue):
         maxdist=155.5 / 0.705,
         minmass=("M", 1e12),
         load_fitted=True,
+        load_initial=False,
         rawdata=False,
     ):
         self.nsim = nsim
@@ -415,6 +418,8 @@ class HaloCatalogue(BaseCatalogue):
             cols = [col for col in fits.dtype.names if col != "index"]
             X = [fits[col] for col in cols]
             self._data = add_columns(self._data, X, cols)
+
+        # TODO: load initial positions
 
         if not rawdata:
             # Flip positions and convert from code units to cMpc. Convert M too
