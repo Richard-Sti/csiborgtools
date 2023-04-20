@@ -16,14 +16,11 @@
 Support for matching halos between CSiBORG IC realisations.
 """
 from datetime import datetime
-from gc import collect
 
 import numpy
 from numba import jit
 from scipy.ndimage import gaussian_filter
 from tqdm import tqdm, trange
-
-from .utils import concatenate_parts
 
 ###############################################################################
 #                  Realisations matcher for calculating overlaps              #
@@ -420,40 +417,36 @@ class ParticleOverlap:
         -------
         delta : 3-dimensional array
         """
-        # We load particles from the halo archive files, concatenate them to form
-        # a single array, convert particle positions to cells and clear up memory again.
-        files = halo_archive.files
-        parts = [None] * len(files)
-        for i, file in enumerate(tqdm(files) if verbose else files):
-            parts[i] = halo_archive[file]
-        parts = concatenate_parts(parts)
-        cells = [self.pos2cell(parts[p]) for p in ("x", "y", "z")]
-        mass = parts["M"]
-
-        del parts
-        collect()
-
+        # We obtain the minimum/maximum cell IDs and number of cells along each dim.
         cellmin = self.inv_clength // 4  # The minimum cell ID
         cellmax = 3 * self.inv_clength // 4  # The maximum cell ID
         ncells = cellmax - cellmin
-        # Mask out particles outside the cubical high resolution region
-        mask = (
-            (cellmin <= cells[0])
-            & (cells[0] < cellmax)
-            & (cellmin <= cells[1])
-            & (cells[1] < cellmax)
-            & (cellmin <= cells[2])
-            & (cells[2] < cellmax)
-        )
-        cells = [c[mask] for c in cells]
-        mass = mass[mask]
-
-        # Prepare the density field or check it is of the right shape
+        # We then pre-allocate the density field or check it is of the right shape
+        # if already given.
         if delta is None:
             delta = numpy.zeros((ncells,) * 3, dtype=numpy.float32)
         else:
             assert (delta.shape == (ncells,) * 3) & (delta.dtype == numpy.float32)
-        fill_delta(delta, *cells, *(cellmin,) * 3, mass)
+
+        # We now loop one-by-one over the halos fill the density field.
+        files = halo_archive.files
+        for file in tqdm(files) if verbose else files:
+            parts = halo_archive[file]
+            cells = [self.pos2cell(parts[p]) for p in ("x", "y", "z")]
+            mass = parts["M"]
+
+            # We mask out particles outside the cubical high-resolution region
+            mask = (
+                (cellmin <= cells[0])
+                & (cells[0] < cellmax)
+                & (cellmin <= cells[1])
+                & (cells[1] < cellmax)
+                & (cellmin <= cells[2])
+                & (cells[2] < cellmax)
+            )
+            cells = [c[mask] for c in cells]
+            mass = mass[mask]
+            fill_delta(delta, *cells, *(cellmin,) * 3, mass)
 
         return delta
 
