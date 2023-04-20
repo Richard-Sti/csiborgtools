@@ -22,7 +22,6 @@ from .match import (  # noqa
     dist_percentile,
     fill_delta,
     fill_delta_indxs,
-    get_clumplims,
 )
 from .num_density import binned_counts, number_density  # noqa
 from .utils import concatenate_clumps  # noqa
