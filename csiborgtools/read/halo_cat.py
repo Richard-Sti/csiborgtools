@@ -375,9 +375,6 @@ class HaloCatalogue(BaseCatalogue):
     Halo catalogue, i.e. parent halos with summed substructure, defined in the
     final snapshot.
 
-    TODO:
-        Add the fitted quantities
-
     Parameters
     ----------
     nsim : int
@@ -391,26 +388,55 @@ class HaloCatalogue(BaseCatalogue):
     minmass : len-2 tuple
         Minimum mass. The first element is the catalogue key and the second is
         the value.
+    load_fitted : bool, optional
+        Whether to load fitted quantities.
     rawdata : bool, optional
         Whether to return the raw data. In this case applies no cuts and
         transformations.
     """
 
     def __init__(
-        self, nsim, paths, maxdist=155.5 / 0.705, minmass=("M", 1e12), rawdata=False
+        self,
+        nsim,
+        paths,
+        maxdist=155.5 / 0.705,
+        minmass=("M", 1e12),
+        load_fitted=True,
+        rawdata=False,
     ):
         self.nsim = nsim
         self.paths = paths
         # Read in the mmain catalogue of summed substructure
         mmain = numpy.load(self.paths.mmain_path(self.nsnap, self.nsim))
         self._data = mmain["mmain"]
+
+        if load_fitted:
+            fits = numpy.load(paths.structfit_path(self.nsnap, nsim, "halos"))
+            cols = [col for col in fits.dtype.names if col != "index"]
+            X = [fits[col] for col in cols]
+            self._data = add_columns(self._data, X, cols)
+
         if not rawdata:
             # Flip positions and convert from code units to cMpc. Convert M too
             flip_cols(self._data, "x", "z")
             for p in ("x", "y", "z"):
                 self._data[p] -= 0.5
             self._data = self.box.convert_from_boxunits(
-                self._data, ["x", "y", "z", "M"]
+                self._data,
+                [
+                    "x",
+                    "y",
+                    "z",
+                    "M",
+                    "totpartmass",
+                    "rho0",
+                    "r200c",
+                    "r500c",
+                    "m200c",
+                    "m500c",
+                    "r200m",
+                    "m200m",
+                ],
             )
 
             if maxdist is not None:
