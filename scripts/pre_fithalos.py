@@ -118,7 +118,7 @@ def load_parent_particles(clumpid, particle_archive, clumps_cat):
 
     if len(clumps) == 0:
         return None
-    return csiborgtools.match.concatenate_clumps(clumps, include_velocities=True)
+    return csiborgtools.match.concatenate_parts(clumps, include_velocities=True)
 
 
 # We now start looping over all simulations
