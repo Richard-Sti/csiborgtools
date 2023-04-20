@@ -16,27 +16,27 @@
 import numpy
 
 
-def concatenate_clumps(clumps, include_velocities=False):
+def concatenate_parts(list_parts, include_velocities=False):
     """
-    Concatenate an array of clumps to a single array containing all particles.
+    Concatenate a list of particle arrays into a single array.
 
     Parameters
     ----------
-    clumps : list of structured arrays
-        List of clumps. Each clump must be a structured array with keys
+    list_parts : list of structured arrays
+        List of particle arrays.
     include_velocities : bool, optional
         Whether to include velocities in the output array.
 
     Returns
     -------
-    particles : structured array
+    parts_out : structured array
     """
     # Count how large array will be needed
     N = 0
-    for clump, __ in clumps:
-        N += clump.size
+    for part in list_parts:
+        N += part.size
     # Infer dtype of positions
-    if clumps[0][0]["x"].dtype.char in numpy.typecodes["AllInteger"]:
+    if list_parts[0]["x"].dtype.char in numpy.typecodes["AllInteger"]:
         posdtype = numpy.int32
     else:
         posdtype = numpy.float32
@@ -54,14 +54,14 @@ def concatenate_clumps(clumps, include_velocities=False):
             "names": ["x", "y", "z", "M"],
             "formats": [posdtype] * 3 + [numpy.float32],
         }
-    particles = numpy.full(N, numpy.nan, dtype)
+    parts_out = numpy.full(N, numpy.nan, dtype)
 
     # Fill it one clump by another
     start = 0
-    for clump, __ in clumps:
-        end = start + clump.size
+    for parts in list_parts:
+        end = start + parts.size
         for p in dtype["names"]:
-            particles[p][start:end] = clump[p]
+            parts_out[p][start:end] = parts[p]
         start = end
 
-    return particles
+    return parts_out
