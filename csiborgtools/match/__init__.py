@@ -20,8 +20,6 @@ from .match import (  # noqa
     cosine_similarity,
     dist_centmass,
     dist_percentile,
-    fill_delta,
-    fill_delta_indxs,
 )
 from .num_density import binned_counts, number_density  # noqa
-from .utils import concatenate_clumps  # noqa
+from .utils import concatenate_parts  # noqa
