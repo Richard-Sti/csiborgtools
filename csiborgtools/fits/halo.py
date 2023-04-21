@@ -40,7 +40,7 @@ class BaseStructure(ABC):
 
     @particles.setter
     def particles(self, particles):
-        pars = ["x", "y", "z", "vx", "vy", "vz", "M"]
+        pars = ["x", "y", "z", "M"]
         assert all(p in particles.dtype.names for p in pars)
         self._particles = particles
 
@@ -204,11 +204,12 @@ class BaseStructure(ABC):
             return numpy.nan
         mass = self.enclosed_mass(radius)
         V = numpy.sqrt(self.box.box_G * mass / radius)
-        return numpy.linalg.norm(self.angular_momentum(radius)) / (
-            numpy.sqrt(2) * mass * V * radius
-        )
+        out = numpy.linalg.norm(self.angular_momentum(radius))
+        out /= numpy.sqrt(2) * mass * V * radius
+        return out
 
-    def spherical_overdensity_mass(self, delta_mult, npart_min=10, kind="crit"):
+    def spherical_overdensity_mass(self, delta_mult, npart_min=10,
+                                   kind="crit"):
         r"""
         Calculate spherical overdensity mass and radius. The mass is defined as
         the enclosed mass within an outermost radius where the mean enclosed
