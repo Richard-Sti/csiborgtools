@@ -66,7 +66,7 @@ class RVSinsphere(BaseRVS):
     def __call__(self, nsamples, random_state=42, dtype=numpy.float32):
         gen = numpy.random.default_rng(random_state)
         # Spherical
-        r = gen.random(nsamples, dtype=dtype)**(1/3) * self.R
+        r = gen.random(nsamples, dtype=dtype)**(1 / 3) * self.R
         theta = 2 * numpy.arcsin(gen.random(nsamples, dtype=dtype))
         phi = 2 * numpy.pi * gen.random(nsamples, dtype=dtype)
         # Cartesian

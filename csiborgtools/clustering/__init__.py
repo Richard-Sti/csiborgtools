@@ -28,4 +28,4 @@ try:
 
     from .tpcf import Mock2PCF  # noqa
 except ImportError:
-    warn("`Corrfunc` not installed. 2PCF modules will not be available (`Mock2PCF`).")  # noqa
+    warn("`Corrfunc` not installed. 2PCF modules will not be available .")  # noqa
