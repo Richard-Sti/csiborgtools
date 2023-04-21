@@ -303,7 +303,30 @@ class CSiBORGPaths:
         if not isdir(fdir):
             mkdir(fdir)
             warn("Created directory `{}`.".format(fdir), UserWarning, stacklevel=1)
-        fname = "ovelrap_{}_{}.npz".format(str(nsim0).zfill(5), str(nsimx).zfill(5))
+        fname = "overlap_{}_{}.npz".format(str(nsim0).zfill(5), str(nsimx).zfill(5))
+        return join(fdir, fname)
+
+    def radpos_path(self, nsnap, nsim):
+        """
+        Path to the files containing radial positions of halo particles (with
+        summed substructure).
+
+        Parameters
+        ----------
+        nsnap : int
+            Snapshot index.
+        nsim : int
+            IC realisation index.
+
+        Returns
+        -------
+        path : str
+        """
+        fdir = join(self.postdir, "radpos")
+        if not isdir(fdir):
+            mkdir(fdir)
+            warn("Created directory `{}`.".format(fdir), UserWarning, stacklevel=1)
+        fname = "radpos_{}_{}.npz".format(str(nsim).zfill(5), str(nsnap).zfill(5))
         return join(fdir, fname)
 
     def knnauto_path(self, run, nsim=None):
