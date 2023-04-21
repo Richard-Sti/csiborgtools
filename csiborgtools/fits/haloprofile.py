@@ -364,9 +364,7 @@ class NFWPosterior(NFWProfile):
         if not (numpy.all(numpy.isfinite(bounds)) and bounds[0] < bounds[1]):
             return numpy.nan, numpy.nan
 
-        res = minimize_scalar(
-            loss, bounds=(numpy.log10(rmin), numpy.log10(rmax)), method="bounded"
-        )
+        res = minimize_scalar(loss, bounds=bounds, method="bounded")
         # Check whether the fit converged to radius sufficienly far from `rmax`
         # and that its a success. Otherwise return NaNs.
         if numpy.log10(rmax) - res.x < eps:
