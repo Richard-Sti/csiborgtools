@@ -24,27 +24,12 @@ from .readsim import ParticleReader
 
 # Map of unit conversions
 CONV_NAME = {
-    "length": [
-        "x",
-        "y",
-        "z",
-        "peak_x",
-        "peak_y",
-        "peak_z",
-        "Rs",
-        "rmin",
-        "rmax",
-        "r200c",
-        "r500c",
-        "r200m",
-        "x0",
-        "y0",
-        "z0",
-        "lagpatch",
-    ],
-    "mass": ["mass_cl", "totpartmass", "m200c", "m500c", "mass_mmain", "M", "m200m"],
-    "density": ["rho0"],
-}
+    "length": ["x", "y", "z", "peak_x", "peak_y", "peak_z", "Rs", "rmin",
+               "rmax", "r200c", "r500c", "r200m", "x0", "y0", "z0",
+               "lagpatch"],
+    "mass": ["mass_cl", "totpartmass", "m200c", "m500c", "mass_mmain", "M",
+             "m200m"],
+    "density": ["rho0"]}
 
 
 class BoxUnits:
@@ -367,7 +352,8 @@ class BoxUnits:
         density : float
             Density in :math:`M_\odot / \mathrm{pc}^3`.
         """
-        return density * self._unit_d / self._Msuncgs * (units.Mpc.to(units.cm)) ** 3
+        return (density * self._unit_d
+                / self._Msuncgs * (units.Mpc.to(units.cm)) ** 3)
 
     def dens2box(self, density):
         r"""
@@ -384,7 +370,8 @@ class BoxUnits:
         density : float
             Density in box units.
         """
-        return density / self._unit_d * self._Msuncgs / (units.Mpc.to(units.cm)) ** 3
+        return (density / self._unit_d * self._Msuncgs
+                / (units.Mpc.to(units.cm)) ** 3)
 
     def convert_from_boxunits(self, data, names):
         r"""
@@ -412,13 +399,10 @@ class BoxUnits:
             Input array with converted columns.
         """
         names = [names] if isinstance(names, str) else names
-
-        # Shortcut for the transform functions
-        transforms = {
-            "length": self.box2mpc,
-            "mass": self.box2solarmass,
-            "density": self.box2dens,
-        }
+        transforms = {"length": self.box2mpc,
+                      "mass": self.box2solarmass,
+                      "density": self.box2dens,
+                      }
 
         for name in names:
             # Check that the name is even in the array

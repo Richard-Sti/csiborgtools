@@ -82,7 +82,7 @@ class PairOverlap:
             "match_indxs": match_indxs,
             "ngp_overlap": ngp_overlap,
             "smoothed_overlap": smoothed_overlap,
-            }
+        }
 
         self._make_refmask(min_mass, max_dist)
 

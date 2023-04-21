@@ -105,7 +105,7 @@ class DensityField:
     @box.setter
     def box(self, box):
         try:
-            assert box._name  == "box_units"
+            assert box._name == "box_units"
             self._box = box
         except AttributeError as err:
             raise TypeError from err

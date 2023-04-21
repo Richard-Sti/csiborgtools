@@ -41,9 +41,9 @@ def concatenate_parts(list_parts, include_velocities=False):
     else:
         posdtype = numpy.float32
 
-    # We pre-allocate an empty array. By default, we include just particle positions,
-    # which may be specified by cell IDs if integers, and masses. Additionally also
-    # outputs velocities.
+    # We pre-allocate an empty array. By default, we include just particle
+    # positions, which may be specified by cell IDs if integers, and masses.
+    # Additionally also outputs velocities.
     if include_velocities:
         dtype = {
             "names": ["x", "y", "z", "vx", "vy", "vz", "M"],

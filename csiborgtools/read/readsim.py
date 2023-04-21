@@ -345,7 +345,7 @@ class ParticleReader:
                                   .format(fname))
         data = numpy.genfromtxt(fname)
         # How the data is stored in the clump file.
-        clump_cols = {"index":  (0, numpy.int32),
+        clump_cols = {"index": (0, numpy.int32),
                       "level": (1, numpy.int32),
                       "parent": (2, numpy.int32),
                       "ncell": (3, numpy.float32),

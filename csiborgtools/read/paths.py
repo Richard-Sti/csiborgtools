@@ -97,7 +97,7 @@ class CSiBORGPaths:
         fpath = join(self.postdir, "temp")
         if not isdir(fpath):
             mkdir(fpath)
-            warn("Created directory `{}`.".format(fpath), UserWarning, stacklevel=1)
+            warn(f"Created directory `{fpath}`.", UserWarning, stacklevel=1)
         return fpath
 
     def mmain_path(self, nsnap, nsim):
@@ -118,10 +118,9 @@ class CSiBORGPaths:
         fdir = join(self.postdir, "mmain")
         if not isdir(fdir):
             mkdir(fdir)
-            warn("Created directory `{}`.".format(fdir), UserWarning, stacklevel=1)
-        return join(
-            fdir, "mmain_{}_{}.npz".format(str(nsim).zfill(5), str(nsnap).zfill(5))
-        )
+            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
+        return join(fdir,
+                    f"mmain_{str(nsim).zfill(5)}_{str(nsnap).zfill(5)}.npz")
 
     def initmatch_path(self, nsim, kind):
         """
@@ -143,8 +142,8 @@ class CSiBORGPaths:
         fdir = join(self.postdir, "initmatch")
         if not isdir(fdir):
             mkdir(fdir)
-            warn("Created directory `{}`.".format(fdir), UserWarning, stacklevel=1)
-        return join(fdir, "{}_{}.npy".format(kind, str(nsim).zfill(5)))
+            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
+        return join(fdir, f"{kind}_{str(nsim).zfill(5)}.npy")
 
     def split_path(self, nsnap, nsim):
         """
@@ -164,10 +163,9 @@ class CSiBORGPaths:
         fdir = join(self.postdir, "split")
         if not isdir(fdir):
             mkdir(fdir)
-            warn("Created directory `{}`.".format(fdir), UserWarning, stacklevel=1)
+            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
         return join(
-            fdir, "clumps_{}_{}.npz".format(str(nsim).zfill(5), str(nsnap).zfill(5))
-        )
+            fdir, f"clumps_{str(nsim).zfill(5)}_{str(nsnap).zfill(5)}.npz")
 
     def get_ics(self, tonew):
         """
@@ -256,7 +254,7 @@ class CSiBORGPaths:
         """
         tonew = nsnap == 1
         simpath = self.ic_path(nsim, tonew=tonew)
-        return join(simpath, "output_{}".format(str(nsnap).zfill(5)))
+        return join(simpath, f"output_{str(nsnap).zfill(5)}")
 
     def structfit_path(self, nsnap, nsim, kind):
         """
@@ -279,9 +277,8 @@ class CSiBORGPaths:
         fdir = join(self.postdir, "structfit")
         if not isdir(fdir):
             mkdir(fdir)
-            warn("Created directory `{}`.".format(fdir), UserWarning, stacklevel=1)
-
-        fname = "{}_out_{}_{}.npy".format(kind, str(nsim).zfill(5), str(nsnap).zfill(5))
+            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
+        fname = f"{kind}_out_{str(nsim).zfill(5)}_{str(nsnap).zfill(5)}.npy"
         return join(fdir, fname)
 
     def overlap_path(self, nsim0, nsimx):
@@ -302,8 +299,8 @@ class CSiBORGPaths:
         fdir = join(self.postdir, "overlap")
         if not isdir(fdir):
             mkdir(fdir)
-            warn("Created directory `{}`.".format(fdir), UserWarning, stacklevel=1)
-        fname = "overlap_{}_{}.npz".format(str(nsim0).zfill(5), str(nsimx).zfill(5))
+            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
+        fname = f"overlap_{str(nsim0).zfill(5)}_{str(nsimx).zfill(5)}.npz"
         return join(fdir, fname)
 
     def radpos_path(self, nsnap, nsim):
@@ -325,8 +322,8 @@ class CSiBORGPaths:
         fdir = join(self.postdir, "radpos")
         if not isdir(fdir):
             mkdir(fdir)
-            warn("Created directory `{}`.".format(fdir), UserWarning, stacklevel=1)
-        fname = "radpos_{}_{}.npz".format(str(nsim).zfill(5), str(nsnap).zfill(5))
+            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
+        fname = f"radpos_{str(nsim).zfill(5)}_{str(nsnap).zfill(5)}.npz"
         return join(fdir, fname)
 
     def knnauto_path(self, run, nsim=None):
@@ -348,9 +345,9 @@ class CSiBORGPaths:
         fdir = join(self.postdir, "knn", "auto")
         if not isdir(fdir):
             makedirs(fdir)
-            warn("Created directory `{}`.".format(fdir), UserWarning, stacklevel=1)
+            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
         if nsim is not None:
-            return join(fdir, "knncdf_{}_{}.p".format(str(nsim).zfill(5), run))
+            return join(fdir, f"knncdf_{str(nsim).zfill(5)}_{run}.p")
 
         files = glob(join(fdir, "knncdf*"))
         run = "__" + run
@@ -375,12 +372,12 @@ class CSiBORGPaths:
         fdir = join(self.postdir, "knn", "cross")
         if not isdir(fdir):
             makedirs(fdir)
-            warn("Created directory `{}`.".format(fdir), UserWarning, stacklevel=1)
+            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
         if nsims is not None:
             assert isinstance(nsims, (list, tuple)) and len(nsims) == 2
             nsim0 = str(nsims[0]).zfill(5)
             nsimx = str(nsims[1]).zfill(5)
-            return join(fdir, "knncdf_{}_{}__{}.p".format(nsim0, nsimx, run))
+            return join(fdir, f"knncdf_{nsim0}_{nsimx}__{run}.p")
 
         files = glob(join(fdir, "knncdf*"))
         run = "__" + run
@@ -405,9 +402,9 @@ class CSiBORGPaths:
         fdir = join(self.postdir, "tpcf", "auto")
         if not isdir(fdir):
             makedirs(fdir)
-            warn("Created directory `{}`.".format(fdir), UserWarning, stacklevel=1)
+            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
         if nsim is not None:
-            return join(fdir, "tpcf{}_{}.p".format(str(nsim).zfill(5), run))
+            return join(fdir, f"tpcf{str(nsim).zfill(5)}_{run}.p")
 
         files = glob(join(fdir, "tpcf*"))
         run = "__" + run

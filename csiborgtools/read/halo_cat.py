@@ -21,7 +21,8 @@ from sklearn.neighbors import NearestNeighbors
 from .box_units import BoxUnits
 from .paths import CSiBORGPaths
 from .readsim import ParticleReader
-from .utils import add_columns, cartesian_to_radec, flip_cols, radec_to_cartesian
+from .utils import (add_columns, cartesian_to_radec, flip_cols,
+                    radec_to_cartesian)
 
 
 class BaseCatalogue(ABC):
@@ -249,7 +250,8 @@ class BaseCatalogue(ABC):
         knn.fit(pos)
         # Convert angular radius to cosine difference.
         metric_maxdist = 1 - numpy.cos(numpy.deg2rad(ang_radius))
-        dist, ind = knn.radius_neighbors(X, radius=metric_maxdist, sort_results=True)
+        dist, ind = knn.radius_neighbors(X, radius=metric_maxdist,
+                                         sort_results=True)
         # And the cosine difference to angular distance.
         for i in range(X.shape[0]):
             dist[i] = numpy.rad2deg(numpy.arccos(1 - dist[i]))
@@ -302,15 +304,8 @@ class ClumpsCatalogue(BaseCatalogue):
         transformations.
     """
 
-    def __init__(
-        self,
-        nsim,
-        paths,
-        maxdist=155.5 / 0.705,
-        minmass=("mass_cl", 1e12),
-        load_fitted=True,
-        rawdata=False,
-    ):
+    def __init__(self, nsim, paths, maxdist=155.5 / 0.705,
+                 minmass=("mass_cl", 1e12), load_fitted=True, rawdata=False):
         self.nsim = nsim
         self.paths = paths
         # Read in the clumps from the final snapshot
@@ -333,27 +328,12 @@ class ClumpsCatalogue(BaseCatalogue):
             flip_cols(self._data, "x", "z")
             for p in ("x", "y", "z"):
                 self._data[p] -= 0.5
-            self._data = self.box.convert_from_boxunits(
-                self._data,
-                [
-                    "x",
-                    "y",
-                    "z",
-                    "mass_cl",
-                    "totpartmass",
-                    "rho0",
-                    "r200c",
-                    "r500c",
-                    "m200c",
-                    "m500c",
-                    "r200m",
-                    "m200m",
-                ],
-            )
+            names = ["x", "y", "z", "mass_cl", "totpartmass", "rho0", "r200c",
+                     "r500c", "m200c", "m500c", "r200m", "m200m"]
+            self._data = self.box.convert_from_boxunits(self._data, names)
             if maxdist is not None:
-                dist = numpy.sqrt(
-                    self._data["x"] ** 2 + self._data["y"] ** 2 + self._data["z"] ** 2
-                )
+                dist = numpy.sqrt(self._data["x"]**2 + self._data["y"]**2
+                                  + self._data["z"]**2)
                 self._data = self._data[dist < maxdist]
             if minmass is not None:
                 self._data = self._data[self._data[minmass[0]] > minmass[1]]
@@ -397,16 +377,8 @@ class HaloCatalogue(BaseCatalogue):
         transformations.
     """
 
-    def __init__(
-        self,
-        nsim,
-        paths,
-        maxdist=155.5 / 0.705,
-        minmass=("M", 1e12),
-        load_fitted=True,
-        load_initial=False,
-        rawdata=False,
-    ):
+    def __init__(self, nsim, paths, maxdist=155.5 / 0.705, minmass=("M", 1e12),
+                 load_fitted=True, load_initial=False, rawdata=False):
         self.nsim = nsim
         self.paths = paths
         # Read in the mmain catalogue of summed substructure
@@ -426,28 +398,13 @@ class HaloCatalogue(BaseCatalogue):
             flip_cols(self._data, "x", "z")
             for p in ("x", "y", "z"):
                 self._data[p] -= 0.5
-            self._data = self.box.convert_from_boxunits(
-                self._data,
-                [
-                    "x",
-                    "y",
-                    "z",
-                    "M",
-                    "totpartmass",
-                    "rho0",
-                    "r200c",
-                    "r500c",
-                    "m200c",
-                    "m500c",
-                    "r200m",
-                    "m200m",
-                ],
-            )
+            names = ["x", "y", "z", "M", "totpartmass", "rho0", "r200c",
+                     "r500c", "m200c", "m500c", "r200m", "m200m"]
+            self._data = self.box.convert_from_boxunits(self._data, names)
 
             if maxdist is not None:
-                dist = numpy.sqrt(
-                    self._data["x"] ** 2 + self._data["y"] ** 2 + self._data["z"] ** 2
-                )
+                dist = numpy.sqrt(self._data["x"]**2 + self._data["y"]**2
+                                  + self._data["z"]**2)
                 self._data = self._data[dist < maxdist]
             if minmass is not None:
                 self._data = self._data[self._data[minmass[0]] > minmass[1]]

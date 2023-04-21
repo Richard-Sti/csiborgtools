@@ -163,7 +163,7 @@ class TwoMPPGroups(TextSurvey):
         # Convert galactic coordinates to RA, dec
         glon = data[:, 1]
         glat = data[:, 2]
-        coords = SkyCoord(l=glon*units.degree, b=glat*units.degree,
+        coords = SkyCoord(l=glon * units.degree, b=glat * units.degree,
                           frame='galactic')
         coords = coords.transform_to("icrs")
         data["RA"] = coords.ra

@@ -101,7 +101,8 @@ def cols_to_structured(N, cols):
     if not isinstance(cols, list) and all(isinstance(c, tuple) for c in cols):
         raise TypeError("`cols` must be a list of tuples.")
 
-    dtype = {"names": [col[0] for col in cols], "formats": [col[1] for col in cols]}
+    dtype = {"names": [col[0] for col in cols],
+             "formats": [col[1] for col in cols]}
     return numpy.full(N, numpy.nan, dtype=dtype)
 
 
@@ -236,9 +237,7 @@ def array_to_structured(arr, cols):
     """
     cols = [cols] if isinstance(cols, str) else cols
     if arr.ndim != 2 and arr.shape[1] != len(cols):
-        raise TypeError(
-            "`arr` must be a 2-dimensional array of " "shape `(n_samples, n_cols)`."
-        )
+        raise TypeError("`arr` must be a 2D array `(n_samples, n_cols)`.")
 
     dtype = {"names": cols, "formats": [arr.dtype] * len(cols)}
     out = numpy.full(arr.shape[0], numpy.nan, dtype=dtype)
