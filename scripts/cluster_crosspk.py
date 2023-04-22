@@ -63,7 +63,7 @@ fout = join(dumpdir, "crosspk",
 
 jobs = csiborgtools.utils.split_jobs(nsims, nproc)[rank]
 for n in jobs:
-    print("Rank {}@{}: saving {}th delta.".format(rank, datetime.now(), n))
+    print(f"Rank {rank} at {datetime.now()}: saving {n}th delta.", flush=True)
     nsim = ics[n]
     particles = reader.read_particle(max(paths.get_snapshots(nsim)), nsim,
                                      ["x", "y", "z", "M"], verbose=False)
