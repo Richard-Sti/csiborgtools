@@ -30,12 +30,12 @@ dumpdir = "/mnt/extraspace/rstiskalek/csiborg/"
 
 
 # Some chosen clusters
-_coma = {"RA": (12 + 59/60 + 48.7 / 60**2) * 15,
+_coma = {"RA": (12 + 59 / 60 + 48.7 / 60**2) * 15,
          "DEC": 27 + 58 / 60 + 50 / 60**2,
          "COMDIST": 102.975}
 
 _virgo = {"RA": (12 + 27 / 60) * 15,
-          "DEC": 12 + 43/60,
+          "DEC": 12 + 43 / 60,
           "COMDIST": 16.5}
 
 specific_clusters = {"Coma": _coma, "Virgo": _virgo}

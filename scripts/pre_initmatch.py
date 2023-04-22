@@ -13,8 +13,9 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-Script to calculate the particle centre of mass and Lagrangian patch size in the initial
-snapshot. Optinally dumps the particle files, however this requires a lot of memory.
+Script to calculate the particle centre of mass and Lagrangian patch size in
+the initial snapshot. Optinally dumps the particle files, however this requires
+a lot of memory.
 """
 from argparse import ArgumentParser
 from datetime import datetime
@@ -54,15 +55,14 @@ ftemp = join(paths.temp_dumpdir, "initmatch_{}_{}_{}.npy")
 # initial snapshot and dumping them.
 for i, nsim in enumerate(paths.get_ics(tonew=True)):
     if rank == 0:
-        print("{}: reading simulation {}.".format(datetime.now(), nsim), flush=True)
+        print(f"{datetime.now()}: reading simulation {nsim}.", flush=True)
     nsnap = max(paths.get_snapshots(nsim))
 
     # We first load particles in the initial and final snapshots and sort them
     # by their particle IDs so that we can match them by array position.
     # `clump_ids` are the clump IDs of particles.
-    part0 = partreader.read_particle(
-        1, nsim, ["x", "y", "z", "M", "ID"], verbose=verbose
-    )
+    part0 = partreader.read_particle(1, nsim, ["x", "y", "z", "M", "ID"],
+                                     verbose=verbose)
     part0 = part0[numpy.argsort(part0["ID"])]
 
     pid = partreader.read_particle(nsnap, nsim, ["ID"], verbose=verbose)["ID"]
@@ -85,17 +85,14 @@ for i, nsim in enumerate(paths.get_ics(tonew=True)):
     # size and optionally the initial snapshot particles belonging to this
     # parent halo. Dumping the particles will take majority of time.
     if rank == 0:
-        print(
-            "{}: calculating {}th simulation {}.".format(datetime.now(), i, nsim),
-            flush=True,
-        )
+        print(f"{datetime.now()}: calculating {i}th simulation {nsim}.",
+              flush=True)
     # We load up the clump catalogue which contains information about the
     # ultimate  parent halos of each clump. We will loop only over the clump
     # IDs of ultimate parent halos and add their substructure particles and at
     # the end save these.
-    cat = csiborgtools.read.ClumpsCatalogue(
-        nsim, paths, load_fitted=False, rawdata=True
-    )
+    cat = csiborgtools.read.ClumpsCatalogue(nsim, paths, load_fitted=False,
+                                            rawdata=True)
     parent_ids = cat["index"][cat.ismain][:500]
     jobs = csiborgtools.fits.split_jobs(parent_ids.size, nproc)[rank]
     for i in tqdm(jobs) if verbose else jobs:
@@ -106,7 +103,8 @@ for i, nsim in enumerate(paths.get_ics(tonew=True)):
         mmain_particles = part0[mmain_mask]
 
         raddist, cmpos = csiborgtools.match.dist_centmass(mmain_particles)
-        patchsize = csiborgtools.match.dist_percentile(raddist, [99], distmax=0.075)
+        patchsize = csiborgtools.match.dist_percentile(raddist, [99],
+                                                       distmax=0.075)
         with open(ftemp.format(nsim, clid, "fit"), "wb") as f:
             numpy.savez(f, cmpos=cmpos, patchsize=patchsize)
 
@@ -118,15 +116,13 @@ for i, nsim in enumerate(paths.get_ics(tonew=True)):
     del part0, clump_ids
     collect()
 
-    # We now wait for all processes and then use the 0th process to collect the results.
-    # We first collect just the Lagrangian patch size information.
+    # We now wait for all processes and then use the 0th process to collect
+    # the results. We first collect just the Lagrangian patch size information.
     comm.Barrier()
     if rank == 0:
-        print("{}: collecting fits...".format(datetime.now()), flush=True)
-        dtype = {
-            "names": ["index", "x", "y", "z", "lagpatch"],
-            "formats": [numpy.int32] + [numpy.float32] * 4,
-        }
+        print(f"{datetime.now()}: collecting fits...", flush=True)
+        dtype = {"names": ["index", "x", "y", "z", "lagpatch"],
+                 "formats": [numpy.int32] + [numpy.float32] * 4}
         out = numpy.full(parent_ids.size, numpy.nan, dtype=dtype)
         for i, clid in enumerate(parent_ids):
             fpath = ftemp.format(nsim, clid, "fit")
@@ -140,14 +136,15 @@ for i, nsim in enumerate(paths.get_ics(tonew=True)):
             remove(fpath)
 
         fout = paths.initmatch_path(nsim, "fit")
-        print("{}: dumping fits to .. `{}`.".format(datetime.now(), fout), flush=True)
+        print(f"{datetime.now()}: dumping fits to .. `{fout}`.", flush=True)
         with open(fout, "wb") as f:
             numpy.save(f, out)
 
-        # We now optionally collect the individual clumps and store them in an archive,
-        # which has the benefit of being a single file that can be easily read in.
+        # We now optionally collect the individual clumps and store them in an
+        # archive, which has the benefit of being a single file that can be
+        # easily read in.
         if args.dump:
-            print("{}: collecting particles...".format(datetime.now()), flush=True)
+            print(f"{datetime.now()}: collecting particles...", flush=True)
             out = {}
             for clid in parent_ids:
                 fpath = ftemp.format(nsim, clid, "particles")
@@ -155,10 +152,8 @@ for i, nsim in enumerate(paths.get_ics(tonew=True)):
                     out.update({str(clid): numpy.load(f)})
 
             fout = paths.initmatch_path(nsim, "particles")
-            print(
-                "{}: dumping particles to .. `{}`.".format(datetime.now(), fout),
-                flush=True,
-            )
+            print(f"{datetime.now()}: dumping particles to .. `{fout}`.",
+                  flush=True)
             with open(fout, "wb") as f:
                 numpy.savez(f, **out)
 

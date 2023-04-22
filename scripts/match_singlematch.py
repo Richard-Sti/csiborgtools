@@ -33,66 +33,55 @@ parser.add_argument("--nsim0", type=int)
 parser.add_argument("--nsimx", type=int)
 parser.add_argument("--nmult", type=float)
 parser.add_argument("--sigma", type=float)
-parser.add_argument("--verbose", type=lambda x: bool(strtobool(x)), default=False)
+parser.add_argument("--verbose", type=lambda x: bool(strtobool(x)),
+                    default=False)
 args = parser.parse_args()
 paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
 smooth_kwargs = {"sigma": args.sigma, "mode": "constant", "cval": 0.0}
 overlapper = csiborgtools.match.ParticleOverlap()
 matcher = csiborgtools.match.RealisationsMatcher()
 
-# Load the raw catalogues (i.e. no selection) including the initial CM positions
-# and the particle archives.
-cat0 = csiborgtools.read.HaloCatalogue(
-    args.nsim0, paths, load_initial=True, rawdata=True
-)
-catx = csiborgtools.read.HaloCatalogue(
-    args.nsimx, paths, load_initial=True, rawdata=True
-)
+# Load the raw catalogues (i.e. no selection) including the initial CM
+# positions and the particle archives.
+cat0 = csiborgtools.read.HaloCatalogue(args.nsim0, paths, load_initial=True,
+                                       rawdata=True)
+catx = csiborgtools.read.HaloCatalogue(args.nsimx, paths, load_initial=True,
+                                       rawdata=True)
 halos0_archive = paths.initmatch_path(args.nsim0, "particles")
 halosx_archive = paths.initmatch_path(args.nsimx, "particles")
 
 # We generate the background density fields. Loads halos's particles one by one
 # from the archive, concatenates them and calculates the NGP density field.
-args.verbose and print(
-    "{}: generating the background density fields.".format(datetime.now()), flush=True
-)
+if args.verbose:
+    print(f"{datetime.now()}: generating the background density fields.",
+          flush=True)
 delta_bckg = overlapper.make_bckg_delta(halos0_archive, verbose=args.verbose)
-delta_bckg = overlapper.make_bckg_delta(
-    halosx_archive, delta=delta_bckg, verbose=args.verbose
-)
+delta_bckg = overlapper.make_bckg_delta(halosx_archive, delta=delta_bckg,
+                                        verbose=args.verbose)
 
 # We calculate the overlap between the NGP fields.
-args.verbose and print(
-    "{}: crossing the simulations.".format(datetime.now()), flush=True
-)
-match_indxs, ngp_overlap = matcher.cross(
-    cat0, catx, halos0_archive, halosx_archive, delta_bckg
-)
+if args.verbose:
+    print(f"{datetime.now()}: crossing the simulations.", flush=True)
+match_indxs, ngp_overlap = matcher.cross(cat0, catx, halos0_archive,
+                                         halosx_archive, delta_bckg)
 
-# We now smoothen up the background density field for the smoothed overlap calculation.
-args.verbose and print(
-    "{}: smoothing the background field.".format(datetime.now()), flush=True
-)
+# We now smoothen up the background density field for the smoothed overlap
+# calculation.
+if args.verbose:
+    print(f"{datetime.now()}: smoothing the background field.", flush=True)
 gaussian_filter(delta_bckg, output=delta_bckg, **smooth_kwargs)
 
 # We calculate the smoothed overlap for the pairs whose NGP overlap is > 0.
-args.verbose and print(
-    "{}: calculating smoothed overlaps.".format(datetime.now()), flush=True
-)
-smoothed_overlap = matcher.smoothed_cross(
-    cat0, catx, halos0_archive, halosx_archive, delta_bckg, match_indxs, smooth_kwargs
-)
+if args.verbose:
+    print(f"{datetime.now()}: calculating smoothed overlaps.", flush=True)
+smoothed_overlap = matcher.smoothed_cross(cat0, catx, halos0_archive,
+                                          halosx_archive, delta_bckg,
+                                          match_indxs, smooth_kwargs)
 
 # We save the results at long last.
 fout = paths.overlap_path(args.nsim0, args.nsimx)
-args.verbose and print(
-    "{}: saving results to `{}`.".format(datetime.now(), fout), flush=True
-)
-numpy.savez(
-    fout,
-    match_indxs=match_indxs,
-    ngp_overlap=ngp_overlap,
-    smoothed_overlap=smoothed_overlap,
-    sigma=args.sigma,
-)
-print("{}: all finished.".format(datetime.now()), flush=True)
+if args.verbose:
+    print(f"{datetime.now()}: saving results to `{fout}`.", flush=True)
+numpy.savez(fout, match_indxs=match_indxs, ngp_overlap=ngp_overlap,
+            smoothed_overlap=smoothed_overlap, sigma=args.sigma)
+print(f"{datetime.now()}: all finished.", flush=True)

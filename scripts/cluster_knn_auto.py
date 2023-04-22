@@ -23,7 +23,7 @@ import numpy
 import yaml
 from mpi4py import MPI
 from sklearn.neighbors import NearestNeighbors
-from TaskmasterMPI import master_process, worker_process
+from taskmaster import master_process, worker_process
 
 try:
     import csiborgtools
@@ -98,7 +98,7 @@ def do_auto(run, cat, ic):
     """Calculate the kNN-CDF single catalgoue autocorrelation."""
     _config = config.get(run, None)
     if _config is None:
-        warn("No configuration for run {}.".format(run), UserWarning, stacklevel=1)
+        warn(f"No configuration for run {run}.", UserWarning, stacklevel=1)
         return
 
     rvs_gen = csiborgtools.clustering.RVSinsphere(Rmax)
@@ -106,16 +106,10 @@ def do_auto(run, cat, ic):
     knn = NearestNeighbors()
     knn.fit(pos)
     rs, cdf = knncdf(
-        knn,
-        rvs_gen=rvs_gen,
-        nneighbours=config["nneighbours"],
-        rmin=config["rmin"],
-        rmax=config["rmax"],
-        nsamples=int(config["nsamples"]),
-        neval=int(config["neval"]),
-        batch_size=int(config["batch_size"]),
-        random_state=config["seed"],
-    )
+        knn, rvs_gen=rvs_gen, nneighbours=config["nneighbours"],
+        rmin=config["rmin"], rmax=config["rmax"],
+        nsamples=int(config["nsamples"]), neval=int(config["neval"]),
+        batch_size=int(config["batch_size"]), random_state=config["seed"])
 
     joblib.dump(
         {"rs": rs, "cdf": cdf, "ndensity": pos.shape[0] / totvol},
@@ -127,7 +121,7 @@ def do_cross_rand(run, cat, ic):
     """Calculate the kNN-CDF cross catalogue random correlation."""
     _config = config.get(run, None)
     if _config is None:
-        warn("No configuration for run {}.".format(run), UserWarning, stacklevel=1)
+        warn(f"No configuration for run {run}.", UserWarning, stacklevel=1)
         return
 
     rvs_gen = csiborgtools.clustering.RVSinsphere(Rmax)
@@ -140,16 +134,10 @@ def do_cross_rand(run, cat, ic):
     knn2.fit(pos2)
 
     rs, cdf0, cdf1, joint_cdf = knncdf.joint(
-        knn1,
-        knn2,
-        rvs_gen=rvs_gen,
-        nneighbours=int(config["nneighbours"]),
-        rmin=config["rmin"],
-        rmax=config["rmax"],
-        nsamples=int(config["nsamples"]),
-        neval=int(config["neval"]),
-        batch_size=int(config["batch_size"]),
-        random_state=config["seed"],
+        knn1, knn2, rvs_gen=rvs_gen, nneighbours=int(config["nneighbours"]),
+        rmin=config["rmin"], rmax=config["rmax"],
+        nsamples=int(config["nsamples"]), neval=int(config["neval"]),
+        batch_size=int(config["batch_size"]), random_state=config["seed"],
     )
     corr = knncdf.joint_to_corr(cdf0, cdf1, joint_cdf)
     joblib.dump({"rs": rs, "corr": corr}, paths.knnauto_path(run, ic))

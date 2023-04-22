@@ -19,7 +19,7 @@ from datetime import datetime
 
 import numpy
 from mpi4py import MPI
-from TaskmasterMPI import master_process, worker_process
+from taskmaster import master_process, worker_process
 
 try:
     import csiborgtools
@@ -58,7 +58,7 @@ if nproc > 1:
 else:
     tasks = paths.get_ics(tonew=False)
     for task in tasks:
-        print("{}: completing task `{}`.".format(datetime.now(), task))
+        print(f"{datetime.now()}: completing task `{task}`.", flush=True)
         do_mmain(task)
 
 comm.Barrier()
