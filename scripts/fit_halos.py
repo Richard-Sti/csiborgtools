@@ -77,9 +77,12 @@ def fit_clump(particles, clump_info, box):
     for i, v in enumerate(["vx", "vy", "vz"]):
         out[v] = numpy.average(obj.vel[:, i], weights=obj["M"])
     # Overdensity masses
-    out["r200c"], out["m200c"] = obj.spherical_overdensity_mass(200, kind="crit")
-    out["r500c"], out["m500c"] = obj.spherical_overdensity_mass(500, kind="crit")
-    out["r200m"], out["m200m"] = obj.spherical_overdensity_mass(200, kind="matter")
+    out["r200c"], out["m200c"] = obj.spherical_overdensity_mass(200,
+                                                                kind="crit")
+    out["r500c"], out["m500c"] = obj.spherical_overdensity_mass(500,
+                                                                kind="crit")
+    out["r200m"], out["m200m"] = obj.spherical_overdensity_mass(200,
+                                                                kind="matter")
     # NFW fit
     if out["npart"] > 10 and numpy.isfinite(out["r200c"]):
         Rs, rho0 = nfwpost.fit(obj)
@@ -108,8 +111,8 @@ def load_parent_particles(clumpid, particle_archive, clumps_cat):
     Load a parent halo's particles.
     """
     indxs = clumps_cat["index"][clumps_cat["parent"] == clumpid]
-    # We first load the particles of each clump belonging to this parent and then
-    # concatenate them for further analysis.
+    # We first load the particles of each clump belonging to this parent
+    # and then concatenate them for further analysis.
     clumps = []
     for ind in indxs:
         parts = load_clump_particles(ind, particle_archive)
@@ -118,24 +121,23 @@ def load_parent_particles(clumpid, particle_archive, clumps_cat):
 
     if len(clumps) == 0:
         return None
-    return csiborgtools.match.concatenate_parts(clumps, include_velocities=True)
+    return csiborgtools.match.concatenate_parts(clumps,
+                                                include_velocities=True)
 
 
 # We now start looping over all simulations
 for i, nsim in enumerate(paths.get_ics(tonew=False)):
     if rank == 0:
-        print(
-            "{}: calculating {}th simulation `{}`.".format(datetime.now(), i, nsim),
-            flush=True,
-        )
+        print(f"{datetime.now()}: calculating {i}th simulation `{nsim}`.",
+              flush=True)
     nsnap = max(paths.get_snapshots(nsim))
     box = csiborgtools.read.BoxUnits(nsnap, nsim, paths)
 
     # Archive of clumps, keywords are their clump IDs
     particle_archive = numpy.load(paths.split_path(nsnap, nsim))
-    clumps_cat = csiborgtools.read.ClumpsCatalogue(
-        nsim, paths, maxdist=None, minmass=None, rawdata=True, load_fitted=False
-    )
+    clumps_cat = csiborgtools.read.ClumpsCatalogue(nsim, paths, maxdist=None,
+                                                   minmass=None, rawdata=True,
+                                                   load_fitted=False)
     # We check whether we fit halos or clumps, will be indexing over different
     # iterators.
     if args.kind == "halos":
@@ -171,25 +173,23 @@ for i, nsim in enumerate(paths.get_ics(tonew=False)):
 
     fout = ftemp.format(str(nsim).zfill(5), str(nsnap).zfill(5), rank)
     if nproc == 0:
-        print(
-            "{}: rank {} saving to `{}`.".format(datetime.now(), rank, fout), flush=True
-        )
+        print(f"{datetime.now()}: rank {rank} saving to `{fout}`.", flush=True)
     numpy.save(fout, out)
     # We saved this CPU's results in a temporary file. Wait now for the other
     # CPUs and then collect results from the 0th rank and save them.
     comm.Barrier()
 
     if rank == 0:
-        print(
-            "{}: collecting results for simulation `{}`.".format(datetime.now(), nsim),
-            flush=True,
-        )
+        print(f"{datetime.now()}: collecting results for simulation `{nsim}`.",
+              flush=True)
         # We write to the output array. Load data from each CPU and append to
         # the output array.
         out = csiborgtools.read.cols_to_structured(ntasks, cols_collect)
-        clumpid2outpos = {indx: i for i, indx in enumerate(clumps_cat["index"])}
+        clumpid2outpos = {indx: i
+                          for i, indx in enumerate(clumps_cat["index"])}
         for i in range(nproc):
-            inp = numpy.load(ftemp.format(str(nsim).zfill(5), str(nsnap).zfill(5), i))
+            inp = numpy.load(ftemp.format(str(nsim).zfill(5),
+                                          str(nsnap).zfill(5), i))
             for j, clumpid in enumerate(inp["index"]):
                 k = clumpid2outpos[clumpid]
                 for key in inp.dtype.names:
@@ -201,7 +201,7 @@ for i, nsim in enumerate(paths.get_ics(tonew=False)):
             out = out[ismain]
 
         fout = paths.structfit_path(nsnap, nsim, args.kind)
-        print("Saving to `{}`.".format(fout), flush=True)
+        print(f"Saving to `{fout}`.", flush=True)
         numpy.save(fout, out)
 
     # We now wait before moving on to another simulation.
