@@ -111,6 +111,9 @@ for i, nsim in enumerate(nsims):
         clumpid = clumps_cat["index"][j]
 
         parts = load_parent_particles(clumpid, particle_archive, clumps_cat)
+        # If we have no particles, then do not save anything.
+        if parts is None:
+            continue
         obj = csiborgtools.fits.Clump(parts, clumps_cat[j], box)
         r200m, m200m = obj.spherical_overdensity_mass(200, npart_min=10,
                                                       kind="matter")
