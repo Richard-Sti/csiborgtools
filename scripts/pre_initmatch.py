@@ -93,7 +93,7 @@ for i, nsim in enumerate(paths.get_ics(tonew=True)):
     # the end save these.
     cat = csiborgtools.read.ClumpsCatalogue(nsim, paths, load_fitted=False,
                                             rawdata=True)
-    parent_ids = cat["index"][cat.ismain][:500]
+    parent_ids = cat["index"][cat.ismain]
     jobs = csiborgtools.fits.split_jobs(parent_ids.size, nproc)[rank]
     for i in tqdm(jobs) if verbose else jobs:
         clid = parent_ids[i]
