@@ -391,6 +391,28 @@ class CSiBORGPaths:
         fname = "ovelrap_{}_{}.npz".format(str(nsim0).zfill(5), str(nsimx).zfill(5))
         return join(fdir, fname)
 
+    def overlap_path(self, nsim0, nsimx):
+        """
+        Path to the overlap files between two simulations.
+
+        Parameters
+        ----------
+        nsim0 : int
+            IC realisation index of the first simulation.
+        nsimx : int
+            IC realisation index of the second simulation.
+
+        Returns
+        -------
+        path : str
+        """
+        fdir = join(self.postdir, "overlap")
+        if not isdir(fdir):
+            mkdir(fdir)
+            warn("Created directory `{}`.".format(fdir), UserWarning, stacklevel=1)
+        fname = "ovelrap_{}_{}.npz".format(str(nsim0).zfill(5), str(nsimx).zfill(5))
+        return join(fdir, fname)
+
     def knnauto_path(self, run, nsim=None):
         """
         Path to the `knn` auto-correlation files. If `nsim` is not specified
