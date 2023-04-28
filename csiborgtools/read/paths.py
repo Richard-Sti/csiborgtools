@@ -326,6 +326,53 @@ class CSiBORGPaths:
         fname = f"radpos_{str(nsim).zfill(5)}_{str(nsnap).zfill(5)}.npz"
         return join(fdir, fname)
 
+    def particle_h5py_path(self, nsnap, nsim):
+        """
+        Path to the files containing all particles in a `.hdf5` file. Used for
+        the SPH calculation.
+
+        Parameters
+        ----------
+        nsnap : int
+            Snapshot index.
+        nsim : int
+            IC realisation index.
+
+        Returns
+        -------
+        path : str
+        """
+        fdir = join(self.postdir, "environment")
+        if not isdir(fdir):
+            makedirs(fdir)
+            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
+        fname = f"particles_{str(nsim).zfill(5)}_{str(nsnap).zfill(5)}.h5"
+        return join(fdir, fname)
+
+    def density_field_path(self, mas, nsnap, nsim):
+        """
+        Path to the files containing the calculated density fields.
+
+        Parameters
+        ----------
+        mas : str
+           Mass-assignment scheme. Currently only SPH is supported.
+        nsnap : int
+            Snapshot index.
+        nsim : int
+            IC realisation index.
+
+        Returns
+        -------
+        path : str
+        """
+        fdir = join(self.postdir, "environment")
+        if not isdir(fdir):
+            makedirs(fdir)
+            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
+        fname = f"density_{mas}_{str(nsim).zfill(5)}_{str(nsnap).zfill(5)}.npy"
+        return join(fdir, fname)
+
     def knnauto_path(self, run, nsim=None):
         """
         Path to the `knn` auto-correlation files. If `nsim` is not specified
