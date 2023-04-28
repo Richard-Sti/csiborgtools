@@ -198,10 +198,8 @@ class RealisationsMatcher:
                 except KeyError:
                     halox = halosx_archive[str(kf)]
                     minsx, maxsx = get_halolims(
-                        halox,
-                        ncells=self.overlapper.inv_clength,
-                        nshift=self.overlapper.nshift,
-                    )
+                        halox, ncells=self.overlapper.inv_clength,
+                        nshift=self.overlapper.nshift)
                     for p in ("x", "y", "z"):
                         halox[p] = self.overlapper.pos2cell(halox[p])
                     cross_halos[kf] = halox
