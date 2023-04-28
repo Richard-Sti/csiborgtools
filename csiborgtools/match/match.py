@@ -561,19 +561,9 @@ class ParticleOverlap:
             gaussian_filter(delta2, output=delta2, **smooth_kwargs)
         return delta1, delta2, cellmins, nonzero
 
-    def __call__(
-        self,
-        clump1,
-        clump2,
-        delta_bckg,
-        mins1=None,
-        maxs1=None,
-        mins2=None,
-        maxs2=None,
-        mass1=None,
-        mass2=None,
-        smooth_kwargs=None,
-    ):
+    def __call__(self, clump1, clump2, delta_bckg, mins1=None, maxs1=None,
+                 mins2=None, maxs2=None, mass1=None, mass2=None,
+                 smooth_kwargs=None):
         """
         Calculate overlap between `clump1` and `clump2`. See
         `calculate_overlap(...)` for further information. Be careful so that
@@ -778,9 +768,8 @@ def calculate_overlap(delta1, delta2, cellmins, delta_bckg):
 
 
 @jit(nopython=True)
-def calculate_overlap_indxs(
-    delta1, delta2, cellmins, delta_bckg, nonzero, mass1, mass2
-):
+def calculate_overlap_indxs(delta1, delta2, cellmins, delta_bckg, nonzero,
+                            mass1, mass2):
     r"""
     Overlap between two clumps whose density fields are evaluated on the
     same grid and `nonzero1` enumerates the non-zero cells of `delta1.  This is
@@ -851,15 +840,14 @@ def dist_centmass(clump):
         Center of mass coordinates.
     """
     # CM along each dimension
-    cmx, cmy, cmz = [
-        numpy.average(clump[p], weights=clump["M"]) for p in ("x", "y", "z")
-    ]
+    cmx, cmy, cmz = [numpy.average(clump[p], weights=clump["M"])
+                     for p in ("x", "y", "z")]
     # Particle distance from the CM
     dist = numpy.sqrt(
         numpy.square(clump["x"] - cmx)
         + numpy.square(clump["y"] - cmy)
         + numpy.square(clump["z"] - cmz)
-    )
+        )
 
     return dist, numpy.asarray([cmx, cmy, cmz])
 
@@ -886,9 +874,8 @@ def dist_percentile(dist, qs, distmax=0.075):
     return x
 
 
-def radius_neighbours(
-    knn, X, radiusX, radiusKNN, nmult=1.0, enforce_int32=False, verbose=True
-):
+def radius_neighbours(knn, X, radiusX, radiusKNN, nmult=1.0,
+                      enforce_int32=False, verbose=True):
     """
     Find all neigbours of a trained KNN model whose center of mass separation
     is less than `nmult` times the sum of their respective radii.
