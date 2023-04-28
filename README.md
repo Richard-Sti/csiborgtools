@@ -8,17 +8,9 @@
 - [x] Sort out the splitting of individual clumps.
 - [x] Update the fitting scripts to work for clumps and parent halos.
 
-<<<<<<< HEAD
 - [ ] When calculating the overlap now check whether the halos have any particles, but that should already be the case otherwise its initial CM will not be defined.
 - [ ] Calculated fitted quantities for clumps and parent halos and add them to the catalogues.
 - [ ] Update overlap scripts to work with summed parent halos.
-=======
-- [x] Sort out the splitting of individual clumps.
-- [x] Update the fitting scripts to work for clumps and parent halos.
-- [ ] Calculated fitted quantities for clumps and parent halos and add them to the catalogues.
-- [ ] Update overlap scripts to work with summed parent halos.
-- [x] Update the clustering scripts to work with clumps instead.
->>>>>>> Update TODO
 
 - [ ] Calculate the overlap between all 101 IC realisations on DiRAC.
 
