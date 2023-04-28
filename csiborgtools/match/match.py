@@ -115,9 +115,9 @@ class RealisationsMatcher:
 
         Parameters
         ----------
-        cat0 : :py:class:`csiborgtools.read.ClumpsCatalogue`
+        cat0 : :py:class:`csiborgtools.read.HaloCatalogue`
             Halo catalogue of the reference simulation.
-        catx : :py:class:`csiborgtools.read.ClumpsCatalogue`
+        catx : :py:class:`csiborgtools.read.HaloCatalogue`
             Halo catalogue of the cross simulation.
         halos0_archive : `NpzFile` object
             Archive of halos' particles of the reference simulation, keys must
