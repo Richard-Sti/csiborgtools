@@ -16,8 +16,8 @@ Script to load in the simulation particles and dump them to a HDF5 file for the
 SPH density field calculation.
 """
 
-from gc import collect
 from datetime import datetime
+from gc import collect
 
 import h5py
 import numpy
