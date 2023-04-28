@@ -17,6 +17,7 @@ SPH density field calculation.
 """
 
 from gc import collect
+from datetime import datetime
 
 import h5py
 import numpy
@@ -52,9 +53,11 @@ else:
 
 # We MPI loop over individual simulations.
 jobs = csiborgtools.fits.split_jobs(len(ics), nproc)[rank]
-for i in range(jobs):
+for i in jobs:
     nsim = ics[i]
     nsnap = max(paths.get_snapshots(nsim))
+    print(f"{datetime.now()}: Rank {rank} completing simulation {nsim}.",
+          flush=True)
 
     # We read in the particles from RASMSES files, switch from a
     # structured array to 2-dimensional array and dump it.
@@ -65,7 +68,7 @@ for i in range(jobs):
     for j, par in enumerate(pars_extract):
         out[:, j] = parts[par]
 
-    with h5py.File(paths.particle_h5py_path(nsnap, nsim), "w") as f:
+    with h5py.File(paths.particle_h5py_path(nsim), "w") as f:
         dset = f.create_dataset("particles", data=out)
 
     del parts, out
