@@ -422,7 +422,8 @@ class ParticleOverlap:
 
         return delta
 
-    def make_delta(self, clump, mins=None, maxs=None, subbox=False, smooth_kwargs=None):
+    def make_delta(self, clump, mins=None, maxs=None, subbox=False,
+                   smooth_kwargs=None):
         """
         Calculate a NGP density field of a halo on a cubic grid. Optionally can
         be smoothed with a Gaussian kernel.
@@ -611,8 +612,8 @@ class ParticleOverlap:
         overlap : float
         """
         delta1, delta2, cellmins, nonzero = self.make_deltas(
-            clump1, clump2, mins1, maxs1, mins2, maxs2, smooth_kwargs=smooth_kwargs
-        )
+            clump1, clump2, mins1, maxs1, mins2, maxs2,
+            smooth_kwargs=smooth_kwargs)
 
         if smooth_kwargs is not None:
             return calculate_overlap(delta1, delta2, cellmins, delta_bckg)
