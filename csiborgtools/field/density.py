@@ -113,10 +113,9 @@ class BaseField(ABC):
 
     def evaluate_sky(self, *fields, pos, isdeg=True):
         """
-        Evaluate the field at given distance, right ascension and declination.
-        Assumes an observed in the centre of the box, with distance being in
-        :math:`Mpc`. Uses CIC interpolation.
-
+        Evaluate the scalar fields at given distance, right ascension and
+        declination. Assumes an observed in the centre of the box, with
+        distance being in :math:`Mpc`. Uses CIC interpolation.
 
         Parameters
         ----------
@@ -142,28 +141,23 @@ class BaseField(ABC):
         X -= 0.5
         return self.evaluate_field(*fields, pos=X)
 
-    def make_sky_map(self, ra, dec, field, dist_marg, isdeg=True,
-                     verbose=True):
-        """
-        Make a sky map of a density field. Places the observed in the center of
-        the box and evaluates the field in directions `ra`, `dec`. At each such
-        position evaluates the field at distances `dist_marg` and sums these
-        interpolated values of the field.
-
-        NOTE: Supports only scalar fields.
+    def make_sky(self, field, angpos, dist, verbose=True):
+        r"""
+        Make a sky map of a scalar field. The observer is in the centre of the
+        box the field is evaluated along directions `angpos`. Along each
+        direction, the field is evaluated distances `dist_marg` and summed.
+        Uses CIC interpolation.
 
         Parameters
         ----------
-        ra, dec : 1-dimensional arrays of shape `(n_pos, )`
-            Directions to evaluate the field. Assumes `dec` is in [-90, 90]
-            degrees (or equivalently in radians).
         field : 3-dimensional array of shape `(grid, grid, grid)`
-            Density field that is to be interpolated. Assumed to be defined
-            on a Cartesian grid `[0, self.boxsize]^3`.
-        dist_marg : 1-dimensional array
+            Field to be interpolated
+        angpos : 2-dimensional arrays of shape `(ndir, 2)`
+            Directions to evaluate the field. Assumed to be RA
+            :math:`\in [0, 360]` and dec :math:`\in [-90, 90]` degrees,
+            respectively.
+        dist : 1-dimensional array
             Radial distances to evaluate the field.
-        isdeg : bool, optional
-            Whether `ra` and `dec` are in degres. By default `True`.
         verbose : bool, optional
             Verbosity flag.
 
@@ -171,27 +165,17 @@ class BaseField(ABC):
         -------
         interp_field : 1-dimensional array of shape `(n_pos, )`.
         """
-        raise NotImplementedError("This method is not yet implemented.")
-        # Angular positions at which to evaluate the field
-        Nang = ra.size
-        pos = numpy.vstack([ra, dec]).T
-
-        # Now loop over the angular positions, each time evaluating a vector
-        # of distances. Pre-allocate arrays for speed
-        ra_loop = numpy.ones_like(dist_marg)
-        dec_loop = numpy.ones_like(dist_marg)
-        pos_loop = numpy.ones((dist_marg.size, 3), dtype=numpy.float32)
-
-        out = numpy.zeros(Nang, dtype=numpy.float32)
-        for i in trange(Nang) if verbose else range(Nang):
-            # Get the position vector for this choice of theta, phi
-            ra_loop[:] = pos[i, 0]
-            dec_loop[:] = pos[i, 1]
-            pos_loop[:] = numpy.vstack([dist_marg, ra_loop, dec_loop]).T
-            # Evaluate and sum it up
-            out[i] = numpy.sum(self.evaluate_sky(field, pos_loop, isdeg)[0, :])
-
-#         return out
+        assert angpos.ndim == 2 and dist.ndim == 1
+        # We loop over the angular directions, at each step evaluating a vector
+        # of distances. We pre-allocate arrays for speed.
+        dir_loop = numpy.full((dist.size, 3), numpy.nan, dtype=numpy.float32)
+        ndir = angpos.shape[0]
+        out = numpy.zeros(ndir, numpy.nan, dtype=numpy.float32)
+        for i in trange(ndir) if verbose else range(ndir):
+            dir_loop[1, :] = angpos[i, 0]
+            dir_loop[2, :] = angpos[i, 1]
+            out[i] = numpy.sum(self.evaluate_sky(field, dir_loop, isdeg=True))
+        return out
 
 
 ###############################################################################
