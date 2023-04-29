@@ -27,12 +27,12 @@ class PairOverlap:
 
     Parameters
     ----------
-    cat0, catx: :py:class:`csiborgtools.read.ClumpsCatalogue`
-        Halo catalogues corresponding to the reference and cross
-        simulations.
-    fskel : str, optional
-        Path to the overlap. By default `None`, i.e.
-        `/mnt/extraspace/rstiskalek/csiborg/overlap/cross_{}_{}.npz`.
+    cat0 : :py:class:`csiborgtools.read.HaloCatalogue`
+        Halo catalogue corresponding to the reference simulation.
+    catx : :py:class:`csiborgtools.read.HaloCatalogue`
+        Halo catalogue corresponding to the cross simulation.
+    paths : py:class`csiborgtools.read.CSiBORGPaths`
+        CSiBORG paths object.
     min_mass : float, optional
         Minimum :math:`M_{\rm tot} / M_\odot` mass in the reference catalogue.
         By default no threshold.
@@ -44,7 +44,7 @@ class PairOverlap:
     _catx = None
     _data = None
 
-    def __init__(self, cat0, catx, fskel=None, min_mass=None, max_dist=None):
+    def __init__(self, cat0, catx, paths, min_mass=None, max_dist=None):
         self._cat0 = cat0
         self._catx = catx
 
