@@ -16,6 +16,7 @@
 Density field and cross-correlation calculations.
 """
 from abc import ABC
+from warnings import warn
 
 import MAS_library as MASL
 import numpy
@@ -80,109 +81,115 @@ class BaseField(ABC):
         assert MAS in ["NGP", "CIC", "TSC", "PCS"]
         self._MAS = MAS
 
-#     def evaluate_field(self, *field, pos):
-#         """
-#         Evaluate the field at Cartesian coordinates using CIC interpolation.
-#
-#         Parameters
-#         ----------
-#         field : (list of) 3-dimensional array of shape `(grid, grid, grid)`
-#             Density field that is to be interpolated.
-#         pos : 2-dimensional array of shape `(n_samples, 3)`
-#             Positions to evaluate the density field. The coordinates span range
-#             of [0, boxsize].
-#
-#         Returns
-#         -------
-#         interp_field : (list of) 1-dimensional array of shape `(n_samples,).
-#         """
+    def evaluate_cartesian(self, *fields, pos):
+        """
+        Evaluate a scalar field at Cartesian coordinates using CIC
+        interpolation.
+
+        Parameters
+        ----------
+        field : (list of) 3-dimensional array of shape `(grid, grid, grid)`
+            Density field that is to be interpolated.
+        pos : 2-dimensional array of shape `(n_samples, 3)`
+            Positions to evaluate the density field. Assumed to be in box
+            units.
+
+        Returns
+        -------
+        interp_field : (list of) 1-dimensional array of shape `(n_samples,).
+        """
+        pos = force_single_precision(pos, "pos")
+
+        nsamples = pos.shape[0]
+        interp_fields = [numpy.full(nsamples, numpy.nan, dtype=numpy.float32)
+                         for __ in range(len(fields))]
+        for i, field in enumerate(fields):
+            MASL.CIC_interp(field, self.boxsize, pos, interp_fields[i])
+
+        if len(fields) == 1:
+            return interp_fields[0]
+        return interp_fields
+
+    def evaluate_sky(self, *field, pos, isdeg=True):
+        """
+        Evaluate the field at given distance, right ascension and declination.
+        Assumes that the observed is in the centre of the box and uses CIC
+        interpolation.
+
+        Parameters
+        ----------
+        field : (list of) 3-dimensional array of shape `(grid, grid, grid)`
+            Density field that is to be interpolated. Assumed to be defined
+            on a Cartesian grid.
+        pos : 2-dimensional array of shape `(n_samples, 3)`
+            Spherical coordinates to evaluate the field. Should be distance,
+            right ascension, declination, respectively.
+        isdeg : bool, optional
+            Whether `ra` and `dec` are in degres. By default `True`.
+
+        Returns
+        -------
+        interp_field : (list of) 1-dimensional array of shape `(n_samples,).
+        """
+        # TODO: implement this
+        raise NotImplementedError("This method is not yet implemented.")
 #         self._force_f32(pos, "pos")
-#
-#         interp_field = [numpy.zeros(pos.shape[0], dtype=numpy.float32)
-#                         for __ in range(len(field))]
-#         for i, f in enumerate(field):
-#             MASL.CIC_interp(f, self.boxsize, pos, interp_field[i])
-#         return interp_field
-#
-#     def evaluate_sky(self, *field, pos, isdeg=True):
-#         """
-#         Evaluate the field at given distance, right ascension and declination.
-#         Assumes that the observed is in the centre of the box and uses CIC
-#         interpolation.
-#
-#         Parameters
-#         ----------
-#         field : (list of) 3-dimensional array of shape `(grid, grid, grid)`
-#             Density field that is to be interpolated. Assumed to be defined
-#             on a Cartesian grid.
-#         pos : 2-dimensional array of shape `(n_samples, 3)`
-#             Spherical coordinates to evaluate the field. Should be distance,
-#             right ascension, declination, respectively.
-#         isdeg : bool, optional
-#             Whether `ra` and `dec` are in degres. By default `True`.
-#
-#         Returns
-#         -------
-#         interp_field : (list of) 1-dimensional array of shape `(n_samples,).
-#         """
-#         # TODO: implement this
-#         raise NotImplementedError("This method is not yet implemented.")
-# #         self._force_f32(pos, "pos")
-# #         X = numpy.vstack(
-# #             radec_to_cartesian(*(pos[:, i] for i in range(3)), isdeg)).T
-# #         X = X.astype(numpy.float32)
-# #         # Place the observer at the center of the box
-# #         X += 0.5 * self.boxsize
-# #         return self.evaluate_field(*field, pos=X)
-#
-#     def make_sky_map(self, ra, dec, field, dist_marg, isdeg=True,
-#                      verbose=True):
-#         """
-#         Make a sky map of a density field. Places the observed in the center of
-#         the box and evaluates the field in directions `ra`, `dec`. At each such
-#         position evaluates the field at distances `dist_marg` and sums these
-#         interpolated values of the field.
-#
-#         NOTE: Supports only scalar fields.
-#
-#         Parameters
-#         ----------
-#         ra, dec : 1-dimensional arrays of shape `(n_pos, )`
-#             Directions to evaluate the field. Assumes `dec` is in [-90, 90]
-#             degrees (or equivalently in radians).
-#         field : 3-dimensional array of shape `(grid, grid, grid)`
-#             Density field that is to be interpolated. Assumed to be defined
-#             on a Cartesian grid `[0, self.boxsize]^3`.
-#         dist_marg : 1-dimensional array
-#             Radial distances to evaluate the field.
-#         isdeg : bool, optional
-#             Whether `ra` and `dec` are in degres. By default `True`.
-#         verbose : bool, optional
-#             Verbosity flag.
-#
-#         Returns
-#         -------
-#         interp_field : 1-dimensional array of shape `(n_pos, )`.
-#         """
-#         # Angular positions at which to evaluate the field
-#         Nang = ra.size
-#         pos = numpy.vstack([ra, dec]).T
-#
-#         # Now loop over the angular positions, each time evaluating a vector
-#         # of distances. Pre-allocate arrays for speed
-#         ra_loop = numpy.ones_like(dist_marg)
-#         dec_loop = numpy.ones_like(dist_marg)
-#         pos_loop = numpy.ones((dist_marg.size, 3), dtype=numpy.float32)
-#
-#         out = numpy.zeros(Nang, dtype=numpy.float32)
-#         for i in trange(Nang) if verbose else range(Nang):
-#             # Get the position vector for this choice of theta, phi
-#             ra_loop[:] = pos[i, 0]
-#             dec_loop[:] = pos[i, 1]
-#             pos_loop[:] = numpy.vstack([dist_marg, ra_loop, dec_loop]).T
-#             # Evaluate and sum it up
-#             out[i] = numpy.sum(self.evaluate_sky(field, pos_loop, isdeg)[0, :])
-#
+#         X = numpy.vstack(
+#             radec_to_cartesian(*(pos[:, i] for i in range(3)), isdeg)).T
+#         X = X.astype(numpy.float32)
+#         # Place the observer at the center of the box
+#         X += 0.5 * self.boxsize
+#         return self.evaluate_field(*field, pos=X)
+
+    def make_sky_map(self, ra, dec, field, dist_marg, isdeg=True,
+                     verbose=True):
+        """
+        Make a sky map of a density field. Places the observed in the center of
+        the box and evaluates the field in directions `ra`, `dec`. At each such
+        position evaluates the field at distances `dist_marg` and sums these
+        interpolated values of the field.
+
+        NOTE: Supports only scalar fields.
+
+        Parameters
+        ----------
+        ra, dec : 1-dimensional arrays of shape `(n_pos, )`
+            Directions to evaluate the field. Assumes `dec` is in [-90, 90]
+            degrees (or equivalently in radians).
+        field : 3-dimensional array of shape `(grid, grid, grid)`
+            Density field that is to be interpolated. Assumed to be defined
+            on a Cartesian grid `[0, self.boxsize]^3`.
+        dist_marg : 1-dimensional array
+            Radial distances to evaluate the field.
+        isdeg : bool, optional
+            Whether `ra` and `dec` are in degres. By default `True`.
+        verbose : bool, optional
+            Verbosity flag.
+
+        Returns
+        -------
+        interp_field : 1-dimensional array of shape `(n_pos, )`.
+        """
+        raise NotImplementedError("This method is not yet implemented.")
+        # Angular positions at which to evaluate the field
+        Nang = ra.size
+        pos = numpy.vstack([ra, dec]).T
+
+        # Now loop over the angular positions, each time evaluating a vector
+        # of distances. Pre-allocate arrays for speed
+        ra_loop = numpy.ones_like(dist_marg)
+        dec_loop = numpy.ones_like(dist_marg)
+        pos_loop = numpy.ones((dist_marg.size, 3), dtype=numpy.float32)
+
+        out = numpy.zeros(Nang, dtype=numpy.float32)
+        for i in trange(Nang) if verbose else range(Nang):
+            # Get the position vector for this choice of theta, phi
+            ra_loop[:] = pos[i, 0]
+            dec_loop[:] = pos[i, 1]
+            pos_loop[:] = numpy.vstack([dist_marg, ra_loop, dec_loop]).T
+            # Evaluate and sum it up
+            out[i] = numpy.sum(self.evaluate_sky(field, pos_loop, isdeg)[0, :])
+
 #         return out
 
 
@@ -236,7 +243,10 @@ class DensityField(BaseField):
     @pos.setter
     def pos(self, pos):
         assert pos.ndim == 2
-        pos = force_single_precision(pos)
+        warn("Flipping the `x` and `z` coordinates of the particle positions.",
+             UserWarning, stacklevel=1)
+        pos[:, [0, 2]] = pos[:, [2, 0]]
+        pos = force_single_precision(pos, "particle_position")
         self._pos = pos
 
     @property
@@ -253,7 +263,7 @@ class DensityField(BaseField):
     @mass.setter
     def mass(self, mass):
         assert mass.ndim == 1
-        mass = force_single_precision(mass)
+        mass = force_single_precision(mass, "particle_mass")
         self._mass = mass
 
     def smoothen(self, field, smooth_scale, threads=1):
