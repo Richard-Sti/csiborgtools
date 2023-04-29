@@ -326,7 +326,7 @@ class CSiBORGPaths:
         fname = f"radpos_{str(nsim).zfill(5)}_{str(nsnap).zfill(5)}.npz"
         return join(fdir, fname)
 
-    def particle_h5py_path(self, nsim):
+    def particle_h5py_path(self, nsim, with_vel):
         """
         Path to the files containing all particles in a `.hdf5` file. Used for
         the SPH calculation.
@@ -335,6 +335,8 @@ class CSiBORGPaths:
         ----------
         nsim : int
             IC realisation index.
+        with_vel : bool
+            Whether velocities are included.
 
         Returns
         -------
@@ -344,7 +346,10 @@ class CSiBORGPaths:
         if not isdir(fdir):
             makedirs(fdir)
             warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
-        fname = f"particles_{str(nsim).zfill(5)}.h5"
+        if with_vel:
+            fname = f"parts_{str(nsim).zfill(5)}.h5"
+        else:
+            fname = f"parts_pos_{str(nsim).zfill(5)}.h5"
         return join(fdir, fname)
 
     def density_field_path(self, mas, nsim):
