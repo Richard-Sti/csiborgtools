@@ -18,9 +18,9 @@ SPH density field calculation.
 
 from datetime import datetime
 from gc import collect
+from distutils.util import strtobool
 
 import h5py
-import numpy
 from mpi4py import MPI
 
 try:
@@ -42,16 +42,22 @@ nproc = comm.Get_size()
 parser = ArgumentParser()
 parser.add_argument("--ics", type=int, nargs="+", default=None,
                     help="IC realisatiosn. If `-1` processes all simulations.")
+parser.add_argument("--with_vel", type=lambda x: bool(strtobool(x)),
+                    help="Whether to include velocities in the particle file.")
 args = parser.parse_args()
 paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
 partreader = csiborgtools.read.ParticleReader(paths)
-pars_extract = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'M']
+if args.with_vel:
+    pars_extract = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'M']
+else:
+    pars_extract = ['x', 'y', 'z', 'M']
 if args.ics is None or args.ics == -1:
     ics = paths.get_ics(tonew=False)
 else:
     ics = args.ics
 
-# We MPI loop over individual simulations.
+# MPI loop over individual simulations. We read in the particles from RAMSES
+# files and dump them to a HDF5 file.
 jobs = csiborgtools.fits.split_jobs(len(ics), nproc)[rank]
 for i in jobs:
     nsim = ics[i]
@@ -59,17 +65,11 @@ for i in jobs:
     print(f"{datetime.now()}: Rank {rank} completing simulation {nsim}.",
           flush=True)
 
-    # We read in the particles from RASMSES files, switch from a
-    # structured array to 2-dimensional array and dump it.
-    parts = partreader.read_particle(nsnap, nsim, pars_extract,
-                                     verbose=nproc == 1)
-    out = numpy.full((parts.size, len(pars_extract)), numpy.nan,
-                     dtype=numpy.float32)
-    for j, par in enumerate(pars_extract):
-        out[:, j] = parts[par]
+    out = partreader.read_particle(
+        nsnap, nsim, pars_extract, return_structured=False, verbose=nproc == 1)
 
     with h5py.File(paths.particle_h5py_path(nsim), "w") as f:
         dset = f.create_dataset("particles", data=out)
 
-    del parts, out
+    del out
     collect()
