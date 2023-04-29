@@ -220,7 +220,7 @@ class ParticleReader:
         # Open the particle files
         nparts, partfiles = self.open_particle(nsnap, nsim, verbose=verbose)
         if verbose:
-            print("Opened {} particle files.".format(nparts.size))
+            print(f"Opened {nparts.size} particle files.")
         ncpu = nparts.size
         # Order in which the particles are written in the FortranFile
         forder = [("x", numpy.float32), ("y", numpy.float32),
@@ -235,9 +235,7 @@ class ParticleReader:
             pars_extract = [pars_extract]
         for p in pars_extract:
             if p not in fnames:
-                raise ValueError(
-                    "Undefined parameter `{}`. Must be one of `{}`."
-                    .format(p, fnames))
+                raise ValueError(f"Undefined parameter `{p}`.")
 
         npart_tot = numpy.sum(nparts)
         # A dummy array is necessary for reading the fortran files.
@@ -294,9 +292,8 @@ class ParticleReader:
         """
         nsnap = str(nsnap).zfill(5)
         cpu = str(cpu + 1).zfill(5)
-        fpath = join(self.paths.ic_path(nsim, tonew=False),
-                     "output_{}".format(nsnap),
-                     "unbinding_{}.out{}".format(nsnap, cpu))
+        fpath = join(self.paths.ic_path(nsim, tonew=False), f"output_{nsnap}",
+                     f"unbinding_{nsnap}.out{cpu}")
         return FortranFile(fpath)
 
     def read_clumpid(self, nsnap, nsim, verbose=True):
@@ -328,7 +325,7 @@ class ParticleReader:
             j = nparts[cpu]
             ff = self.open_unbinding(nsnap, nsim, cpu)
             clumpid[i:i + j] = ff.read_ints()
-            # Close
+
             ff.close()
 
         return clumpid
