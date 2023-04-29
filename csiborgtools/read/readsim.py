@@ -191,7 +191,8 @@ class ParticleReader:
         """
         return numpy.hstack([[0], numpy.cumsum(nparts[:-1])])
 
-    def read_particle(self, nsnap, nsim, pars_extract, verbose=True):
+    def read_particle(self, nsnap, nsim, pars_extract, return_structured=True,
+                      verbose=True):
         """
         Read particle files of a simulation at a given snapshot and return
         values of `pars_extract`.
@@ -204,12 +205,17 @@ class ParticleReader:
             IC realisation index.
         pars_extract : list of str
             Parameters to be extacted.
+        return_structured : bool, optional
+            Whether to return a structured array or a 2-dimensional array. If
+            the latter, then the order of the columns is the same as the order
+            of `pars_extract`. However, enforces single-precision floating
+            point format for all columns.
         verbose : bool, optional
             Verbosity flag while for reading the CPU outputs.
 
         Returns
         -------
-        out : structured array
+        out : array
         """
         # Open the particle files
         nparts, partfiles = self.open_particle(nsnap, nsim, verbose=verbose)
@@ -236,20 +242,29 @@ class ParticleReader:
         npart_tot = numpy.sum(nparts)
         # A dummy array is necessary for reading the fortran files.
         dum = numpy.full(npart_tot, numpy.nan, dtype=numpy.float16)
-        # These are the data we read along with types
-        dtype = {"names": pars_extract,
-                 "formats": [forder[fnames.index(p)][1] for p in pars_extract]}
-        # Allocate the output structured array
-        out = numpy.full(npart_tot, numpy.nan, dtype)
+        # We allocate the output structured/2D array
+        if return_structured:
+            # These are the data we read along with types
+            formats = [forder[fnames.index(p)][1] for p in pars_extract]
+            dtype = {"names": pars_extract, "formats": formats}
+            out = numpy.full(npart_tot, numpy.nan, dtype)
+        else:
+            par2arrpos = {par: i for i, par in enumerate(pars_extract)}
+            out = numpy.full((npart_tot, len(pars_extract)), numpy.nan,
+                             dtype=numpy.float32)
+
         start_ind = self.nparts_to_start_ind(nparts)
         iters = tqdm(range(ncpu)) if verbose else range(ncpu)
         for cpu in iters:
             i = start_ind[cpu]
             j = nparts[cpu]
-            # trunk-ignore(ruff/B905)
             for (fname, fdtype) in zip(fnames, fdtypes):
                 if fname in pars_extract:
-                    out[fname][i:i + j] = self.read_sp(fdtype, partfiles[cpu])
+                    single_part = self.read_sp(fdtype, partfiles[cpu])
+                    if return_structured:
+                        out[fname][i:i + j] = single_part
+                    else:
+                        out[i:i + j, par2arrpos[fname]] = single_part
                 else:
                     dum[i:i + j] = self.read_sp(fdtype, partfiles[cpu])
         # Close the fortran files
