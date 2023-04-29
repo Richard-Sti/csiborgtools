@@ -25,6 +25,7 @@ import smoothing_library as SL
 from tqdm import trange
 
 from .utils import force_single_precision
+from ..read.utils import radec_to_cartesian
 
 
 class BaseField(ABC):
@@ -89,14 +90,14 @@ class BaseField(ABC):
         Parameters
         ----------
         field : (list of) 3-dimensional array of shape `(grid, grid, grid)`
-            Density field that is to be interpolated.
+            Fields to be interpolated.
         pos : 2-dimensional array of shape `(n_samples, 3)`
             Positions to evaluate the density field. Assumed to be in box
             units.
 
         Returns
         -------
-        interp_field : (list of) 1-dimensional array of shape `(n_samples,).
+        interp_fields : (list of) 1-dimensional array of shape `(n_samples,).
         """
         pos = force_single_precision(pos, "pos")
 
@@ -110,36 +111,36 @@ class BaseField(ABC):
             return interp_fields[0]
         return interp_fields
 
-    def evaluate_sky(self, *field, pos, isdeg=True):
+    def evaluate_sky(self, *fields, pos, isdeg=True):
         """
         Evaluate the field at given distance, right ascension and declination.
-        Assumes that the observed is in the centre of the box and uses CIC
-        interpolation.
+        Assumes an observed in the centre of the box, with distance being in
+        :math:`Mpc`. Uses CIC interpolation.
+
 
         Parameters
         ----------
-        field : (list of) 3-dimensional array of shape `(grid, grid, grid)`
-            Density field that is to be interpolated. Assumed to be defined
-            on a Cartesian grid.
+        fields : (list of) 3-dimensional array of shape `(grid, grid, grid)`
+            Field to be interpolated.
         pos : 2-dimensional array of shape `(n_samples, 3)`
-            Spherical coordinates to evaluate the field. Should be distance,
+            Spherical coordinates to evaluate the field. Columns are distance,
             right ascension, declination, respectively.
         isdeg : bool, optional
             Whether `ra` and `dec` are in degres. By default `True`.
 
         Returns
         -------
-        interp_field : (list of) 1-dimensional array of shape `(n_samples,).
+        interp_fields : (list of) 1-dimensional array of shape `(n_samples,).
         """
-        # TODO: implement this
-        raise NotImplementedError("This method is not yet implemented.")
-#         self._force_f32(pos, "pos")
-#         X = numpy.vstack(
-#             radec_to_cartesian(*(pos[:, i] for i in range(3)), isdeg)).T
-#         X = X.astype(numpy.float32)
-#         # Place the observer at the center of the box
-#         X += 0.5 * self.boxsize
-#         return self.evaluate_field(*field, pos=X)
+        pos = force_single_precision(pos, "pos")
+        # We first calculate convert the distance to box coordinates and then
+        # convert to Cartesian coordinates.
+        X = numpy.copy(pos)
+        X[:, 0] = self.box.mpc2box(X[:, 0])
+        X = radec_to_cartesian(pos, isdeg)
+        # Then we move the origin to match the box coordinates
+        X -= 0.5
+        return self.evaluate_field(*fields, pos=X)
 
     def make_sky_map(self, ra, dec, field, dist_marg, isdeg=True,
                      verbose=True):
