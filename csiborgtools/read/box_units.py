@@ -193,6 +193,23 @@ class BoxUnits:
         """
         return length / (self._unit_l / units.kpc.to(units.cm) / self._aexp)
 
+    def mpc2box(self, length):
+        r"""
+        Convert length from :math:`\mathrm{cMpc}` (with :math:`h=0.705`) to
+        box units.
+
+        Parameters
+        ----------
+        length : float
+            Length in :math:`\mathrm{cMpc}`
+
+        Returns
+        -------
+        length : foat
+            Length in box units.
+        """
+        return self.kpc2box(length * 1e3)
+
     def box2mpc(self, length):
         r"""
         Convert length from box units to :math:`\mathrm{cMpc}` (with
