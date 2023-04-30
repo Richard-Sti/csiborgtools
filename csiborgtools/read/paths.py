@@ -145,28 +145,6 @@ class CSiBORGPaths:
             warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
         return join(fdir, f"{kind}_{str(nsim).zfill(5)}.npy")
 
-    def split_path(self, nsnap, nsim):
-        """
-        Path to the `split` files from `pre_splithalos`.
-
-        Parameters
-        ----------
-        nsnap : int
-            Snapshot index.
-        nsim : int
-            IC realisation index.
-
-        Returns
-        -------
-        path : str
-        """
-        fdir = join(self.postdir, "split")
-        if not isdir(fdir):
-            mkdir(fdir)
-            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
-        return join(
-            fdir, f"clumps_{str(nsim).zfill(5)}_{str(nsnap).zfill(5)}.npz")
-
     def get_ics(self, tonew):
         """
         Get CSiBORG IC realisation IDs from the list of folders in
