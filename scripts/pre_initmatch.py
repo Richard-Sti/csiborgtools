@@ -52,7 +52,7 @@ paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
 partreader = csiborgtools.read.ParticleReader(paths)
 ftemp = lambda kind, nsim, rank: join(paths.temp_dumpdir, f"{kind}_{nsim}_{rank}.p")  # noqa
 
-if args.ics is None or args.ics == -1:
+if args.ics is None or args.ics[0] == -1:
     ics = paths.get_ics(tonew=True)
 else:
     ics = args.ics

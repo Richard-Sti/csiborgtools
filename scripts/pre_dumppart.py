@@ -57,11 +57,11 @@ if args.pos_only:
 else:
     pars_extract = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'M']
 
-if args.ics is None or args.ics == -1:
+if args.ics is None or args.ics[0] == -1:
     ics = paths.get_ics(tonew=False)
 else:
     ics = args.ics
-
+print(ics)
 # MPI loop over individual simulations. We read in the particles from RAMSES
 # files and dump them to a HDF5 file.
 jobs = csiborgtools.fits.split_jobs(len(ics), nproc)[rank]
