@@ -17,11 +17,13 @@ SPH density field calculation.
 """
 
 from datetime import datetime
-from gc import collect
 from distutils.util import strtobool
+from gc import collect
 
 import h5py
+import numpy
 from mpi4py import MPI
+from tqdm import tqdm
 
 try:
     import csiborgtools
@@ -42,15 +44,19 @@ nproc = comm.Get_size()
 parser = ArgumentParser()
 parser.add_argument("--ics", type=int, nargs="+", default=None,
                     help="IC realisatiosn. If `-1` processes all simulations.")
-parser.add_argument("--with_vel", type=lambda x: bool(strtobool(x)),
-                    help="Whether to include velocities in the particle file.")
+parser.add_argument("--pos_only", type=lambda x: bool(strtobool(x)),
+                    help="Do we only dump positions?")
 args = parser.parse_args()
+
+verbose = nproc == 1
 paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
 partreader = csiborgtools.read.ParticleReader(paths)
-if args.with_vel:
-    pars_extract = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'M']
-else:
+
+if args.pos_only:
     pars_extract = ['x', 'y', 'z', 'M']
+else:
+    pars_extract = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'M']
+
 if args.ics is None or args.ics == -1:
     ics = paths.get_ics(tonew=False)
 else:
@@ -62,14 +68,42 @@ jobs = csiborgtools.fits.split_jobs(len(ics), nproc)[rank]
 for i in jobs:
     nsim = ics[i]
     nsnap = max(paths.get_snapshots(nsim))
-    print(f"{datetime.now()}: Rank {rank} completing simulation {nsim}.",
+    print(f"{datetime.now()}: Rank {rank} loading particles {nsim}.",
           flush=True)
 
-    out = partreader.read_particle(
-        nsnap, nsim, pars_extract, return_structured=False, verbose=nproc == 1)
+    parts = partreader.read_particle(nsnap, nsim, pars_extract,
+                                     return_structured=False, verbose=verbose)
+    kind = "pos" if args.pos_only else None
 
-    with h5py.File(paths.particle_h5py_path(nsim), "w") as f:
-        dset = f.create_dataset("particles", data=out)
+    print(f"{datetime.now()}: Rank {rank} dumping particles from {nsim}.",
+          flush=True)
 
-    del out
+    with h5py.File(paths.particle_h5py_path(nsim, kind), "w") as f:
+        f.create_dataset("particles", data=parts)
+    del parts
+    collect()
+    # If we are dumping only particle positions, then we are done.
+    if args.pos_only:
+        continue
+
+    print(f"{datetime.now()}: Rank {rank} mapping particles from {nsim}.",
+          flush=True)
+    # If not, then load the clump IDs and prepare the memory mapping. We find
+    # which array positions correspond to which clump IDs and save it. With
+    # this we can then lazily load into memory the particles for each clump.
+    part_cids = partreader.read_clumpid(nsnap, nsim, verbose=verbose)
+    cat = csiborgtools.read.ClumpsCatalogue(nsim, paths, load_fitted=False,
+                                            rawdata=True)
+    clumpinds = cat["index"]
+    # Some of the clumps have no particles, so we do not loop over them
+    clumpinds = clumpinds[numpy.isin(clumpinds, part_cids)]
+
+    for i, cid in enumerate(tqdm(clumpinds) if verbose else clumpinds):
+        key = str(cid)
+
+        indxs = numpy.where(part_cids == cid)[0]
+        with h5py.File(paths.particle_h5py_path(nsim, "clumpmap"), "w") as f:
+            f.create_dataset(str(cid), data=indxs)
+
+    del part_cids, cat, clumpinds
     collect()
