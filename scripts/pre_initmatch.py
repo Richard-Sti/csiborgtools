@@ -126,7 +126,7 @@ for nsim in ics:
     cat = csiborgtools.read.ClumpsCatalogue(nsim, paths, load_fitted=False,
                                             rawdata=True)
     parent_ids = cat["index"][cat.ismain]
-    parent_ids = parent_ids[:100]
+    parent_ids = parent_ids
     hid2arrpos = {indx: j for j, indx in enumerate(parent_ids)}
     # And we pre-allocate the output array for this simulation.
     dtype = {"names": ["index", "x", "y", "z", "lagpatch"],
