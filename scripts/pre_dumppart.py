@@ -43,7 +43,7 @@ nproc = comm.Get_size()
 # And next parse all the arguments and set up CSiBORG objects
 parser = ArgumentParser()
 parser.add_argument("--ics", type=int, nargs="+", default=None,
-                    help="IC realisatiosn. If `-1` processes all simulations.")
+                    help="IC realisations. If `-1` processes all simulations.")
 parser.add_argument("--pos_only", type=lambda x: bool(strtobool(x)),
                     help="Do we only dump positions?")
 args = parser.parse_args()
