@@ -135,8 +135,7 @@ for i, nsim in enumerate(paths.get_ics(tonew=False)):
     # Particle archive
     particles = h5py.File(paths.particle_h5py_path(nsim), 'r')["particles"]
     clump_map = h5py.File(paths.particle_h5py_path(nsim, "clumpmap"), 'r')
-    clumps_cat = csiborgtools.read.ClumpsCatalogue(nsim, paths, maxdist=None,
-                                                   minmass=None, rawdata=True,
+    clumps_cat = csiborgtools.read.ClumpsCatalogue(nsim, paths, rawdata=True,
                                                    load_fitted=False)
     # We check whether we fit halos or clumps, will be indexing over different
     # iterators.
