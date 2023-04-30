@@ -839,7 +839,7 @@ def dist_centmass(clump):
     """
     # CM along each dimension
     cm = numpy.average(clump[:, :3], weights=clump[:, 3], axis=0)
-    return numpy.linalg.norm(clump[:, :3] - cm, axis=1)
+    return numpy.linalg.norm(clump[:, :3] - cm, axis=1), cm
 
 
 def dist_percentile(dist, qs, distmax=0.075):
