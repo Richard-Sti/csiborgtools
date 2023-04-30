@@ -132,18 +132,19 @@ class CSiBORGPaths:
         nsim : int
             IC realisation index.
         kind : str
-            Type of match.  Can be either `fit` or `particles`.
+            Type of match. Must be one of `["particles", "fit", "halomap"]`.
 
         Returns
         -------
         path : str
         """
-        assert kind in ["fit", "particles"]
+        assert kind in ["particles", "fit", "halomap"]
+        ftype = "npy" if kind == "fit" else "h5"
         fdir = join(self.postdir, "initmatch")
         if not isdir(fdir):
             mkdir(fdir)
             warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
-        return join(fdir, f"{kind}_{str(nsim).zfill(5)}.npy")
+        return join(fdir, f"{kind}_{str(nsim).zfill(5)}.{ftype}")
 
     def get_ics(self, tonew):
         """
