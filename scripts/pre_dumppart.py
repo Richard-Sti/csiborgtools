@@ -12,8 +12,8 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-Script to load in the simulation particles and dump them to a HDF5 file for the
-SPH density field calculation.
+Script to load in the simulation particles and dump them to a HDF5 file.
+Creates a mapping to access directly particles of a single clump.
 """
 
 from datetime import datetime
@@ -98,12 +98,14 @@ for i in jobs:
     # Some of the clumps have no particles, so we do not loop over them
     clumpinds = clumpinds[numpy.isin(clumpinds, part_cids)]
 
+    out = {}
     for i, cid in enumerate(tqdm(clumpinds) if verbose else clumpinds):
-        key = str(cid)
+        out.update({str(cid): numpy.where(part_cids == cid)[0]})
 
-        indxs = numpy.where(part_cids == cid)[0]
-        with h5py.File(paths.particle_h5py_path(nsim, "clumpmap"), "w") as f:
-            f.create_dataset(str(cid), data=indxs)
+    # We save the mapping to a HDF5 file
+    with h5py.File(paths.particle_h5py_path(nsim, "clumpmap"), "w") as f:
+        for cid, indxs in out.items():
+            f.create_dataset(cid, data=indxs)
 
-    del part_cids, cat, clumpinds
+    del part_cids, cat, clumpinds, out
     collect()

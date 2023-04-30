@@ -20,6 +20,7 @@ from argparse import ArgumentParser
 from datetime import datetime
 from os.path import join
 
+import h5py
 import numpy
 from mpi4py import MPI
 from tqdm import tqdm
@@ -94,19 +95,18 @@ def fit_clump(particles, clump_info, box):
     return out
 
 
-def load_clump_particles(clumpid, particle_archive):
+def load_clump_particles(clumpid, particles, clump_map):
     """
-    Load a clump's particles from the particle archive. If it is not there, i.e
-    clump has no associated particles, return `None`.
+    Load a clump's particles. If it is not there, i.e clump has no associated
+    particles, return `None`.
     """
     try:
-        part = particle_archive[str(clumpid)]
+        return particles[clump_map[clumpid], :]
     except KeyError:
-        part = None
-    return part
+        return None
 
 
-def load_parent_particles(clumpid, particle_archive, clumps_cat):
+def load_parent_particles(clumpid, particles, clump_map, clumps_cat):
     """
     Load a parent halo's particles.
     """
@@ -115,7 +115,7 @@ def load_parent_particles(clumpid, particle_archive, clumps_cat):
     # and then concatenate them for further analysis.
     clumps = []
     for ind in indxs:
-        parts = load_clump_particles(ind, particle_archive)
+        parts = load_clump_particles(ind, particles, clump_map)
         if parts is not None:
             clumps.append([parts, None])
 
@@ -133,8 +133,9 @@ for i, nsim in enumerate(paths.get_ics(tonew=False)):
     nsnap = max(paths.get_snapshots(nsim))
     box = csiborgtools.read.BoxUnits(nsnap, nsim, paths)
 
-    # Archive of clumps, keywords are their clump IDs
-    particle_archive = numpy.load(paths.split_path(nsnap, nsim))
+    # Particle archive
+    particles = h5py.File(paths.particle_h5py_path(nsim), 'r')
+    clump_map = h5py.File(paths.particle_h5py_path(nsim, "clumpmap"), 'r')
     clumps_cat = csiborgtools.read.ClumpsCatalogue(nsim, paths, maxdist=None,
                                                    minmass=None, rawdata=True,
                                                    load_fitted=False)
@@ -159,9 +160,10 @@ for i, nsim in enumerate(paths.get_ics(tonew=False)):
             continue
 
         if args.kind == "halos":
-            part = load_parent_particles(clumpid, particle_archive, clumps_cat)
+            part = load_parent_particles(clumpid, particles, clump_map,
+                                         clumps_cat)
         else:
-            part = load_clump_particles(clumpid, particle_archive)
+            part = load_clump_particles(clumpid, particles, clump_map)
 
         # We fit the particles if there are any. If not we assign the index,
         # otherwise it would be NaN converted to integers (-2147483648) and
