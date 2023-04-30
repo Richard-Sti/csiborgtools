@@ -117,12 +117,11 @@ def load_parent_particles(clumpid, particles, clump_map, clumps_cat):
     for ind in indxs:
         parts = load_clump_particles(ind, particles, clump_map)
         if parts is not None:
-            clumps.append([parts, None])
+            clumps.append(parts)
 
     if len(clumps) == 0:
         return None
-    return csiborgtools.match.concatenate_parts(clumps,
-                                                include_velocities=True)
+    return numpy.concatenate(clumps)
 
 
 # We now start looping over all simulations
@@ -134,7 +133,7 @@ for i, nsim in enumerate(paths.get_ics(tonew=False)):
     box = csiborgtools.read.BoxUnits(nsnap, nsim, paths)
 
     # Particle archive
-    particles = h5py.File(paths.particle_h5py_path(nsim), 'r')
+    particles = h5py.File(paths.particle_h5py_path(nsim), 'r')["particles"]
     clump_map = h5py.File(paths.particle_h5py_path(nsim, "clumpmap"), 'r')
     clumps_cat = csiborgtools.read.ClumpsCatalogue(nsim, paths, maxdist=None,
                                                    minmass=None, rawdata=True,
