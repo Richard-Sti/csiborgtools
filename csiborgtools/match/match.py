@@ -827,8 +827,8 @@ def dist_centmass(clump):
 
     Parameters
     ----------
-    clump : structurered arrays
-        Clump structured array. Keyes must include `x`, `y`, `z` and `M`.
+    clump : 2-dimensional array of shape (n_particles, 7)
+        Particle array. The first four columns must be `x`, `y`, `z` and `M`.
 
     Returns
     -------
@@ -838,16 +838,8 @@ def dist_centmass(clump):
         Center of mass coordinates.
     """
     # CM along each dimension
-    cmx, cmy, cmz = [numpy.average(clump[p], weights=clump["M"])
-                     for p in ("x", "y", "z")]
-    # Particle distance from the CM
-    dist = numpy.sqrt(
-        numpy.square(clump["x"] - cmx)
-        + numpy.square(clump["y"] - cmy)
-        + numpy.square(clump["z"] - cmz)
-        )
-
-    return dist, numpy.asarray([cmx, cmy, cmz])
+    cm = numpy.average(clump[:, :3], weights=clump[:, 3], axis=0)
+    return numpy.linalg.norm(clump[:, :3] - cm, axis=1)
 
 
 def dist_percentile(dist, qs, distmax=0.075):
