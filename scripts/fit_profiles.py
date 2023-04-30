@@ -20,6 +20,7 @@ from argparse import ArgumentParser
 from datetime import datetime
 from gc import collect
 
+import h5py
 import numpy
 from mpi4py import MPI
 from tqdm import trange
@@ -46,7 +47,6 @@ if nproc > 1:
     raise NotImplementedError("MPI is not implemented implemented yet.")
 
 paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
-partreader = csiborgtools.read.ParticleReader(paths)
 cols_collect = [("r", numpy.float32), ("M", numpy.float32)]
 if args.ics is None or args.ics == -1:
     nsims = paths.get_ics(tonew=False)
@@ -54,37 +54,36 @@ else:
     nsims = args.ics
 
 
-def load_clump_particles(clumpid, particle_archive):
+def load_clump_particles(clumpid, particles, clump_map):
     """
-    Load a clump's particles from the particle archive. If it is not there, i.e
-    clump has no associated particles, return `None`.
+    Load a clump's particles. If it is not there, i.e clump has no associated
+    particles, return `None`.
     """
     try:
-        part = particle_archive[str(clumpid)]
+        return particles[clump_map[clumpid], :]
     except KeyError:
-        part = None
-    return part
+        return None
 
 
-def load_parent_particles(clumpid, particle_archive, clumps_cat):
+def load_parent_particles(clumpid, particles, clump_map, clumps_cat):
     """
     Load a parent halo's particles.
     """
     indxs = clumps_cat["index"][clumps_cat["parent"] == clumpid]
-    # We first load the particles of each clump belonging to this
-    # parent and then concatenate them for further analysis.
+    # We first load the particles of each clump belonging to this parent
+    # and then concatenate them for further analysis.
     clumps = []
     for ind in indxs:
-        parts = load_clump_particles(ind, particle_archive)
+        parts = load_clump_particles(ind, particles, clump_map)
         if parts is not None:
             clumps.append(parts)
 
     if len(clumps) == 0:
         return None
-    return csiborgtools.match.concatenate_parts(clumps)
+    return numpy.concatenate(clumps)
 
 
-# We loop over simulations. Here later optionlaly add MPI.
+# We loop over simulations. Here later optionally add MPI.
 for i, nsim in enumerate(nsims):
     if rank == 0:
         now = datetime.now()
@@ -92,8 +91,8 @@ for i, nsim in enumerate(nsims):
     nsnap = max(paths.get_snapshots(nsim))
     box = csiborgtools.read.BoxUnits(nsnap, nsim, paths)
 
-    # Archive of clumps, keywords are their clump IDs
-    particle_archive = numpy.load(paths.split_path(nsnap, nsim))
+    particles = h5py.File(paths.particle_h5py_path(nsim), 'r')["particles"]
+    clump_map = h5py.File(paths.particle_h5py_path(nsim, "clumpmap"), 'r')
     clumps_cat = csiborgtools.read.ClumpsCatalogue(nsim, paths, maxdist=None,
                                                    minmass=None, rawdata=True,
                                                    load_fitted=False)
@@ -109,8 +108,8 @@ for i, nsim in enumerate(nsims):
             continue
 
         clumpid = clumps_cat["index"][j]
-
-        parts = load_parent_particles(clumpid, particle_archive, clumps_cat)
+        parts = load_parent_particles(clumpid, particles, clump_map,
+                                      clumps_cat)
         # If we have no particles, then do not save anything.
         if parts is None:
             continue
