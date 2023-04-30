@@ -111,8 +111,8 @@ for nsim in ics:
 
     comm.Bcast(part0, root=0)
     comm.Bcast(clump_ids, root=0)
-    print(f"{datetime.now()}: simulation {nsim} broadcasted.", flush=True)
-    print("rank", rank, clump_ids[:5], part0[:5, :], flush=True)
+    if rank == 0:
+        print(f"{datetime.now()}: simulation {nsim} broadcasted.", flush=True)
 
     # Calculate the centre of mass of each parent halo, the Lagrangian patch
     # size and optionally the initial snapshot particles belonging to this
