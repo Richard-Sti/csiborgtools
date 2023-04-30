@@ -91,9 +91,9 @@ for nsim in ics:
         del mask
         collect()
 
-        print(f"{datetime.now()}: dumping particles for {nsim}.", flush=True)
-        with h5py.File(paths.initmatch_path(nsim, "particles"), "w") as f:
-            f.create_dataset("particles", data=part0)
+#        print(f"{datetime.now()}: dumping particles for {nsim}.", flush=True)
+#        with h5py.File(paths.initmatch_path(nsim, "particles"), "w") as f:
+#            f.create_dataset("particles", data=part0)
 
         print(f"{datetime.now()}: broadcasting simulation {nsim}.", flush=True)
     # Stop all ranks and figure out array shapes from the 0th rank
@@ -194,6 +194,6 @@ for nsim in ics:
             for hid, indxs in out_map.items():
                 f.create_dataset(hid, data=indxs)
 
-    # We force clean up the memory before continuing.
-    del out_map, out_fits
+        # We force clean up the memory before continuing.
+        del out_map, out_fits
     collect()
