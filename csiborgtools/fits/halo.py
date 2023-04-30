@@ -40,8 +40,7 @@ class BaseStructure(ABC):
 
     @particles.setter
     def particles(self, particles):
-        pars = ["x", "y", "z", "M"]
-        assert all(p in particles.dtype.names for p in pars)
+        assert particles.ndim == 2 and particles.shape[1] == 7
         self._particles = particles
 
     @property
@@ -256,24 +255,14 @@ class BaseStructure(ABC):
             return numpy.nan, numpy.nan
         return rs[k], cmass[k]
 
-    @property
-    def keys(self):
-        """
-        Particle array keys.
-
-        Returns
-        -------
-        key : list of str
-        """
-        return self.particles.dtype.names
-
     def __getitem__(self, key):
+        keys = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'M']
         if key not in self.keys:
-            raise RuntimeError("Invalid key `{}`!".format(key))
-        return self.particles[key]
+            raise RuntimeError(f"Invalid key `{key}`!")
+        return self.particles[:, keys.index(key)]
 
     def __len__(self):
-        return self.particles.size
+        return self.particles.shape[0]
 
 
 class Clump(BaseStructure):
