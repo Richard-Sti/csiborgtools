@@ -137,6 +137,7 @@ for nsim in ics:
     _out_map = {}
     for i in trange(len(jobs)) if verbose else range(len(jobs)):
         clid = parent_ids[jobs[i]]
+        _out_fits["index"][i] = clid
         mmain_indxs = cat["index"][cat["parent"] == clid]
 
         mmain_mask = numpy.isin(clump_ids, mmain_indxs, assume_unique=True)
@@ -149,7 +150,6 @@ for nsim in ics:
         patchsize = csiborgtools.match.dist_percentile(raddist, [99],
                                                        distmax=0.075)
         # Write the temporary results
-        _out_fits["index"][i] = clid
         _out_fits["x"][i], _out_fits["y"][i], _out_fits["z"][i] = cmpos
         _out_fits["lagpatch"][i] = patchsize
         _out_map.update({str(clid): numpy.where(mmain_mask)[0]})
