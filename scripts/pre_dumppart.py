@@ -46,6 +46,8 @@ parser.add_argument("--ics", type=int, nargs="+", default=None,
                     help="IC realisations. If `-1` processes all simulations.")
 parser.add_argument("--pos_only", type=lambda x: bool(strtobool(x)),
                     help="Do we only dump positions?")
+parser.add_argument("--dtype", type=str, choices=["float32", "float64"],
+                    default="float32",)
 args = parser.parse_args()
 
 verbose = nproc == 1
@@ -61,7 +63,7 @@ if args.ics is None or args.ics[0] == -1:
     ics = paths.get_ics(tonew=False)
 else:
     ics = args.ics
-print(ics)
+
 # MPI loop over individual simulations. We read in the particles from RAMSES
 # files and dump them to a HDF5 file.
 jobs = csiborgtools.fits.split_jobs(len(ics), nproc)[rank]
@@ -73,15 +75,20 @@ for i in jobs:
 
     parts = partreader.read_particle(nsnap, nsim, pars_extract,
                                      return_structured=False, verbose=verbose)
+    if args.dtype == "float64":
+        parts = parts.astype(numpy.float64)
+
     kind = "pos" if args.pos_only else None
 
     print(f"{datetime.now()}: Rank {rank} dumping particles from {nsim}.",
           flush=True)
 
-    with h5py.File(paths.particle_h5py_path(nsim, kind), "w") as f:
+    with h5py.File(paths.particle_h5py_path(nsim, kind, args.dtype), "w") as f:
         f.create_dataset("particles", data=parts)
     del parts
     collect()
+    print(f"{datetime.now()}: Rank {rank} finished dumping of {nsim}.",
+          flush=True)
     # If we are dumping only particle positions, then we are done.
     if args.pos_only:
         continue
