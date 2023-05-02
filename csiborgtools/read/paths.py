@@ -305,7 +305,7 @@ class CSiBORGPaths:
         fname = f"radpos_{str(nsim).zfill(5)}_{str(nsnap).zfill(5)}.npz"
         return join(fdir, fname)
 
-    def particle_h5py_path(self, nsim, kind=None):
+    def particle_h5py_path(self, nsim, kind=None, dtype="float32"):
         """
         Path to the file containing all particles in a `.h5` file.
 
@@ -315,14 +315,15 @@ class CSiBORGPaths:
             IC realisation index.
         kind : str
             Type of output. Must be one of `[None, 'pos', 'clumpmap']`.
-        pos_only : bool
-            Whether this file contains only positions.
+        dtype : str
+            Data type. Must be one of `['float32', 'float64']`.
 
         Returns
         -------
         path : str
         """
         assert kind in [None, "pos", "clumpmap"]
+        assert dtype in ["float32", "float64"]
         fdir = join(self.postdir, "particles")
         if not isdir(fdir):
             makedirs(fdir)
@@ -331,6 +332,10 @@ class CSiBORGPaths:
             fname = f"parts_{str(nsim).zfill(5)}.h5"
         else:
             fname = f"parts_{kind}_{str(nsim).zfill(5)}.h5"
+
+        if dtype == "float64":
+            fname = fname.replace(".h5", "_f64.h5")
+
         return join(fdir, fname)
 
     def density_field_path(self, mas, nsim):
