@@ -77,12 +77,9 @@ for i in jobs:
                                      return_structured=False, verbose=verbose)
     if args.dtype == "float64":
         parts = parts.astype(numpy.float64)
-
     kind = "pos" if args.pos_only else None
-
     print(f"{datetime.now()}: Rank {rank} dumping particles from {nsim}.",
           flush=True)
-
     with h5py.File(paths.particle_h5py_path(nsim, kind, args.dtype), "w") as f:
         f.create_dataset("particles", data=parts)
     del parts
@@ -107,7 +104,8 @@ for i in jobs:
 
     out = {}
     for i, cid in enumerate(tqdm(clumpinds) if verbose else clumpinds):
-        out.update({str(cid): numpy.where(part_cids == cid)[0]})
+        mapping = numpy.where(part_cids == cid)[0].astype(numpy.int32)
+        out.update({str(cid): mapping})
 
     # We save the mapping to a HDF5 file
     with h5py.File(paths.particle_h5py_path(nsim, "clumpmap"), "w") as f:
