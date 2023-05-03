@@ -15,16 +15,14 @@
 from .box_units import BoxUnits  # noqa
 from .halo_cat import ClumpsCatalogue, HaloCatalogue  # noqa
 from .knn_summary import kNNCDFReader  # noqa
-from .obs import (  # noqa
-    SDSS,
-    MCXCClusters,
-    PlanckClusters,
-    TwoMPPGalaxies,
-    TwoMPPGroups,
-)
-from .overlap_summary import NPairsOverlap, PairOverlap, binned_resample_mean  # noqa
+from .obs import (SDSS, MCXCClusters, PlanckClusters, TwoMPPGalaxies,  # noqa
+                  TwoMPPGroups)
+from .overlap_summary import (NPairsOverlap, PairOverlap,  # noqa
+                              binned_resample_mean)
 from .paths import CSiBORGPaths  # noqa
 from .pk_summary import PKReader  # noqa
-from .readsim import MmainReader, ParticleReader, halfwidth_select, read_initcm  # noqa
+from .readsim import (MmainReader, ParticleReader, halfwidth_select,  # noqa
+                      load_clump_particles, load_parent_particles, read_initcm)
 from .tpcf_summary import TPCFReader  # noqa
-from .utils import cartesian_to_radec, cols_to_structured, radec_to_cartesian  # noqa
+from .utils import (cartesian_to_radec, cols_to_structured,  # noqa
+                    radec_to_cartesian)

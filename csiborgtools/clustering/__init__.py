@@ -15,13 +15,9 @@
 from warnings import warn
 
 from csiborgtools.clustering.knn import kNN_CDF  # noqa
-from csiborgtools.clustering.utils import (  # noqa
-    BaseRVS,
-    RVSinbox,
-    RVSinsphere,
-    RVSonsphere,
-    normalised_marks,
-)
+from csiborgtools.clustering.utils import (BaseRVS, RVSinbox,  # noqa
+                                           RVSinsphere, RVSonsphere,
+                                           normalised_marks)
 
 try:
     import Corrfunc  # noqa

@@ -12,14 +12,8 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-from .match import (  # noqa
-    ParticleOverlap,
-    RealisationsMatcher,
-    calculate_overlap,
-    calculate_overlap_indxs,
-    cosine_similarity,
-    dist_centmass,
-    dist_percentile,
-)
+from .match import (ParticleOverlap, RealisationsMatcher,  # noqa
+                    calculate_overlap, calculate_overlap_indxs,
+                    cosine_similarity, dist_centmass, dist_percentile)
 from .num_density import binned_counts, number_density  # noqa
 from .utils import concatenate_parts  # noqa
