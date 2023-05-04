@@ -549,3 +549,71 @@ def halfwidth_select(hw, particles):
     for p in ('x', 'y', 'z'):
         particles[p] = (particles[p] - 0.5 + hw) / (2 * hw)
     return particles
+
+
+def load_clump_particles(clumpid, clumparrpos, particles, clump_map):
+    """
+    Load a clump's particles from a particle array. If it is not there, i.e
+    clump has no associated particles, return `None`.
+
+    Parameters
+    ----------
+    clumpid : int
+        Clump ID.
+    clumparrpos : int
+        Clump array position in the raw catalogue.
+    particles : 2-dimensional array
+        Array of particles.
+    clump_map : dict
+        Dictionary mapping string of clump IDs to particle array positions.
+
+    Returns
+    -------
+    clump_particles : 2-dimensional array
+        Particle array of this clump.
+    """
+    x = clump_map[clumparrpos]
+    assert x["index"] == clumpid
+    if not x["success"]:
+        return None
+
+    return particles[x["start"]:x["end"] + 1, :]
+
+
+def load_parent_particles(clumpid, clumparrpos, particles, clump_map,
+                          clumps_cat):
+    """
+    Load a parent halo's particles from a particle array. If it is not there,
+    return `None`.
+
+    Parameters
+    ----------
+    clumpid : int
+        Clump ID.
+    clumparrpos : int
+    particles : 2-dimensional array
+        Array of particles.
+    clump_map : dict
+        Dictionary mapping string of clump IDs to particle array positions.
+    clumps_cat : :py:class:`csiborgtools.read.ClumpsCatalogue`
+        Clumps catalogue.
+
+    Returns
+    -------
+    clump_particles : 2-dimensional array
+        Particle array of this clump.
+
+    """
+    mask = clumps_cat["index"] == clumpid
+    clumparrpos = numpy.arange(len(clumps_cat))[mask]
+    clids = clumps_cat["index"][mask]
+    # We first load the particles of each clump belonging to this parent
+    # and then concatenate them for further analysis.
+    clumps = []
+    for clid, arrpos in zip(clids, clumparrpos):
+        parts = load_clump_particles(clid, arrpos, particles, clump_map)
+        if parts is not None:
+            clumps.append(parts)
+    if len(clumps) == 0:
+        return None
+    return numpy.concatenate(clumps)
