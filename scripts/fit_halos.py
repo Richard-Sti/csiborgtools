@@ -20,7 +20,6 @@ from argparse import ArgumentParser
 from datetime import datetime
 from os.path import join
 
-import h5py
 import numpy
 from mpi4py import MPI
 from tqdm import tqdm
@@ -95,35 +94,6 @@ def fit_clump(particles, clump_info, box):
     return out
 
 
-def load_clump_particles(clumpid, particles, clump_map):
-    """
-    Load a clump's particles. If it is not there, i.e clump has no associated
-    particles, return `None`.
-    """
-    try:
-        return particles[clump_map[clumpid], :]
-    except KeyError:
-        return None
-
-
-def load_parent_particles(clumpid, particles, clump_map, clumps_cat):
-    """
-    Load a parent halo's particles.
-    """
-    indxs = clumps_cat["index"][clumps_cat["parent"] == clumpid]
-    # We first load the particles of each clump belonging to this parent
-    # and then concatenate them for further analysis.
-    clumps = []
-    for ind in indxs:
-        parts = load_clump_particles(ind, particles, clump_map)
-        if parts is not None:
-            clumps.append(parts)
-
-    if len(clumps) == 0:
-        return None
-    return numpy.concatenate(clumps)
-
-
 # We now start looping over all simulations
 for i, nsim in enumerate(paths.get_ics(tonew=False)):
     if rank == 0:
@@ -133,8 +103,10 @@ for i, nsim in enumerate(paths.get_ics(tonew=False)):
     box = csiborgtools.read.BoxUnits(nsnap, nsim, paths)
 
     # Particle archive
-    particles = h5py.File(paths.particle_h5py_path(nsim), 'r')["particles"]
-    clump_map = h5py.File(paths.particle_h5py_path(nsim, "clumpmap"), 'r')
+    f = csiborgtools.read.read_h5(paths.particles_path(nsim))
+    particles = f["particles"]
+    clump_map = f["clump_map"]
+    clid2map = {clid: i for i, clid in enumerate(clump_map[:, 0])}
     clumps_cat = csiborgtools.read.ClumpsCatalogue(nsim, paths, rawdata=True,
                                                    load_fitted=False)
     # We check whether we fit halos or clumps, will be indexing over different
@@ -150,26 +122,28 @@ for i, nsim in enumerate(paths.get_ics(tonew=False)):
     jobs = csiborgtools.fits.split_jobs(ntasks, nproc)[rank]
     out = csiborgtools.read.cols_to_structured(len(jobs), cols_collect)
     for i, j in enumerate(tqdm(jobs)) if nproc == 1 else enumerate(jobs):
-        clumpid = clumps_cat["index"][j]
-        out["index"][i] = clumpid
-
+        clid = clumps_cat["index"][j]
+        out["index"][i] = clid
         # If we are fitting halos and this clump is not a main, then continue.
         if args.kind == "halos" and not ismain[j]:
             continue
 
         if args.kind == "halos":
-            part = load_parent_particles(clumpid, particles, clump_map,
-                                         clumps_cat)
+            part = csiborgtools.fits.load_parent_particles(
+                clid, particles, clump_map, clid2map, clumps_cat)
         else:
-            part = load_clump_particles(clumpid, particles, clump_map)
+            part = csiborgtools.fits.load_clump_particles(clid, particles,
+                                                          clump_map, clid2map)
 
         # We fit the particles if there are any. If not we assign the index,
         # otherwise it would be NaN converted to integers (-2147483648) and
         # yield an error further down.
-        if part is not None:
-            _out = fit_clump(part, clumps_cat[j], box)
-            for key in _out.keys():
-                out[key][i] = _out[key]
+        if part is None:
+            continue
+
+        _out = fit_clump(part, clumps_cat[j], box)
+        for key in _out.keys():
+            out[key][i] = _out[key]
 
     fout = ftemp.format(str(nsim).zfill(5), str(nsnap).zfill(5), rank)
     if nproc == 0:
