@@ -215,7 +215,10 @@ class ParticleReader:
 
         Returns
         -------
-        out : array
+        out : structured array or 2-dimensional array
+            Particle information.
+        pids : 1-dimensional array
+            Particle IDs.
         """
         # Open the particle files
         nparts, partfiles = self.open_particle(nsnap, nsim, verbose=verbose)
@@ -233,6 +236,8 @@ class ParticleReader:
         # Check there are no strange parameters
         if isinstance(pars_extract, str):
             pars_extract = [pars_extract]
+        if "ID" in pars_extract:
+            pars_extract.remove("ID")
         for p in pars_extract:
             if p not in fnames:
                 raise ValueError(f"Undefined parameter `{p}`.")
@@ -250,6 +255,7 @@ class ParticleReader:
             par2arrpos = {par: i for i, par in enumerate(pars_extract)}
             out = numpy.full((npart_tot, len(pars_extract)), numpy.nan,
                              dtype=numpy.float32)
+        pids = numpy.full(npart_tot, numpy.nan, dtype=numpy.int32)
 
         start_ind = self.nparts_to_start_ind(nparts)
         iters = tqdm(range(ncpu)) if verbose else range(ncpu)
@@ -257,19 +263,21 @@ class ParticleReader:
             i = start_ind[cpu]
             j = nparts[cpu]
             for (fname, fdtype) in zip(fnames, fdtypes):
-                if fname in pars_extract:
-                    single_part = self.read_sp(fdtype, partfiles[cpu])
+                single_part = self.read_sp(fdtype, partfiles[cpu])
+                if fname == "ID":
+                    pids[i:i + j] = single_part
+                elif fname in pars_extract:
                     if return_structured:
                         out[fname][i:i + j] = single_part
                     else:
                         out[i:i + j, par2arrpos[fname]] = single_part
                 else:
-                    dum[i:i + j] = self.read_sp(fdtype, partfiles[cpu])
+                    dum[i:i + j] = single_part
         # Close the fortran files
         for partfile in partfiles:
             partfile.close()
 
-        return out
+        return out, pids
 
     def open_unbinding(self, nsnap, nsim, cpu):
         """
