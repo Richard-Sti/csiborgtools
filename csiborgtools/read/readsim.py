@@ -389,11 +389,16 @@ class ParticleReader:
 class MmainReader:
     """
     Object to generate the summed substructure catalogue.
+
+    Parameters
+    ----------
+    paths : :py:class:`csiborgtools.read.CSiBORGPaths`
+        Paths objects.
     """
     _paths = None
 
     def __init__(self, paths):
-        assert isinstance(paths, CSiBORGPaths)  # REMOVE
+        assert isinstance(paths, CSiBORGPaths)
         self._paths = paths
 
     @property
@@ -444,7 +449,7 @@ class MmainReader:
     def make_mmain(self, nsim, verbose=False):
         """
         Make the summed substructure catalogue for a final snapshot. Includes
-        the position of the paren, the summed mass and the fraction of mass in
+        the position of the parent, the summed mass and the fraction of mass in
         substructure.
 
         Parameters
@@ -551,67 +556,65 @@ def halfwidth_select(hw, particles):
     return particles
 
 
-def load_clump_particles(clumpid, clumparrpos, particles, clump_map):
+def load_clump_particles(clid, particles, clump_map, clid2map):
     """
     Load a clump's particles from a particle array. If it is not there, i.e
     clump has no associated particles, return `None`.
 
     Parameters
     ----------
-    clumpid : int
+    clid : int
         Clump ID.
-    clumparrpos : int
-        Clump array position in the raw catalogue.
     particles : 2-dimensional array
         Array of particles.
-    clump_map : dict
-        Dictionary mapping string of clump IDs to particle array positions.
+    clump_map : 2-dimensional array
+        Array containing start and end indices in the particle array
+        corresponding to each clump.
+    clid2map : dict
+        Dictionary mapping clump IDs to `clump_map` array positions.
 
     Returns
     -------
     clump_particles : 2-dimensional array
         Particle array of this clump.
     """
-    x = clump_map[clumparrpos]
-    assert x["index"] == clumpid
-    if not x["success"]:
+    try:
+        k0, kf = clump_map[clid2map[clid], 1:]
+        return particles[k0:kf + 1, :]
+    except KeyError:
         return None
 
-    return particles[x["start"]:x["end"] + 1, :]
 
-
-def load_parent_particles(clumpid, clumparrpos, particles, clump_map,
-                          clumps_cat):
+def load_parent_particles(hid, particles, clump_map, clid2map, clumps_cat):
     """
     Load a parent halo's particles from a particle array. If it is not there,
     return `None`.
 
     Parameters
     ----------
-    clumpid : int
-        Clump ID.
-    clumparrpos : int
+    hid : int
+        Halo ID.
     particles : 2-dimensional array
         Array of particles.
-    clump_map : dict
-        Dictionary mapping string of clump IDs to particle array positions.
+    clump_map : 2-dimensional array
+        Array containing start and end indices in the particle array
+        corresponding to each clump.
+    clid2map : dict
+        Dictionary mapping clump IDs to `clump_map` array positions.
     clumps_cat : :py:class:`csiborgtools.read.ClumpsCatalogue`
         Clumps catalogue.
 
     Returns
     -------
-    clump_particles : 2-dimensional array
-        Particle array of this clump.
-
+    halo : 2-dimensional array
+        Particle array of this halo.
     """
-    mask = clumps_cat["index"] == clumpid
-    clumparrpos = numpy.arange(len(clumps_cat))[mask]
-    clids = clumps_cat["index"][mask]
+    clids = clumps_cat["index"][clumps_cat["parent"] == hid]
     # We first load the particles of each clump belonging to this parent
     # and then concatenate them for further analysis.
     clumps = []
-    for clid, arrpos in zip(clids, clumparrpos):
-        parts = load_clump_particles(clid, arrpos, particles, clump_map)
+    for clid in clids:
+        parts = load_clump_particles(clid, particles, clump_map, clid2map)
         if parts is not None:
             clumps.append(parts)
     if len(clumps) == 0:
