@@ -305,31 +305,24 @@ class CSiBORGPaths:
         fname = f"radpos_{str(nsim).zfill(5)}_{str(nsnap).zfill(5)}.npz"
         return join(fdir, fname)
 
-    def particles_path(self, nsim, kind=None):
+    def particles_path(self, nsim):
         """
-        Path to the file containing all particles in a `.h5` file.
+        Path to the files containing all particles.
 
         Parameters
         ----------
         nsim : int
             IC realisation index.
-        kind : str
-            Type of output. Must be one of `[None, 'clumpmap']`.
 
         Returns
         -------
         path : str
         """
-        assert kind in [None, "clumpmap"]
         fdir = join(self.postdir, "particles")
         if not isdir(fdir):
             makedirs(fdir)
             warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
-        if kind is None:
-            fname = f"parts_{str(nsim).zfill(5)}.h5"
-        else:
-            fname = f"parts_{kind}_{str(nsim).zfill(5)}.h5"
-
+        fname = f"parts_{str(nsim).zfill(5)}.h5"
         return join(fdir, fname)
 
     def density_field_path(self, mas, nsim):
