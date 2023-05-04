@@ -14,7 +14,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 Script to sort the initial snapshot particles according to their final
-snapshot ordering.
+snapshot ordering, which is sorted by the clump IDs.
 """
 from argparse import ArgumentParser
 from datetime import datetime
@@ -45,6 +45,8 @@ parser.add_argument("--ics", type=int, nargs="+", default=None,
 args = parser.parse_args()
 paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
 partreader = csiborgtools.read.ParticleReader(paths)
+# NOTE: ID has to be the last column.
+pars_extract = ["x", "y", "z", "M", "ID"]
 
 if args.ics is None or args.ics[0] == -1:
     ics = paths.get_ics(tonew=True)
@@ -61,19 +63,20 @@ for i in jobs:
     print(f"{datetime.now()}: reading and processing simulation {nsim}.",
           flush=True)
     # We first load the particle IDs in the final snapshot.
-    pidf = partreader.read_particle(nsnap, nsim, "ID", verbose=verbose)["ID"]
+    pidf = csiborgtools.read.read_h5(paths.particles_path(nsim))
+    pidf = pidf["particle_ids"]
     # Then we load the particles in the initil snapshot and make sure that
     # their particle IDs are sorted as in the final snapshot.
-    part0 = partreader.read_particle(
-        1, nsim, ["x", "y", "z", "M", "ID"], verbose=verbose)
+    part0 = partreader.read_particle(1, nsim, pars_extract,
+                                     return_structured=True, verbose=verbose)
     # First enforce them to already be sorted and then apply reverse
     # sorting from the final snapshot.
     part0 = part0[numpy.argsort(part0["ID"])]
     part0 = part0[numpy.argsort(numpy.argsort(pidf))]
 
     part0 = numpy.lib.recfunctions.structured_to_unstructured(
-        part0, dtype=numpy.float32)[:, :-1]
-
+        part0, dtype=numpy.float32)
+    part0 = part0[:, :-1]
     print(f"{datetime.now()}: dumping particles for {nsim}.", flush=True)
     with h5py.File(paths.initmatch_path(nsim, "particles"), "w") as f:
         f.create_dataset("particles", data=part0)
