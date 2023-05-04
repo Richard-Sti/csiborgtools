@@ -54,35 +54,6 @@ else:
     nsims = args.ics
 
 
-def load_clump_particles(clumpid, particles, clump_map):
-    """
-    Load a clump's particles. If it is not there, i.e clump has no associated
-    particles, return `None`.
-    """
-    try:
-        return particles[clump_map[clumpid], :]
-    except KeyError:
-        return None
-
-
-def load_parent_particles(clumpid, particles, clump_map, clumps_cat):
-    """
-    Load a parent halo's particles.
-    """
-    indxs = clumps_cat["index"][clumps_cat["parent"] == clumpid]
-    # We first load the particles of each clump belonging to this parent
-    # and then concatenate them for further analysis.
-    clumps = []
-    for ind in indxs:
-        parts = load_clump_particles(ind, particles, clump_map)
-        if parts is not None:
-            clumps.append(parts)
-
-    if len(clumps) == 0:
-        return None
-    return numpy.concatenate(clumps)
-
-
 # We loop over simulations. Here later optionally add MPI.
 for i, nsim in enumerate(nsims):
     if rank == 0:
@@ -91,10 +62,11 @@ for i, nsim in enumerate(nsims):
     nsnap = max(paths.get_snapshots(nsim))
     box = csiborgtools.read.BoxUnits(nsnap, nsim, paths)
 
-    particles = h5py.File(paths.particle_h5py_path(nsim), 'r')["particles"]
-    clump_map = h5py.File(paths.particle_h5py_path(nsim, "clumpmap"), 'r')
-    clumps_cat = csiborgtools.read.ClumpsCatalogue(nsim, paths, maxdist=None,
-                                                   minmass=None, rawdata=True,
+    f = csiborgtools.read.read_h5(paths.particles_path(nsim))
+    particles = f["particles"]
+    clump_map = f["clumpmap"]
+    clid2map = {clid: i for i, clid in enumerate(clump_map[:, 0])}
+    clumps_cat = csiborgtools.read.ClumpsCatalogue(nsim, paths,  rawdata=True,
                                                    load_fitted=False)
     ismain = clumps_cat.ismain
     ntasks = len(clumps_cat)
@@ -108,8 +80,8 @@ for i, nsim in enumerate(nsims):
             continue
 
         clumpid = clumps_cat["index"][j]
-        parts = load_parent_particles(clumpid, particles, clump_map,
-                                      clumps_cat)
+        parts = csiborgtools.read.load_parent_particles(
+            clumpid, particles, clump_map, clid2map, clumps_cat)
         # If we have no particles, then do not save anything.
         if parts is None:
             continue
@@ -124,8 +96,7 @@ for i, nsim in enumerate(nsims):
 
         _out["r"] = r[mask]
         _out["M"] = obj["M"][mask]
-
-        out[str(clumps_cat["index"][j])] = _out
+        out[str(clumpid)] = _out
 
     # Finished, so we save everything.
     fout = paths.radpos_path(nsnap, nsim)
