@@ -103,24 +103,23 @@ for i in jobs:
 
     # Next we read in the particles and sort them by their clump ID.
     parts = partreader.read_particle(nsnap, nsim, pars_extract,
-                                     return_structured=False, verbose=verbose)
+                                     return_structured=True, verbose=verbose)
     parts = parts[sort_indxs]
     del sort_indxs
     collect()
-    part_ids, parts = parts[:, -1].astype(numpy.int32), parts[:, :-1]
     # Now we in two steps save the particles and particle IDs.
     print(f"{datetime.now()}: rank {rank} dumping particles from {nsim}.",
           flush=True)
     with h5py.File(fname, "r+") as f:
+        f.create_dataset("particle_ids", data=parts["ID"])
+        f.close()
+
+    parts = numpy.lib.recfunctions.structured_to_unstructured(
+        parts, dtype=numpy.float32)[:, :-1]
+    with h5py.File(fname, "r+") as f:
         f.create_dataset("particles", data=parts)
         f.close()
     del parts
-    collect()
-
-    with h5py.File(fname, "r+") as f:
-        f.create_dataset("particle_ids", data=part_ids)
-        f.close()
-    del part_ids
     collect()
 
     print(f"{datetime.now()}: rank {rank} creating clump mapping for {nsim}.",
