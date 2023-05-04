@@ -12,18 +12,20 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-Script to load in the simulation particles and dump them to a HDF5 file.
-Creates a mapping to access directly particles of a single clump.
+Script to load in the simulation particles, load them by their clump ID and
+dump into a HDF5 file. Stores the first and last index of each clump in the
+particle array. This can be used for fast slicing of the array to acces
+particles of a single clump.
 """
 
 from datetime import datetime
-from distutils.util import strtobool
 from gc import collect
 
 import h5py
+import numba
 import numpy
 from mpi4py import MPI
-from tqdm import tqdm
+from tqdm import trange
 
 try:
     import csiborgtools
@@ -44,25 +46,40 @@ nproc = comm.Get_size()
 parser = ArgumentParser()
 parser.add_argument("--ics", type=int, nargs="+", default=None,
                     help="IC realisations. If `-1` processes all simulations.")
-parser.add_argument("--pos_only", type=lambda x: bool(strtobool(x)),
-                    help="Do we only dump positions?")
-parser.add_argument("--dtype", type=str, choices=["float32", "float64"],
-                    default="float32",)
 args = parser.parse_args()
 
 verbose = nproc == 1
 paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
 partreader = csiborgtools.read.ParticleReader(paths)
-
-if args.pos_only:
-    pars_extract = ['x', 'y', 'z', 'M']
-else:
-    pars_extract = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'M']
+# Keep "ID" as the last column!
+pars_extract = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'M', "ID"]
 
 if args.ics is None or args.ics[0] == -1:
     ics = paths.get_ics(tonew=False)
 else:
     ics = args.ics
+
+
+@numba.jit(nopython=True)
+def minmax_clump(clid, clump_ids, start_loop=0):
+    """
+    Find the start and end index of a clump in a sorted array of clump IDs.
+    This is much faster than using `numpy.where` and then `numpy.min` and
+    `numpy.max`.
+    """
+    start = None
+    end = None
+
+    for i in range(start_loop, clump_ids.size):
+        n = clump_ids[i]
+        if n == clid:
+            if start is None:
+                start = i
+            end = i
+        elif n > clid:
+            break
+    return start, end
+
 
 # MPI loop over individual simulations. We read in the particles from RAMSES
 # files and dump them to a HDF5 file.
@@ -70,47 +87,65 @@ jobs = csiborgtools.fits.split_jobs(len(ics), nproc)[rank]
 for i in jobs:
     nsim = ics[i]
     nsnap = max(paths.get_snapshots(nsim))
-    print(f"{datetime.now()}: Rank {rank} loading particles {nsim}.",
+    fname = paths.particles_path(nsim)
+    # We first read in the clump IDs of the particles and infer the sorting.
+    # Right away we dump the clump IDs to a HDF5 file and clear up memory.
+    print(f"{datetime.now()}: rank {rank} loading particles {nsim}.",
           flush=True)
+    part_cids = partreader.read_clumpid(nsnap, nsim, verbose=verbose)
+    sort_indxs = numpy.argsort(part_cids).astype(numpy.int32)
+    part_cids = part_cids[sort_indxs]
+    with h5py.File(fname, "w") as f:
+        f.create_dataset("clump_ids", data=part_cids)
+        f.close()
+    del part_cids
+    collect()
 
+    # Next we read in the particles and sort them by their clump ID.
     parts = partreader.read_particle(nsnap, nsim, pars_extract,
                                      return_structured=False, verbose=verbose)
-    if args.dtype == "float64":
-        parts = parts.astype(numpy.float64)
-    kind = "pos" if args.pos_only else None
-    print(f"{datetime.now()}: Rank {rank} dumping particles from {nsim}.",
+    parts = parts[sort_indxs]
+    del sort_indxs
+    collect()
+    part_ids, parts = parts[:, -1].astype(numpy.int32), parts[:, :-1]
+    # Now we in two steps save the particles and particle IDs.
+    print(f"{datetime.now()}: rank {rank} dumping particles from {nsim}.",
           flush=True)
-    with h5py.File(paths.particle_h5py_path(nsim, kind, args.dtype), "w") as f:
+    with h5py.File(fname, "r+") as f:
         f.create_dataset("particles", data=parts)
+        f.close()
     del parts
     collect()
-    print(f"{datetime.now()}: Rank {rank} finished dumping of {nsim}.",
-          flush=True)
-    # If we are dumping only particle positions, then we are done.
-    if args.pos_only:
-        continue
 
-    print(f"{datetime.now()}: Rank {rank} mapping particles from {nsim}.",
-          flush=True)
-    # If not, then load the clump IDs and prepare the memory mapping. We find
-    # which array positions correspond to which clump IDs and save it. With
-    # this we can then lazily load into memory the particles for each clump.
-    part_cids = partreader.read_clumpid(nsnap, nsim, verbose=verbose)
-    cat = csiborgtools.read.ClumpsCatalogue(nsim, paths, load_fitted=False,
-                                            rawdata=True)
-    clumpinds = cat["index"]
-    # Some of the clumps have no particles, so we do not loop over them
-    clumpinds = clumpinds[numpy.isin(clumpinds, part_cids)]
+    with h5py.File(fname, "r+") as f:
+        f.create_dataset("particle_ids", data=part_ids)
+        f.close()
+    del part_ids
+    collect()
 
-    out = {}
-    for i, cid in enumerate(tqdm(clumpinds) if verbose else clumpinds):
-        mapping = numpy.where(part_cids == cid)[0].astype(numpy.int32)
-        out.update({str(cid): mapping})
+    print(f"{datetime.now()}: rank {rank} creating clump mapping for {nsim}.",
+          flush=True)
+    # Load clump IDs back to memory
+    with h5py.File(fname, "r") as f:
+        part_cids = f["clump_ids"][:]
+    # We loop over the unique clump IDs.
+    unique_clump_ids = numpy.unique(part_cids)
+    clump_map = numpy.full((unique_clump_ids.size, 3), numpy.nan,
+                           dtype=numpy.int32)
+    start_loop = 0
+    niters = unique_clump_ids.size
+    for i in trange(niters) if verbose else range(niters):
+        clid = unique_clump_ids[i]
+        k0, kf = minmax_clump(clid, part_cids, start_loop=start_loop)
+        clump_map[i, 0] = clid
+        clump_map[i, 1] = k0
+        clump_map[i, 2] = kf
+        start_loop = kf
 
     # We save the mapping to a HDF5 file
-    with h5py.File(paths.particle_h5py_path(nsim, "clumpmap"), "w") as f:
-        for cid, indxs in out.items():
-            f.create_dataset(cid, data=indxs)
+    with h5py.File(paths.particles_path(nsim), "r+") as f:
+        f.create_dataset("clumpmap", data=clump_map)
+        f.close()
 
-    del part_cids, cat, clumpinds, out
+    del part_cids
     collect()
