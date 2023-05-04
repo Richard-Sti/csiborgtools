@@ -15,7 +15,10 @@
 """
 Various coordinate transformations.
 """
+from os.path import isfile
+
 import numpy
+from h5py import File
 
 ###############################################################################
 #                          Coordinate transforms                              #
@@ -291,14 +294,35 @@ def extract_from_structured(arr, cols):
     cols = [cols] if isinstance(cols, str) else cols
     for col in cols:
         if col not in arr.dtype.names:
-            raise ValueError("Invalid column `{}`!".format(col))
+            raise ValueError(f"Invalid column `{col}`!")
     # Preallocate an array and populate it
     out = numpy.zeros((arr.size, len(cols)), dtype=arr[cols[0]].dtype)
     for i, col in enumerate(cols):
         out[:, i] = arr[col]
     # Optionally flatten
     if len(cols) == 1:
-        return out.reshape(
-            -1,
-        )
+        return out.reshape(-1, )
     return out
+
+
+###############################################################################
+#                           h5py functions                                    #
+###############################################################################
+
+
+def read_h5(path):
+    """
+    Return and return and open `h5py.File` object.
+
+    Parameters
+    ----------
+    path : str
+        Path to the file.
+
+    Returns
+    -------
+    file : `h5py.File`
+    """
+    if not isfile(path):
+        raise IOError(f"File `{path}` does not exist!")
+    return File(path, "r")
