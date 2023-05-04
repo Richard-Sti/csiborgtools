@@ -384,7 +384,9 @@ class HaloCatalogue(BaseCatalogue):
         # Read in the mmain catalogue of summed substructure
         mmain = numpy.load(self.paths.mmain_path(self.nsnap, self.nsim))
         self._data = mmain["mmain"]
-
+        # We will also need the clumps catalogue
+        self._clumps_cat = ClumpsCatalogue(nsim, paths, rawdata=True,
+                                           load_fitted=False)
         if load_fitted:
             fits = numpy.load(paths.structfit_path(self.nsnap, nsim, "halos"))
             cols = [col for col in fits.dtype.names if col != "index"]
@@ -408,3 +410,14 @@ class HaloCatalogue(BaseCatalogue):
                 self._data = self._data[dist < maxdist]
             if minmass is not None:
                 self._data = self._data[self._data[minmass[0]] > minmass[1]]
+
+    @property
+    def clumps_cat(self):
+        """
+        The raw clumps catalogue.
+
+        Returns
+        -------
+        clumps_cat : :py:class:`csiborgtools.read.ClumpsCatalogue`
+        """
+        return self._clumps_cat
