@@ -102,6 +102,8 @@ for i in jobs:
     collect()
 
     # Next we read in the particles and sort them by their clump ID.
+    # We cannot directly read this as an unstructured array because the float32
+    # precision is insufficient to capture the clump IDs.
     parts = partreader.read_particle(nsnap, nsim, pars_extract,
                                      return_structured=True, verbose=verbose)
     parts = parts[sort_indxs]
