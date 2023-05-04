@@ -67,6 +67,7 @@ for i in jobs:
     pidf = pidf["particle_ids"]
     # Then we load the particles in the initil snapshot and make sure that
     # their particle IDs are sorted as in the final snapshot.
+    # Again, because of precision this must be read as structured.
     part0 = partreader.read_particle(1, nsim, pars_extract,
                                      return_structured=True, verbose=verbose)
     # First enforce them to already be sorted and then apply reverse
