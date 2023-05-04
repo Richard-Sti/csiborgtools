@@ -20,6 +20,7 @@ from argparse import ArgumentParser
 from datetime import datetime
 
 import h5py
+from gc import collect
 import numpy
 from mpi4py import MPI
 
@@ -68,16 +69,14 @@ for i in jobs:
     # Then we load the particles in the initil snapshot and make sure that
     # their particle IDs are sorted as in the final snapshot.
     # Again, because of precision this must be read as structured.
-    part0 = partreader.read_particle(1, nsim, pars_extract,
-                                     return_structured=True, verbose=verbose)
+    part0, pid0 = partreader.read_particle(
+        1, nsim, pars_extract, return_structured=False, verbose=verbose)
     # First enforce them to already be sorted and then apply reverse
     # sorting from the final snapshot.
-    part0 = part0[numpy.argsort(part0["ID"])]
+    part0 = part0[numpy.argsort(pid0)]
+    del pid0
+    collect()
     part0 = part0[numpy.argsort(numpy.argsort(pidf))]
-
-    part0 = numpy.lib.recfunctions.structured_to_unstructured(
-        part0, dtype=numpy.float32)
-    part0 = part0[:, :-1]
     print(f"{datetime.now()}: dumping particles for {nsim}.", flush=True)
     with h5py.File(paths.initmatch_path(nsim, "particles"), "w") as f:
         f.create_dataset("particles", data=part0)
