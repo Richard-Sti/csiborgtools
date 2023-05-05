@@ -348,7 +348,7 @@ class NFWPosterior(NFWProfile):
             Best fit NFW central density.
         """
         assert isinstance(clump, Clump)
-        r = clump.r()
+        r = clump.r
         rmin = numpy.min(r[r > 0])  # First particle that is not at r = 0
         rmax, mtot = clump.spherical_overdensity_mass(200)
         mask = (rmin <= r) & (r <= rmax)
