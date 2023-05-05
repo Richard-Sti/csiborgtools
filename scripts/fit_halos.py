@@ -18,7 +18,6 @@ realisation must have been split in advance by `runsplit_halos`.
 """
 from argparse import ArgumentParser
 from datetime import datetime
-from os.path import join
 
 import numpy
 from mpi4py import MPI
@@ -32,20 +31,26 @@ except ModuleNotFoundError:
     sys.path.append("../")
     import csiborgtools
 
-parser = ArgumentParser()
-parser.add_argument("--kind", type=str, choices=["halos", "clumps"])
-args = parser.parse_args()
-
-
 # Get MPI things
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 nproc = comm.Get_size()
+verbose = nproc == 1
 
+parser = ArgumentParser()
+parser.add_argument("--kind", type=str, choices=["halos", "clumps"])
+parser.add_argument("--ics", type=int, nargs="+", default=None,
+                    help="IC realisations. If `-1` processes all simulations.")
+args = parser.parse_args()
 paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
 partreader = csiborgtools.read.ParticleReader(paths)
 nfwpost = csiborgtools.fits.NFWPosterior()
-ftemp = join(paths.temp_dumpdir, "fit_clump_{}_{}_{}.npy")
+
+if args.ics is None or args.ics[0] == -1:
+    ics = paths.get_ics(tonew=True)
+else:
+    ics = args.ics
+
 cols_collect = [
     ("index", numpy.int32),
     ("npart", numpy.int32),
@@ -62,7 +67,7 @@ cols_collect = [
     ("lambda200c", numpy.float32),
     ("r200m", numpy.float32),
     ("m200m", numpy.float32),
-]
+    ]
 
 
 def fit_clump(particles, clump_info, box):
@@ -94,18 +99,18 @@ def fit_clump(particles, clump_info, box):
     return out
 
 
-# We now start looping over all simulations
-for i, nsim in enumerate(paths.get_ics(tonew=False)):
-    if rank == 0:
-        print(f"{datetime.now()}: calculating {i}th simulation `{nsim}`.",
-              flush=True)
+# We MPI loop over all simulations.
+jobs = csiborgtools.fits.split_jobs(len(ics), nproc)[rank]
+for nsim in [ics[i] for i in jobs]:
+    print(f"{datetime.now()}: rank {rank} calculating simulation `{nsim}`.",
+          flush=True)
     nsnap = max(paths.get_snapshots(nsim))
     box = csiborgtools.read.BoxUnits(nsnap, nsim, paths)
 
     # Particle archive
     f = csiborgtools.read.read_h5(paths.particles_path(nsim))
     particles = f["particles"]
-    clump_map = f["clump_map"]
+    clump_map = f["clumpmap"]
     clid2map = {clid: i for i, clid in enumerate(clump_map[:, 0])}
     clumps_cat = csiborgtools.read.ClumpsCatalogue(nsim, paths, rawdata=True,
                                                    load_fitted=False)
@@ -115,24 +120,22 @@ for i, nsim in enumerate(paths.get_ics(tonew=False)):
         ismain = clumps_cat.ismain
     else:
         ismain = numpy.ones(len(clumps_cat), dtype=bool)
-    ntasks = len(clumps_cat)
-    # We split the clumps among the processes. Each CPU calculates a fraction
-    # of them and dumps the results in a structured array. Even if we are
-    # calculating parent halo this index runs over all clumps.
-    jobs = csiborgtools.fits.split_jobs(ntasks, nproc)[rank]
-    out = csiborgtools.read.cols_to_structured(len(jobs), cols_collect)
-    for i, j in enumerate(tqdm(jobs)) if nproc == 1 else enumerate(jobs):
-        clid = clumps_cat["index"][j]
+
+    # Even if we are calculating parent halo this index runs over all clumps.
+    out = csiborgtools.read.cols_to_structured(len(clumps_cat), cols_collect)
+    indxs = clumps_cat["index"]
+    for i, clid in enumerate(tqdm(indxs)) if verbose else enumerate(indxs):
+        clid = clumps_cat["index"][i]
         out["index"][i] = clid
         # If we are fitting halos and this clump is not a main, then continue.
-        if args.kind == "halos" and not ismain[j]:
+        if args.kind == "halos" and not ismain[i]:
             continue
 
         if args.kind == "halos":
-            part = csiborgtools.fits.load_parent_particles(
+            part = csiborgtools.read.load_parent_particles(
                 clid, particles, clump_map, clid2map, clumps_cat)
         else:
-            part = csiborgtools.fits.load_clump_particles(clid, particles,
+            part = csiborgtools.read.load_clump_particles(clid, particles,
                                                           clump_map, clid2map)
 
         # We fit the particles if there are any. If not we assign the index,
@@ -141,42 +144,15 @@ for i, nsim in enumerate(paths.get_ics(tonew=False)):
         if part is None:
             continue
 
-        _out = fit_clump(part, clumps_cat[j], box)
+        _out = fit_clump(part, clumps_cat[i], box)
         for key in _out.keys():
             out[key][i] = _out[key]
 
-    fout = ftemp.format(str(nsim).zfill(5), str(nsnap).zfill(5), rank)
-    if nproc == 0:
-        print(f"{datetime.now()}: rank {rank} saving to `{fout}`.", flush=True)
+    # Finally, we save the results. If we were analysing main halos, then
+    # remove array indices that do not correspond to parent halos.
+    if args.kind == "halos":
+        out = out[ismain]
+
+    fout = paths.structfit_path(nsnap, nsim, args.kind)
+    print(f"Saving to `{fout}`.", flush=True)
     numpy.save(fout, out)
-    # We saved this CPU's results in a temporary file. Wait now for the other
-    # CPUs and then collect results from the 0th rank and save them.
-    comm.Barrier()
-
-    if rank == 0:
-        print(f"{datetime.now()}: collecting results for simulation `{nsim}`.",
-              flush=True)
-        # We write to the output array. Load data from each CPU and append to
-        # the output array.
-        out = csiborgtools.read.cols_to_structured(ntasks, cols_collect)
-        clumpid2outpos = {indx: i
-                          for i, indx in enumerate(clumps_cat["index"])}
-        for i in range(nproc):
-            inp = numpy.load(ftemp.format(str(nsim).zfill(5),
-                                          str(nsnap).zfill(5), i))
-            for j, clumpid in enumerate(inp["index"]):
-                k = clumpid2outpos[clumpid]
-                for key in inp.dtype.names:
-                    out[key][k] = inp[key][j]
-
-        # If we were analysing main halos, then remove array indices that do
-        # not correspond to parent halos.
-        if args.kind == "halos":
-            out = out[ismain]
-
-        fout = paths.structfit_path(nsnap, nsim, args.kind)
-        print(f"Saving to `{fout}`.", flush=True)
-        numpy.save(fout, out)
-
-    # We now wait before moving on to another simulation.
-    comm.Barrier()
