@@ -464,31 +464,25 @@ class ParticleOverlap:
         -------
         delta : 3-dimensional array
         """
+        nshift = 0 if smooth_kwargs is None else self.nshift
         cells = self.pos2cell(pos)
-        cells = [cells[:, i] for i in range(3)]
-
         # Check that minima and maxima are integers
         if not (mins is None and maxs is None):
             assert mins.dtype.char in numpy.typecodes["AllInteger"]
             assert maxs.dtype.char in numpy.typecodes["AllInteger"]
 
         if subbox:
-            # Minimum xcell, ycell and zcell of this clump
             if mins is None or maxs is None:
-                mins = numpy.asanyarray(
-                    [max(numpy.min(cell) - self.nshift, 0) for cell in cells])
-                maxs = numpy.asanyarray(
-                    [min(numpy.max(cell) + self.nshift, self.inv_clength)
-                     for cell in cells])
+                mins, maxs = get_halolims(cells, self.inv_clength, nshift)
 
-            ncells = numpy.max(maxs - mins) + 1  # To get the number of cells
+            ncells = maxs - mins + 1  # To get the number of cells
         else:
             mins = [0, 0, 0]
             ncells = self.inv_clength
 
         # Preallocate and fill the array
         delta = numpy.zeros((ncells,) * 3, dtype=numpy.float32)
-        fill_delta(delta, *cells, *mins, mass)
+        fill_delta(delta, cells[:, 0], cells[:, 1], cells[:, 2], *mins, mass)
         if smooth_kwargs is not None:
             gaussian_filter(delta, output=delta, **smooth_kwargs)
         return delta
@@ -529,6 +523,7 @@ class ParticleOverlap:
             Indices where the lower mass clump has a non-zero density.
             Calculated only if no smoothing is applied, otherwise `None`.
         """
+        nshift = 0 if smooth_kwargs is None else self.nshift
         pos1 = self.pos2cell(pos1)
         pos2 = self.pos2cell(pos2)
         xc1, yc1, zc1 = [pos1[:, i] for i in range(3)]
@@ -536,16 +531,16 @@ class ParticleOverlap:
 
         if any(obj is None for obj in (mins1, maxs1, mins2, maxs2)):
             # Minimum cell number of the two halos along each dimension
-            xmin = min(numpy.min(xc1), numpy.min(xc2)) - self.nshift
-            ymin = min(numpy.min(yc1), numpy.min(yc2)) - self.nshift
-            zmin = min(numpy.min(zc1), numpy.min(zc2)) - self.nshift
+            xmin = min(numpy.min(xc1), numpy.min(xc2)) - nshift
+            ymin = min(numpy.min(yc1), numpy.min(yc2)) - nshift
+            zmin = min(numpy.min(zc1), numpy.min(zc2)) - nshift
             # Make sure shifting does not go beyond boundaries
             xmin, ymin, zmin = [max(px, 0) for px in (xmin, ymin, zmin)]
 
             # Maximum cell number of the two halos along each dimension
-            xmax = max(numpy.max(xc1), numpy.max(xc2)) + self.nshift
-            ymax = max(numpy.max(yc1), numpy.max(yc2)) + self.nshift
-            zmax = max(numpy.max(zc1), numpy.max(zc2)) + self.nshift
+            xmax = max(numpy.max(xc1), numpy.max(xc2)) + nshift
+            ymax = max(numpy.max(yc1), numpy.max(yc2)) + nshift
+            zmax = max(numpy.max(zc1), numpy.max(zc2)) + nshift
             # Make sure shifting does not go beyond boundaries
             xmax, ymax, zmax = [min(px, self.inv_clength - 1)
                                 for px in (xmax, ymax, zmax)]
@@ -554,11 +549,11 @@ class ParticleOverlap:
             xmax, ymax, zmax = [max(maxs1[i], maxs2[i]) for i in range(3)]
 
         cellmins = (xmin, ymin, zmin)  # Cell minima
-        ncells = max(xmax - xmin, ymax - ymin, zmax - zmin) + 1  # Num cells
+        ncells = xmax - xmin + 1, ymax - ymin + 1, zmax - zmin + 1  # Num cells
 
         # Preallocate and fill the arrays
-        delta1 = numpy.zeros((ncells,) * 3, dtype=numpy.float32)
-        delta2 = numpy.zeros((ncells,) * 3, dtype=numpy.float32)
+        delta1 = numpy.zeros(ncells, dtype=numpy.float32)
+        delta2 = numpy.zeros(ncells, dtype=numpy.float32)
 
         # If no smoothing figure out the nonzero indices of the smaller clump
         if smooth_kwargs is None:
@@ -711,7 +706,7 @@ def get_halolims(pos, ncells, nshift=None):
 
     Parameters
     ----------
-    halo : 2-dimensional array
+    pos : 2-dimensional array
         Halo particle array. Columns must be `x`, `y`, `z`.
     ncells : int
         Number of grid cells of the box along a single dimension.
@@ -731,8 +726,6 @@ def get_halolims(pos, ncells, nshift=None):
 
     mins = numpy.full(3, numpy.nan, dtype=dtype)
     maxs = numpy.full(3, numpy.nan, dtype=dtype)
-
-    # TODO vectorise this operation
     for i in range(3):
         mins[i] = max(numpy.min(pos[:, i]) - nshift, 0)
         maxs[i] = min(numpy.max(pos[:, i]) + nshift, ncells - 1)
