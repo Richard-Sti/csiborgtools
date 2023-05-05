@@ -92,6 +92,7 @@ for nsim in [ics[i] for i in jobs]:
         out["x"][i], out["y"][i], out["z"][i] = cm
         out["lagpatch"][i] = patchsize
 
+    out = out[ismain]
     # Now save it
     fout = paths.initmatch_path(nsim, "fit")
     print(f"{datetime.now()}: dumping fits to .. `{fout}`.",

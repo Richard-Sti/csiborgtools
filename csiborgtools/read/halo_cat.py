@@ -12,7 +12,7 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-"""CSiBORG halo catalogue."""
+"""CSiBORG halo and clumps catalogues."""
 from abc import ABC
 
 import numpy
@@ -378,7 +378,7 @@ class HaloCatalogue(BaseCatalogue):
     """
 
     def __init__(self, nsim, paths, maxdist=155.5 / 0.705, minmass=("M", 1e12),
-                 load_fitted=True, load_initial=False, rawdata=False):
+                 load_fitted=True, load_initial=True, rawdata=False):
         self.nsim = nsim
         self.paths = paths
         # Read in the mmain catalogue of summed substructure
@@ -393,7 +393,21 @@ class HaloCatalogue(BaseCatalogue):
             X = [fits[col] for col in cols]
             self._data = add_columns(self._data, X, cols)
 
-        # TODO: load initial positions
+        if load_initial:
+            fits = numpy.load(paths.initmatch_path(nsim, "fit"))
+            X, cols = [], []
+            for col in fits.dtype.names:
+                if col == "index":
+                    continue
+                if col in ['x', 'y', 'z']:
+                    cols.append(col + "0")
+                else:
+                    cols.append(col)
+                X.append(fits[col])
+
+            print(X[0].shape)
+            print(self._data.shape)
+            self._data = add_columns(self._data, X, cols)
 
         if not rawdata:
             # Flip positions and convert from code units to cMpc. Convert M too
