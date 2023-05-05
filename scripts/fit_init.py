@@ -80,6 +80,9 @@ for nsim in [ics[i] for i in jobs]:
     indxs = clumps_cat["index"]
     for i, hid in enumerate(tqdm(indxs) if verbose else indxs):
         out["index"][i] = hid
+        if not ismain[i]:
+            continue
+
         part = csiborgtools.read.load_parent_particles(hid, parts, clump_map,
                                                        clid2map, clumps_cat)
         # Skip if the halo is too small.
