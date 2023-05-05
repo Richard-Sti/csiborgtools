@@ -16,17 +16,10 @@
 Script to calculate the particle centre of mass, Lagrangian patch size in the
 initial snapshot. The initial snapshot particles are read from the sorted
 files.
-
-TODO:
-    - [ ] Improve the argument parser function
-    - [ ] Set the MPI to be over the simulations.
 """
 from argparse import ArgumentParser
 from datetime import datetime
-from os import remove
-from os.path import join
 
-import joblib
 import numpy
 from mpi4py import MPI
 
@@ -54,7 +47,6 @@ parser.add_argument("--ics", type=int, nargs="+", default=None,
 args = parser.parse_args()
 paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
 partreader = csiborgtools.read.ParticleReader(paths)
-ftemp = lambda kind, nsim, rank: join(paths.temp_dumpdir, f"{kind}_{nsim}_{rank}.p")  # noqa
 
 if args.ics is None or args.ics[0] == -1:
     ics = paths.get_ics(tonew=True)
@@ -68,12 +60,12 @@ cols_collect = [("index", numpy.int32),
                 ("lagpatch", numpy.float32),]
 
 
-# We loop over simulations. Each simulation is then procesed with MPI.
-for nsim in ics:
+# MPI loop over simulations
+jobs = csiborgtools.fits.split_jobs(len(ics), nproc)[rank]
+for nsim in ics[jobs]:
     nsnap = max(paths.get_snapshots(nsim))
-    if rank == 0:
-        print(f"{datetime.now()}: calculating simulation `{nsim}`.",
-              flush=True)
+    print(f"{datetime.now()}: rank {rank} calculating simulation `{nsim}`.",
+          flush=True)
 
     parts = csiborgtools.read.read_h5(paths.initmatch_path(nsim, "particles"))
     parts = parts['particles']
@@ -82,47 +74,27 @@ for nsim in ics:
     clumps_cat = csiborgtools.read.ClumpsCatalogue(nsim, paths, rawdata=True,
                                                    load_fitted=False)
     clid2map = {clid: i for i, clid in enumerate(clump_map[:, 0])}
-
-    ntasks = len(clumps_cat)
     ismain = clumps_cat.ismain
 
-    jobs = csiborgtools.fits.split_jobs(ntasks, nproc)[rank]
-    _out = csiborgtools.read.cols_to_structured(len(jobs), cols_collect)
-    for i, j in enumerate(tqdm(jobs)) if nproc == 1 else enumerate(jobs):
-        hid = clumps_cat["index"][j]
-        _out["index"][i] = hid
+    out = csiborgtools.read.cols_to_structured(len(clumps_cat), cols_collect)
+    indxs = clumps_cat["index"]
+    for i, hid in enumerate(tqdm(indxs) if verbose else indxs):
+        out["index"][i] = hid
         part = csiborgtools.read.load_parent_particles(hid, parts, clump_map,
                                                        clid2map, clumps_cat)
         # Skip if the halo is too small.
         if part is None or part.size < 100:
             continue
 
-        raddist, cmpos = csiborgtools.fits.dist_centmass(part)
-        patchsize = csiborgtools.fits.dist_percentile(raddist, [99],
-                                                       distmax=0.075)
-        _out["x"][i], _out["y"][i], _out["z"][i] = cmpos
-        _out["lagpatch"][i] = patchsize
-    # Dump the results of this rank to a temporary file.
-    joblib.dump(_out, ftemp("fits", nsim, rank))
+        dist, cm = csiborgtools.fits.dist_centmass(part)
+        # We enforce a maximum patchsize of 0.075 in box coordinates.
+        patchsize = min(numpy.percentile(dist, 99), 0.075)
+        out["x"][i], out["y"][i], out["z"][i] = cm
+        out["lagpatch"][i] = patchsize
 
-    # Now we wait for all ranks, then collect the results and save it.
-    comm.Barrier()
-    if rank == 0:
-        print(f"{datetime.now()}: collecting results for {nsim}.", flush=True)
-        out = csiborgtools.read.cols_to_structured(ntasks, cols_collect)
-        hid2arrpos = {indx: i for i, indx in enumerate(clumps_cat["index"])}
-        for i in range(nproc):
-            inp = joblib.load(ftemp("fits", nsim, i))
-            for j in range(inp.size):
-                k = hid2arrpos[inp["index"][j]]
-                for key in inp.dtype.names:
-                    out[key][k] = inp[key][j]
-
-            remove(ftemp("fits", nsim, i))
-
-        # Now save it
-        fout_fit = paths.initmatch_path(nsim, "fit")
-        print(f"{datetime.now()}: dumping fits to .. `{fout_fit}`.",
-              flush=True)
-        with open(fout_fit, "wb") as f:
-            numpy.save(f, out)
+    # Now save it
+    fout = paths.initmatch_path(nsim, "fit")
+    print(f"{datetime.now()}: dumping fits to .. `{fout}`.",
+          flush=True)
+    with open(fout, "wb") as f:
+        numpy.save(f, out)
