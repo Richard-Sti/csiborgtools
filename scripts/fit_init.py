@@ -62,7 +62,7 @@ cols_collect = [("index", numpy.int32),
 
 # MPI loop over simulations
 jobs = csiborgtools.fits.split_jobs(len(ics), nproc)[rank]
-for nsim in ics[jobs]:
+for nsim in [ics[i] for i in jobs]:
     nsnap = max(paths.get_snapshots(nsim))
     print(f"{datetime.now()}: rank {rank} calculating simulation `{nsim}`.",
           flush=True)
