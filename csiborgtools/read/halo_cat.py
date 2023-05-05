@@ -405,8 +405,6 @@ class HaloCatalogue(BaseCatalogue):
                     cols.append(col)
                 X.append(fits[col])
 
-            print(X[0].shape)
-            print(self._data.shape)
             self._data = add_columns(self._data, X, cols)
 
         if not rawdata:
@@ -417,6 +415,10 @@ class HaloCatalogue(BaseCatalogue):
             names = ["x", "y", "z", "M", "totpartmass", "rho0", "r200c",
                      "r500c", "m200c", "m500c", "r200m", "m200m"]
             self._data = self.box.convert_from_boxunits(self._data, names)
+
+            if load_initial:
+                names = ["x0", "y0", "z0", "lagpatch"]
+                self._data = self.box.convert_from_boxunits(self._data, names)
 
             if maxdist is not None:
                 dist = numpy.sqrt(self._data["x"]**2 + self._data["y"]**2
