@@ -47,7 +47,7 @@ partreader = csiborgtools.read.ParticleReader(paths)
 nfwpost = csiborgtools.fits.NFWPosterior()
 
 if args.ics is None or args.ics[0] == -1:
-    ics = paths.get_ics(tonew=True)
+    ics = paths.get_ics(tonew=False)
 else:
     ics = args.ics
 
