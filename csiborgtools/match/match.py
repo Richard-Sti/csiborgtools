@@ -335,7 +335,7 @@ class ParticleOverlap:
         self.inv_clength = 2**11
         self._clength = 1 / self.inv_clength
 
-    def make_bckg_delta(self, pos, mass, delta=None):
+    def make_bckg_delta(self, parts, start, delta=None):
         """
         Calculate a NGP density field of particles belonging to halos within
         the central :math:`1/2^3` high-resolution region of the simulation.
@@ -365,14 +365,25 @@ class ParticleOverlap:
         else:
             assert ((delta.shape == (ncells,) * 3)
                     & (delta.dtype == numpy.float32))
+        # Load the particles in batches to avoid memory issues
+        batchsize = parts.shape[0] // 50  # Arbitrary choice...
+        nmax = parts.shape[0]
+        while True:
+            end = min(start + batchsize, nmax)
+            pos = parts[start:end, :]
+            pos, mass = pos[:, :3], pos[:, 3]
+            cells = pos2cell(pos, self.inv_clength)
 
-        cells = pos2cell(pos, self.inv_clength)
-        # We mask out particles outside the cubical high-resolution region
-        mask = numpy.all((cellmin <= cells) & (cells < cellmax), axis=1)
-        cells = cells[mask]
-        mass = mass[mask]
-        fill_delta(delta, cells[:, 0], cells[:, 1], cells[:, 2],
-                   *(cellmin,) * 3, mass)
+            # We mask out particles outside the cubical high-resolution region
+            mask = numpy.all((cellmin <= cells) & (cells < cellmax), axis=1)
+            cells = cells[mask]
+            mass = mass[mask]
+            fill_delta(delta, cells[:, 0], cells[:, 1], cells[:, 2],
+                       *(cellmin,) * 3, mass)
+            if end == nmax:
+                break
+
+            start += batchsize
         return delta
 
     def make_delta(self, pos, mass, mins=None, maxs=None, subbox=False,
