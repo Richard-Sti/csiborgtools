@@ -14,6 +14,6 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 from .match import (ParticleOverlap, RealisationsMatcher,  # noqa
                     calculate_overlap, calculate_overlap_indxs,
-                    cosine_similarity, dist_centmass, dist_percentile)
+                    cosine_similarity)
 from .num_density import binned_counts, number_density  # noqa
 from .utils import concatenate_parts  # noqa

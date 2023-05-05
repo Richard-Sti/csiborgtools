@@ -866,49 +866,6 @@ def load_processed_halo(hid, particles, clump_map, clid2map, clumps_cat,
     return pos, mass, totmass, mins, maxs
 
 
-def dist_centmass(clump):
-    """
-    Calculate the clump (or halo) particles' distance from the centre of mass.
-
-    Parameters
-    ----------
-    clump : 2-dimensional array of shape (n_particles, 7)
-        Particle array. The first four columns must be `x`, `y`, `z` and `M`.
-
-    Returns
-    -------
-    dist : 1-dimensional array of shape `(n_particles, )`
-        Particle distance from the centre of mass.
-    cm : 1-dimensional array of shape `(3,)`
-        Center of mass coordinates.
-    """
-    # CM along each dimension
-    cm = numpy.average(clump[:, :3], weights=clump[:, 3], axis=0)
-    return numpy.linalg.norm(clump[:, :3] - cm, axis=1), cm
-
-
-def dist_percentile(dist, qs, distmax=0.075):
-    """
-    Calculate q-th percentiles of `dist`, with an upper limit of `distmax`.
-
-    Parameters
-    ----------
-    dist : 1-dimensional array
-        Array of distances.
-    qs : 1-dimensional array
-        Percentiles to compute.
-    distmax : float, optional
-        The maximum distance. By default 0.075.
-
-    Returns
-    -------
-    x : 1-dimensional array
-    """
-    x = numpy.percentile(dist, qs)
-    x[x > distmax] = distmax  # Enforce the upper limit
-    return x
-
-
 def radius_neighbours(knn, X, radiusX, radiusKNN, nmult=1.0,
                       enforce_int32=False, verbose=True):
     """

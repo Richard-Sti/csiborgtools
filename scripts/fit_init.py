@@ -16,6 +16,10 @@
 Script to calculate the particle centre of mass, Lagrangian patch size in the
 initial snapshot. The initial snapshot particles are read from the sorted
 files.
+
+TODO:
+    - [ ] Improve the argument parser function
+    - [ ] Set the MPI to be over the simulations.
 """
 from argparse import ArgumentParser
 from datetime import datetime
@@ -74,7 +78,7 @@ for nsim in ics:
     parts = csiborgtools.read.read_h5(paths.initmatch_path(nsim, "particles"))
     parts = parts['particles']
     clump_map = csiborgtools.read.read_h5(paths.particles_path(nsim))
-    clump_map = clump_map["clump_map"]
+    clump_map = clump_map["clumpmap"]
     clumps_cat = csiborgtools.read.ClumpsCatalogue(nsim, paths, rawdata=True,
                                                    load_fitted=False)
     clid2map = {clid: i for i, clid in enumerate(clump_map[:, 0])}
@@ -87,14 +91,14 @@ for nsim in ics:
     for i, j in enumerate(tqdm(jobs)) if nproc == 1 else enumerate(jobs):
         hid = clumps_cat["index"][j]
         _out["index"][i] = hid
-        part = csiborgtools.fits.load_parent_particles(hid, parts, clump_map,
+        part = csiborgtools.read.load_parent_particles(hid, parts, clump_map,
                                                        clid2map, clumps_cat)
         # Skip if the halo is too small.
         if part is None or part.size < 100:
             continue
 
-        raddist, cmpos = csiborgtools.match.dist_centmass(part)
-        patchsize = csiborgtools.match.dist_percentile(raddist, [99],
+        raddist, cmpos = csiborgtools.fits.dist_centmass(part)
+        patchsize = csiborgtools.fits.dist_percentile(raddist, [99],
                                                        distmax=0.075)
         _out["x"][i], _out["y"][i], _out["z"][i] = cmpos
         _out["lagpatch"][i] = patchsize
