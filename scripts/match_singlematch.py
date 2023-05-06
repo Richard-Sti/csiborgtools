@@ -66,9 +66,10 @@ clid2mapx = {clid: i for i, clid in enumerate(clumpmapx[:, 0])}
 if args.verbose:
     print(f"{datetime.now()}: generating the background density fields.",
           flush=True)
-delta_bckg = overlapper.make_bckg_delta(parts0, clumpmap0, clid2map0, cat0)
+delta_bckg = overlapper.make_bckg_delta(parts0, clumpmap0, clid2map0, cat0,
+                                        verbose=args.verbose)
 delta_bckg = overlapper.make_bckg_delta(partsx, clumpmapx, clid2mapx, catx,
-                                        delta=delta_bckg)
+                                        delta=delta_bckg, verbose=args.verbose)
 
 # We calculate the overlap between the NGP fields.
 if args.verbose:
@@ -100,8 +101,6 @@ if args.verbose:
 gaussian_filter(delta_bckg, output=delta_bckg, **smooth_kwargs)
 
 # We calculate the smoothed overlap for the pairs whose NGP overlap is > 0.
-if args.verbose:
-    print(f"{datetime.now()}: calculating smoothed overlaps.", flush=True)
 smoothed_overlap = matcher.smoothed_cross(cat0, catx, parts0, partsx,
                                           clumpmap0, clumpmapx, delta_bckg,
                                           match_indxs, smooth_kwargs)
