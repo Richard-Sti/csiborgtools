@@ -26,13 +26,16 @@ except ModuleNotFoundError:
 
     sys.path.append("../")
     import csiborgtools
+    from csiborgtools.read import HaloCatalogue, read_h5
 
 # Argument parser
 parser = ArgumentParser()
 parser.add_argument("--nsim0", type=int)
 parser.add_argument("--nsimx", type=int)
 parser.add_argument("--nmult", type=float)
-parser.add_argument("--sigma", type=float)
+parser.add_argument("--sigma", type=float, default=None)
+parser.add_argument("--smoothen", type=lambda x: bool(strtobool(x)),
+                    default=None)
 parser.add_argument("--verbose", type=lambda x: bool(strtobool(x)),
                     default=False)
 args = parser.parse_args()
@@ -43,27 +46,51 @@ matcher = csiborgtools.match.RealisationsMatcher()
 
 # Load the raw catalogues (i.e. no selection) including the initial CM
 # positions and the particle archives.
-cat0 = csiborgtools.read.HaloCatalogue(args.nsim0, paths, load_initial=True,
-                                       rawdata=True)
-catx = csiborgtools.read.HaloCatalogue(args.nsimx, paths, load_initial=True,
-                                       rawdata=True)
-halos0_archive = paths.initmatch_path(args.nsim0, "particles")
-halosx_archive = paths.initmatch_path(args.nsimx, "particles")
+cat0 = HaloCatalogue(args.nsim0, paths, load_initial=True,
+                     minmass=("totpartmass", 1e14), with_lagpatch=True)
+catx = HaloCatalogue(args.nsimx, paths, load_initial=True,
+                     minmass=("totpartmass", 1e14), with_lagpatch=True)
+
+clumpmap0 = read_h5(paths.particles_path(args.nsim0))["clumpmap"]
+parts0 = read_h5(paths.initmatch_path(args.nsim0, "particles"))["particles"]
+clid2map0 = {clid: i for i, clid in enumerate(clumpmap0[:, 0])}
+
+clumpmapx = read_h5(paths.particles_path(args.nsimx))["clumpmap"]
+partsx = read_h5(paths.initmatch_path(args.nsimx, "particles"))["particles"]
+clid2mapx = {clid: i for i, clid in enumerate(clumpmapx[:, 0])}
+
 
 # We generate the background density fields. Loads halos's particles one by one
 # from the archive, concatenates them and calculates the NGP density field.
 if args.verbose:
     print(f"{datetime.now()}: generating the background density fields.",
           flush=True)
-delta_bckg = overlapper.make_bckg_delta(halos0_archive, verbose=args.verbose)
-delta_bckg = overlapper.make_bckg_delta(halosx_archive, delta=delta_bckg,
-                                        verbose=args.verbose)
+delta_bckg = overlapper.make_bckg_delta(parts0, clumpmap0[clid2map0[0], 2] + 1)
+delta_bckg = overlapper.make_bckg_delta(partsx, clumpmapx[clid2mapx[0], 2] + 1,
+                                        delta=delta_bckg)
 
 # We calculate the overlap between the NGP fields.
 if args.verbose:
     print(f"{datetime.now()}: crossing the simulations.", flush=True)
-match_indxs, ngp_overlap = matcher.cross(cat0, catx, halos0_archive,
-                                         halosx_archive, delta_bckg)
+match_indxs, ngp_overlap = matcher.cross(cat0, catx, parts0, partsx, clumpmap0,
+                                         clumpmapx, delta_bckg,
+                                         verbose=args.verbose)
+# We wish to store the halo IDs of the matches, not their array positions in
+# the catalogues
+match_hids = numpy.copy(match_indxs)
+for i, matches in enumerate(match_indxs):
+    for j, match in enumerate(matches):
+        match_hids[i][j] = catx["index"][match]
+
+fout = paths.overlap_path(args.nsim0, args.nsimx, smoothed=False)
+numpy.savez(fout, ref_hids=cat0["index"], match_hids=match_hids,
+            ngp_overlap=ngp_overlap)
+if args.verbose:
+    print(f"{datetime.now()}: calculated NGP overlap. Output saved to {fout}.",
+          flush=True)
+
+if not args.smoothen:
+    quit()
 
 # We now smoothen up the background density field for the smoothed overlap
 # calculation.
@@ -74,14 +101,12 @@ gaussian_filter(delta_bckg, output=delta_bckg, **smooth_kwargs)
 # We calculate the smoothed overlap for the pairs whose NGP overlap is > 0.
 if args.verbose:
     print(f"{datetime.now()}: calculating smoothed overlaps.", flush=True)
-smoothed_overlap = matcher.smoothed_cross(cat0, catx, halos0_archive,
-                                          halosx_archive, delta_bckg,
+smoothed_overlap = matcher.smoothed_cross(cat0, catx, parts0, partsx,
+                                          clumpmap0, clumpmapx, delta_bckg,
                                           match_indxs, smooth_kwargs)
 
-# We save the results at long last.
-fout = paths.overlap_path(args.nsim0, args.nsimx)
+fout = paths.overlap_path(args.nsim0, args.nsimx, smoothed=True)
+numpy.savez(fout, smoothed_overlap=smoothed_overlap, sigma=args.sigma)
 if args.verbose:
-    print(f"{datetime.now()}: saving results to `{fout}`.", flush=True)
-numpy.savez(fout, match_indxs=match_indxs, ngp_overlap=ngp_overlap,
-            smoothed_overlap=smoothed_overlap, sigma=args.sigma)
-print(f"{datetime.now()}: all finished.", flush=True)
+    print(f"{datetime.now()}: calculated NGP overlap. Output saved to {fout}.",
+          flush=True)
