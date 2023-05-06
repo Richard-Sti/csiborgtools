@@ -88,7 +88,7 @@ fout = paths.overlap_path(args.nsim0, args.nsimx, smoothed=False)
 numpy.savez(fout, ref_hids=cat0["index"], match_hids=match_hids,
             ngp_overlap=ngp_overlap)
 if args.verbose:
-    print(f"{datetime.now()}: calculated NGP overlap. Output saved to {fout}.",
+    print(f"{datetime.now()}: calculated NGP overlap, saved to {fout}.",
           flush=True)
 
 if not args.smoothen:
@@ -108,5 +108,5 @@ smoothed_overlap = matcher.smoothed_cross(cat0, catx, parts0, partsx,
 fout = paths.overlap_path(args.nsim0, args.nsimx, smoothed=True)
 numpy.savez(fout, smoothed_overlap=smoothed_overlap, sigma=args.sigma)
 if args.verbose:
-    print(f"{datetime.now()}: calculated NGP overlap. Output saved to {fout}.",
+    print(f"{datetime.now()}: calculated smoothed overlap, saved to {fout}.",
           flush=True)
