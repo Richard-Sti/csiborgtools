@@ -260,7 +260,7 @@ class CSiBORGPaths:
         fname = f"{kind}_out_{str(nsim).zfill(5)}_{str(nsnap).zfill(5)}.npy"
         return join(fdir, fname)
 
-    def overlap_path(self, nsim0, nsimx):
+    def overlap_path(self, nsim0, nsimx, smoothed):
         """
         Path to the overlap files between two simulations.
 
@@ -270,6 +270,8 @@ class CSiBORGPaths:
             IC realisation index of the first simulation.
         nsimx : int
             IC realisation index of the second simulation.
+        smoothed : bool
+            Whether the overlap is smoothed or not.
 
         Returns
         -------
@@ -279,7 +281,9 @@ class CSiBORGPaths:
         if not isdir(fdir):
             mkdir(fdir)
             warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
-        fname = f"overlap_{str(nsim0).zfill(5)}_{str(nsimx).zfill(5)}.h5"
+        fname = f"overlap_{str(nsim0).zfill(5)}_{str(nsimx).zfill(5)}.npz"
+        if smoothed:
+            fname = fname.replace("overlap", "overlap_smoothed")
         return join(fdir, fname)
 
     def radpos_path(self, nsnap, nsim):
