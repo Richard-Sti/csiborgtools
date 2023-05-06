@@ -157,12 +157,12 @@ class RealisationsMatcher:
         # in the reference simulation from the cross simulation in the initial
         # snapshot.
         if verbose:
-            now = datetime.now()
-            print(f"{now}: querying the KNN.", flush=True)
+            print(f"{datetime.now()}: querying the KNN.", flush=True)
         match_indxs = radius_neighbours(
-            catx.knn(select_initial=True), cat0.positions(in_initial=True),
+            catx.knn(in_initial=True), cat0.position(in_initial=True),
             radiusX=cat0["lagpatch"], radiusKNN=catx["lagpatch"],
             nmult=self.nmult, enforce_int32=True, verbose=verbose)
+
         # We next remove neighbours whose mass is too large/small.
         if self.dlogmass is not None:
             for i, indx in enumerate(match_indxs):
@@ -181,6 +181,8 @@ class RealisationsMatcher:
                                        catx.clumps_cat, nshift=0,
                                        ncells=self.overlapper.inv_clength)
 
+        if verbose:
+            print(f"{datetime.now()}: calculating overlaps.", flush=True)
         cross = [numpy.asanyarray([], dtype=numpy.float32)] * match_indxs.size
         indxs = cat0["index"]
         for i, k0 in enumerate(tqdm(indxs) if verbose else indxs):
@@ -267,6 +269,9 @@ class RealisationsMatcher:
                                        catx.clumps_cat, nshift=nshift,
                                        ncells=self.overlapper.inv_clength)
 
+        if verbose:
+            print(f"{datetime.now()}: calculating smoothed overlaps.",
+                  flush=True)
         indxs = cat0["index"]
         cross = [numpy.asanyarray([], dtype=numpy.float32)] * match_indxs.size
         for i, k0 in enumerate(tqdm(indxs) if verbose else indxs):
