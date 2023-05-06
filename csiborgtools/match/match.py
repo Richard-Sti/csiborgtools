@@ -26,6 +26,9 @@ from tqdm import tqdm, trange
 
 from ..read import load_parent_particles
 
+BCKG_HALFSIZE = 475
+BOX_SIZE = 2048
+
 ###############################################################################
 #                  Realisations matcher for calculating overlaps              #
 ###############################################################################
@@ -179,7 +182,7 @@ class RealisationsMatcher:
         def load_cached_halox(hid):
             return load_processed_halo(hid, particlesx, clump_mapx, clid2mapx,
                                        catx.clumps_cat, nshift=0,
-                                       ncells=self.overlapper.inv_clength)
+                                       ncells=BOX_SIZE)
 
         if verbose:
             print(f"{datetime.now()}: calculating overlaps.", flush=True)
@@ -194,7 +197,7 @@ class RealisationsMatcher:
             # maximum cells and convert positions to cells.
             pos0, mass0, totmass0, mins0, maxs0 = load_processed_halo(
                 k0, particles0, clump_map0, clid2map0, cat0.clumps_cat,
-                nshift=0, ncells=self.overlapper.inv_clength)
+                nshift=0, ncells=BOX_SIZE)
 
             # We now loop over matches of this halo and calculate their
             # overlap, storing them in `_cross`.
@@ -267,7 +270,7 @@ class RealisationsMatcher:
         def load_cached_halox(hid):
             return load_processed_halo(hid, particlesx, clump_mapx, clid2mapx,
                                        catx.clumps_cat, nshift=nshift,
-                                       ncells=self.overlapper.inv_clength)
+                                       ncells=BOX_SIZE)
 
         if verbose:
             print(f"{datetime.now()}: calculating smoothed overlaps.",
@@ -277,7 +280,7 @@ class RealisationsMatcher:
         for i, k0 in enumerate(tqdm(indxs) if verbose else indxs):
             pos0, mass0, __, mins0, maxs0 = load_processed_halo(
                 k0, particles0, clump_map0, clid2map0, cat0.clumps_cat,
-                nshift=nshift, ncells=self.overlapper.inv_clength)
+                nshift=nshift, ncells=BOX_SIZE)
 
             # Now loop over the matches and calculate the smoothed overlap.
             _cross = numpy.full(match_indxs[i].size, numpy.nan, numpy.float32)
@@ -334,12 +337,6 @@ class ParticleOverlap:
     Gaussian smoothing.
     """
 
-    def __init__(self):
-        # Inverse cell length in box units. By default :math:`2^11`, which
-        # matches the initial RAMSES grid resolution.
-        self.inv_clength = 2**11
-        self._clength = 1 / self.inv_clength
-
     def make_bckg_delta(self, parts, start, delta=None):
         """
         Calculate a NGP density field of particles belonging to halos within
@@ -360,9 +357,8 @@ class ParticleOverlap:
         -------
         delta : 3-dimensional array
         """
-        # We obtain the minimum/maximum cell IDs and number of cells
-        cellmin = self.inv_clength // 4  # The minimum cell ID
-        cellmax = 3 * self.inv_clength // 4  # The maximum cell ID
+        cellmin = BOX_SIZE // 2 - BCKG_HALFSIZE
+        cellmax = BOX_SIZE // 2 + BCKG_HALFSIZE
         ncells = cellmax - cellmin
         # We then pre-allocate the density field/check it is of the right shape
         if delta is None:
@@ -377,7 +373,7 @@ class ParticleOverlap:
             end = min(start + batchsize, nmax)
             pos = parts[start:end, :]
             pos, mass = pos[:, :3], pos[:, 3]
-            cells = pos2cell(pos, self.inv_clength)
+            cells = pos2cell(pos, BOX_SIZE)
 
             # We mask out particles outside the cubical high-resolution region
             mask = numpy.all((cellmin <= cells) & (cells < cellmax), axis=1)
@@ -425,12 +421,12 @@ class ParticleOverlap:
 
         if subbox:
             if mins is None or maxs is None:
-                mins, maxs = get_halolims(cells, self.inv_clength, nshift)
+                mins, maxs = get_halolims(cells, BOX_SIZE, nshift)
 
             ncells = maxs - mins + 1  # To get the number of cells
         else:
             mins = [0, 0, 0]
-            ncells = self.inv_clength
+            ncells = BOX_SIZE
 
         # Preallocate and fill the array
         delta = numpy.zeros((ncells,) * 3, dtype=numpy.float32)
@@ -476,8 +472,8 @@ class ParticleOverlap:
             Calculated only if no smoothing is applied, otherwise `None`.
         """
         nshift = read_nshift(smooth_kwargs)
-        pos1 = pos2cell(pos1, self.inv_clength)
-        pos2 = pos2cell(pos2, self.inv_clength)
+        pos1 = pos2cell(pos1, BOX_SIZE)
+        pos2 = pos2cell(pos2, BOX_SIZE)
         xc1, yc1, zc1 = [pos1[:, i] for i in range(3)]
         xc2, yc2, zc2 = [pos2[:, i] for i in range(3)]
 
@@ -494,7 +490,7 @@ class ParticleOverlap:
             ymax = max(numpy.max(yc1), numpy.max(yc2)) + nshift
             zmax = max(numpy.max(zc1), numpy.max(zc2)) + nshift
             # Make sure shifting does not go beyond boundaries
-            xmax, ymax, zmax = [min(px, self.inv_clength - 1)
+            xmax, ymax, zmax = [min(px, BOX_SIZE - 1)
                                 for px in (xmax, ymax, zmax)]
         else:
             xmin, ymin, zmin = [min(mins1[i], mins2[i]) for i in range(3)]
@@ -755,8 +751,8 @@ def calculate_overlap(delta1, delta2, cellmins, delta_bckg):
     totmass = 0.0  # Total mass of clump 1 and clump 2
     intersect = 0.0  # Weighted intersecting mass
     i0, j0, k0 = cellmins  # Unpack things
-    bckg_offset = 512  # Offset of the background density field
-    bckg_size = 1024
+    bckg_size = 2 * BCKG_HALFSIZE
+    bckg_offset = BOX_SIZE // 2 - BCKG_HALFSIZE
     imax, jmax, kmax = delta1.shape
 
     for i in range(imax):
@@ -812,8 +808,8 @@ def calculate_overlap_indxs(delta1, delta2, cellmins, delta_bckg, nonzero,
     """
     intersect = 0.0  # Weighted intersecting mass
     i0, j0, k0 = cellmins  # Unpack cell minimas
-    bckg_offset = 512  # Offset of the background density field
-    bckg_size = 1024  # Size of the background density field array
+    bckg_size = 2 * BCKG_HALFSIZE
+    bckg_offset = BOX_SIZE // 2 - BCKG_HALFSIZE
 
     for n in range(nonzero.shape[0]):
         i, j, k = nonzero[n, :]
