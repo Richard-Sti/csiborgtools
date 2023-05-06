@@ -13,6 +13,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """A script to calculate overlap between two CSiBORG realisations."""
 from argparse import ArgumentParser
+from copy import deepcopy
 from datetime import datetime
 from distutils.util import strtobool
 
@@ -47,9 +48,9 @@ matcher = csiborgtools.match.RealisationsMatcher()
 # Load the raw catalogues (i.e. no selection) including the initial CM
 # positions and the particle archives.
 cat0 = HaloCatalogue(args.nsim0, paths, load_initial=True,
-                     minmass=("totpartmass", 1e14), with_lagpatch=True)
+                     minmass=("totpartmass", 7e13), with_lagpatch=True)
 catx = HaloCatalogue(args.nsimx, paths, load_initial=True,
-                     minmass=("totpartmass", 1e14), with_lagpatch=True)
+                     minmass=("totpartmass", 7e13), with_lagpatch=True)
 
 clumpmap0 = read_h5(paths.particles_path(args.nsim0))["clumpmap"]
 parts0 = read_h5(paths.initmatch_path(args.nsim0, "particles"))["particles"]
@@ -65,8 +66,8 @@ clid2mapx = {clid: i for i, clid in enumerate(clumpmapx[:, 0])}
 if args.verbose:
     print(f"{datetime.now()}: generating the background density fields.",
           flush=True)
-delta_bckg = overlapper.make_bckg_delta(parts0, clumpmap0[clid2map0[0], 2] + 1)
-delta_bckg = overlapper.make_bckg_delta(partsx, clumpmapx[clid2mapx[0], 2] + 1,
+delta_bckg = overlapper.make_bckg_delta(parts0, clumpmap0, clid2map0, cat0)
+delta_bckg = overlapper.make_bckg_delta(partsx, clumpmapx, clid2mapx, catx,
                                         delta=delta_bckg)
 
 # We calculate the overlap between the NGP fields.
@@ -77,7 +78,7 @@ match_indxs, ngp_overlap = matcher.cross(cat0, catx, parts0, partsx, clumpmap0,
                                          verbose=args.verbose)
 # We wish to store the halo IDs of the matches, not their array positions in
 # the catalogues
-match_hids = numpy.copy(match_indxs)
+match_hids = deepcopy(match_indxs)
 for i, matches in enumerate(match_indxs):
     for j, match in enumerate(matches):
         match_hids[i][j] = catx["index"][match]

@@ -337,21 +337,30 @@ class ParticleOverlap:
     Gaussian smoothing.
     """
 
-    def make_bckg_delta(self, parts, start, delta=None):
+    def make_bckg_delta(self, particles, clump_map, clid2map, halo_cat,
+                        delta=None, verbose=False):
         """
-        Calculate a NGP density field of particles belonging to halos within
-        the central :math:`1/2^3` high-resolution region of the simulation.
-        Smoothing must be applied separately.
+        Calculate a NGP density field of particles belonging to halos of a
+        halo catalogue `halo_cat`. Particles are only counted within the
+        high-resolution region of the simulation. Smoothing must be applied
+        separately.
 
         Parameters
         ----------
-        pos : 2-dimensional array
-            Array of particle positions.
-        mass : 1-dimensional array
-            Array of particle masses.
+        particles : 2-dimensional array
+            Array of particles.
+        clump_map : 2-dimensional array
+            Array containing start and end indices in the particle array
+            corresponding to each clump.
+        clid2map : dict
+            Dictionary mapping clump IDs to `clump_map` array positions.
+        halo_cat: :py:class:`csiborgtools.read.HaloCatalogue`
+            Halo catalogue.
         delta : 3-dimensional array, optional
             Array to store the density field in. If `None` a new array is
             created.
+        verbose : bool, optional
+            Verbosity flag for loading the halos' particles.
 
         Returns
         -------
@@ -366,25 +375,22 @@ class ParticleOverlap:
         else:
             assert ((delta.shape == (ncells,) * 3)
                     & (delta.dtype == numpy.float32))
-        # Load the particles in batches to avoid memory issues
-        batchsize = parts.shape[0] // 50  # Arbitrary choice...
-        nmax = parts.shape[0]
-        while True:
-            end = min(start + batchsize, nmax)
-            pos = parts[start:end, :]
+        from tqdm import tqdm
+
+        clumps_cat = halo_cat.clumps_cat
+        for hid in tqdm(halo_cat["index"]) if verbose else halo_cat["index"]:
+            pos = load_parent_particles(hid, particles, clump_map, clid2map,
+                                        clumps_cat)
+            if pos is None:
+                continue
+
             pos, mass = pos[:, :3], pos[:, 3]
-            cells = pos2cell(pos, BOX_SIZE)
-
+            pos = pos2cell(pos, BOX_SIZE)
             # We mask out particles outside the cubical high-resolution region
-            mask = numpy.all((cellmin <= cells) & (cells < cellmax), axis=1)
-            cells = cells[mask]
-            mass = mass[mask]
-            fill_delta(delta, cells[:, 0], cells[:, 1], cells[:, 2],
-                       *(cellmin,) * 3, mass)
-            if end == nmax:
-                break
-
-            start += batchsize
+            mask = numpy.all((cellmin <= pos) & (pos < cellmax), axis=1)
+            pos = pos[mask]
+            fill_delta(delta, pos[:, 0], pos[:, 1], pos[:, 2],
+                       *(cellmin,) * 3, mass[mask])
         return delta
 
     def make_delta(self, pos, mass, mins=None, maxs=None, subbox=False,
