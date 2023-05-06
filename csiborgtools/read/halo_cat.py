@@ -177,7 +177,7 @@ class BaseCatalogue(ABC):
         knn : :py:class:`sklearn.neighbors.NearestNeighbors`
         """
         knn = NearestNeighbors()
-        return knn.fit(self.positions(in_initial))
+        return knn.fit(self.position(in_initial))
 
     def radius_neigbours(self, X, radius, in_initial):
         r"""
@@ -368,6 +368,8 @@ class HaloCatalogue(BaseCatalogue):
     minmass : len-2 tuple
         Minimum mass. The first element is the catalogue key and the second is
         the value.
+    with_lagpatch : bool, optional
+        Whether to only load halos with a resolved Lagrangian patch.
     load_fitted : bool, optional
         Whether to load fitted quantities.
     load_initial : bool, optional
@@ -378,7 +380,8 @@ class HaloCatalogue(BaseCatalogue):
     """
 
     def __init__(self, nsim, paths, maxdist=155.5 / 0.705, minmass=("M", 1e12),
-                 load_fitted=True, load_initial=True, rawdata=False):
+                 with_lagpatch=True, load_fitted=True, load_initial=True,
+                 rawdata=False):
         self.nsim = nsim
         self.paths = paths
         # Read in the mmain catalogue of summed substructure
@@ -408,6 +411,8 @@ class HaloCatalogue(BaseCatalogue):
             self._data = add_columns(self._data, X, cols)
 
         if not rawdata:
+            if with_lagpatch:
+                self._data = self._data[numpy.isfinite(self['lagpatch'])]
             # Flip positions and convert from code units to cMpc. Convert M too
             flip_cols(self._data, "x", "z")
             for p in ("x", "y", "z"):
