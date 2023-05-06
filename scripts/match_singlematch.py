@@ -48,9 +48,9 @@ matcher = csiborgtools.match.RealisationsMatcher()
 # Load the raw catalogues (i.e. no selection) including the initial CM
 # positions and the particle archives.
 cat0 = HaloCatalogue(args.nsim0, paths, load_initial=True,
-                     minmass=("totpartmass", 7e13), with_lagpatch=True)
+                     minmass=("totpartmass", 1e12), with_lagpatch=True)
 catx = HaloCatalogue(args.nsimx, paths, load_initial=True,
-                     minmass=("totpartmass", 7e13), with_lagpatch=True)
+                     minmass=("totpartmass", 1e12), with_lagpatch=True)
 
 clumpmap0 = read_h5(paths.particles_path(args.nsim0))["clumpmap"]
 parts0 = read_h5(paths.initmatch_path(args.nsim0, "particles"))["particles"]
