@@ -279,7 +279,7 @@ class CSiBORGPaths:
         if not isdir(fdir):
             mkdir(fdir)
             warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
-        fname = f"overlap_{str(nsim0).zfill(5)}_{str(nsimx).zfill(5)}.npz"
+        fname = f"overlap_{str(nsim0).zfill(5)}_{str(nsimx).zfill(5)}.h5"
         return join(fdir, fname)
 
     def radpos_path(self, nsnap, nsim):
