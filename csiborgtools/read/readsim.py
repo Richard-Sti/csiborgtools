@@ -496,7 +496,7 @@ class MmainReader:
         for i in range(nmain):
             # Should include the main halo itself, i.e. its own ultimate parent
             out["M"][i] = numpy.sum(
-                clumparr["mass_cl"][ultimate_parent == out["ID"][i]])
+                clumparr["mass_cl"][ultimate_parent == out["index"][i]])
 
         out["subfrac"] = 1 - clumparr["mass_cl"][mask_main] / out["M"]
         return out, ultimate_parent
