@@ -485,10 +485,10 @@ class MmainReader:
         nmain = numpy.sum(mask_main)
         # Preallocate already the output array
         out = cols_to_structured(
-            nmain, [("ID", numpy.int32), ("x", numpy.float32),
+            nmain, [("index", numpy.int32), ("x", numpy.float32),
                     ("y", numpy.float32), ("z", numpy.float32),
                     ("M", numpy.float32), ("subfrac", numpy.float32)])
-        out["ID"] = clumparr["index"][mask_main]
+        out["index"] = clumparr["index"][mask_main]
         # Because for these index == parent
         for p in ('x', 'y', 'z'):
             out[p] = clumparr[p][mask_main]
