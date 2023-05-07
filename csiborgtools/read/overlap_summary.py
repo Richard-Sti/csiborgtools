@@ -22,6 +22,11 @@ import numpy
 from tqdm import tqdm
 
 
+###############################################################################
+#                         Overlap of two simulations                          #
+###############################################################################
+
+
 class PairOverlap:
     r"""
     A shortcut object for reading in the results of matching two simulations.
@@ -453,6 +458,10 @@ class PairOverlap:
     def __len__(self):
         return self["match_indxs"].size
 
+###############################################################################
+#                  Overlap of many pairs of simulations.                      #
+###############################################################################
+
 
 class NPairsOverlap:
     r"""
@@ -461,25 +470,17 @@ class NPairsOverlap:
 
     Parameters
     ----------
-    cat0 : :py:class:`csiborgtools.read.ClumpsCatalogue`
-        Reference simulation halo catalogue.
-    catxs : list of :py:class:`csiborgtools.read.ClumpsCatalogue`
+    cat0 : :py:class:`csiborgtools.read.HaloCatalogue`
+        Single reference simulation halo catalogue.
+    catxs : list of :py:class:`csiborgtools.read.HaloCatalogue`
         List of cross simulation halo catalogues.
-    fskel : str, optional
-        Path to the overlap. By default `None`, i.e.
-        `/mnt/extraspace/rstiskalek/csiborg/overlap/cross_{}_{}.npz`.
-    min_mass : float, optional
-        Minimum :math:`M_{\rm tot} / M_\odot` mass in the reference catalogue.
-        By default no threshold.
-    max_dist : float, optional
-        Maximum comoving distance in the reference catalogue. By default upper
-        limit.
+    paths : py:class`csiborgtools.read.CSiBORGPaths`
+        CSiBORG paths object.
     """
     _pairs = None
 
-    def __init__(self, cat0, catxs, fskel=None, min_mass=None, max_dist=None):
-        self._pairs = [PairOverlap(cat0, catx, fskel=fskel, min_mass=min_mass,
-                                   max_dist=max_dist) for catx in catxs]
+    def __init__(self, cat0, catxs, paths):
+        self._pairs = [PairOverlap(cat0, catx, paths) for catx in catxs]
 
     def summed_overlap(self, from_smoothed, verbose=False):
         """
