@@ -378,18 +378,20 @@ class HaloCatalogue(BaseCatalogue):
         Whether to return the raw data. In this case applies no cuts and
         transformations.
     """
+    _clumps_cat = None
 
     def __init__(self, nsim, paths, maxdist=155.5 / 0.705, minmass=("M", 1e12),
                  with_lagpatch=True, load_fitted=True, load_initial=True,
-                 rawdata=False):
+                 load_clumps_cat=False, rawdata=False):
         self.nsim = nsim
         self.paths = paths
         # Read in the mmain catalogue of summed substructure
         mmain = numpy.load(self.paths.mmain_path(self.nsnap, self.nsim))
         self._data = mmain["mmain"]
         # We will also need the clumps catalogue
-        self._clumps_cat = ClumpsCatalogue(nsim, paths, rawdata=True,
-                                           load_fitted=False)
+        if load_clumps_cat:
+            self._clumps_cat = ClumpsCatalogue(nsim, paths, rawdata=True,
+                                               load_fitted=False)
         if load_fitted:
             fits = numpy.load(paths.structfit_path(self.nsnap, nsim, "halos"))
             cols = [col for col in fits.dtype.names if col != "index"]
@@ -441,4 +443,6 @@ class HaloCatalogue(BaseCatalogue):
         -------
         clumps_cat : :py:class:`csiborgtools.read.ClumpsCatalogue`
         """
+        if self._clumps_cat is None:
+            raise ValueError("`clumps_cat` is not loaded.")
         return self._clumps_cat
