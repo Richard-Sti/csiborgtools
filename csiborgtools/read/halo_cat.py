@@ -234,7 +234,7 @@ class BaseCatalogue(ABC):
         knn = self.knn(in_initial)
         return knn.radius_neighbors(X, radius, sort_results=True)
 
-    def angular_neighbours(self, X, ang_radius, rad_tolerance=None):
+    def angular_neighbours(self, X, ang_radius, in_rsp, rad_tolerance=None):
         r"""
         Find nearest neighbours within `ang_radius` of query points `X`.
         Optionally applies radial tolerance, which is expected to be in
@@ -246,6 +246,8 @@ class BaseCatalogue(ABC):
             Query positions. If 2-dimensional, then RA and DEC in degrees.
             If 3-dimensional, then radial distance in :math:`\mathrm{cMpc}`,
             RA and DEC in degrees.
+        in_rsp : bool
+            Whether to use redshift space positions of haloes.
         ang_radius : float
             Angular radius in degrees.
         rad_tolerance : float, optional
@@ -261,7 +263,10 @@ class BaseCatalogue(ABC):
         assert X.ndim == 2
         # We first get positions of haloes in this catalogue, store their
         # radial distance and normalise them to unit vectors.
-        pos = self.position(in_initial=False, cartesian=True)
+        if in_rsp:
+            pos = self.redshift_space_position(cartesian=True)
+        else:
+            pos = self.position(in_initial=False, cartesian=True)
         raddist = numpy.linalg.norm(pos, axis=1)
         pos /= raddist.reshape(-1, 1)
         # We convert RAdec query positions to unit vectors. If no radial
