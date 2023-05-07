@@ -25,4 +25,4 @@ from .readsim import (MmainReader, ParticleReader, halfwidth_select,  # noqa
                       load_clump_particles, load_parent_particles, read_initcm)
 from .tpcf_summary import TPCFReader  # noqa
 from .utils import (cartesian_to_radec, cols_to_structured,  # noqa
-                    radec_to_cartesian, read_h5)
+                    radec_to_cartesian, read_h5, real2redshift)

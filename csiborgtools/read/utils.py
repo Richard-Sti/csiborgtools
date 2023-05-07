@@ -80,6 +80,44 @@ def radec_to_cartesian(X, isdeg=True):
     return dist * numpy.vstack([x, y, z]).T
 
 
+def real2redshift(pos, vel, origin, box, make_copy=True):
+    """
+    Convert real-space position to redshift space position.
+
+    Parameters
+    ----------
+    pos : 2-dimensional array `(nsamples, 3)`
+        Real-space Cartesian position components.
+    vel : 2-dimensional array `(nsamples, 3)`
+        Cartesian velocity components.
+    origin : 1-dimensional array `(3,)`
+        Origin of the coordinate system in the `pos` reference frame.
+    box : py:class:`csiborg.read.BoxUnits`
+        Box units.
+    make_copy : bool, optional
+        Whether to make a copy of `pos` before modifying it.
+
+    Returns
+    -------
+    pos : 2-dimensional array `(nsamples, 3)`
+        Redshift-space Cartesian position components, in the reference frame
+        moved to `origin`.
+    """
+    a = box._aexp
+    H0 = box._H0
+
+    if make_copy:
+        pos = numpy.copy(pos)
+
+    for i in range(3):
+        pos[:, i] = pos[:, i] - origin[i]
+
+    norm2 = numpy.sum(pos**2, axis=1)
+    dot = numpy.einsum("ij,ij->i", pos, vel)
+    pos *= (1 + a / H0 * dot / norm2).reshape(-1, 1)
+    return pos
+
+
 ###############################################################################
 #                          Array manipulation                                 #
 ###############################################################################
