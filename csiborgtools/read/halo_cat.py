@@ -22,7 +22,7 @@ from .box_units import BoxUnits
 from .paths import CSiBORGPaths
 from .readsim import ParticleReader
 from .utils import (add_columns, cartesian_to_radec, flip_cols,
-                    radec_to_cartesian)
+                    radec_to_cartesian, real2redshift)
 
 
 class BaseCatalogue(ABC):
@@ -151,6 +151,33 @@ class BaseCatalogue(ABC):
         vel : 2-dimensional array of shape `(nobjects, 3)`
         """
         return numpy.vstack([self["v{}".format(p)] for p in ("x", "y", "z")]).T
+
+    def redshift_space_position(self, cartesian=True):
+        r"""
+        Redshift space position components. If Cartesian, then in
+        :math:`\mathrm{cMpc}`. If spherical, then radius is in
+        :math:`\mathrm{cMpc}`, RA in :math:`[0, 360)` degrees and DEC in
+        :math:`[-90, 90]` degrees. Note that the position is defined as the
+        minimum of the gravitationl potential.
+
+        Parameters
+        ----------
+        cartesian : bool, optional
+            Whether to return the Cartesian or spherical position components.
+            By default Cartesian.
+
+        Returns
+        -------
+        pos : 2-dimensional array of shape `(nobjects, 3)`
+        """
+        pos = self.position(cartesian=True)
+        vel = self.velocity()
+        origin = [0., 0., 0.]
+        rsp = real2redshift(pos, vel, origin, self.box, in_box_units=False,
+                            make_copy=False)
+        if not cartesian:
+            rsp = cartesian_to_radec(rsp)
+        return rsp
 
     def angmomentum(self):
         """
