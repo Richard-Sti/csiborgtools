@@ -27,6 +27,7 @@ CONV_NAME = {
     "length": ["x", "y", "z", "peak_x", "peak_y", "peak_z", "Rs", "rmin",
                "rmax", "r200c", "r500c", "r200m", "x0", "y0", "z0",
                "lagpatch"],
+    "velocity": ["vx", "vy", "vz"],
     "mass": ["mass_cl", "totpartmass", "m200c", "m500c", "mass_mmain", "M",
              "m200m"],
     "density": ["rho0"]}
@@ -93,8 +94,8 @@ class BoxUnits:
     @property
     def H0(self):
         r"""
-        The Hubble parameter at the time of the snapshot
-        in :math:`\mathrm{Mpc} / \mathrm{km} / \mathrm{s}`.
+        The Hubble parameter at the time of the snapshot in units of
+        :math:`\mathrm{km} \mathrm{s}^{-1} \mathrm{Mpc}^{-1}`.
 
         Returns
         -------
@@ -229,7 +230,7 @@ class BoxUnits:
 
     def box2vel(self, vel):
         r"""
-        Convert velocity from box units to :math:`\mathrm{m} / \mathrm{s}^2`.
+        Convert velocity from box units to :math:`\mathrm{km} \mathrm{s}^{-1}`.
 
         Parameters
         ----------
@@ -239,9 +240,9 @@ class BoxUnits:
         Returns
         -------
         vel : float
-            Velocity in :math:`\mathrm{m} / \mathrm{s}^2`
+            Velocity in :math:`\mathrm{km} \mathrm{s}^{-1}`.
         """
-        return vel * (1e-2 * self._unit_l / self._unit_t / self._aexp)
+        return vel * (1e-2 * self._unit_l / self._unit_t / self._aexp) * 1e-3
 
     def box2cosmoredshift(self, dist):
         r"""
@@ -396,6 +397,7 @@ class BoxUnits:
         physical units, such that
             - length -> :math:`Mpc`,
             - mass -> :math:`M_\odot`,
+            - velocity -> :math:`\mathrm{km} / \mathrm{s}`,
             - density -> :math:`M_\odot / \mathrm{Mpc}^3`.
 
         Any other conversions are currently not implemented. Note that the
@@ -418,6 +420,7 @@ class BoxUnits:
         names = [names] if isinstance(names, str) else names
         transforms = {"length": self.box2mpc,
                       "mass": self.box2solarmass,
+                      "velocity": self.box2vel,
                       "density": self.box2dens,
                       }
 

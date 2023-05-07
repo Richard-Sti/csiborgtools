@@ -329,7 +329,8 @@ class ClumpsCatalogue(BaseCatalogue):
             for p in ("x", "y", "z"):
                 self._data[p] -= 0.5
             names = ["x", "y", "z", "mass_cl", "totpartmass", "rho0", "r200c",
-                     "r500c", "m200c", "m500c", "r200m", "m200m"]
+                     "r500c", "m200c", "m500c", "r200m", "m200m",
+                     "vx", "vy", "vz"]
             self._data = self.box.convert_from_boxunits(self._data, names)
             if maxdist is not None:
                 dist = numpy.sqrt(self._data["x"]**2 + self._data["y"]**2
@@ -420,7 +421,8 @@ class HaloCatalogue(BaseCatalogue):
             for p in ("x", "y", "z"):
                 self._data[p] -= 0.5
             names = ["x", "y", "z", "M", "totpartmass", "rho0", "r200c",
-                     "r500c", "m200c", "m500c", "r200m", "m200m"]
+                     "r500c", "m200c", "m500c", "r200m", "m200m",
+                     "vx", "vy", "vz"]
             self._data = self.box.convert_from_boxunits(self._data, names)
 
             if load_initial:
