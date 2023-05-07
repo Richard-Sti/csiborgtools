@@ -80,8 +80,8 @@ def radec_to_cartesian(X, isdeg=True):
     return dist * numpy.vstack([x, y, z]).T
 
 
-def real2redshift(pos, vel, origin, box, make_copy=True):
-    """
+def real2redshift(pos, vel, origin, box, in_box_units, make_copy=True):
+    r"""
     Convert real-space position to redshift space position.
 
     Parameters
@@ -94,27 +94,34 @@ def real2redshift(pos, vel, origin, box, make_copy=True):
         Origin of the coordinate system in the `pos` reference frame.
     box : py:class:`csiborg.read.BoxUnits`
         Box units.
+    in_box_units: bool
+        Whether `pos` and `vel` are in box units. If not, position is assumed
+        to be in :math:`\mathrm{Mpc}`, velocity in
+        :math:`\mathrm{km} \mathrm{s}^{-1}` and math:`h=0.705`, or otherwise
+        matching the box.
     make_copy : bool, optional
         Whether to make a copy of `pos` before modifying it.
 
     Returns
     -------
     pos : 2-dimensional array `(nsamples, 3)`
-        Redshift-space Cartesian position components, in the reference frame
-        moved to `origin`.
+        Redshift-space Cartesian position components, with an observer assumed
+        at the `origin`.
     """
     a = box._aexp
-    H0 = box._H0
+    H0 = box.box_H0 if in_box_units else box.H0
 
     if make_copy:
         pos = numpy.copy(pos)
-
     for i in range(3):
-        pos[:, i] = pos[:, i] - origin[i]
+        pos[:, i] -= origin[i]
 
     norm2 = numpy.sum(pos**2, axis=1)
     dot = numpy.einsum("ij,ij->i", pos, vel)
     pos *= (1 + a / H0 * dot / norm2).reshape(-1, 1)
+
+    for i in range(3):
+        pos[:, i] += origin[i]
     return pos
 
 
