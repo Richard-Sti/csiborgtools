@@ -602,6 +602,11 @@ class NPairsOverlap:
         return len(self.pairs)
 
 
+###############################################################################
+#                       Various support functions.                            #
+###############################################################################
+
+
 def binned_resample_mean(x, y, prob, bins, nresample=50, seed=42):
     """
     Calculate binned average of `y` by MC resampling. Each point is kept with
