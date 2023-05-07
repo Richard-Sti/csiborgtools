@@ -15,7 +15,8 @@
 """
 Tools for summarising various results.
 """
-from os.path import isfile, join
+from functools import lru_cache
+from os.path import isfile
 
 import numpy
 from tqdm import tqdm
@@ -33,58 +34,97 @@ class PairOverlap:
         Halo catalogue corresponding to the cross simulation.
     paths : py:class`csiborgtools.read.CSiBORGPaths`
         CSiBORG paths object.
-    min_mass : float, optional
-        Minimum :math:`M_{\rm tot} / M_\odot` mass in the reference catalogue.
-        By default no threshold.
-    max_dist : float, optional
-        Maximum comoving distance in the reference catalogue. By default upper
-        limit.
     """
     _cat0 = None
     _catx = None
     _data = None
 
-    def __init__(self, cat0, catx, paths, min_mass=None, max_dist=None):
+    def __init__(self, cat0, catx, paths):
         self._cat0 = cat0
         self._catx = catx
+        self.load(cat0, catx, paths)
 
-        if fskel is None:
-            fskel = join("/mnt/extraspace/rstiskalek/csiborg/overlap",
-                         "cross_{}_{}.npz")
+    def load(self, cat0, catx, paths):
+        """
+        Load overlap calculation results. Matches the results back to the two
+        catalogues in question.
 
-        fpath = fskel.format(cat0.n_sim, catx.n_sim)
-        fpath_inv = fskel.format(catx.n_sim, cat0.n_sim)
-        if isfile(fpath):
-            is_inverted = False
-        elif isfile(fpath_inv):
-            fpath = fpath_inv
-            is_inverted = True
+        Parameters
+        ----------
+        cat0 : :py:class:`csiborgtools.read.HaloCatalogue`
+            Halo catalogue corresponding to the reference simulation.
+        catx : :py:class:`csiborgtools.read.HaloCatalogue`
+            Halo catalogue corresponding to the cross simulation.
+        paths : py:class`csiborgtools.read.CSiBORGPaths`
+            CSiBORG paths object.
+
+        Returns
+        -------
+        None
+        """
+        nsim0 = cat0.nsim
+        nsimx = catx.nsim
+
+        # We first load in the output files. We need to find the right
+        # combination of the reference and cross simulation.
+        fname = paths.overlap_path(nsim0, nsimx, smoothed=False)
+        fname_inv = paths.overlap_path(nsimx, nsim0, smoothed=False)
+        if isfile(fname):
+            data_ngp = numpy.load(fname, allow_pickle=True)
+            to_invert = False
+        elif isfile(fname_inv):
+            data_ngp = numpy.load(fname_inv, allow_pickle=True)
+            to_invert = True
+            cat0, catx = catx, cat0
         else:
-            raise FileNotFoundError(
-                "No overlap file found for combination `{}` and `{}`."
-                .format(cat0.n_sim, catx.n_sim))
+            raise FileNotFoundError(f"No file found for {nsim0} and {nsimx}.")
 
-        # We can set catalogues already now even if inverted
-        d = numpy.load(fpath, allow_pickle=True)
-        ngp_overlap = d["ngp_overlap"]
-        smoothed_overlap = d["smoothed_overlap"]
-        match_indxs = d["match_indxs"]
-        if is_inverted:
-            indxs = d["cross_indxs"]
-            # Invert the matches
+        fname_smooth = paths.overlap_path(cat0.nsim, catx.nsim, smoothed=True)
+        data_smooth = numpy.load(fname_smooth, allow_pickle=True)
+
+        # Create mapping from halo indices to array positions in the catalogue.
+        # In case of the cross simulation use caching for speed.
+        hid2ind0 = {hid: i for i, hid in enumerate(cat0["index"])}
+        _hid2indx = {hid: i for i, hid in enumerate(catx["index"])}
+
+        @lru_cache(maxsize=8192)
+        def hid2indx(hid):
+            return _hid2indx[hid]
+
+        # Unpack the overlaps, making sure that their ordering matches the
+        # catalogue
+        ref_hids = data_ngp["ref_hids"]
+        match_hids = data_ngp["match_hids"]
+        raw_ngp_overlap = data_ngp["ngp_overlap"]
+        raw_smoothed_overlap = data_smooth["smoothed_overlap"]
+
+        match_indxs = [[] for __ in range(len(cat0))]
+        ngp_overlap = [[] for __ in range(len(cat0))]
+        smoothed_overlap = [[] for __ in range(len(cat0))]
+        for i in range(ref_hids.size):
+            _matches = numpy.copy(match_hids[i])
+            # Read off the orderings from the reference catalogue
+            for j, match_hid in enumerate(match_hids[i]):
+                _matches[j] = hid2indx(match_hid)
+
+            k = hid2ind0[ref_hids[i]]
+            match_indxs[k] = _matches
+            ngp_overlap[k] = raw_ngp_overlap[i]
+            smoothed_overlap[k] = raw_smoothed_overlap[i]
+
+        match_indxs = numpy.asanyarray(match_indxs, dtype=object)
+        ngp_overlap = numpy.asanyarray(ngp_overlap, dtype=object)
+        smoothed_overlap = numpy.asanyarray(smoothed_overlap, dtype=object)
+
+        # If needed, we now invert the matches.
+        if to_invert:
             match_indxs, ngp_overlap, smoothed_overlap = self._invert_match(
-                match_indxs, ngp_overlap, smoothed_overlap, indxs.size,)
-        else:
-            indxs = d["ref_indxs"]
+                match_indxs, ngp_overlap, smoothed_overlap, len(catx),)
 
-        self._data = {
-            "index": indxs,
-            "match_indxs": match_indxs,
-            "ngp_overlap": ngp_overlap,
-            "smoothed_overlap": smoothed_overlap,
-        }
-
-        self._make_refmask(min_mass, max_dist)
+        self._data = {"match_indxs": match_indxs,
+                      "ngp_overlap": ngp_overlap,
+                      "smoothed_overlap": smoothed_overlap,
+                      }
 
     @staticmethod
     def _invert_match(match_indxs, ngp_overlap, smoothed_overlap, cross_size):
@@ -104,16 +144,16 @@ class PairOverlap:
             Smoothed pair overlap of halos between the original reference and
             cross simulations.
         cross_size : int
-            The size of the cross catalogue.
+            Size of the cross catalogue.
 
         Returns
         -------
         inv_match_indxs : array of 1-dimensional arrays
-            The inverted match indices.
+            Inverted match indices.
         ind_ngp_overlap : array of 1-dimensional arrays
-            The corresponding NGP overlaps to `inv_match_indxs`.
+            The NGP overlaps corresponding to `inv_match_indxs`.
         ind_smoothed_overlap : array of 1-dimensional arrays
-            The corresponding smoothed overlaps to `inv_match_indxs`.
+            The smoothed overlaps corresponding to `inv_match_indxs`.
         """
         # 1. Invert the match. Each reference halo has a list of counterparts
         # so loop over those to each counterpart assign a reference halo
@@ -123,7 +163,7 @@ class PairOverlap:
         inv_smoothed_overlap = [[] for __ in range(cross_size)]
         for ref_id in range(match_indxs.size):
             iters = zip(match_indxs[ref_id], ngp_overlap[ref_id],
-                        smoothed_overlap[ref_id], strict=True)
+                        smoothed_overlap[ref_id])
             for cross_id, ngp_cross, smoothed_cross in iters:
                 inv_match_indxs[cross_id].append(ref_id)
                 inv_ngp_overlap[cross_id].append(ngp_cross)
@@ -150,34 +190,6 @@ class PairOverlap:
                                              dtype=object)
 
         return inv_match_indxs, inv_ngp_overlap, inv_smoothed_overlap
-
-    def _make_refmask(self, min_mass, max_dist):
-        r"""
-        Create a mask for the reference catalogue that accounts for the mass
-        and distance cuts. Note that *no* masking is applied to the cross
-        catalogue.
-
-        Parameters
-        ----------
-        min_mass : float, optional
-            The minimum :math:`M_{rm tot} / M_\odot` mass.
-        max_dist : float, optional
-            The maximum comoving distance of a halo.
-
-        Returns
-        -------
-        None
-        """
-        # Enforce a cut on the reference catalogue
-        min_mass = 0 if min_mass is None else min_mass
-        max_dist = numpy.infty if max_dist is None else max_dist
-        m = ((self.cat0()["totpartmass"] > min_mass)
-             & (self.cat0()["dist"] < max_dist))
-        # Now remove indices that are below this cut
-        for p in ("index", "match_indxs", "ngp_overlap", "smoothed_overlap"):
-            self._data[p] = self._data[p][m]
-
-        self._data["refmask"] = m
 
     def overlap(self, from_smoothed):
         """
@@ -252,11 +264,8 @@ class PairOverlap:
         assert (norm_kind is None
                 or norm_kind in ("r200", "ref_patch", "sum_patch"))
         # Get positions either in the initial or final snapshot
-        if in_initial:
-            pos0, posx = self.cat0().positions0, self.catx().positions0
-        else:
-            pos0, posx = self.cat0().positions, self.catx().positions
-        pos0 = pos0[self["refmask"], :]  # Apply the reference catalogue mask
+        pos0 = self.cat0().position(in_initial)
+        posx = self.catx().position(in_initial)
 
         # Get the normalisation array if applicable
         if norm_kind == "r200":
@@ -398,7 +407,7 @@ class PairOverlap:
     def cat0(self, key=None, index=None):
         """
         Return the reference halo catalogue if `key` is `None`, otherwise
-        return  values from the reference catalogue and apply `refmask`.
+        return  values from the reference catalogue.
 
         Parameters
         ----------
@@ -413,13 +422,13 @@ class PairOverlap:
         """
         if key is None:
             return self._cat0
-        out = self._cat0[key][self["refmask"]]
+        out = self._cat0[key]
         return out if index is None else out[index]
 
     def catx(self, key=None, index=None):
         """
         Return the cross halo catalogue if `key` is `None`, otherwise
-        return  values from the reference catalogue.
+        return  values from the cross catalogue.
 
         Parameters
         ----------
@@ -438,16 +447,11 @@ class PairOverlap:
         return out if index is None else out[index]
 
     def __getitem__(self, key):
-        """
-        Must be one of `index`, `match_indxs`, `ngp_overlap`,
-        `smoothed_overlap` or `refmask`.
-        """
-        assert key in ("index", "match_indxs", "ngp_overlap",
-                       "smoothed_overlap", "refmask")
+        assert key in ["match_indxs", "ngp_overlap", "smoothed_overlap"]
         return self._data[key]
 
     def __len__(self):
-        return self["index"].size
+        return self["match_indxs"].size
 
 
 class NPairsOverlap:
