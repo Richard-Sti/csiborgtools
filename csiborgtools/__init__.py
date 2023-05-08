@@ -16,5 +16,5 @@ from csiborgtools import clustering, field, fits, match, read  # noqa
 
 # Arguments to csiborgtools.read.CSiBORGPaths.
 paths_glamdring = {"srcdir": "/mnt/extraspace/hdesmond/",
-                   "postdir": "/mnt/extraspace/rstiskalek/csiborg/",
+                   "postdir": "/mnt/extraspace/rstiskalek/CSiBORG/",
                    }
