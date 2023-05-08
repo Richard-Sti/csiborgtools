@@ -246,7 +246,7 @@ class DensityField(BaseField):
         delta -= 1
         return delta
 
-    def __call__(self, parts, grid, in_rsp, flip_xz=True, nbatch=20,
+    def __call__(self, parts, grid, in_rsp, flip_xz=True, nbatch=30,
                  verbose=True):
         """
         Calculate the density field using a Pylians routine [1, 2].
