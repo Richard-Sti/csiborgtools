@@ -80,7 +80,8 @@ def radec_to_cartesian(X, isdeg=True):
     return dist * numpy.vstack([x, y, z]).T
 
 
-def real2redshift(pos, vel, origin, box, in_box_units, make_copy=True):
+def real2redshift(pos, vel, origin, box, in_box_units, periodic_wrap=True,
+                  make_copy=True):
     r"""
     Convert real-space position to redshift space position.
 
@@ -99,6 +100,9 @@ def real2redshift(pos, vel, origin, box, in_box_units, make_copy=True):
         to be in :math:`\mathrm{Mpc}`, velocity in
         :math:`\mathrm{km} \mathrm{s}^{-1}` and math:`h=0.705`, or otherwise
         matching the box.
+    periodic_wrap : bool, optional
+        Whether to wrap around the box, particles may be outside the default
+        bounds once RSD is applied.
     make_copy : bool, optional
         Whether to make a copy of `pos` before modifying it.
 
@@ -122,6 +126,12 @@ def real2redshift(pos, vel, origin, box, in_box_units, make_copy=True):
 
     for i in range(3):
         pos[:, i] += origin[i]
+
+    if periodic_wrap:
+        boxsize = 1. if in_box_units else box.box2mpc(1.)
+        # Wrap around the box: x > 1 -> x - 1, x < 0 -> x + 1
+        pos[pos > boxsize] -= boxsize
+        pos[pos < 0] += boxsize
     return pos
 
 
