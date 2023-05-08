@@ -20,7 +20,6 @@ from argparse import ArgumentParser
 from datetime import datetime
 from gc import collect
 
-import h5py
 import numpy
 from mpi4py import MPI
 from tqdm import trange
