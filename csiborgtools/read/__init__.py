@@ -21,7 +21,7 @@ from .overlap_summary import (NPairsOverlap, PairOverlap,  # noqa
                               binned_resample_mean)
 from .paths import CSiBORGPaths  # noqa
 from .pk_summary import PKReader  # noqa
-from .readsim import (MmainReader, ParticleReader, halfwidth_select,  # noqa
+from .readsim import (MmainReader, ParticleReader, halfwidth_mask,  # noqa
                       load_clump_particles, load_parent_particles, read_initcm)
 from .tpcf_summary import TPCFReader  # noqa
 from .utils import (cartesian_to_radec, cols_to_structured,  # noqa
