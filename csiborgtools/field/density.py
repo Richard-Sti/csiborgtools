@@ -23,7 +23,7 @@ import smoothing_library as SL
 from tqdm import trange
 
 from .utils import force_single_precision
-from ..read.utils import radec_to_cartesian
+from ..read.utils import radec_to_cartesian, real2redshift
 
 
 class BaseField(ABC):
@@ -246,16 +246,25 @@ class DensityField(BaseField):
         delta -= 1
         return delta
 
-    def __call__(self, parts, grid, nbatch=10, verbose=True):
+    def __call__(self, parts, grid, in_rsp, flip_xz=True, nbatch=20,
+                 verbose=True):
         """
         Calculate the density field using a Pylians routine [1, 2].
         Iteratively loads the particles into memory, flips their `x` and `z`
-        coordinates.
+        coordinates. Particles are assumed to be in box units, with positions
+        in [0, 1] and observer in the centre of the box if RSP is applied.
 
         Parameters
         ----------
+        parts : 2-dimensional array of shape `(n_parts, 7)`
+            Particle positions, velocities and masses.
+            Columns are: `x`, `y`, `z`, `vx`, `vy`, `vz`, `M`.
         grid : int
             Grid size.
+        in_rsp : bool
+            Whether to calculate the density field in redshift space.
+        flip_xz : bool, optional
+            Whether to flip the `x` and `z` coordinates.
         nbatch : int, optional
             Number of batches to split the particle loading into.
         verbose : bool, optional
@@ -280,19 +289,24 @@ class DensityField(BaseField):
         for __ in trange(nbatch + 1) if verbose else range(nbatch + 1):
             end = min(start + batch_size, nparts)
             pos = parts[start:end]
-            pos, mass = pos[:, :3], pos[:, 6]
+            pos, vel, mass = pos[:, :3], pos[:, 3:6], pos[:, 6]
 
             pos = force_single_precision(pos, "particle_position")
+            vel = force_single_precision(vel, "particle_velocity")
             mass = force_single_precision(mass, "particle_mass")
+            if flip_xz:
+                pos[:, [0, 2]] = pos[:, [2, 0]]
+                vel[:, [0, 2]] = vel[:, [2, 0]]
 
-            pos[:, [0, 2]] = pos[:, [2, 0]]
+            if in_rsp:
+                pos = real2redshift(pos, vel, [0.5, 0.5, 0.5], self.box,
+                                    in_box_units=True, periodic_wrap=True,
+                                    make_copy=False)
 
             MASL.MA(pos, rho, self.boxsize, self.MAS, W=mass, verbose=False)
-
             if end == nparts:
                 break
             start = end
-
         return rho
 
 
