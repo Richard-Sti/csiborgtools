@@ -13,9 +13,8 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-MPI script to evaluate field properties at the galaxy positions.
-
-NOTE THAT ONLY MAX SNAP
+MPI script to calculate the density fields on CSiBORG simulations in the final
+snapshot.
 """
 from argparse import ArgumentParser
 from datetime import datetime
