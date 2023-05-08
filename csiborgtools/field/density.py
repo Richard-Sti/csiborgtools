@@ -16,11 +16,9 @@
 Density field and cross-correlation calculations.
 """
 from abc import ABC
-from warnings import warn
 
 import MAS_library as MASL
 import numpy
-import Pk_library as PKL
 import smoothing_library as SL
 from tqdm import trange
 
@@ -189,11 +187,6 @@ class DensityField(BaseField):
 
     Parameters
     ----------
-    pos : 2-dimensional array of shape `(N, 3)`
-        Particle position array. Columns must be ordered as `['x', 'y', 'z']`.
-        The positions are assumed to be in box units, i.e. :math:`\in [0, 1 ]`.
-    mass : 1-dimensional array of shape `(N,)`
-        Particle mass array. Assumed to be in box units.
     box : :py:class:`csiborgtools.read.BoxUnits`
         The simulation box information and transformations.
     MAS : str
@@ -205,51 +198,10 @@ class DensityField(BaseField):
     ----------
     [1] https://pylians3.readthedocs.io/
     """
-    _pos = None
-    _mass = None
 
-    def __init__(self, pos, mass, box, MAS):
-        self.pos = pos
-        self.mass = mass
+    def __init__(self, box, MAS):
         self.box = box
         self.MAS = MAS
-
-    @property
-    def pos(self):
-        """
-        Particle position array.
-
-        Returns
-        -------
-        particles : 2-dimensional array
-        """
-        return self._particles
-
-    @pos.setter
-    def pos(self, pos):
-        assert pos.ndim == 2
-        warn("Flipping the `x` and `z` coordinates of the particle positions.",
-             UserWarning, stacklevel=1)
-        pos[:, [0, 2]] = pos[:, [2, 0]]
-        pos = force_single_precision(pos, "particle_position")
-        self._pos = pos
-
-    @property
-    def mass(self):
-        """
-        Particle mass array.
-
-        Returns
-        -------
-        mass : 1-dimensional array
-        """
-        return self._mass
-
-    @mass.setter
-    def mass(self, mass):
-        assert mass.ndim == 1
-        mass = force_single_precision(mass, "particle_mass")
-        self._mass = mass
 
     def smoothen(self, field, smooth_scale, threads=1):
         """
@@ -294,17 +246,19 @@ class DensityField(BaseField):
         delta -= 1
         return delta
 
-    def __call__(self, grid, smooth_scale=None, verbose=True):
+    def __call__(self, parts, grid, nbatch=10, verbose=True):
         """
         Calculate the density field using a Pylians routine [1, 2].
+        Iteratively loads the particles into memory, flips their `x` and `z`
+        coordinates.
 
         Parameters
         ----------
         grid : int
             Grid size.
-        smooth_scale : float, optional
-            Gaussian kernal scale to smoothen the density field, in box units.
-        verbose : bool
+        nbatch : int, optional
+            Number of batches to split the particle loading into.
+        verbose : bool, optional
             Verbosity flag.
 
         Returns
@@ -318,12 +272,27 @@ class DensityField(BaseField):
         [2] https://github.com/franciscovillaescusa/Pylians3/blob/master
             /library/MAS_library/MAS_library.pyx
         """
-        # Pre-allocate and do calculations
         rho = numpy.zeros((grid, grid, grid), dtype=numpy.float32)
-        MASL.MA(self.pos, rho, self.boxsize, self.MAS, W=self.mass,
-                verbose=verbose)
-        if smooth_scale is not None:
-            rho = self.smoothen(rho, smooth_scale)
+
+        nparts = parts.shape[0]
+        batch_size = nparts // nbatch
+        start = 0
+        for __ in trange(nbatch + 1) if verbose else range(nbatch + 1):
+            end = min(start + batch_size, nparts)
+            pos = parts[start:end]
+            pos, mass = pos[:, :3], pos[:, 6]
+
+            pos = force_single_precision(pos, "particle_position")
+            mass = force_single_precision(mass, "particle_mass")
+
+            pos[:, [0, 2]] = pos[:, [2, 0]]
+
+            MASL.MA(pos, rho, self.boxsize, self.MAS, W=mass, verbose=False)
+
+            if end == nparts:
+                break
+            start = end
+
         return rho
 
 
