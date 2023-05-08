@@ -329,18 +329,16 @@ class CSiBORGPaths:
         fname = f"parts_{str(nsim).zfill(5)}.h5"
         return join(fdir, fname)
 
-    def density_field_path(self, MAS, nsim, in_rsp):
+    def density_field_path(self, mas, nsim):
         """
         Path to the files containing the calculated density fields.
 
         Parameters
         ----------
-        MAS : str
+        mas : str
            Mass-assignment scheme. Currently only SPH is supported.
         nsim : int
             IC realisation index.
-        in_rsp : bool
-            Whether the density field is calculated in redshift space.
 
         Returns
         -------
@@ -350,9 +348,7 @@ class CSiBORGPaths:
         if not isdir(fdir):
             makedirs(fdir)
             warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
-        fname = f"density_{MAS}_{str(nsim).zfill(5)}.npy"
-        if in_rsp:
-            fname = fname.replace("density", "density_rsp")
+        fname = f"density_{mas}_{str(nsim).zfill(5)}.npy"
         return join(fdir, fname)
 
     def knnauto_path(self, run, nsim=None):

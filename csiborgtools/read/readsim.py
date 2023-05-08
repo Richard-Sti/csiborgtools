@@ -534,23 +534,34 @@ def read_initcm(nsim, srcdir, fname="clump_{}_cm.npy"):
         return None
 
 
-def halfwidth_mask(pos, hw):
+def halfwidth_select(hw, particles):
     """
-    Mask of particles in a region of width `2 hw, centered at the origin.
+    Select particles that in a cube of size `2 hw`, centered at the origin.
+    Note that this directly modifies the original array and throws away
+    particles outside the central region.
 
     Parameters
     ----------
-    pos : 2-dimensional array of shape `(nparticles, 3)`
-        Particle positions, in box units.
     hw : float
-        Central region half-width.
+        Central region halfwidth.
+    particles : structured array
+        Particle array with keys `x`, `y`, `z`.
 
     Returns
     -------
-    mask : 1-dimensional boolean array of shape `(nparticles, )`
+    particles : structured array
+        The modified particle array.
     """
     assert 0 < hw < 0.5
-    return numpy.all((0.5 - hw < pos) & (pos < 0.5 + hw), axis=1)
+    mask = ((0.5 - hw < particles['x']) & (particles['x'] < 0.5 + hw)
+            & (0.5 - hw < particles['y']) & (particles['y'] < 0.5 + hw)
+            & (0.5 - hw < particles['z']) & (particles['z'] < 0.5 + hw))
+    # Subselect the particles
+    particles = particles[mask]
+    # Rescale to range [0, 1]
+    for p in ('x', 'y', 'z'):
+        particles[p] = (particles[p] - 0.5 + hw) / (2 * hw)
+    return particles
 
 
 def load_clump_particles(clid, particles, clump_map, clid2map):
