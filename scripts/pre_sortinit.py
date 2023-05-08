@@ -50,7 +50,7 @@ partreader = csiborgtools.read.ParticleReader(paths)
 pars_extract = ["x", "y", "z", "M", "ID"]
 
 if args.ics is None or args.ics[0] == -1:
-    ics = paths.get_ics(tonew=True)
+    ics = paths.get_ics()
 else:
     ics = args.ics
 

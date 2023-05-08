@@ -49,7 +49,7 @@ paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
 partreader = csiborgtools.read.ParticleReader(paths)
 
 if args.ics is None or args.ics[0] == -1:
-    ics = paths.get_ics(tonew=True)
+    ics = paths.get_ics()
 else:
     ics = args.ics
 

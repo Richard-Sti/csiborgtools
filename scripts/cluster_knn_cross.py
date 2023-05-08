@@ -49,7 +49,7 @@ with open("../scripts/knn_cross.yml", "r") as file:
 
 Rmax = 155 / 0.705  # Mpc (h = 0.705) high resolution region radius
 paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
-ics = paths.get_ics(False)
+ics = paths.get_ics()
 knncdf = csiborgtools.clustering.kNN_CDF()
 
 ###############################################################################

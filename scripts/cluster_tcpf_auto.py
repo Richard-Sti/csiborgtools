@@ -48,7 +48,7 @@ with open("../scripts/tpcf_auto.yml", "r") as file:
 
 Rmax = 155 / 0.705  # Mpc (h = 0.705) high resolution region radius
 paths = csiborgtools.read.CSiBORGPaths()
-ics = paths.get_ics(False)
+ics = paths.get_ics()
 tpcf = csiborgtools.clustering.Mock2PCF()
 
 ###############################################################################

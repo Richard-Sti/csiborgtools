@@ -24,7 +24,7 @@ class PKReader:
 
     Parameters
     ----------
-    get_ics : list of int
+    ics : list of int
         IC IDs to be read.
     hw : float
         Box half-width.
@@ -35,8 +35,8 @@ class PKReader:
     dtype : dtype, optional
         Output precision. By default `numpy.float32`.
     """
-    def __init__(self, get_ics, hw, fskel=None, dtype=numpy.float32):
-        self.get_ics = get_ics
+    def __init__(self, ics, hw, fskel=None, dtype=numpy.float32):
+        self.ics= ics
         self.hw = hw
         if fskel is None:
             fskel = "/mnt/extraspace/rstiskalek/csiborg/crosspk/out_{}_{}_{}.p"
@@ -69,19 +69,19 @@ class PKReader:
         -------
         ks : 1-dimensional array
             Array of wavenumbers.
-        pks : 2-dimensional array of shape `(len(self.get_ics), ks.size)`
+        pks : 2-dimensional array of shape `(len(self.ics), ks.size)`
             Autocorrelation of each simulation.
         """
         kmin, kmax = self._set_klim(kmin, kmax)
         ks, pks, sel = None, None, None
-        for i, nsim in enumerate(self.get_ics):
+        for i, nsim in enumerate(self.ics):
             pk = joblib.load(self.fskel.format(nsim, nsim, self.hw))
             # Get cuts and pre-allocate arrays
             if i == 0:
                 x = pk.k3D
                 sel = (kmin < x) & (x < kmax)
                 ks = x[sel].astype(self.dtype)
-                pks = numpy.full((len(self.get_ics), numpy.sum(sel)),
+                pks = numpy.full((len(self.ics), numpy.sum(sel)),
                                  numpy.nan, dtype=self.dtype)
             pks[i, :] = pk.Pk[sel, 0, 0]
 
@@ -144,12 +144,12 @@ class PKReader:
             Cross-correlations. The first column is the the IC and is being
             cross-correlated with the remaining ICs, in the second column.
         """
-        nics = len(self.get_ics)
+        nics = len(self.ics)
 
         ks, xpks = None, None
-        for i, ic0 in enumerate(tqdm(self.get_ics)):
+        for i, ic0 in enumerate(tqdm(self.ics)):
             k = 0
-            for ic1 in self.get_ics:
+            for ic1 in self.ics:
                 # We don't want cross-correlation
                 if ic0 == ic1:
                     continue

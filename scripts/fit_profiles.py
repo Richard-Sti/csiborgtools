@@ -49,7 +49,7 @@ if nproc > 1:
 paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
 cols_collect = [("r", numpy.float32), ("M", numpy.float32)]
 if args.ics is None or args.ics == -1:
-    nsims = paths.get_ics(tonew=False)
+    nsims = paths.get_ics()
 else:
     nsims = args.ics
 

@@ -146,34 +146,25 @@ class CSiBORGPaths:
             warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
         return join(fdir, f"{kind}_{str(nsim).zfill(5)}.{ftype}")
 
-    def get_ics(self, tonew):
+    def get_ics(self):
         """
         Get CSiBORG IC realisation IDs from the list of folders in
         `self.srcdir`.
-
-        Parameters
-        ----------
-        tonew : bool
-            If `True`, path to the '_new' ICs is returned.
 
         Returns
         -------
         ids : 1-dimensional array
         """
         files = glob(join(self.srcdir, "ramses_out*"))
-        files = [f.split("/")[-1] for f in files]  # Select only file names
-        if tonew:
-            files = [f for f in files if "_new" in f]
-            ids = [int(f.split("_")[2]) for f in files]  # Take the IC IDs
-        else:
-            files = [f for f in files if "_inv" not in f]  # Remove inv. ICs
-            files = [f for f in files if "_new" not in f]  # Remove _new
-            files = [f for f in files if "OLD" not in f]  # Remove _old
-            ids = [int(f.split("_")[-1]) for f in files]
-            try:
-                ids.remove(5511)
-            except ValueError:
-                pass
+        files = [f.split("/")[-1] for f in files]      # Select only file names
+        files = [f for f in files if "_inv" not in f]  # Remove inv. ICs
+        files = [f for f in files if "_new" not in f]  # Remove _new
+        files = [f for f in files if "OLD" not in f]   # Remove _old
+        ids = [int(f.split("_")[-1]) for f in files]
+        try:
+            ids.remove(5511)
+        except ValueError:
+            pass
         return numpy.sort(ids)
 
     def ic_path(self, nsim, tonew=False):
@@ -194,6 +185,8 @@ class CSiBORGPaths:
         fname = "ramses_out_{}"
         if tonew:
             fname += "_new"
+            return join(self.postdir, "output", fname.format(nsim))
+
         return join(self.srcdir, fname.format(nsim))
 
     def get_snapshots(self, nsim):
