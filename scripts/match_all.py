@@ -52,7 +52,7 @@ nproc = comm.Get_size()
 def get_combs():
     """
     Get the list of all pairs of simulations, then permute them with a known
-    seed and assign each process a chunk of the list.
+    seed to minimise loading the same files simultaneously.
     """
     paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
     ics = paths.get_ics()
