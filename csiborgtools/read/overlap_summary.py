@@ -258,22 +258,22 @@ class PairOverlap:
         in_initial : bool
             Whether to calculate separation in the initial or final snapshot.
         norm_kind : str, optional
-            The kind of normalisation to apply to the distances. Can be `r200`,
-            `ref_patch` or `sum_patch`.
+            The kind of normalisation to apply to the distances.
+            Can be `r200c`, `ref_patch` or `sum_patch`.
 
         Returns
         -------
         dist : array of 1-dimensional arrays of shape `(nhalos, )`
         """
         assert (norm_kind is None
-                or norm_kind in ("r200", "ref_patch", "sum_patch"))
+                or norm_kind in ("r200c", "ref_patch", "sum_patch"))
         # Get positions either in the initial or final snapshot
         pos0 = self.cat0().position(in_initial)
         posx = self.catx().position(in_initial)
 
         # Get the normalisation array if applicable
-        if norm_kind == "r200":
-            norm = self.cat0("r200")
+        if norm_kind == "r200c":
+            norm = self.cat0("r200c")
         if norm_kind == "ref_patch":
             norm = self.cat0("lagpatch")
         if norm_kind == "sum_patch":
