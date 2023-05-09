@@ -58,7 +58,6 @@ def get_combs():
     ics = paths.get_ics()
     combs = list(combinations(ics, 2))
     Random(42).shuffle(combs)
-    combs = combs[:10]  # NOTE remove later
     return combs
 
 
