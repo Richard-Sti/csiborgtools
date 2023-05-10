@@ -18,6 +18,7 @@ Utility functions for the field module.
 from warnings import warn
 
 import numpy
+import smoothing_library as SL
 
 
 def force_single_precision(x, name):
@@ -40,3 +41,27 @@ def force_single_precision(x, name):
         warn(f"Converting `{name}` to float32.", UserWarning, stacklevel=1)
         x = x.astype(numpy.float32)
     return x
+
+
+def smoothen_field(field, smooth_scale, boxsize, threads=1):
+    """
+    Smooth a field with a Gaussian filter.
+
+    Parameters
+    ----------
+    field : 3-dimensional array of shape `(grid, grid, grid)`
+        Field to be smoothed.
+    smooth_scale : float, optional
+        Gaussian kernal scale to smoothen the density field, in box units.
+    boxsize : float
+        Size of the box.
+    threads : int, optional
+        Number of threads. By default 1.
+
+    Returns
+    -------
+    smoothed_field : 3-dimensional array of shape `(grid, grid, grid)`
+    """
+    W_k = SL.FT_filter(boxsize, smooth_scale, field.shape[0], "Gaussian",
+                       threads)
+    return SL.field_smoothing(field, W_k, threads)
