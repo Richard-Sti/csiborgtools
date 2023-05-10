@@ -38,6 +38,9 @@ verbose = nproc == 1
 parser = ArgumentParser()
 parser.add_argument("--ics", type=int, nargs="+", default=None,
                     help="IC realisations. If `-1` processes all simulations.")
+parser.add_argument("--kind", type=int, nargs="+", default=None,
+                    help="IC realisations. If `-1` processes all simulations.")
+
 parser.add_argument("--grid", type=int, help="Grid resolution.")
 parser.add_argument("--in_rsp", type=lambda x: bool(strtobool(x)),
                     help="Calculate the density field in redshift space?")
