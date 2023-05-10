@@ -329,7 +329,7 @@ class CSiBORGPaths:
         Parameters
         ----------
         MAS : str
-           Mass-assignment scheme. Currently only SPH is supported.
+           Mass-assignment scheme.
         nsim : int
             IC realisation index.
         in_rsp : bool
@@ -346,6 +346,28 @@ class CSiBORGPaths:
         fname = f"density_{MAS}_{str(nsim).zfill(5)}.npy"
         if in_rsp:
             fname = fname.replace("density", "density_rsp")
+        return join(fdir, fname)
+
+    def velocity_field_path(self, MAS, nsim):
+        """
+        Path to the files containing the calculated velocity fields.
+
+        Parameters
+        ----------
+        MAS : str
+           Mass-assignment scheme.
+        nsim : int
+            IC realisation index.
+
+        Returns
+        -------
+        path : str
+        """
+        fdir = join(self.postdir, "environment")
+        if not isdir(fdir):
+            makedirs(fdir)
+            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
+        fname = f"velocity_{MAS}_{str(nsim).zfill(5)}.npy"
         return join(fdir, fname)
 
     def knnauto_path(self, run, nsim=None):

@@ -38,15 +38,16 @@ verbose = nproc == 1
 parser = ArgumentParser()
 parser.add_argument("--ics", type=int, nargs="+", default=None,
                     help="IC realisations. If `-1` processes all simulations.")
-parser.add_argument("--kind", type=int, nargs="+", default=None,
-                    help="IC realisations. If `-1` processes all simulations.")
-
+parser.add_argument("--kind", type=str, choices=["density", "velocity"],
+                    help="Calculate the density or velocity field?")
 parser.add_argument("--grid", type=int, help="Grid resolution.")
 parser.add_argument("--in_rsp", type=lambda x: bool(strtobool(x)),
                     help="Calculate the density field in redshift space?")
-parser.add_argument("--MAS", type=str, choices=["NGP", "CIC", "TSC", "PCS"])
+parser.add_argument("--MAS", type=str, choices=["NGP", "CIC", "TSC", "PCS"],
+                    help="Mass assignment scheme.")
 args = parser.parse_args()
 paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
+mpart = 1.1641532e-10  # Particle mass in CSiBORG simulations.
 
 if args.ics is None or args.ics[0] == -1:
     ics = paths.get_ics()
@@ -62,11 +63,15 @@ for i in csiborgtools.fits.split_jobs(len(ics), nproc)[rank]:
     nsnap = max(paths.get_snapshots(nsim))
     box = csiborgtools.read.BoxUnits(nsnap, nsim, paths)
     parts = csiborgtools.read.read_h5(paths.particles_path(nsim))["particles"]
-    density_generator = csiborgtools.field.DensityField(box, args.MAS)
 
-    rho = density_generator(parts, args.grid, in_rsp=args.in_rsp,
-                            verbose=verbose)
+    if args.kind == "density":
+        gen = csiborgtools.field.DensityField(box, args.MAS)
+        field = gen(parts, args.grid, in_rsp=args.in_rsp, verbose=verbose)
+        fout = paths.density_field_path(args.MAS, nsim, args.in_rsp)
+    else:
+        gen = csiborgtools.field.VelocityField(box, args.MAS)
+        field = gen(parts, args.grid, mpart, verbose=verbose)
+        fout = paths.velocity_field_path(args.MAS, nsim)
 
-    fout = paths.density_field_path(args.MAS, nsim, args.in_rsp)
     print(f"{datetime.now()}: rank {rank} saving output to `{fout}`.")
-    numpy.save(fout, rho)
+    numpy.save(fout, field)
