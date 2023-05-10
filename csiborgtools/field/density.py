@@ -14,12 +14,15 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 Density field and cross-correlation calculations.
+
+TODO:
+    - [ ] Move the sky matching outside of the base field.
+    - [ ] Project the velocity field along the line of sight.
 """
 from abc import ABC
 
 import MAS_library as MASL
 import numpy
-import smoothing_library as SL
 from tqdm import trange
 
 from .utils import force_single_precision
@@ -183,7 +186,7 @@ class BaseField(ABC):
 
 class DensityField(BaseField):
     r"""
-    Density field calculations. Based primarily on routines of Pylians [1].
+    Density field calculation. Based primarily on routines of Pylians [1].
 
     Parameters
     ----------
@@ -202,30 +205,6 @@ class DensityField(BaseField):
     def __init__(self, box, MAS):
         self.box = box
         self.MAS = MAS
-
-    def smoothen(self, field, smooth_scale, threads=1):
-        """
-        Smooth a field with a Gaussian filter.
-
-        Parameters
-        ----------
-        field : 3-dimensional array of shape `(grid, grid, grid)`
-            Field to be smoothed.
-        smooth_scale : float, optional
-            Gaussian kernal scale to smoothen the density field, in box units.
-        threads : int, optional
-            Number of threads. By default 1.
-
-        Returns
-        -------
-        smoothed_field : 3-dimensional array of shape `(grid, grid, grid)`
-        """
-        filter_kind = "Gaussian"
-        grid = field.shape[0]
-        # FFT of the filter
-        W_k = SL.FT_filter(self.boxsize, smooth_scale, grid, filter_kind,
-                           threads)
-        return SL.field_smoothing(field, W_k, threads)
 
     def overdensity_field(self, delta):
         r"""
@@ -308,6 +287,100 @@ class DensityField(BaseField):
                 break
             start = end
         return rho
+
+
+###############################################################################
+#                         Density field calculation                           #
+###############################################################################
+
+
+class VelocityField(BaseField):
+    r"""
+    Velocity field calculation. Based primarily on routines of Pylians [1].
+
+    Parameters
+    ----------
+    box : :py:class:`csiborgtools.read.BoxUnits`
+        The simulation box information and transformations.
+    MAS : str
+        Mass assignment scheme. Options are Options are: 'NGP' (nearest grid
+        point), 'CIC' (cloud-in-cell), 'TSC' (triangular-shape cloud), 'PCS'
+        (piecewise cubic spline).
+
+    References
+    ----------
+    [1] https://pylians3.readthedocs.io/
+    """
+
+    def __init__(self, box, MAS):
+        self.box = box
+        self.MAS = MAS
+
+    def __call__(self, parts, grid, mpart, flip_xz=True, nbatch=30,
+                 verbose=True):
+        """
+        Calculate the velocity field using a Pylians routine [1, 2].
+        Iteratively loads the particles into memory, flips their `x` and `z`
+        coordinates. Particles are assumed to be in box units.
+
+        Parameters
+        ----------
+        parts : 2-dimensional array of shape `(n_parts, 7)`
+            Particle positions, velocities and masses.
+            Columns are: `x`, `y`, `z`, `vx`, `vy`, `vz`, `M`.
+        grid : int
+            Grid size.
+        mpart : float
+            Particle mass.
+        flip_xz : bool, optional
+            Whether to flip the `x` and `z` coordinates.
+        nbatch : int, optional
+            Number of batches to split the particle loading into.
+        verbose : bool, optional
+            Verbosity flag.
+
+        Returns
+        -------
+        rho_vel : 3-dimensional array of shape `(3, grid, grid, grid)`.
+            Velocity field along each axis.
+
+        References
+        ----------
+        [1] https://pylians3.readthedocs.io/
+        [2] https://github.com/franciscovillaescusa/Pylians3/blob/master
+            /library/MAS_library/MAS_library.pyx
+        """
+        rho_velx = numpy.zeros((grid, grid, grid), dtype=numpy.float32)
+        rho_vely = numpy.zeros((grid, grid, grid), dtype=numpy.float32)
+        rho_velz = numpy.zeros((grid, grid, grid), dtype=numpy.float32)
+        rho_vel = [rho_velx, rho_vely, rho_velz]
+
+        nparts = parts.shape[0]
+        batch_size = nparts // nbatch
+        start = 0
+        for __ in trange(nbatch + 1) if verbose else range(nbatch + 1):
+            end = min(start + batch_size, nparts)
+            pos = parts[start:end]
+            pos, vel, mass = pos[:, :3], pos[:, 3:6], pos[:, 6]
+
+            pos = force_single_precision(pos, "particle_position")
+            vel = force_single_precision(vel, "particle_velocity")
+            mass = force_single_precision(mass, "particle_mass")
+            if flip_xz:
+                pos[:, [0, 2]] = pos[:, [2, 0]]
+                vel[:, [0, 2]] = vel[:, [2, 0]]
+
+            # In case we have unequal particle masses.
+            vel *= mass.reshape(-1, 1) / mpart
+
+            for i in range(3):
+                MASL.MA(pos, rho_vel[i], self.boxsize, self.MAS, W=vel[i, :],
+                        verbose=False)
+            if end == nparts:
+                break
+            start = end
+
+        return numpy.stack(rho_vel)
 
 
 ###############################################################################
