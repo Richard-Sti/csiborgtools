@@ -322,52 +322,35 @@ class CSiBORGPaths:
         fname = f"parts_{str(nsim).zfill(5)}.h5"
         return join(fdir, fname)
 
-    def density_field_path(self, MAS, nsim, in_rsp):
+    def field_path(self, kind, MAS, grid, nsim, in_rsp):
         """
         Path to the files containing the calculated density fields.
 
         Parameters
         ----------
+        kind : str
+            Field type. Must be one of: `density`, `velocity`, `potential`.
         MAS : str
            Mass-assignment scheme.
+        grid : int
+            Grid size.
         nsim : int
             IC realisation index.
         in_rsp : bool
-            Whether the density field is calculated in redshift space.
+            Whether the calculation is performed in redshift space.
 
         Returns
         -------
         path : str
         """
         fdir = join(self.postdir, "environment")
+        assert kind in ["density", "velocity", "potential"]
         if not isdir(fdir):
             makedirs(fdir)
             warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
-        fname = f"density_{MAS}_{str(nsim).zfill(5)}.npy"
         if in_rsp:
-            fname = fname.replace("density", "density_rsp")
-        return join(fdir, fname)
-
-    def velocity_field_path(self, MAS, nsim):
-        """
-        Path to the files containing the calculated velocity fields.
-
-        Parameters
-        ----------
-        MAS : str
-           Mass-assignment scheme.
-        nsim : int
-            IC realisation index.
-
-        Returns
-        -------
-        path : str
-        """
-        fdir = join(self.postdir, "environment")
-        if not isdir(fdir):
-            makedirs(fdir)
-            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
-        fname = f"velocity_{MAS}_{str(nsim).zfill(5)}.npy"
+            kind = kind + "_rsp"
+        fname = f"{kind}_{MAS}_{str(nsim).zfill(5)}_grid{grid}.npy"
         return join(fdir, fname)
 
     def knnauto_path(self, run, nsim=None):
