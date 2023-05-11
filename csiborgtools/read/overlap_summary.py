@@ -476,15 +476,21 @@ class NPairsOverlap:
         List of cross simulation halo catalogues.
     paths : py:class`csiborgtools.read.CSiBORGPaths`
         CSiBORG paths object.
+    verbose : bool, optional
+        Verbosity flag for loading the overlap objects.
     """
     _pairs = None
 
-    def __init__(self, cat0, catxs, paths):
-        self._pairs = [PairOverlap(cat0, catx, paths) for catx in catxs]
+    def __init__(self, cat0, catxs, paths, verbose=True):
+        pairs = [None] * len(catxs)
+        for i, catx in enumerate(tqdm(catxs) if verbose else catxs):
+            pairs[i] = PairOverlap(cat0, catx, paths)
 
-    def summed_overlap(self, from_smoothed, verbose=False):
+        self._pairs = pairs
+
+    def summed_overlap(self, from_smoothed, verbose=True):
         """
-        Calcualte summed overlap of each halo in the reference simulation with
+        Calculate summed overlap of each halo in the reference simulation with
         the cross simulations.
 
         Parameters
@@ -503,7 +509,7 @@ class NPairsOverlap:
             out[i] = pair.summed_overlap(from_smoothed)
         return numpy.vstack(out).T
 
-    def prob_nomatch(self, from_smoothed, verbose=False):
+    def prob_nomatch(self, from_smoothed, verbose=True):
         """
         Probability of no match for each halo in the reference simulation with
         the cross simulation.
@@ -526,7 +532,7 @@ class NPairsOverlap:
 
     def counterpart_mass(self, from_smoothed, overlap_threshold=0.,
                          in_log=False, mass_kind="totpartmass",
-                         return_full=True, verbose=False):
+                         return_full=False, verbose=True):
         """
         Calculate the expected counterpart mass of each halo in the reference
         simulation from the crossed simulation.
@@ -549,7 +555,7 @@ class NPairsOverlap:
             Whether to return the full results of matching each pair or
             calculate summary statistics by Gaussian averaging.
         verbose : bool, optional
-            Verbosity flag. By default `False`.
+            Verbosity flag.
 
         Returns
         -------
