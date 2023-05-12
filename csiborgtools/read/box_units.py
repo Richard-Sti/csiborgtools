@@ -18,11 +18,10 @@ Simulation box unit transformations.
 import numpy
 from astropy import constants, units
 from astropy.cosmology import LambdaCDM
-from scipy.interpolate import interp1d
 
 from .readsim import ParticleReader
 
-# Map of unit conversions
+# Map of CSiBORG unit conversions
 CONV_NAME = {
     "length": ["x", "y", "z", "peak_x", "peak_y", "peak_z", "Rs", "rmin",
                "rmax", "r200c", "r500c", "r200m", "x0", "y0", "z0",
@@ -35,7 +34,7 @@ CONV_NAME = {
 
 class BoxUnits:
     r"""
-    Box units class for converting between box and physical units.
+    CSiBORG box units class for converting between box and physical units.
 
     Paramaters
     ----------
@@ -157,7 +156,6 @@ class BoxUnits:
         -------
         rhoc : float
         """
-
         return 3 * self.box_H0**2 / (8 * numpy.pi * self.box_G)
 
     def box2kpc(self, length):
@@ -243,83 +241,6 @@ class BoxUnits:
             Velocity in :math:`\mathrm{km} \mathrm{s}^{-1}`.
         """
         return vel * (1e-2 * self._unit_l / self._unit_t / self._aexp) * 1e-3
-
-    def box2cosmoredshift(self, dist):
-        r"""
-        Convert the box comoving distance to cosmological redshift.
-
-        NOTE: this likely is already the observed redshift.
-
-        Parameters
-        ----------
-        dist : float
-            Distance in box units.
-
-        Returns
-        -------
-        cosmo_redshift : foat
-            Cosmological redshift.
-        """
-        x = numpy.linspace(0.0, 1.0, 5001)
-        y = self.cosmo.comoving_distance(x)
-        return interp1d(y, x)(self.box2mpc(dist))
-
-    def box2pecredshift(self, vx, vy, vz, px, py, pz, p0x=0, p0y=0, p0z=0):
-        """
-        Convert the box phase-space information to a peculiar redshift.
-
-        NOTE: there is some confusion about this.
-
-        Parameters
-        ----------
-        vx, vy, vz : 1-dimensional arrays
-            Cartesian velocity components.
-        px, py, pz : 1-dimensional arrays
-            Cartesian position vectors components.
-        p0x, p0y, p0z : floats
-            Centre of the box coordinates. By default 0, in which it is assumed
-            that the coordinates are already centred.
-
-        Returns
-        -------
-        pec_redshift : 1-dimensional array
-            Peculiar redshift.
-        """
-        # Peculiar velocity along the radial distance
-        r = numpy.vstack([px - p0x, py - p0y, pz - p0z]).T
-        norm = numpy.sum(r**2, axis=1) ** 0.5
-        v = numpy.vstack([vx, vy, vz]).T
-        vpec = numpy.sum(r * v, axis=1) / norm
-        # Ratio between the peculiar velocity and speed of light
-        x = self.box2vel(vpec) / constants.c.value
-        # Doppler shift
-        return numpy.sqrt((1 + x) / (1 - x)) - 1
-
-    def box2obsredshift(self, vx, vy, vz, px, py, pz, p0x=0, p0y=0, p0z=0):
-        """
-        Convert the box phase-space information to an 'observed' redshift.
-
-        NOTE: there is some confusion about this.
-
-        Parameters
-        ----------
-        vx, vy, vz : 1-dimensional arrays
-            Cartesian velocity components.
-        px, py, pz : 1-dimensional arrays
-            Cartesian position vectors components.
-        p0x, p0y, p0z : floats
-            Centre of the box coordinates. By default 0, in which it is assumed
-            that the coordinates are already centred.
-
-        Returns
-        -------
-        obs_redshift : 1-dimensional array
-            Observed redshift.
-        """
-        r = numpy.vstack([px - p0x, py - p0y, pz - p0z]).T
-        zcosmo = self.box2cosmoredshift(numpy.sum(r**2, axis=1) ** 0.5)
-        zpec = self.box2pecredshift(vx, vy, vz, px, py, pz, p0x, p0y, p0z)
-        return (1 + zpec) * (1 + zcosmo) - 1
 
     def solarmass2box(self, mass):
         r"""
