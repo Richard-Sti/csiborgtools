@@ -17,7 +17,7 @@ from warnings import warn
 try:
     import MAS_library as MASL  # noqa
 
-    from .density import DensityField, VelocityField  # noqa
+    from .density import DensityField, VelocityField, PotentialField  # noqa
     from .utils import smoothen_field  # noqa
 except ImportError:
     warn("MAS_library not found, `DensityField` will not be available", UserWarning)  # noqa
