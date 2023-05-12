@@ -25,7 +25,7 @@ class TPCFReader:
 
     Parameters
     ----------
-    paths : py:class`csiborgtools.read.CSiBORGPaths`
+    paths : py:class`csiborgtools.read.Paths`
     """
     _paths = None
 
@@ -39,7 +39,7 @@ class TPCFReader:
 
         Parameters
         ----------
-        paths : py:class`csiborgtools.read.CSiBORGPaths`
+        paths : py:class`csiborgtools.read.Paths`
         """
         return self._paths
 

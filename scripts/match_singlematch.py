@@ -32,7 +32,7 @@ except ModuleNotFoundError:
 def pair_match(nsim0, nsimx, sigma, smoothen, verbose):
     from csiborgtools.read import HaloCatalogue, read_h5
 
-    paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     smooth_kwargs = {"sigma": sigma, "mode": "constant", "cval": 0.0}
     overlapper = csiborgtools.match.ParticleOverlap()
     matcher = csiborgtools.match.RealisationsMatcher()

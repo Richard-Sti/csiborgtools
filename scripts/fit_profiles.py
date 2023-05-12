@@ -45,7 +45,7 @@ nproc = comm.Get_size()
 if nproc > 1:
     raise NotImplementedError("MPI is not implemented implemented yet.")
 
-paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
+paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 cols_collect = [("r", numpy.float32), ("M", numpy.float32)]
 if args.ics is None or args.ics == -1:
     nsims = paths.get_ics()

@@ -21,7 +21,7 @@ from warnings import warn
 import numpy
 
 
-class CSiBORGPaths:
+class Paths:
     """
     Paths manager for CSiBORG IC realisations.
 

@@ -43,7 +43,7 @@ class BoxUnits:
         Snapshot index.
     nsim : int
         IC realisation index.
-    paths : py:class`csiborgtools.read.CSiBORGPaths`
+    paths : py:class`csiborgtools.read.Paths`
         CSiBORG paths object.
     """
     _name = "box_units"

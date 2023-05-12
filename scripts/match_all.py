@@ -54,7 +54,7 @@ def get_combs():
     Get the list of all pairs of simulations, then permute them with a known
     seed to minimise loading the same files simultaneously.
     """
-    paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     ics = paths.get_ics()
     combs = list(combinations(ics, 2))
     Random(42).shuffle(combs)

@@ -36,7 +36,7 @@ class PairOverlap:
         Halo catalogue corresponding to the reference simulation.
     catx : :py:class:`csiborgtools.read.HaloCatalogue`
         Halo catalogue corresponding to the cross simulation.
-    paths : py:class`csiborgtools.read.CSiBORGPaths`
+    paths : py:class`csiborgtools.read.Paths`
         CSiBORG paths object.
     """
     _cat0 = None
@@ -59,7 +59,7 @@ class PairOverlap:
             Halo catalogue corresponding to the reference simulation.
         catx : :py:class:`csiborgtools.read.HaloCatalogue`
             Halo catalogue corresponding to the cross simulation.
-        paths : py:class`csiborgtools.read.CSiBORGPaths`
+        paths : py:class`csiborgtools.read.Paths`
             CSiBORG paths object.
 
         Returns
@@ -474,7 +474,7 @@ class NPairsOverlap:
         Single reference simulation halo catalogue.
     catxs : list of :py:class:`csiborgtools.read.HaloCatalogue`
         List of cross simulation halo catalogues.
-    paths : py:class`csiborgtools.read.CSiBORGPaths`
+    paths : py:class`csiborgtools.read.Paths`
         CSiBORG paths object.
     verbose : bool, optional
         Verbosity flag for loading the overlap objects.

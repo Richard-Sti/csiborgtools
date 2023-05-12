@@ -48,7 +48,7 @@ rank = comm.Get_rank()
 nproc = comm.Get_size()
 MAS = "CIC"  # mass asignment scheme
 
-paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
+paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 box = csiborgtools.read.BoxUnits(paths)
 reader = csiborgtools.read.ParticleReader(paths)
 ics = paths.get_ics()

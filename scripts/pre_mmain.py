@@ -33,7 +33,7 @@ comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 nproc = comm.Get_size()
 
-paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
+paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 mmain_reader = csiborgtools.read.MmainReader(paths)
 
 

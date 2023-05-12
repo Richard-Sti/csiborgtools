@@ -49,7 +49,7 @@ with open("../scripts/knn_auto.yml", "r") as file:
 
 Rmax = 155 / 0.705  # Mpc (h = 0.705) high resolution region radius
 totvol = 4 * numpy.pi * Rmax**3 / 3
-paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
+paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 ics = paths.get_ics()
 knncdf = csiborgtools.clustering.kNN_CDF()
 

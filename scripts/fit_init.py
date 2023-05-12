@@ -45,7 +45,7 @@ parser = ArgumentParser()
 parser.add_argument("--ics", type=int, nargs="+", default=None,
                     help="IC realisations. If `-1` processes all simulations.")
 args = parser.parse_args()
-paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
+paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 partreader = csiborgtools.read.ParticleReader(paths)
 
 if args.ics is None or args.ics[0] == -1:

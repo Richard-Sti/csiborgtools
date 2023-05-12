@@ -49,7 +49,7 @@ parser.add_argument("--ics", type=int, nargs="+", default=None,
 args = parser.parse_args()
 
 verbose = nproc == 1
-paths = csiborgtools.read.CSiBORGPaths(**csiborgtools.paths_glamdring)
+paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 partreader = csiborgtools.read.ParticleReader(paths)
 # Keep "ID" as the last column!
 pars_extract = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'M', "ID"]

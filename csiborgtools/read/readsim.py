@@ -36,7 +36,7 @@ class ParticleReader:
 
     Parameters
     ----------
-    paths : py:class`csiborgtools.read.CSiBORGPaths`
+    paths : py:class`csiborgtools.read.Paths`
     """
     _paths = None
 
@@ -50,7 +50,7 @@ class ParticleReader:
 
         Parameters
         ----------
-        paths : py:class`csiborgtools.read.CSiBORGPaths`
+        paths : py:class`csiborgtools.read.Paths`
         """
         return self._paths
 
@@ -400,7 +400,7 @@ class MmainReader:
 
     Parameters
     ----------
-    paths : :py:class:`csiborgtools.read.CSiBORGPaths`
+    paths : :py:class:`csiborgtools.read.Paths`
         Paths objects.
     """
     _paths = None
