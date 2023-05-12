@@ -59,7 +59,7 @@ for i in csiborgtools.fits.split_jobs(len(ics), nproc)[rank]:
         print(f"{datetime.now()}: rank {rank} working on simulation {nsim}.",
               flush=True)
     nsnap = max(paths.get_snapshots(nsim))
-    box = csiborgtools.read.BoxUnits(nsnap, nsim, paths)
+    box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
     density_gen = csiborgtools.field.DensityField(box, args.MAS)
 
     rho = numpy.load(paths.field_path("density", args.MAS, args.grid, nsim,

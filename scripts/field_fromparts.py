@@ -61,7 +61,7 @@ for i in csiborgtools.fits.split_jobs(len(ics), nproc)[rank]:
           flush=True)
 
     nsnap = max(paths.get_snapshots(nsim))
-    box = csiborgtools.read.BoxUnits(nsnap, nsim, paths)
+    box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
     parts = csiborgtools.read.read_h5(paths.particles_path(nsim))["particles"]
 
     if args.kind == "density":

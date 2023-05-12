@@ -15,6 +15,7 @@
 """
 Simulation box unit transformations.
 """
+from abc import ABC
 import numpy
 from astropy import constants, units
 from astropy.cosmology import LambdaCDM
@@ -32,7 +33,7 @@ CONV_NAME = {
     "density": ["rho0"]}
 
 
-class BoxUnits:
+class CSiBORGBox:
     r"""
     CSiBORG box units class for converting between box and physical units.
 
@@ -312,7 +313,7 @@ class BoxUnits:
         return (density / self._unit_d * self._Msuncgs
                 / (units.Mpc.to(units.cm)) ** 3)
 
-    def convert_from_boxunits(self, data, names):
+    def convert_from_CSiBORGBox(self, data, names):
         r"""
         Convert columns named `names` in array `data` from box units to
         physical units, such that
