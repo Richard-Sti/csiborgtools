@@ -23,7 +23,7 @@ import numpy
 
 class Paths:
     """
-    Paths manager for CSiBORG IC realisations.
+    Paths manager for CSiBORG and Quijote simulations.
 
     Parameters
     ----------
