@@ -67,7 +67,7 @@ def evaluate_sky(*fields, pos, box, isdeg=True):
     pos : 2-dimensional array of shape `(n_samples, 3)`
         Spherical coordinates to evaluate the field. Columns are distance,
         right ascension, declination, respectively.
-    box : :py:class:`csiborgtools.read.BoxUnits`
+    box : :py:class:`csiborgtools.read.CSiBORGBox`
         The simulation box information and transformations.
     isdeg : bool, optional
         Whether `ra` and `dec` are in degres. By default `True`.

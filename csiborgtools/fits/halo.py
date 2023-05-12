@@ -67,7 +67,7 @@ class BaseStructure(ABC):
 
         Returns
         -------
-        box : :py:class:`csiborgtools.units.BoxUnits`
+        box : :py:class:`csiborgtools.units.CSiBORGBox`
         """
         return self._box
 
@@ -280,7 +280,7 @@ class Clump(BaseStructure):
         Particle array. Must contain `['x', 'y', 'z', 'vx', 'vy', 'vz', 'M']`.
     info : structured array
         Array containing information from the clump finder.
-    box : :py:class:`csiborgtools.read.BoxUnits`
+    box : :py:class:`csiborgtools.read.CSiBORGBox`
         Box units object.
     """
 
@@ -301,7 +301,7 @@ class Halo(BaseStructure):
         Particle array. Must contain `['x', 'y', 'z', 'vx', 'vy', 'vz', 'M']`.
     info : structured array
         Array containing information from the clump finder.
-    box : :py:class:`csiborgtools.read.BoxUnits`
+    box : :py:class:`csiborgtools.read.CSiBORGBox`
         Box units object.
     """
 

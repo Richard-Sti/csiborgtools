@@ -93,7 +93,7 @@ def real2redshift(pos, vel, origin, box, in_box_units, periodic_wrap=True,
         Cartesian velocity components.
     origin : 1-dimensional array `(3,)`
         Origin of the coordinate system in the `pos` reference frame.
-    box : py:class:`csiborg.read.BoxUnits`
+    box : py:class:`csiborg.read.CSiBORGBox`
         Box units.
     in_box_units: bool
         Whether `pos` and `vel` are in box units. If not, position is assumed

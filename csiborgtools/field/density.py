@@ -52,7 +52,7 @@ class BaseField(ABC):
 
         Returns
         -------
-        box : :py:class:`csiborgtools.units.BoxUnits`
+        box : :py:class:`csiborgtools.units.CSiBORGBox`
         """
         return self._box
 
@@ -94,7 +94,7 @@ class DensityField(BaseField):
 
     Parameters
     ----------
-    box : :py:class:`csiborgtools.read.BoxUnits`
+    box : :py:class:`csiborgtools.read.CSiBORGBox`
         The simulation box information and transformations.
     MAS : str
         Mass assignment scheme. Options are Options are: 'NGP' (nearest grid
@@ -204,7 +204,7 @@ class VelocityField(BaseField):
 
     Parameters
     ----------
-    box : :py:class:`csiborgtools.read.BoxUnits`
+    box : :py:class:`csiborgtools.read.CSiBORGBox`
         The simulation box information and transformations.
     MAS : str
         Mass assignment scheme. Options are Options are: 'NGP' (nearest grid
@@ -295,7 +295,7 @@ class PotentialField(BaseField):
 
     Parameters
     ----------
-    box : :py:class:`csiborgtools.read.BoxUnits`
+    box : :py:class:`csiborgtools.read.CSiBORGBox`
         The simulation box information and transformations.
     MAS : str
         Mass assignment scheme. Options are Options are: 'NGP' (nearest grid
@@ -334,7 +334,7 @@ class TidalTensorField(BaseField):
 
     Parameters
     ----------
-    box : :py:class:`csiborgtools.read.BoxUnits`
+    box : :py:class:`csiborgtools.read.CSiBORGBox`
         The simulation box information and transformations.
     MAS : str
         Mass assignment scheme. Options are Options are: 'NGP' (nearest grid

@@ -25,25 +25,28 @@ class Paths:
     """
     Paths manager for CSiBORG IC realisations.
 
-     Parameters
-     ----------
-     srcdir : str
-         Path to the folder where the RAMSES outputs are stored.
-     postdir: str
-         Path to the folder where post-processed files are stored.
+    Parameters
+    ----------
+    srcdir : str, optional
+        Path to the folder where the RAMSES outputs are stored.
+    postdir: str, optional
+        Path to the folder where post-processed files are stored.
+    quiote_dir : str, optional
+        Path to the folder where Quijote simulations are stored.
     """
-
     _srcdir = None
     _postdir = None
+    _quijote_dir = None
 
-    def __init__(self, srcdir=None, postdir=None):
+    def __init__(self, srcdir=None, postdir=None, quijote_dir=None):
         self.srcdir = srcdir
         self.postdir = postdir
+        self.quijote_dir = quijote_dir
 
     @staticmethod
     def _check_directory(path):
         if not isdir(path):
-            raise IOError("Invalid directory `{}`!".format(path))
+            raise IOError(f"Invalid directory `{path}`!")
 
     @property
     def srcdir(self):
@@ -64,6 +67,26 @@ class Paths:
             return
         self._check_directory(path)
         self._srcdir = path
+
+    @property
+    def quijote_dir(self):
+        """
+        Path to the folder where Quijote simulations are stored.
+
+        Returns
+        -------
+        path : str
+        """
+        if self._quijote_dir is None:
+            raise ValueError("`quijote_dir` is not set!")
+        return self._quijote_dir
+
+    @quijote_dir.setter
+    def quijote_dir(self, path):
+        if path is None:
+            return
+        self._check_directory(path)
+        self._quijote_dir = path
 
     @property
     def postdir(self):
