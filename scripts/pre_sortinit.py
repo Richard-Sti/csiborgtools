@@ -18,9 +18,9 @@ snapshot ordering, which is sorted by the clump IDs.
 """
 from argparse import ArgumentParser
 from datetime import datetime
+from gc import collect
 
 import h5py
-from gc import collect
 import numpy
 from mpi4py import MPI
 

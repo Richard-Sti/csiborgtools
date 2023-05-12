@@ -22,7 +22,6 @@ from datetime import datetime
 
 import numpy
 from mpi4py import MPI
-
 from tqdm import tqdm
 
 try:
