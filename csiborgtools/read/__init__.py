@@ -12,14 +12,14 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-from .box_units import CSiBORGBox  # noqa
+from .box_units import CSiBORGBox, QuijoteBox  # noqa
 from .halo_cat import ClumpsCatalogue, HaloCatalogue  # noqa
 from .knn_summary import kNNCDFReader  # noqa
 from .obs import (SDSS, MCXCClusters, PlanckClusters, TwoMPPGalaxies,  # noqa
                   TwoMPPGroups)
 from .overlap_summary import (NPairsOverlap, PairOverlap,  # noqa
                               binned_resample_mean)
-from .paths import CSiBORGPaths  # noqa
+from .paths import Paths  # noqa
 from .pk_summary import PKReader  # noqa
 from .readsim import (MmainReader, ParticleReader, halfwidth_mask,  # noqa
                       load_clump_particles, load_parent_particles, read_initcm)
