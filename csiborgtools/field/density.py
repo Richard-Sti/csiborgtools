@@ -16,7 +16,6 @@
 Density field and cross-correlation calculations.
 
 TODO:
-    - [ ] Move the sky matching outside of the base field.
     - [ ] Project the velocity field along the line of sight.
 """
 from abc import ABC
@@ -25,8 +24,8 @@ import MAS_library as MASL
 import numpy
 from tqdm import trange
 
-from .utils import force_single_precision
 from ..read.utils import real2redshift
+from .utils import force_single_precision
 
 
 class BaseField(ABC):
