@@ -22,7 +22,7 @@ import numpy
 from scipy.io import FortranFile
 from tqdm import tqdm, trange
 
-from .paths import CSiBORGPaths
+from .paths import Paths
 from .utils import cols_to_structured
 
 ###############################################################################
@@ -56,7 +56,7 @@ class ParticleReader:
 
     @paths.setter
     def paths(self, paths):
-        assert isinstance(paths, CSiBORGPaths)
+        assert isinstance(paths, Paths)
         self._paths = paths
 
     def read_info(self, nsnap, nsim):
@@ -396,7 +396,7 @@ class ParticleReader:
 
 class MmainReader:
     """
-    Object to generate the summed substructure catalogue.
+    Object to generate the summed substructure CSiBORG PHEW catalogue.
 
     Parameters
     ----------
@@ -406,7 +406,7 @@ class MmainReader:
     _paths = None
 
     def __init__(self, paths):
-        assert isinstance(paths, CSiBORGPaths)
+        assert isinstance(paths, Paths)
         self._paths = paths
 
     @property

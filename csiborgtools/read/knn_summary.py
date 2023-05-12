@@ -44,7 +44,6 @@ class kNNCDFReader:
 
     @paths.setter
     def paths(self, paths):
-        # assert isinstance(paths, CSiBORGPaths)  # REMOVE
         self._paths = paths
 
     def read(self, run, kind, rmin=None, rmax=None, to_clip=True):
