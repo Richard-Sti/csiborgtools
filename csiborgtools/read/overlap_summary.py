@@ -268,8 +268,8 @@ class PairOverlap:
         assert (norm_kind is None
                 or norm_kind in ("r200c", "ref_patch", "sum_patch"))
         # Get positions either in the initial or final snapshot
-        pos0 = self.cat0().position(in_initial)
-        posx = self.catx().position(in_initial)
+        pos0 = self.cat0().position(in_initial=in_initial)
+        posx = self.catx().position(in_initial=in_initial)
 
         # Get the normalisation array if applicable
         if norm_kind == "r200c":
