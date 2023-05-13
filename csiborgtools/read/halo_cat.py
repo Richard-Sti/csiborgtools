@@ -12,24 +12,29 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-"""CSiBORG halo and clumps catalogues."""
-from abc import ABC
+"""
+Simulation catalogues:
+    - CSiBORG: halo and clump catalogue.
+    - Quijote: halo catalogue.
+"""
+from abc import ABC, abstractproperty
+from os.path import join
 
 import numpy
+from readfof import FoF_catalog
 from sklearn.neighbors import NearestNeighbors
 
-from .box_units import BoxUnits
-from .paths import CSiBORGPaths
+from .box_units import CSiBORGBox, QuijoteBox
+from .paths import Paths
 from .readsim import ParticleReader
-from .utils import (add_columns, cartesian_to_radec, flip_cols,
-                    radec_to_cartesian, real2redshift)
+from .utils import (add_columns, cartesian_to_radec, cols_to_structured,
+                    flip_cols, radec_to_cartesian, real2redshift)
 
 
 class BaseCatalogue(ABC):
     """
     Base (sub)halo catalogue.
     """
-
     _data = None
     _paths = None
     _nsim = None
@@ -51,14 +56,25 @@ class BaseCatalogue(ABC):
     def nsim(self, nsim):
         self._nsim = nsim
 
-    @property
-    def paths(self):
+    @abstractproperty
+    def nsnap(self):
         """
-        CSiBORG paths manager.
+        Catalogue's snapshot index.
 
         Returns
         -------
-        paths : :py:class:`csiborgtools.read.CSiBORGPaths`
+        nsnap : int
+        """
+        pass
+
+    @property
+    def paths(self):
+        """
+        Paths manager.
+
+        Returns
+        -------
+        paths : :py:class:`csiborgtools.read.Paths`
         """
         if self._paths is None:
             raise RuntimeError("`paths` is not set!")
@@ -66,7 +82,7 @@ class BaseCatalogue(ABC):
 
     @paths.setter
     def paths(self, paths):
-        assert isinstance(paths, CSiBORGPaths)
+        assert isinstance(paths, Paths)
         self._paths = paths
 
     @property
@@ -82,36 +98,16 @@ class BaseCatalogue(ABC):
             raise RuntimeError("Catalogue data not loaded!")
         return self._data
 
-    @property
-    def nsnap(self):
-        """
-        Catalogue's snapshot index corresponding to the maximum simulation
-        snapshot index.
-
-        Returns
-        -------
-        nsnap : int
-        """
-        return max(self.paths.get_snapshots(self.nsim))
-
-    @property
+    @abstractproperty
     def box(self):
         """
-        CSiBORG box object handling unit conversion.
+        Box object.
 
         Returns
         -------
-        box : :py:class:`csiborgtools.units.BoxUnits`
+        box : instance of :py:class:`csiborgtools.units.BoxUnits`
         """
-        return BoxUnits(self.nsnap, self.nsim, self.paths)
-
-    @box.setter
-    def box(self, box):
-        try:
-            assert box._name == "box_units"
-            self._box = box
-        except AttributeError as err:
-            raise TypeError from err
+        pass
 
     def position(self, in_initial=False, cartesian=True):
         r"""
@@ -143,8 +139,8 @@ class BaseCatalogue(ABC):
         return pos
 
     def velocity(self):
-        """
-        Cartesian velocity components in box units.
+        r"""
+        Cartesian velocity components in :math:`\mathrm{km} / \mathrm{s}`.
 
         Returns
         -------
@@ -204,7 +200,7 @@ class BaseCatalogue(ABC):
         knn : :py:class:`sklearn.neighbors.NearestNeighbors`
         """
         knn = NearestNeighbors()
-        return knn.fit(self.position(in_initial))
+        return knn.fit(self.position(in_initial=in_initial))
 
     def radius_neigbours(self, X, radius, in_initial):
         r"""
@@ -299,20 +295,56 @@ class BaseCatalogue(ABC):
 
     @property
     def keys(self):
-        """Catalogue keys."""
+        """
+        Catalogue keys.
+
+        Returns
+        -------
+        keys : list of strings
+        """
         return self.data.dtype.names
 
     def __getitem__(self, key):
-        initpars = ["x0", "y0", "z0"]
-        if key in initpars and key not in self.keys:
-            raise RuntimeError("Initial positions are not set!")
+        if key not in self.keys:
+            raise KeyError(f"Key '{key}' not in catalogue.")
         return self.data[key]
 
     def __len__(self):
         return self.data.size
 
 
-class ClumpsCatalogue(BaseCatalogue):
+###############################################################################
+#                       CSiBORG  base catalogue                               #
+###############################################################################
+
+
+class BaseCSiBORG(BaseCatalogue):
+    """
+    Base CSiBORG catalogue class.
+    """
+
+    @property
+    def nsnap(self):
+        return max(self.paths.get_snapshots(self.nsim))
+
+    @property
+    def box(self):
+        """
+        CSiBORG box object handling unit conversion.
+
+        Returns
+        -------
+        box : instance of :py:class:`csiborgtools.units.BaseBox`
+        """
+        return CSiBORGBox(self.nsnap, self.nsim, self.paths)
+
+
+###############################################################################
+#                        CSiBORG clumps catalogue                             #
+###############################################################################
+
+
+class ClumpsCatalogue(BaseCSiBORG):
     r"""
     Clumps catalogue, defined in the final snapshot.
 
@@ -320,8 +352,8 @@ class ClumpsCatalogue(BaseCatalogue):
     ----------
     sim : int
         IC realisation index.
-    paths : py:class`csiborgtools.read.CSiBORGPaths`
-        CSiBORG paths object.
+    paths : py:class`csiborgtools.read.Paths`
+        Paths object.
     maxdist : float, optional
         The maximum comoving distance of a halo. By default
         :math:`155.5 / 0.705 ~ \mathrm{Mpc}` with assumed :math:`h = 0.705`,
@@ -363,7 +395,7 @@ class ClumpsCatalogue(BaseCatalogue):
             names = ["x", "y", "z", "mass_cl", "totpartmass", "rho0", "r200c",
                      "r500c", "m200c", "m500c", "r200m", "m200m",
                      "vx", "vy", "vz"]
-            self._data = self.box.convert_from_boxunits(self._data, names)
+            self._data = self.box.convert_from_box(self._data, names)
             if maxdist is not None:
                 dist = numpy.sqrt(self._data["x"]**2 + self._data["y"]**2
                                   + self._data["z"]**2)
@@ -383,7 +415,12 @@ class ClumpsCatalogue(BaseCatalogue):
         return self["index"] == self["parent"]
 
 
-class HaloCatalogue(BaseCatalogue):
+###############################################################################
+#                        CSiBORG halo catalogue                               #
+###############################################################################
+
+
+class HaloCatalogue(BaseCSiBORG):
     r"""
     Halo catalogue, i.e. parent halos with summed substructure, defined in the
     final snapshot.
@@ -392,8 +429,8 @@ class HaloCatalogue(BaseCatalogue):
     ----------
     nsim : int
         IC realisation index.
-    paths : py:class`csiborgtools.read.CSiBORGPaths`
-        CSiBORG paths object.
+    paths : py:class`csiborgtools.read.Paths`
+        Paths object.
     maxdist : float, optional
         The maximum comoving distance of a halo. By default
         :math:`155.5 / 0.705 ~ \mathrm{Mpc}` with assumed :math:`h = 0.705`,
@@ -455,11 +492,11 @@ class HaloCatalogue(BaseCatalogue):
             names = ["x", "y", "z", "M", "totpartmass", "rho0", "r200c",
                      "r500c", "m200c", "m500c", "r200m", "m200m",
                      "vx", "vy", "vz"]
-            self._data = self.box.convert_from_boxunits(self._data, names)
+            self._data = self.box.convert_from_box(self._data, names)
 
             if load_initial:
                 names = ["x0", "y0", "z0", "lagpatch"]
-                self._data = self.box.convert_from_boxunits(self._data, names)
+                self._data = self.box.convert_from_box(self._data, names)
 
             if maxdist is not None:
                 dist = numpy.sqrt(self._data["x"]**2 + self._data["y"]**2
@@ -480,3 +517,106 @@ class HaloCatalogue(BaseCatalogue):
         if self._clumps_cat is None:
             raise ValueError("`clumps_cat` is not loaded.")
         return self._clumps_cat
+
+
+###############################################################################
+#                         Quijote halo catalogue                              #
+###############################################################################
+
+
+class QuijoteHaloCatalogue(BaseCatalogue):
+    """
+    Quijote halo catalogue.
+
+    Parameters
+    ----------
+    nsim : int
+        IC realisation index.
+    paths : py:class`csiborgtools.read.Paths`
+        Paths object.
+    nsnap : int
+        Snapshot index.
+    maxdist : float, optional
+        The maximum comoving distance of a halo.
+    minmass : len-2 tuple
+        Minimum mass. The first element is the catalogue key and the second is
+        the value.
+    rawdata : bool, optional
+        Whether to return the raw data. In this case applies no cuts and
+        transformations.
+    **kwargs : dict
+        Keyword arguments for backward compatibility.
+    """
+    _nsnap = None
+
+    def __init__(self, nsim, paths, nsnap, maxdist=None,
+                 minmass=("group_mass", 1e12), rawdata=False, **kwargs):
+        self.paths = paths
+        self.nsnap = nsnap
+        fpath = join(self.paths.quijote_dir, "halos", str(nsim))
+        fof = FoF_catalog(fpath, self.nsnap, long_ids=False, swap=False,
+                          SFR=False, read_IDs=False)
+
+        cols = [("x", numpy.float32), ("y", numpy.float32),
+                ("z", numpy.float32), ("vx", numpy.float32),
+                ("vy", numpy.float32), ("vz", numpy.float32),
+                ("group_mass", numpy.float32), ("npart", numpy.int32)]
+        data = cols_to_structured(fof.GroupLen.size, cols)
+
+        h = self.box.h
+        pos = (fof.GroupPos / 1e3 - 500) / h
+        vel = fof.GroupVel * (1 + self.redshift)
+        for i, p in enumerate(["x", "y", "z"]):
+            data[p] = pos[:, i]
+            data["v" + p] = vel[:, i]
+
+        data["group_mass"] = fof.GroupMass * 1e10 / h
+        data["npart"] = fof.GroupLen
+
+        if not rawdata:
+            if maxdist is not None:
+                pos = numpy.vstack([data["x"], data["y"], data["z"]]).T
+                data = data[numpy.linalg.norm(pos, axis=1) < maxdist]
+            if minmass is not None:
+                data = data[data[minmass[0]] > minmass[1]]
+
+        self._data = data
+
+    @property
+    def nsnap(self):
+        """
+        Snapshot number.
+
+        Returns
+        -------
+        nsnap : int
+        """
+        return self._nsnap
+
+    @nsnap.setter
+    def nsnap(self, nsnap):
+        assert nsnap in [0, 1, 2, 3, 4]
+        self._nsnap = nsnap
+
+    @property
+    def redshift(self):
+        """
+        Redshift of the snapshot.
+
+        Returns
+        -------
+        redshift : float
+        """
+        z_dict = {4: 0.0, 3: 0.5, 2: 1.0, 1: 2.0, 0: 3.0}
+        return z_dict[self.nsnap]
+
+    @property
+    def box(self):
+        """
+        Quijote box object.
+
+        Returns
+        -------
+        box : instance of :py:class:`csiborgtools.units.BaseBox`
+        """
+        return QuijoteBox(self.nsnap)
