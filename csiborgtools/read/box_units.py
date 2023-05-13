@@ -16,6 +16,7 @@
 Simulation box unit transformations.
 """
 from abc import ABC
+
 import numpy
 from astropy import constants, units
 from astropy.cosmology import LambdaCDM
@@ -33,52 +34,17 @@ CONV_NAME = {
     "density": ["rho0"]}
 
 
-class CSiBORGBox:
-    r"""
-    CSiBORG box units class for converting between box and physical units.
+###############################################################################
+#                              Base box                                       #
+###############################################################################
 
-    Paramaters
-    ----------
-    nsnap : int
-        Snapshot index.
-    nsim : int
-        IC realisation index.
-    paths : py:class`csiborgtools.read.Paths`
-        CSiBORG paths object.
+
+class BaseBox(ABC):
+    """
+    Base class for box units.
     """
     _name = "box_units"
     _cosmo = None
-
-    def __init__(self, nsnap, nsim, paths):
-        """
-        Read in the snapshot info file and set the units from it.
-        """
-        partreader = ParticleReader(paths)
-        info = partreader.read_info(nsnap, nsim)
-        pars = [
-            "boxlen",
-            "time",
-            "aexp",
-            "H0",
-            "omega_m",
-            "omega_l",
-            "omega_k",
-            "omega_b",
-            "unit_l",
-            "unit_d",
-            "unit_t",
-        ]
-        for par in pars:
-            setattr(self, "_" + par, float(info[par]))
-
-        self._cosmo = LambdaCDM(
-            H0=self._H0,
-            Om0=self._omega_m,
-            Ode0=self._omega_l,
-            Tcmb0=2.725 * units.K,
-            Ob0=self._omega_b,
-        )
-        self._Msuncgs = constants.M_sun.cgs.value  # Solar mass in grams
 
     @property
     def cosmo(self):
@@ -89,6 +55,8 @@ class CSiBORGBox:
         -------
         cosmo : `astropy.cosmology.LambdaCDM`
         """
+        if self._cosmo is None:
+            raise ValueError("Cosmology not set.")
         return self._cosmo
 
     @property
@@ -101,7 +69,7 @@ class CSiBORGBox:
         -------
         H0 : float
         """
-        return self._H0
+        return self.cosmo.H0.value
 
     @property
     def h(self):
@@ -112,7 +80,54 @@ class CSiBORGBox:
         -------
         h : float
         """
-        return self._H0 / 100
+        return self.H0 / 100
+
+    @property
+    def Om0(self):
+        r"""
+        The matter density parameter.
+
+        Returns
+        -------
+        Om0 : float
+        """
+        return self.cosmo.Om0
+
+
+###############################################################################
+#                              CSiBORG box                                    #
+###############################################################################
+
+
+class CSiBORGBox(BaseBox):
+    r"""
+    CSiBORG box units class for converting between box and physical units.
+
+    Paramaters
+    ----------
+    nsnap : int
+        Snapshot index.
+    nsim : int
+        IC realisation index.
+    paths : py:class`csiborgtools.read.Paths`
+        CSiBORG paths object.
+    """
+
+    def __init__(self, nsnap, nsim, paths):
+        """
+        Read in the snapshot info file and set the units from it.
+        """
+        partreader = ParticleReader(paths)
+        info = partreader.read_info(nsnap, nsim)
+        pars = ["boxlen", "time", "aexp", "H0", "omega_m", "omega_l",
+                "omega_k", "omega_b", "unit_l", "unit_d", "unit_t"]
+        for par in pars:
+            setattr(self, "_" + par, float(info[par]))
+
+        self._cosmo = LambdaCDM(H0=self._H0, Om0=self._omega_m,
+                                Ode0=self._omega_l, Tcmb0=2.725 * units.K,
+                                Ob0=self._omega_b)
+        self._Msuncgs = constants.M_sun.cgs.value  # Solar mass in grams
 
     @property
     def box_G(self):
@@ -313,7 +328,7 @@ class CSiBORGBox:
         return (density / self._unit_d * self._Msuncgs
                 / (units.Mpc.to(units.cm)) ** 3)
 
-    def convert_from_CSiBORGBox(self, data, names):
+    def convert_from_box(self, data, names):
         r"""
         Convert columns named `names` in array `data` from box units to
         physical units, such that
@@ -343,13 +358,12 @@ class CSiBORGBox:
         transforms = {"length": self.box2mpc,
                       "mass": self.box2solarmass,
                       "velocity": self.box2vel,
-                      "density": self.box2dens,
-                      }
+                      "density": self.box2dens}
 
         for name in names:
             # Check that the name is even in the array
             if name not in data.dtype.names:
-                raise ValueError("Name `{}` not in `data` array.".format(name))
+                raise ValueError(f"Name `{name}` not in `data` array.")
 
             # Convert
             found = False
@@ -361,11 +375,36 @@ class CSiBORGBox:
             # If nothing found
             if not found:
                 raise NotImplementedError(
-                    "Conversion of `{}` is not defined.".format(name)
-                )
+                    f"Conversion of `{name}` is not defined.")
 
             # Center at the observer
             if name in ["peak_x", "peak_y", "peak_z", "x0", "y0", "z0"]:
                 data[name] -= transforms["length"](0.5)
 
         return data
+
+
+###############################################################################
+#                      Quijote fiducial cosmology box                         #
+###############################################################################
+
+
+class QuijoteBox(BaseBox):
+    """
+    Quijote fiducial cosmology box.
+
+    Parameters
+    ----------
+    nsnap : int
+        Snapshot number.
+    **kwargs : dict
+        Empty keyword arguments. For backwards compatibility.
+    """
+
+    def __init__(self, nsnap, **kwargs):
+        zdict = {4: 0.0, 3: 0.5, 2: 1.0, 1: 2.0, 0: 3.0}
+        assert nsnap in zdict.keys(), f"`nsnap` must be in {zdict.keys()}."
+        self._aexp = 1 / (1 + zdict[nsnap])
+
+        self._cosmo = LambdaCDM(H0=67.11, Om0=0.3175, Ode0=0.6825,
+                                Tcmb0=2.725 * units.K, Ob0=0.049)

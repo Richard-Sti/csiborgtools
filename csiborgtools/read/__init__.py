@@ -13,7 +13,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 from .box_units import CSiBORGBox, QuijoteBox  # noqa
-from .halo_cat import ClumpsCatalogue, HaloCatalogue  # noqa
+from .halo_cat import ClumpsCatalogue, HaloCatalogue, QuijoteHaloCatalogue  # noqa
 from .knn_summary import kNNCDFReader  # noqa
 from .obs import (SDSS, MCXCClusters, PlanckClusters, TwoMPPGalaxies,  # noqa
                   TwoMPPGroups)
