@@ -536,8 +536,12 @@ class QuijoteHaloCatalogue(BaseCatalogue):
         Paths object.
     nsnap : int
         Snapshot index.
+    origin : len-3 tuple, optional
+        Where to place the origin of the box. By default the centre of the box.
+        In units of :math:`cMpc`.
     maxdist : float, optional
-        The maximum comoving distance of a halo.
+        The maximum comoving distance of a halo in the new reference frame, in
+        units of :math:`cMpc`.
     minmass : len-2 tuple
         Minimum mass. The first element is the catalogue key and the second is
         the value.
@@ -549,8 +553,10 @@ class QuijoteHaloCatalogue(BaseCatalogue):
     """
     _nsnap = None
 
-    def __init__(self, nsim, paths, nsnap, maxdist=None,
-                 minmass=("group_mass", 1e12), rawdata=False, **kwargs):
+    def __init__(self, nsim, paths, nsnap,
+                 origin=[500 / 0.6711, 500 / 0.6711, 500 / 0.6711],
+                 maxdist=None, minmass=("group_mass", 1e12), rawdata=False,
+                 **kwargs):
         self.paths = paths
         self.nsnap = nsnap
         fpath = join(self.paths.quijote_dir, "halos", str(nsim))
@@ -563,14 +569,14 @@ class QuijoteHaloCatalogue(BaseCatalogue):
                 ("group_mass", numpy.float32), ("npart", numpy.int32)]
         data = cols_to_structured(fof.GroupLen.size, cols)
 
-        h = self.box.h
-        pos = (fof.GroupPos / 1e3 - 500) / h
+        pos = fof.GroupPos / 1e3 / self.box.h
+        for i in range(3):
+            pos -= origin[i]
         vel = fof.GroupVel * (1 + self.redshift)
         for i, p in enumerate(["x", "y", "z"]):
             data[p] = pos[:, i]
             data["v" + p] = vel[:, i]
-
-        data["group_mass"] = fof.GroupMass * 1e10 / h
+        data["group_mass"] = fof.GroupMass * 1e10 / self.box.h
         data["npart"] = fof.GroupLen
 
         if not rawdata:
