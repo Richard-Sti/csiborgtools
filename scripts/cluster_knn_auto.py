@@ -43,6 +43,7 @@ nproc = comm.Get_size()
 
 parser = ArgumentParser()
 parser.add_argument("--runs", type=str, nargs="+")
+parser.add_argument("--simname", type=str, choices=["csiborg", "quijote"])
 args = parser.parse_args()
 with open("../scripts/knn_auto.yml", "r") as file:
     config = yaml.safe_load(file)
@@ -50,51 +51,48 @@ with open("../scripts/knn_auto.yml", "r") as file:
 Rmax = 155 / 0.705  # Mpc (h = 0.705) high resolution region radius
 totvol = 4 * numpy.pi * Rmax**3 / 3
 paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-ics = paths.get_ics()
 knncdf = csiborgtools.clustering.kNN_1DCDF()
+if args.simname == "csiborg":
+    ics = paths.get_ics()
+else:
+    ics = paths.get_quijote_ics()
+
 
 ###############################################################################
 #                                 Analysis                                    #
 ###############################################################################
 
 
-def read_single(selection, cat):
-    """Positions for single catalogue auto-correlation."""
-    mmask = numpy.ones(len(cat), dtype=bool)
-    pos = cat.positions(False)
-    # Primary selection
-    psel = selection["primary"]
-    pmin, pmax = psel.get("min", None), psel.get("max", None)
-    if pmin is not None:
-        mmask &= cat[psel["name"]] >= pmin
-    if pmax is not None:
-        mmask &= cat[psel["name"]] < pmax
-    pos = pos[mmask, ...]
+def read_single(nsim, selection, nobs=None):
+    # We first read the full catalogue without applying any bounds.
+    if args.nsim == "csiborg":
+        cat = csiborgtools.read.HaloCatalogue(nsim, paths)
+    else:
+        cat = csiborgtools.read.QuijoteHaloCatalogue(nsim, paths, nsnap=4,
+                                                     origin=nobs)
 
-    # Secondary selection
-    if "secondary" not in selection:
-        return pos
-    smask = numpy.ones(pos.shape[0], dtype=bool)
-    ssel = selection["secondary"]
-    smin, smax = ssel.get("min", None), ssel.get("max", None)
-    prop = cat[ssel["name"]][mmask]
-    if ssel.get("toperm", False):
-        prop = numpy.random.permutation(prop)
-    if ssel.get("marked", True):
-        x = cat[psel["name"]][mmask]
-        prop = csiborgtools.clustering.normalised_marks(
-            x, prop, nbins=config["nbins_marks"]
-        )
+    cat.apply_bounds({"dist": (0, Rmax)})
+    # We then first read off the primary selection bounds.
+    ps = selection["primary"]
+    cat.apply_bounds({ps["name"]: (ps.get("min", None), ps.get("max", None))})
 
-    if smin is not None:
-        smask &= prop >= smin
-    if smax is not None:
-        smask &= prop < smax
+    # Now the secondary selection bounds. If needed transfrom the secondary
+    # property before applying the bounds.
+    if "secondary" in selection:
+        ss = selection["secondary"]
+        name = ps["name"]
 
-    return pos[smask, ...]
+        if ss.get("toperm", False):
+            cat[name] = numpy.random.permutation(cat[name])
+
+        if ss.get("marked", False):
+            cat[name] = csiborgtools.clustering.normalised_marks(
+                cat[ps["name"]], cat[ss["name"]], nbins=config["nbins_marks"])
+        cat.apply_bounds({name: (ps.get("min", None), ps.get("max", None))})
+    return cat
 
 
-def do_auto(run, cat, ic):
+def do_auto(run, nsim, nobs=None):
     """Calculate the kNN-CDF single catalgoue autocorrelation."""
     _config = config.get(run, None)
     if _config is None:
@@ -102,22 +100,19 @@ def do_auto(run, cat, ic):
         return
 
     rvs_gen = csiborgtools.clustering.RVSinsphere(Rmax)
-    pos = read_single(_config, cat)
-    knn = NearestNeighbors()
-    knn.fit(pos)
+    cat = read_single(nsim, _config, nobs=nobs)
+    knn = cat.knn(in_initial=False)
     rs, cdf = knncdf(
         knn, rvs_gen=rvs_gen, nneighbours=config["nneighbours"],
         rmin=config["rmin"], rmax=config["rmax"],
         nsamples=int(config["nsamples"]), neval=int(config["neval"]),
         batch_size=int(config["batch_size"]), random_state=config["seed"])
 
-    joblib.dump(
-        {"rs": rs, "cdf": cdf, "ndensity": pos.shape[0] / totvol},
-        paths.knnauto_path(run, ic),
-    )
+    fout = paths.knnauto_path(args.simname, run, nsim, nobs)
+    joblib.dump({"rs": rs, "cdf": cdf, "ndensity": len(cat) / totvol}, fout)
 
 
-def do_cross_rand(run, cat, ic):
+def do_cross_rand(run, nsim, nobs=None):
     """Calculate the kNN-CDF cross catalogue random correlation."""
     _config = config.get(run, None)
     if _config is None:
@@ -125,31 +120,29 @@ def do_cross_rand(run, cat, ic):
         return
 
     rvs_gen = csiborgtools.clustering.RVSinsphere(Rmax)
-    knn1, knn2 = NearestNeighbors(), NearestNeighbors()
+    cat = read_single(nsim, _config)
+    knn1 = cat.knn(in_initial=False)
 
-    pos1 = read_single(_config, cat)
-    knn1.fit(pos1)
-
-    pos2 = rvs_gen(pos1.shape[0])
+    knn2 = NearestNeighbors()
+    pos2 = rvs_gen(len(cat).shape[0])
     knn2.fit(pos2)
 
     rs, cdf0, cdf1, joint_cdf = knncdf.joint(
         knn1, knn2, rvs_gen=rvs_gen, nneighbours=int(config["nneighbours"]),
         rmin=config["rmin"], rmax=config["rmax"],
         nsamples=int(config["nsamples"]), neval=int(config["neval"]),
-        batch_size=int(config["batch_size"]), random_state=config["seed"],
-    )
+        batch_size=int(config["batch_size"]), random_state=config["seed"])
     corr = knncdf.joint_to_corr(cdf0, cdf1, joint_cdf)
-    joblib.dump({"rs": rs, "corr": corr}, paths.knnauto_path(run, ic))
+    fout = paths.knnauto_path(args.simname, run, nsim, nobs)
+    joblib.dump({"rs": rs, "corr": corr}, fout)
 
 
-def do_runs(ic):
-    cat = csiborgtools.read.ClumpsCatalogue(ic, paths, maxdist=Rmax)
+def do_runs(nsim):
     for run in args.runs:
         if "random" in run:
-            do_cross_rand(run, cat, ic)
+            do_cross_rand(run, nsim)
         else:
-            do_auto(run, cat, ic)
+            do_auto(run, nsim)
 
 
 ###############################################################################
