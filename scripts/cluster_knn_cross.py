@@ -12,7 +12,15 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-"""A script to calculate the KNN-CDF for a set of CSiBORG halo catalogues."""
+"""
+A script to calculate the KNN-CDF for a set of CSiBORG halo catalogues.
+
+TODO:
+    - [ ] Update catalogue readers.
+    - [ ] Update paths.
+    - [ ] Update to cross-correlate different mass populations from different
+    simulations.
+"""
 from argparse import ArgumentParser
 from datetime import datetime
 from itertools import combinations
@@ -43,6 +51,7 @@ nproc = comm.Get_size()
 
 parser = ArgumentParser()
 parser.add_argument("--runs", type=str, nargs="+")
+parser.add_argument("--simname", type=str, choices=["csiborg", "quijote"])
 args = parser.parse_args()
 with open("../scripts/knn_cross.yml", "r") as file:
     config = yaml.safe_load(file)
@@ -100,13 +109,13 @@ def do_cross(run, ics):
     )
 
     corr = knncdf.joint_to_corr(cdf0, cdf1, joint_cdf)
-    joblib.dump({"rs": rs, "corr": corr}, paths.knncross_path(run, ics))
+    fout = paths.knncross_path(args.simname, run, ics)
+    joblib.dump({"rs": rs, "corr": corr}, fout)
 
 
-def do_runs(ics):
-    print(ics)
+def do_runs(nsims):
     for run in args.runs:
-        do_cross(run, ics)
+        do_cross(run, nsims)
 
 
 ###############################################################################
