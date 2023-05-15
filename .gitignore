@@ -18,3 +18,4 @@ scripts/plot_correlation.ipynb
 scripts/*.sh
 venv/
 .trunk/*
+scripts_test/
