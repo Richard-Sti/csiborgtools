@@ -43,19 +43,25 @@ nproc = comm.Get_size()
 
 parser = ArgumentParser()
 parser.add_argument("--runs", type=str, nargs="+")
+parser.add_argument("--ics", type=int, nargs="+", default=None,
+                    help="IC realisations. If `-1` processes all simulations.")
 parser.add_argument("--simname", type=str, choices=["csiborg", "quijote"])
 args = parser.parse_args()
-with open("../scripts/knn_auto.yml", "r") as file:
+with open("../scripts/cluster_knn_auto.yml", "r") as file:
     config = yaml.safe_load(file)
 
 Rmax = 155 / 0.705  # Mpc (h = 0.705) high resolution region radius
 totvol = 4 * numpy.pi * Rmax**3 / 3
 paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 knncdf = csiborgtools.clustering.kNN_1DCDF()
-if args.simname == "csiborg":
-    ics = paths.get_ics()
+
+if args.ics is None or args.ics[0] == -1:
+    if args.simname == "csiborg":
+        ics = paths.get_ics()
+    else:
+        ics = paths.get_quijote_ics()
 else:
-    ics = paths.get_quijote_ics()
+    ics = args.ics
 
 
 ###############################################################################
@@ -65,7 +71,7 @@ else:
 
 def read_single(nsim, selection, nobs=None):
     # We first read the full catalogue without applying any bounds.
-    if args.nsim == "csiborg":
+    if args.simname == "csiborg":
         cat = csiborgtools.read.HaloCatalogue(nsim, paths)
     else:
         cat = csiborgtools.read.QuijoteHaloCatalogue(nsim, paths, nsnap=4,
@@ -73,22 +79,36 @@ def read_single(nsim, selection, nobs=None):
 
     cat.apply_bounds({"dist": (0, Rmax)})
     # We then first read off the primary selection bounds.
-    ps = selection["primary"]
-    cat.apply_bounds({ps["name"]: (ps.get("min", None), ps.get("max", None))})
+    sel = selection["primary"]
+    pname = None
+    xs = sel["names"] if isinstance(sel["names"], list) else [sel["names"]]
+    for _name in xs:
+        if _name in cat.keys:
+            pname = _name
+    if pname is None:
+        raise KeyError(f"Invalid names `{sel['name']}`.")
+
+    cat.apply_bounds({pname: (sel.get("min", None), sel.get("max", None))})
 
     # Now the secondary selection bounds. If needed transfrom the secondary
     # property before applying the bounds.
     if "secondary" in selection:
-        ss = selection["secondary"]
-        name = ps["name"]
+        sel = selection["secondary"]
+        sname = None
+        xs = sel["names"] if isinstance(sel["names"], list) else [sel["names"]]
+        for _name in xs:
+            if _name in cat.keys:
+                sname = _name
+        if sname is None:
+            raise KeyError(f"Invalid names `{sel['name']}`.")
 
-        if ss.get("toperm", False):
-            cat[name] = numpy.random.permutation(cat[name])
+        if sel.get("toperm", False):
+            cat[sname] = numpy.random.permutation(cat[sname])
 
-        if ss.get("marked", False):
-            cat[name] = csiborgtools.clustering.normalised_marks(
-                cat[ps["name"]], cat[ss["name"]], nbins=config["nbins_marks"])
-        cat.apply_bounds({name: (ps.get("min", None), ps.get("max", None))})
+        if sel.get("marked", False):
+            cat[sname] = csiborgtools.clustering.normalised_marks(
+                cat[pname], cat[sname], nbins=config["nbins_marks"])
+        cat.apply_bounds({sname: (sel.get("min", None), sel.get("max", None))})
     return cat
 
 
@@ -109,6 +129,7 @@ def do_auto(run, nsim, nobs=None):
         batch_size=int(config["batch_size"]), random_state=config["seed"])
 
     fout = paths.knnauto_path(args.simname, run, nsim, nobs)
+    print(f"Saving output to `{fout}`.")
     joblib.dump({"rs": rs, "cdf": cdf, "ndensity": len(cat) / totvol}, fout)
 
 
@@ -134,15 +155,18 @@ def do_cross_rand(run, nsim, nobs=None):
         batch_size=int(config["batch_size"]), random_state=config["seed"])
     corr = knncdf.joint_to_corr(cdf0, cdf1, joint_cdf)
     fout = paths.knnauto_path(args.simname, run, nsim, nobs)
+    print(f"Saving output to `{fout}`.")
     joblib.dump({"rs": rs, "corr": corr}, fout)
 
 
 def do_runs(nsim):
     for run in args.runs:
-        if "random" in run:
-            do_cross_rand(run, nsim)
-        else:
-            do_auto(run, nsim)
+        iters = range(27) if args.simname == "quijote" else [None]
+        for nobs in iters:
+            if "random" in run:
+                do_cross_rand(run, nsim, nobs)
+            else:
+                do_auto(run, nsim, nobs)
 
 
 ###############################################################################

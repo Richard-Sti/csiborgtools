@@ -14,7 +14,6 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 A script to calculate the auto-2PCF of CSiBORG catalogues.
-TODO: update catalogue readers.
 """
 from argparse import ArgumentParser
 from copy import deepcopy
@@ -48,6 +47,8 @@ nproc = comm.Get_size()
 
 parser = ArgumentParser()
 parser.add_argument("--runs", type=str, nargs="+")
+parser.add_argument("--ics", type=int, nargs="+", default=None,
+                    help="IC realisations. If `-1` processes all simulations.")
 parser.add_argument("--simname", type=str, choices=["csiborg", "quijote"])
 args = parser.parse_args()
 with open("../scripts/tpcf_auto.yml", "r") as file:
@@ -55,8 +56,15 @@ with open("../scripts/tpcf_auto.yml", "r") as file:
 
 Rmax = 155 / 0.705  # Mpc (h = 0.705) high resolution region radius
 paths = csiborgtools.read.Paths()
-ics = paths.get_ics()
 tpcf = csiborgtools.clustering.Mock2PCF()
+
+if args.ics is None or args.ics[0] == -1:
+    if args.simname == "csiborg":
+        ics = paths.get_ics()
+    else:
+        ics = paths.get_quijote_ics()
+else:
+    ics = args.ics
 
 ###############################################################################
 #                                 Analysis                                    #
