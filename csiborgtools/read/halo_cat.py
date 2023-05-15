@@ -18,6 +18,7 @@ Simulation catalogues:
     - Quijote: halo catalogue.
 """
 from abc import ABC, abstractproperty
+from itertools import product
 from os.path import join
 
 import numpy
@@ -627,3 +628,35 @@ class QuijoteHaloCatalogue(BaseCatalogue):
         box : instance of :py:class:`csiborgtools.units.BaseBox`
         """
         return QuijoteBox(self.nsnap)
+
+
+###############################################################################
+#                     Utility functions for halo catalogues                   #
+###############################################################################
+
+
+def fiducial_observers(boxwidth, radius):
+    """
+    Positions of fiducial observers in a box, such that that the box is
+    subdivided among them into spherical regions.
+
+    Parameters
+    ----------
+    boxwidth : float
+        Box width.
+    radius : float
+        Radius of the spherical regions.
+
+    Returns
+    -------
+    origins : list of len-3 lists
+        Positions of the observers.
+    """
+    nobs = boxwidth // radius  # Number of observers per dimension
+
+    origins = list(product([1, 3, 5], repeat=nobs))
+    for i in range(len(origins)):
+        origins[i] = list(origins[i])
+        for j in range(nobs):
+            origins[i][j] *= radius
+    return origins
