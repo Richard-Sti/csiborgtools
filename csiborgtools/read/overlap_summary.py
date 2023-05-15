@@ -246,7 +246,8 @@ class PairOverlap:
         prob_nomatch : 1-dimensional array of shape `(nhalos, )`
         """
         overlap = self.overlap(from_smoothed)
-        return numpy.array([numpy.product(1 - overlap) for overlap in overlap])
+        return numpy.array([numpy.product(numpy.subtract(1, cross))
+                            for cross in overlap])
 
     def dist(self, in_initial, norm_kind=None):
         """
@@ -610,6 +611,31 @@ class NPairsOverlap:
 ###############################################################################
 #                       Various support functions.                            #
 ###############################################################################
+
+
+def get_cross_sims(nsim0, paths, smoothed):
+    """
+    Get the list of cross simulations for a given reference simulation for
+    which the overlap has been calculated.
+
+    Parameters
+    ----------
+    nsim0 : int
+        Reference simulation number.
+    paths : :py:class:`csiborgtools.paths.Paths`
+        Paths object.
+    smoothed : bool
+        Whether to use the smoothed overlap or not.
+    """
+    nsimxs = []
+    for nsimx in paths.get_ics():
+        if nsimx == nsim0:
+            continue
+        f1 = paths.overlap_path(nsim0, nsimx, smoothed)
+        f2 = paths.overlap_path(nsimx, nsim0, smoothed)
+        if isfile(f1) or isfile(f2):
+            nsimxs.append(nsimx)
+    return nsimxs
 
 
 def binned_resample_mean(x, y, prob, bins, nresample=50, seed=42):
