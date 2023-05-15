@@ -65,7 +65,7 @@ for i, nsim in enumerate(nsims):
     particles = f["particles"]
     clump_map = f["clumpmap"]
     clid2map = {clid: i for i, clid in enumerate(clump_map[:, 0])}
-    clumps_cat = csiborgtools.read.ClumpsCatalogue(nsim, paths,  rawdata=True,
+    clumps_cat = csiborgtools.read.ClumpsCatalogue(nsim, paths, rawdata=True,
                                                    load_fitted=False)
     ismain = clumps_cat.ismain
     ntasks = len(clumps_cat)
