@@ -12,7 +12,10 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-"""A script to calculate the auto-2PCF of CSiBORG catalogues."""
+"""
+A script to calculate the auto-2PCF of CSiBORG catalogues.
+TODO: update catalogue readers.
+"""
 from argparse import ArgumentParser
 from copy import deepcopy
 from datetime import datetime
@@ -22,7 +25,10 @@ import joblib
 import numpy
 import yaml
 from mpi4py import MPI
+
 from taskmaster import master_process, worker_process
+
+from .cluster_knn_auto import read_single
 
 try:
     import csiborgtools
@@ -42,6 +48,7 @@ nproc = comm.Get_size()
 
 parser = ArgumentParser()
 parser.add_argument("--runs", type=str, nargs="+")
+parser.add_argument("--simname", type=str, choices=["csiborg", "quijote"])
 args = parser.parse_args()
 with open("../scripts/tpcf_auto.yml", "r") as file:
     config = yaml.safe_load(file)
@@ -56,43 +63,7 @@ tpcf = csiborgtools.clustering.Mock2PCF()
 ###############################################################################
 
 
-def read_single(selection, cat):
-    """Positions for single catalogue auto-correlation."""
-    mmask = numpy.ones(len(cat), dtype=bool)
-    pos = cat.positions(False)
-    # Primary selection
-    psel = selection["primary"]
-    pmin, pmax = psel.get("min", None), psel.get("max", None)
-    if pmin is not None:
-        mmask &= cat[psel["name"]] >= pmin
-    if pmax is not None:
-        mmask &= cat[psel["name"]] < pmax
-    pos = pos[mmask, ...]
-
-    # Secondary selection
-    if "secondary" not in selection:
-        return pos
-    smask = numpy.ones(pos.shape[0], dtype=bool)
-    ssel = selection["secondary"]
-    smin, smax = ssel.get("min", None), ssel.get("max", None)
-    prop = cat[ssel["name"]][mmask]
-    if ssel.get("toperm", False):
-        prop = numpy.random.permutation(prop)
-    if ssel.get("marked", True):
-        x = cat[psel["name"]][mmask]
-        prop = csiborgtools.clustering.normalised_marks(
-            x, prop, nbins=config["nbins_marks"]
-        )
-
-    if smin is not None:
-        smask &= prop >= smin
-    if smax is not None:
-        smask &= prop < smax
-
-    return pos[smask, ...]
-
-
-def do_auto(run, cat, ic):
+def do_auto(run, nsim):
     _config = config.get(run, None)
     if _config is None:
         warn("No configuration for run {}.".format(run), stacklevel=1)
@@ -104,17 +75,18 @@ def do_auto(run, cat, ic):
         numpy.log10(config["rpmax"]),
         config["nrpbins"] + 1,
     )
-    pos = read_single(_config, cat)
+    cat = read_single(nsim, _config)
+    pos = cat.position(in_initial=False, cartesian=True)
     nrandom = int(config["randmult"] * pos.shape[0])
     rp, wp = tpcf(pos, rvs_gen, nrandom, bins)
 
-    joblib.dump({"rp": rp, "wp": wp}, paths.tpcfauto_path(run, ic))
+    fout = paths.tpcfauto_path(args.simname, run, nsim)
+    joblib.dump({"rp": rp, "wp": wp}, fout)
 
 
-def do_runs(ic):
-    cat = csiborgtools.read.ClumpsCatalogue(ic, paths, maxdist=Rmax)
+def do_runs(nsim):
     for run in args.runs:
-        do_auto(run, cat, ic)
+        do_auto(run, nsim)
 
 
 ###############################################################################
