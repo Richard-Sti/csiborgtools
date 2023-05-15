@@ -19,7 +19,7 @@ from .knn_summary import kNNCDFReader  # noqa
 from .obs import (SDSS, MCXCClusters, PlanckClusters, TwoMPPGalaxies,  # noqa
                   TwoMPPGroups)
 from .overlap_summary import (NPairsOverlap, PairOverlap,  # noqa
-                              binned_resample_mean)
+                              binned_resample_mean, get_cross_sims)
 from .paths import Paths  # noqa
 from .pk_summary import PKReader  # noqa
 from .readsim import (MmainReader, ParticleReader, halfwidth_mask,  # noqa
