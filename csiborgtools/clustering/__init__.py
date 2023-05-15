@@ -14,7 +14,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 from warnings import warn
 
-from csiborgtools.clustering.knn import kNN_CDF  # noqa
+from csiborgtools.clustering.knn import kNN_1DCDF  # noqa
 from csiborgtools.clustering.utils import (BaseRVS, RVSinbox,  # noqa
                                            RVSinsphere, RVSonsphere,
                                            normalised_marks)

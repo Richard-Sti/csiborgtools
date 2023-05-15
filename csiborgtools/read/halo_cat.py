@@ -19,6 +19,7 @@ Simulation catalogues:
 """
 from abc import ABC, abstractproperty
 from itertools import product
+from math import floor
 from os.path import join
 
 import numpy
@@ -573,7 +574,6 @@ class QuijoteHaloCatalogue(BaseCatalogue):
         pos = fof.GroupPos / 1e3 / self.box.h
         for i in range(3):
             pos[:, i] -= origin[i]
-        self.ppp = numpy.copy(pos)
         vel = fof.GroupVel * (1 + self.redshift)
         for i, p in enumerate(["x", "y", "z"]):
             data[p] = pos[:, i]
@@ -652,7 +652,7 @@ def fiducial_observers(boxwidth, radius):
     origins : list of len-3 lists
         Positions of the observers.
     """
-    nobs = boxwidth // radius  # Number of observers per dimension
+    nobs = floor(boxwidth / (2 * radius))  # Number of observers per dimension
 
     origins = list(product([1, 3, 5], repeat=nobs))
     for i in range(len(origins)):

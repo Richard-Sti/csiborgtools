@@ -22,8 +22,10 @@ from scipy.stats import binned_statistic
 from .utils import BaseRVS
 
 
-class kNN_CDF:
-    """Object to calculate the kNN-CDF statistic."""
+class kNN_1DCDF:
+    """
+    Object to calculate the 1-dimensional kNN-CDF statistic.
+    """
     @staticmethod
     def cdf_from_samples(r, rmin=None, rmax=None, neval=None,
                          dtype=numpy.float32):
