@@ -105,7 +105,8 @@ def plot_summed_overlap(nsim0):
     # 1 - mean summed overlap vs mean prob nomatch
     with plt.style.context(utils.mplstyle):
         plt.figure()
-        plt.scatter(1 - mean_overlap, mean_prob_nomatch, c=numpy.log10(x), s=2)
+        plt.scatter(1 - mean_overlap, mean_prob_nomatch, c=numpy.log10(x), s=2,
+                    rasterized=True)
         plt.colorbar(label=r"$\log_{10} M_{\rm halo} / M_\odot$")
 
         t = numpy.linspace(0.3, 1, 100)
@@ -134,8 +135,3 @@ if __name__ == "__main__":
             delete_disk_caches_for_function(func)
 
     plot_summed_overlap(7444)
-
-
-
-
-
