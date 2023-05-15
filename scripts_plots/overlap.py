@@ -32,6 +32,11 @@ except ModuleNotFoundError:
     import csiborgtools
 
 
+###############################################################################
+#                Probability of matching a reference simulation halo          #
+###############################################################################
+
+
 def open_cat(nsim):
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     bounds = {"totpartmass": (1e12, None)}
@@ -134,4 +139,5 @@ if __name__ == "__main__":
             print(f"Cleaning cache for function {func}.")
             delete_disk_caches_for_function(func)
 
-    plot_summed_overlap(7444)
+    for ic in [7444, 8812, 9700]:
+        plot_summed_overlap(ic)
