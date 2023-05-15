@@ -430,8 +430,8 @@ class ClumpsCatalogue(BaseCSiBORG):
         transformations.
     """
 
-    def __init__(self, nsim, paths, bounds=None, load_fitted=True,
-                 rawdata=False):
+    def __init__(self, nsim, paths, bounds={"dist", (0, 155.5 / 0.705)},
+                 load_fitted=True, rawdata=False):
         self.nsim = nsim
         self.paths = paths
         # Read in the clumps from the final snapshot
@@ -505,9 +505,9 @@ class HaloCatalogue(BaseCSiBORG):
     """
     _clumps_cat = None
 
-    def __init__(self, nsim, paths, bounds=None, with_lagpatch=True,
-                 load_fitted=True, load_initial=True, load_clumps_cat=False,
-                 rawdata=False):
+    def __init__(self, nsim, paths, bounds={"dist", (0, 155.5 / 0.705)},
+                 with_lagpatch=True, load_fitted=True, load_initial=True,
+                 load_clumps_cat=False, rawdata=False):
         self.nsim = nsim
         self.paths = paths
         # Read in the mmain catalogue of summed substructure
@@ -554,7 +554,6 @@ class HaloCatalogue(BaseCSiBORG):
                 self._data = self.box.convert_from_box(self._data, names)
 
             self.apply_bounds(bounds)
-
 
     @property
     def clumps_cat(self):

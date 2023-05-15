@@ -39,12 +39,11 @@ def pair_match(nsim0, nsimx, sigma, smoothen, verbose):
 
     # Load the raw catalogues (i.e. no selection) including the initial CM
     # positions and the particle archives.
-    cat0 = HaloCatalogue(nsim0, paths, load_initial=True,
-                         minmass=("totpartmass", 1e12), with_lagpatch=True,
-                         load_clumps_cat=True)
-    catx = HaloCatalogue(nsimx, paths, load_initial=True,
-                         minmass=("totpartmass", 1e12), with_lagpatch=True,
-                         load_clumps_cat=True)
+    bounds = {"totpartmass": (1e12, None)}
+    cat0 = HaloCatalogue(nsim0, paths, load_initial=True, bounds=bounds,
+                         with_lagpatch=True, load_clumps_cat=True)
+    catx = HaloCatalogue(nsimx, paths, load_initial=True, bounds=bounds,
+                         with_lagpatch=True, load_clumps_cat=True)
 
     clumpmap0 = read_h5(paths.particles_path(nsim0))["clumpmap"]
     parts0 = read_h5(paths.initmatch_path(nsim0, "particles"))["particles"]
