@@ -88,6 +88,13 @@ class Paths:
         self._check_directory(path)
         self._quijote_dir = path
 
+    @staticmethod
+    def get_quijote_ics():
+        """
+        Quijote IC realisation IDs.
+        """
+        return numpy.arange(100, dtype=int)
+
     @property
     def postdir(self):
         """
@@ -376,7 +383,7 @@ class Paths:
         fname = f"{kind}_{MAS}_{str(nsim).zfill(5)}_grid{grid}.npy"
         return join(fdir, fname)
 
-    def knnauto_path(self, simname, run, nsim=None):
+    def knnauto_path(self, simname, run, nsim=None, nobs=None):
         """
         Path to the `knn` auto-correlation files. If `nsim` is not specified
         returns a list of files for this run for all available simulations.
@@ -389,6 +396,8 @@ class Paths:
             Type of run.
         nsim : int, optional
             IC realisation index.
+        nobs : int, optional
+            Fiducial observer index in Quijote simulations.
 
         Returns
         -------
@@ -400,7 +409,12 @@ class Paths:
             makedirs(fdir)
             warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
         if nsim is not None:
-            return join(fdir, f"{simname}_knncdf_{str(nsim).zfill(5)}_{run}.p")
+            if simname == "csiborg":
+                nsim = str(nsim).zfill(5)
+            else:
+                assert nobs is not None
+                nsim = f"{str(nobs).zfill(2)}{str(nsim).zfill(3)}"
+            return join(fdir, f"{simname}_knncdf_{nsim}_{run}.p")
 
         files = glob(join(fdir, f"{simname}_knncdf*"))
         run = "__" + run
