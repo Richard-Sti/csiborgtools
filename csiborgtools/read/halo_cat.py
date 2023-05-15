@@ -458,7 +458,8 @@ class ClumpsCatalogue(BaseCSiBORG):
                      "r500c", "m200c", "m500c", "r200m", "m200m",
                      "vx", "vy", "vz"]
             self._data = self.box.convert_from_box(self._data, names)
-            self.apply_bounds(bounds)
+            if bounds is not None:
+                self.apply_bounds(bounds)
 
     @property
     def ismain(self):
@@ -553,7 +554,8 @@ class HaloCatalogue(BaseCSiBORG):
                 names = ["x0", "y0", "z0", "lagpatch"]
                 self._data = self.box.convert_from_box(self._data, names)
 
-            self.apply_bounds(bounds)
+            if bounds is not None:
+                self.apply_bounds(bounds)
 
     @property
     def clumps_cat(self):
@@ -588,7 +590,8 @@ class QuijoteHaloCatalogue(BaseCatalogue):
         Snapshot index.
     origin : len-3 tuple, optional
         Where to place the origin of the box. By default the centre of the box.
-        In units of :math:`cMpc`.
+        In units of :math:`cMpc`. Optionally can be an integer between 0 and 8,
+        inclusive to correspond to CSiBORG boxes.
     bounds : dict
         Parameter bounds to apply to the catalogue. The keys are the parameter
         names and the items are a len-2 tuple of (min, max) values. In case of
@@ -614,6 +617,9 @@ class QuijoteHaloCatalogue(BaseCatalogue):
                 ("group_mass", numpy.float32), ("npart", numpy.int32)]
         data = cols_to_structured(fof.GroupLen.size, cols)
 
+        if isinstance(origin, int):
+            origin = fiducial_observers(1000 / 0.6711, 155.5 / 0.6711)[origin]
+
         pos = fof.GroupPos / 1e3 / self.box.h
         for i in range(3):
             pos[:, i] -= origin[i]
@@ -625,7 +631,8 @@ class QuijoteHaloCatalogue(BaseCatalogue):
         data["npart"] = fof.GroupLen
 
         self._data = data
-        self.apply_bounds(bounds)
+        if bounds is not None:
+            self.apply_bounds(bounds)
 
     @property
     def nsnap(self):
