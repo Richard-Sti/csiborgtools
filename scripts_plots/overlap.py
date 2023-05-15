@@ -38,6 +38,9 @@ except ModuleNotFoundError:
 
 
 def open_cat(nsim):
+    """
+    Open a CSiBORG halo catalogue.
+    """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     bounds = {"totpartmass": (1e12, None)}
     return csiborgtools.read.HaloCatalogue(nsim, paths, bounds=bounds)
@@ -45,6 +48,10 @@ def open_cat(nsim):
 
 @cache_to_disk(7)
 def get_overlap(nsim0):
+    """
+    Calculate the summed overlap and probability of no match for a single
+    reference simulation.
+    """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsimxs = csiborgtools.read.get_cross_sims(nsim0, paths, smoothed=True)
     cat0 = open_cat(nsim0)
@@ -61,6 +68,10 @@ def get_overlap(nsim0):
 
 
 def plot_summed_overlap(nsim0):
+    """
+    Plot the summed overlap and probability of no matching for a single
+    reference simulation as a function of the reference halo mass.
+    """
     x, summed_overlap, prob_nomatch = get_overlap(nsim0)
 
     mean_overlap = numpy.mean(summed_overlap, axis=1)
