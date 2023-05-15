@@ -571,7 +571,8 @@ class QuijoteHaloCatalogue(BaseCatalogue):
 
         pos = fof.GroupPos / 1e3 / self.box.h
         for i in range(3):
-            pos -= origin[i]
+            pos[:, i] -= origin[i]
+        self.ppp = numpy.copy(pos)
         vel = fof.GroupVel * (1 + self.redshift)
         for i, p in enumerate(["x", "y", "z"]):
             data[p] = pos[:, i]
@@ -581,8 +582,8 @@ class QuijoteHaloCatalogue(BaseCatalogue):
 
         if not rawdata:
             if maxdist is not None:
-                pos = numpy.vstack([data["x"], data["y"], data["z"]]).T
-                data = data[numpy.linalg.norm(pos, axis=1) < maxdist]
+                data = data[
+                    sum(data[p]**2 for p in ["x", "y", "z"]) < maxdist**2]
             if minmass is not None:
                 data = data[data[minmass[0]] > minmass[1]]
 
