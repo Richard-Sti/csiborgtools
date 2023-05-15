@@ -19,3 +19,5 @@ scripts/*.sh
 venv/
 .trunk/*
 scripts_test/
+scripts_plots/python.sh
+scripts_plots/submit.sh
