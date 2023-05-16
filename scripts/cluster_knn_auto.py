@@ -81,7 +81,7 @@ def read_single(nsim, selection, nobs=None):
     # We then first read off the primary selection bounds.
     sel = selection["primary"]
     pname = None
-    xs = sel["names"] if isinstance(sel["names"], list) else [sel["names"]]
+    xs = sel["name"] if isinstance(sel["name"], list) else [sel["name"]]
     for _name in xs:
         if _name in cat.keys:
             pname = _name
@@ -95,7 +95,7 @@ def read_single(nsim, selection, nobs=None):
     if "secondary" in selection:
         sel = selection["secondary"]
         sname = None
-        xs = sel["names"] if isinstance(sel["names"], list) else [sel["names"]]
+        xs = sel["name"] if isinstance(sel["name"], list) else [sel["name"]]
         for _name in xs:
             if _name in cat.keys:
                 sname = _name
@@ -155,13 +155,13 @@ def do_cross_rand(run, nsim, nobs=None):
         batch_size=int(config["batch_size"]), random_state=config["seed"])
     corr = knncdf.joint_to_corr(cdf0, cdf1, joint_cdf)
     fout = paths.knnauto_path(args.simname, run, nsim, nobs)
-    print(f"Saving output to `{fout}`.")
+    print(f"Saving output to `{fout}`.", flush=True)
     joblib.dump({"rs": rs, "corr": corr}, fout)
 
 
 def do_runs(nsim):
     for run in args.runs:
-        iters = range(27) if args.simname == "quijote" else [None]
+        iters = [0, 5, 9, 18] if args.simname == "quijote" else [None]
         for nobs in iters:
             if "random" in run:
                 do_cross_rand(run, nsim, nobs)

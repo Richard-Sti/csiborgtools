@@ -46,13 +46,15 @@ class kNNCDFReader:
     def paths(self, paths):
         self._paths = paths
 
-    def read(self, run, kind, rmin=None, rmax=None, to_clip=True):
+    def read(self, simname, run, kind, rmin=None, rmax=None, to_clip=True):
         """
         Read the auto- or cross-correlation kNN-CDF data. Infers the type from
         the data files.
 
         Parameters
         ----------
+        simname : str
+            Simulation name. Must be either `csiborg` or `quijote`.
         run : str
             Run ID to read in.
         kind : str
@@ -71,14 +73,17 @@ class kNNCDFReader:
             Separations where the CDF is evaluated.
         out : 3-dimensional array of shape `(len(files), len(ks), neval)`
             Array of CDFs or cross-correlations.
+        ndensity : 1-dimensional array of shape `(len(files), )`
+            Number density of halos in the simulation.
         """
         assert kind in ["auto", "cross"]
+        assert simname in ["csiborg", "quijote"]
         if kind == "auto":
-            files = self.paths.knnauto_path(run)
+            files = self.paths.knnauto_path(simname, run)
         else:
-            files = self.paths.knncross_path(run)
+            files = self.paths.knncross_path(simname, run)
         if len(files) == 0:
-            raise RuntimeError("No files found for run `{}`.".format(run))
+            raise RuntimeError(f"No files found for run `{run}`.")
 
         for i, file in enumerate(files):
             data = joblib.load(file)
@@ -91,8 +96,11 @@ class kNNCDFReader:
                     isauto = True
                 out = numpy.full((len(files), *data[kind].shape), numpy.nan,
                                  dtype=numpy.float32)
+                ndensity = numpy.full(len(files), numpy.nan,
+                                      dtype=numpy.float32)
                 rs = data["rs"]
             out[i, ...] = data[kind]
+            ndensity[i] = data["ndensity"]
 
             if isauto and to_clip:
                 out[i, ...] = self.clipped_cdf(out[i, ...])
@@ -103,7 +111,7 @@ class kNNCDFReader:
         rs = rs[mask]
         out = out[..., mask]
 
-        return rs, out
+        return rs, out, ndensity
 
     @staticmethod
     def peaked_cdf(cdf, make_copy=True):
@@ -191,6 +199,7 @@ class kNNCDFReader:
         ----------
         cdf : 3-dimensional array of shape `(len(files), len(ks), len(rs))`
             Array of CDFs
+
         Returns
         -------
         out : 3-dimensional array of shape `(len(ks) - 1, len(rs), 2)`
@@ -212,16 +221,33 @@ class kNNCDFReader:
         ----------
         rs : 1-dimensional array
             Array of separations.
-        k : int
+        k : int or 1-dimensional array
             Number of objects.
-        ndensity : float
+        ndensity : float or 1-dimensional array
             Number density of objects.
 
         Returns
         -------
-        pk : 1-dimensional array
+        pk : 1-dimensional array or 3-dimensional array
             The PDF that a spherical volume of radius :math:`r` contains
-            :math:`k` objects.
+            :math:`k` objects. If `k` and `ndensity` are both arrays, the shape
+            is `(len(ndensity), len(k), len(rs))`.
         """
         V = 4 * numpy.pi / 3 * rs**3
-        return (ndensity * V)**k / factorial(k) * numpy.exp(-ndensity * V)
+
+        def probk(k, ndensity):
+            return (ndensity * V)**k / factorial(k) * numpy.exp(-ndensity * V)
+
+        if isinstance(k, int) and isinstance(ndensity, float):
+            return probk(k, ndensity)
+
+        # If either k or ndensity is an array, make sure the other is too.
+        assert isinstance(k, numpy.ndarray) and k.ndim == 1
+        assert isinstance(ndensity, numpy.ndarray) and ndensity.ndim == 1
+
+        out = numpy.full((ndensity.size, k.size, rs.size), numpy.nan,
+                         dtype=numpy.float32)
+        for i in range(ndensity.size):
+            for j in range(k.size):
+                out[i, j, :] = probk(k[j], ndensity[i])
+        return out
