@@ -417,7 +417,7 @@ class Paths:
             return join(fdir, f"{simname}_knncdf_{nsim}_{run}.p")
 
         files = glob(join(fdir, f"{simname}_knncdf*"))
-        run = "__" + run
+        run = "_" + run
         return [f for f in files if run in f]
 
     def knncross_path(self, simname, run, nsims=None):
@@ -449,7 +449,7 @@ class Paths:
             return join(fdir, f"{simname}_knncdf_{nsim0}_{nsimx}__{run}.p")
 
         files = glob(join(fdir, f"{simname}_knncdf*"))
-        run = "__" + run
+        run = "_" + run
         return [f for f in files if run in f]
 
     def tpcfauto_path(self, simname, run, nsim=None):
