@@ -1,8 +1,8 @@
 rmin: 0.1
 rmax: 100
 nneighbours: 8
-nsamples: 1.e+5
-batch_size: 5.e+4
+nsamples: 1.e+7
+batch_size: 1.e+6
 neval: 10000
 seed: 42
 nbins_marks: 10
@@ -16,7 +16,7 @@ nbins_marks: 10
 "mass001":
   primary:
     name:
-    - totpartmass,
+    - totpartmass
     - group_mass
     min: 1.e+12
     max: 1.e+13
@@ -24,7 +24,7 @@ nbins_marks: 10
 "mass002":
   primary:
     name:
-    - totpartmass,
+    - totpartmass
     - group_mass
     min: 1.e+13
     max: 1.e+14
@@ -32,7 +32,7 @@ nbins_marks: 10
 "mass003":
   primary:
     name:
-    - totpartmass,
+    - totpartmass
     - group_mass
     min: 1.e+14
 
