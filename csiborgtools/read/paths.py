@@ -309,29 +309,6 @@ class Paths:
             fname = fname.replace("overlap", "overlap_smoothed")
         return join(fdir, fname)
 
-    def radpos_path(self, nsnap, nsim):
-        """
-        Path to the files containing radial positions of halo particles (with
-        summed substructure).
-
-        Parameters
-        ----------
-        nsnap : int
-            Snapshot index.
-        nsim : int
-            IC realisation index.
-
-        Returns
-        -------
-        path : str
-        """
-        fdir = join(self.postdir, "radpos")
-        if not isdir(fdir):
-            mkdir(fdir)
-            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
-        fname = f"radpos_{str(nsim).zfill(5)}_{str(nsnap).zfill(5)}.npz"
-        return join(fdir, fname)
-
     def particles_path(self, nsim):
         """
         Path to the files containing all particles.
