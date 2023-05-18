@@ -34,34 +34,9 @@ except ModuleNotFoundError:
     import csiborgtools
 
 
-###############################################################################
-#                            MPI and arguments                                #
-###############################################################################
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 nproc = comm.Get_size()
-
-parser = ArgumentParser()
-parser.add_argument("--runs", type=str, nargs="+")
-parser.add_argument("--ics", type=int, nargs="+", default=None,
-                    help="IC realisations. If `-1` processes all simulations.")
-parser.add_argument("--simname", type=str, choices=["csiborg", "quijote"])
-args = parser.parse_args()
-with open("../scripts/cluster_knn_auto.yml", "r") as file:
-    config = yaml.safe_load(file)
-
-Rmax = 155 / 0.705  # Mpc (h = 0.705) high resolution region radius
-totvol = 4 * numpy.pi * Rmax**3 / 3
-paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-knncdf = csiborgtools.clustering.kNN_1DCDF()
-
-if args.ics is None or args.ics[0] == -1:
-    if args.simname == "csiborg":
-        ics = paths.get_ics()
-    else:
-        ics = paths.get_quijote_ics()
-else:
-    ics = args.ics
 
 
 ###############################################################################
@@ -182,20 +157,42 @@ def do_runs(nsim):
 ###############################################################################
 
 
-if nproc > 1:
-    if rank == 0:
-        tasks = deepcopy(ics)
-        master_process(tasks, comm, verbose=True)
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument("--runs", type=str, nargs="+")
+    parser.add_argument("--simname", type=str, choices=["csiborg", "quijote"])
+    parser.add_argument("--ics", type=int, nargs="+", default=None,
+                        help="IC realisations. If `-1` processes all simulations.")  # noqa
+    args = parser.parse_args()
+    with open("../scripts/cluster_knn_auto.yml", "r") as file:
+        config = yaml.safe_load(file)
+
+    Rmax = 155 / 0.705  # Mpc (h = 0.705) high resolution region radius
+    totvol = 4 * numpy.pi * Rmax**3 / 3
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    knncdf = csiborgtools.clustering.kNN_1DCDF()
+
+    if args.ics is None or args.ics[0] == -1:
+        if args.simname == "csiborg":
+            ics = paths.get_ics()
+        else:
+            ics = paths.get_quijote_ics()
     else:
-        worker_process(do_runs, comm, verbose=False)
-else:
-    tasks = deepcopy(ics)
-    for task in tasks:
-        print("{}: completing task `{}`.".format(datetime.now(), task))
-        do_runs(task)
-comm.Barrier()
+        ics = args.ics
+
+    if nproc > 1:
+        if rank == 0:
+            tasks = deepcopy(ics)
+            master_process(tasks, comm, verbose=True)
+        else:
+            worker_process(do_runs, comm, verbose=False)
+    else:
+        tasks = deepcopy(ics)
+        for task in tasks:
+            print("{}: completing task `{}`.".format(datetime.now(), task))
+            do_runs(task)
+    comm.Barrier()
 
 
-if rank == 0:
-    print("{}: all finished.".format(datetime.now()))
-quit()  # Force quit the script
+    if rank == 0:
+        print("{}: all finished.".format(datetime.now()))
