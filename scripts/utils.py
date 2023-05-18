@@ -58,7 +58,7 @@ def get_nsims(args, paths):
     return list(nsims)
 
 
-def read_single_catalogue(args, config, nsim, run, rmax, paths):
+def read_single_catalogue(args, config, nsim, run, rmax, paths, nobs=None):
     """
     Read a single halo catalogue and apply selection criteria to it. If the run
     name contains `poisson` then the halo positions are replaces with random
@@ -78,6 +78,8 @@ def read_single_catalogue(args, config, nsim, run, rmax, paths):
         Maximum radial distance of the halo catalogue.
     paths : csiborgtools.paths.Paths
         Paths object.
+    nobs : int, optional
+        Fiducial Quijote observer index.
 
     Returns
     -------
@@ -91,7 +93,11 @@ def read_single_catalogue(args, config, nsim, run, rmax, paths):
     if args.simname == "csiborg":
         cat = csiborgtools.read.HaloCatalogue(nsim, paths)
     else:
-        cat = csiborgtools.read.QuijoteHaloCatalogue(nsim, paths, nsnap=4)
+        if nobs is not None:
+            cat = csiborgtools.read.QuijoteHaloCatalogue(nsim, paths, nsnap=4)
+            # We may optionally already here pick a fiducial observer.
+            if nobs is not None:
+                cat = cat.pick_fiducial_observer(nobs, args.Rmax)
 
     cat.apply_bounds({"dist": (0, rmax)})
     # We then first read off the primary selection bounds.
