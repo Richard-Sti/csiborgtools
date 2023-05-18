@@ -65,7 +65,7 @@ class TPCFReader:
         out : 2-dimensional array of shape `(len(files), len(rp))`
             Array of 2PCFs.
         """
-        files = self.paths.tpcfauto_path(run)
+        files = self.paths.tpcfauto(run)
         if len(files) == 0:
             raise RuntimeError("No files found for run `{}`.".format(run[:-2]))
 

@@ -109,7 +109,7 @@ def do_cross(run, ics):
     )
 
     corr = knncdf.joint_to_corr(cdf0, cdf1, joint_cdf)
-    fout = paths.knncross_path(args.simname, run, ics)
+    fout = paths.knncross(args.simname, run, ics)
     joblib.dump({"rs": rs, "corr": corr}, fout)
 
 

@@ -71,6 +71,6 @@ for i in csiborgtools.fits.split_jobs(len(ics), nproc)[rank]:
         gen = csiborgtools.field.VelocityField(box, args.MAS)
         field = gen(parts, args.grid, mpart, verbose=verbose)
 
-    fout = paths.field_path(args.kind, args.MAS, args.grid, nsim, args.in_rsp)
+    fout = paths.field(args.kind, args.MAS, args.grid, nsim, args.in_rsp)
     print(f"{datetime.now()}: rank {rank} saving output to `{fout}`.")
     numpy.save(fout, field)

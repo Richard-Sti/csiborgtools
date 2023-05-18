@@ -79,9 +79,9 @@ class kNNCDFReader:
         assert kind in ["auto", "cross"]
         assert simname in ["csiborg", "quijote"]
         if kind == "auto":
-            files = self.paths.knnauto_path(simname, run)
+            files = self.paths.knnauto(simname, run)
         else:
-            files = self.paths.knncross_path(simname, run)
+            files = self.paths.knncross(simname, run)
         if len(files) == 0:
             raise RuntimeError(f"No files found for run `{run}`.")
 

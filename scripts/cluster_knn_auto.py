@@ -111,7 +111,7 @@ def do_auto(run, nsim, nobs=None):
         nsamples=int(config["nsamples"]), neval=int(config["neval"]),
         batch_size=int(config["batch_size"]), random_state=config["seed"])
 
-    fout = paths.knnauto_path(args.simname, run, nsim, nobs)
+    fout = paths.knnauto(args.simname, run, nsim, nobs)
     print(f"Saving output to `{fout}`.")
     joblib.dump({"rs": rs, "cdf": cdf, "ndensity": len(cat) / totvol}, fout)
 
@@ -137,7 +137,7 @@ def do_cross_rand(run, nsim, nobs=None):
         nsamples=int(config["nsamples"]), neval=int(config["neval"]),
         batch_size=int(config["batch_size"]), random_state=config["seed"])
     corr = knncdf.joint_to_corr(cdf0, cdf1, joint_cdf)
-    fout = paths.knnauto_path(args.simname, run, nsim, nobs)
+    fout = paths.knnauto(args.simname, run, nsim, nobs)
     print(f"Saving output to `{fout}`.", flush=True)
     joblib.dump({"rs": rs, "corr": corr}, fout)
 

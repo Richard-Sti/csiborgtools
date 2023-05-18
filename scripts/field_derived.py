@@ -62,7 +62,7 @@ for i in csiborgtools.fits.split_jobs(len(ics), nproc)[rank]:
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
     density_gen = csiborgtools.field.DensityField(box, args.MAS)
 
-    rho = numpy.load(paths.field_path("density", args.MAS, args.grid, nsim,
+    rho = numpy.load(paths.field("density", args.MAS, args.grid, nsim,
                                       args.in_rsp))
     rho = density_gen.overdensity_field(rho)
 
@@ -72,7 +72,7 @@ for i in csiborgtools.fits.split_jobs(len(ics), nproc)[rank]:
         raise RuntimeError(f"Field {args.kind} is not implemented yet.")
 
     field = gen(rho)
-    fout = paths.field_path("potential", args.MAS, args.grid, nsim,
+    fout = paths.field("potential", args.MAS, args.grid, nsim,
                             args.in_rsp)
     print(f"{datetime.now()}: rank {rank} saving output to `{fout}`.")
     numpy.save(fout, field)

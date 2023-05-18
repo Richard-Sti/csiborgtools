@@ -88,7 +88,7 @@ def do_auto(run, nsim):
     nrandom = int(config["randmult"] * pos.shape[0])
     rp, wp = tpcf(pos, rvs_gen, nrandom, bins)
 
-    fout = paths.tpcfauto_path(args.simname, run, nsim)
+    fout = paths.tpcfauto(args.simname, run, nsim)
     joblib.dump({"rp": rp, "wp": wp}, fout)
 
 

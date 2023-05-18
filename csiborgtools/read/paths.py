@@ -333,7 +333,7 @@ class Paths:
         fname = f"parts_{str(nsim).zfill(5)}.h5"
         return join(fdir, fname)
 
-    def field_path(self, kind, MAS, grid, nsim, in_rsp):
+    def field(self, kind, MAS, grid, nsim, in_rsp):
         """
         Path to the files containing the calculated density fields in CSiBORG.
 
@@ -364,10 +364,10 @@ class Paths:
         fname = f"{kind}_{MAS}_{str(nsim).zfill(5)}_grid{grid}.npy"
         return join(fdir, fname)
 
-    def cross_neighbour_path(self, simname, run, nsim=None, nobs=None):
+    def cross_neighbour_path(self, simname, run, nsim=None):
         pass
 
-    def knnauto_path(self, simname, run, nsim=None, nobs=None):
+    def knnauto(self, simname, run, nsim=None, nobs=None):
         """
         Path to the `knn` auto-correlation files. If `nsim` is not specified
         returns a list of files for this run for all available simulations.
@@ -404,7 +404,7 @@ class Paths:
         run = "_" + run
         return [f for f in files if run in f]
 
-    def knncross_path(self, simname, run, nsims=None):
+    def knncross(self, simname, run, nsims=None):
         """
         Path to the `knn` cross-correlation files. If `nsims` is not specified
         returns a list of files for this run for all available simulations.
@@ -436,7 +436,7 @@ class Paths:
         run = "_" + run
         return [f for f in files if run in f]
 
-    def tpcfauto_path(self, simname, run, nsim=None):
+    def tpcfauto(self, simname, run, nsim=None):
         """
         Path to the `tpcf` auto-correlation files. If `nsim` is not specified
         returns a list of files for this run for all available simulations.
