@@ -130,7 +130,7 @@ class Paths:
             warn(f"Created directory `{fpath}`.", UserWarning, stacklevel=1)
         return fpath
 
-    def mmain_path(self, nsnap, nsim):
+    def mmain(self, nsnap, nsim):
         """
         Path to the `mmain` files summed substructure files.
 
@@ -152,7 +152,7 @@ class Paths:
         return join(fdir,
                     f"mmain_{str(nsim).zfill(5)}_{str(nsnap).zfill(5)}.npz")
 
-    def initmatch_path(self, nsim, kind):
+    def initmatch(self, nsim, kind):
         """
         Path to the `initmatch` files where the clump match between the
         initial and final snapshot is stored.
@@ -382,6 +382,9 @@ class Paths:
             kind = kind + "_rsp"
         fname = f"{kind}_{MAS}_{str(nsim).zfill(5)}_grid{grid}.npy"
         return join(fdir, fname)
+
+    def cross_neighbour_path(self, simname, run, nsim=None, nobs=None):
+        pass
 
     def knnauto_path(self, simname, run, nsim=None, nobs=None):
         """

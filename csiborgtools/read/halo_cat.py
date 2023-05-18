@@ -439,7 +439,7 @@ class ClumpsCatalogue(BaseCSiBORG):
         cols = ["index", "parent", "x", "y", "z", "mass_cl"]
         self._data = partreader.read_clumps(self.nsnap, self.nsim, cols=cols)
         # Overwrite the parent with the ultimate parent
-        mmain = numpy.load(self.paths.mmain_path(self.nsnap, self.nsim))
+        mmain = numpy.load(self.paths.mmain(self.nsnap, self.nsim))
         self._data["parent"] = mmain["ultimate_parent"]
 
         if load_fitted:
@@ -512,7 +512,7 @@ class HaloCatalogue(BaseCSiBORG):
         self.nsim = nsim
         self.paths = paths
         # Read in the mmain catalogue of summed substructure
-        mmain = numpy.load(self.paths.mmain_path(self.nsnap, self.nsim))
+        mmain = numpy.load(self.paths.mmain(self.nsnap, self.nsim))
         self._data = mmain["mmain"]
         # We will also need the clumps catalogue
         if load_clumps_cat:
@@ -525,7 +525,7 @@ class HaloCatalogue(BaseCSiBORG):
             self._data = add_columns(self._data, X, cols)
 
         if load_initial:
-            fits = numpy.load(paths.initmatch_path(nsim, "fit"))
+            fits = numpy.load(paths.initmatch(nsim, "fit"))
             X, cols = [], []
             for col in fits.dtype.names:
                 if col == "index":

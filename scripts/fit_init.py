@@ -66,7 +66,7 @@ for nsim in [ics[i] for i in jobs]:
     print(f"{datetime.now()}: rank {rank} calculating simulation `{nsim}`.",
           flush=True)
 
-    parts = csiborgtools.read.read_h5(paths.initmatch_path(nsim, "particles"))
+    parts = csiborgtools.read.read_h5(paths.initmatch(nsim, "particles"))
     parts = parts['particles']
     clump_map = csiborgtools.read.read_h5(paths.particles_path(nsim))
     clump_map = clump_map["clumpmap"]
@@ -96,7 +96,7 @@ for nsim in [ics[i] for i in jobs]:
 
     out = out[ismain]
     # Now save it
-    fout = paths.initmatch_path(nsim, "fit")
+    fout = paths.initmatch(nsim, "fit")
     print(f"{datetime.now()}: dumping fits to .. `{fout}`.",
           flush=True)
     with open(fout, "wb") as f:

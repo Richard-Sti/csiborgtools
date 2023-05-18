@@ -41,7 +41,7 @@ def do_mmain(nsim):
     nsnap = max(paths.get_snapshots(nsim))
     # NOTE: currently works for highest snapshot anyway
     mmain, ultimate_parent = mmain_reader.make_mmain(nsim, verbose=False)
-    numpy.savez(paths.mmain_path(nsnap, nsim),
+    numpy.savez(paths.mmain(nsnap, nsim),
                 mmain=mmain, ultimate_parent=ultimate_parent)
 
 ###############################################################################

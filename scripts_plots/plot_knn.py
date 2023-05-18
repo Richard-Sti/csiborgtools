@@ -35,6 +35,7 @@ except ModuleNotFoundError:
 
 
 def plot_knn(runname):
+    print(f"Plotting kNN CDF for {runname}.")
     cols = plt.rcParams["axes.prop_cycle"].by_key()["color"]
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     reader = csiborgtools.read.kNNCDFReader(paths)
@@ -48,29 +49,43 @@ def plot_knn(runname):
         pk_poisson = reader.poisson_prob_k(rs, numpy.arange(pk.shape[1]),
                                            ndensity)
 
-        for k in range(2):
+        for k in range(3):
             mu = numpy.mean(pk[:, k, :], axis=0)
             std = numpy.std(pk[:, k, :], axis=0)
-            plt.plot(rs, mu, label=r"$k = {}$".format(k + 1),
+            plt.plot(rs, mu, label=r"$k = {}$, Quijote".format(k + 1),
                      c=cols[k % len(cols)])
-            plt.fill_between(rs, mu - std, mu + std, alpha=0.15,
-                             color=cols[k % len(cols)], zorder=0)
+            # plt.fill_between(rs, mu - std, mu + std, alpha=0.15,
+            #                  color=cols[k % len(cols)], zorder=0)
 
             mu = numpy.mean(pk_poisson[:, k, :], axis=0)
             std = numpy.std(pk_poisson[:, k, :], axis=0)
-            plt.plot(rs, mu, c=cols[k % len(cols)], ls="dotted")
-            plt.fill_between(rs, mu - std, mu + std, alpha=0.15,
-                             color=cols[k % len(cols)], zorder=0, hatch="\\")
+            plt.plot(rs, mu, c=cols[k % len(cols)], ls="dashed",
+                     label=r"$k = {}$, Poisson analytical".format(k + 1))
+            # plt.fill_between(rs, mu - std, mu + std, alpha=0.15,
+            #                  color=cols[k % len(cols)], zorder=0, hatch="\\")
 
-        # CSiBORG kNN
-        rs, cdf, ndensity = reader.read("csiborg", runname, kind="auto")
-        pk = reader.mean_prob_k(cdf)
-        for k in range(2):
-            mu = pk[k, :, 0]
-            std = pk[k, :, 1]
-            plt.plot(rs, mu, ls="--", c=cols[k % len(cols)])
-            plt.fill_between(rs, mu - std, mu + std, alpha=0.15, hatch="\\",
-                             color=cols[k % len(cols)], zorder=0)
+        # Quijote poisson kNN
+        rs, cdf, ndensity = reader.read("quijote", "mass003_poisson",
+                                        kind="auto")
+        pk = reader.prob_k(cdf)
+
+        for k in range(3):
+            mu = numpy.mean(pk[:, k, :], axis=0)
+            std = numpy.std(pk[:, k, :], axis=0)
+            plt.plot(rs, mu, label=r"$k = {}$, Poisson Quijote".format(k + 1),
+                     c=cols[k % len(cols)], ls="dotted")
+            # plt.fill_between(rs, mu - std, mu + std, alpha=0.15,
+            #                  color=cols[k % len(cols)], zorder=0)
+
+#         # CSiBORG kNN
+#         rs, cdf, ndensity = reader.read("csiborg", runname, kind="auto")
+#         pk = reader.mean_prob_k(cdf)
+#         for k in range(2):
+#             mu = pk[k, :, 0]
+#             std = pk[k, :, 1]
+#             plt.plot(rs, mu, ls="--", c=cols[k % len(cols)])
+#             plt.fill_between(rs, mu - std, mu + std, alpha=0.15, hatch="\\",
+#                              color=cols[k % len(cols)], zorder=0)
 
         plt.legend()
         plt.xlabel(r"$r~[\mathrm{Mpc}]$")

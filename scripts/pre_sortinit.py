@@ -78,5 +78,5 @@ for i in jobs:
     collect()
     part0 = part0[numpy.argsort(numpy.argsort(pidf))]
     print(f"{datetime.now()}: dumping particles for {nsim}.", flush=True)
-    with h5py.File(paths.initmatch_path(nsim, "particles"), "w") as f:
+    with h5py.File(paths.initmatch(nsim, "particles"), "w") as f:
         f.create_dataset("particles", data=part0)
