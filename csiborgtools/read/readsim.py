@@ -87,7 +87,6 @@ class ParticleReader:
 
         keys = info[eqs - 1]
         vals = info[eqs + 1]
-        # trunk-ignore(ruff/B905)
         return {key: val for key, val in zip(keys, vals)}
 
     def open_particle(self, nsnap, nsim, verbose=True):
