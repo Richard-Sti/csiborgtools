@@ -614,7 +614,8 @@ class QuijoteHaloCatalogue(BaseCatalogue):
         cols = [("x", numpy.float32), ("y", numpy.float32),
                 ("z", numpy.float32), ("vx", numpy.float32),
                 ("vy", numpy.float32), ("vz", numpy.float32),
-                ("group_mass", numpy.float32), ("npart", numpy.int32)]
+                ("group_mass", numpy.float32), ("npart", numpy.int32),
+                ("index", numpy.int32)]
         data = cols_to_structured(fof.GroupLen.size, cols)
 
         if isinstance(origin, int):
@@ -629,6 +630,7 @@ class QuijoteHaloCatalogue(BaseCatalogue):
             data["v" + p] = vel[:, i]
         data["group_mass"] = fof.GroupMass * 1e10 / self.box.h
         data["npart"] = fof.GroupLen
+        data["index"] = numpy.arange(data.size, dtype=numpy.int32)
 
         self._data = data
         if bounds is not None:
