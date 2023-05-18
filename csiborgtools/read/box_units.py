@@ -15,7 +15,7 @@
 """
 Simulation box unit transformations.
 """
-from abc import ABC
+from abc import ABC, abstractproperty
 
 import numpy
 from astropy import constants, units
@@ -92,6 +92,17 @@ class BaseBox(ABC):
         Om0 : float
         """
         return self.cosmo.Om0
+
+    @abstractproperty
+    def boxsize(self):
+        """
+        Box size in cMpc.
+
+        Returns
+        -------
+        boxsize : float
+        """
+        pass
 
 
 ###############################################################################
@@ -383,6 +394,10 @@ class CSiBORGBox(BaseBox):
 
         return data
 
+    @property
+    def boxsize(self):
+        return self.box2mpc(1.)
+
 
 ###############################################################################
 #                      Quijote fiducial cosmology box                         #
@@ -408,3 +423,7 @@ class QuijoteBox(BaseBox):
 
         self._cosmo = LambdaCDM(H0=67.11, Om0=0.3175, Ode0=0.6825,
                                 Tcmb0=2.725 * units.K, Ob0=0.049)
+
+    @property
+    def boxsize(self):
+        return 1000. / (self._cosmo.H0.value / 100)
