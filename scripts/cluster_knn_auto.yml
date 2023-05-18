@@ -36,6 +36,14 @@ nbins_marks: 10
     - group_mass
     min: 1.e+14
 
+"mass003_poisson":
+  poisson: true
+  primary:
+    name:
+    - totpartmass
+    - group_mass
+    min: 1.e+14
+
 
 ################################################################################
 #                        totpartmass + lambda200c                             #

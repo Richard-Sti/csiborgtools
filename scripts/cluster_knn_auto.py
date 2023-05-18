@@ -109,6 +109,13 @@ def read_single(nsim, selection, nobs=None):
             cat[sname] = csiborgtools.clustering.normalised_marks(
                 cat[pname], cat[sname], nbins=config["nbins_marks"])
         cat.apply_bounds({sname: (sel.get("min", None), sel.get("max", None))})
+
+    if selection.get("poisson", False):
+        rvs_gen = csiborgtools.clustering.RVSinsphere(Rmax)
+        pos = rvs_gen(len(cat), random_state=None)
+        for i, p in enumerate(['x', 'y', 'z']):
+            cat.data[p] = pos[:, i]
+
     return cat
 
 
@@ -120,6 +127,7 @@ def do_auto(run, nsim, nobs=None):
         return
 
     rvs_gen = csiborgtools.clustering.RVSinsphere(Rmax)
+    # rvs_gen = csiborgtools.clustering.RVSinbox(Rmax)
     cat = read_single(nsim, _config, nobs=nobs)
     knn = cat.knn(in_initial=False)
     rs, cdf = knncdf(
@@ -161,7 +169,7 @@ def do_cross_rand(run, nsim, nobs=None):
 
 def do_runs(nsim):
     for run in args.runs:
-        iters = [0, 5, 9, 18] if args.simname == "quijote" else [None]
+        iters = [0, 5] if args.simname == "quijote" else [None]
         for nobs in iters:
             if "random" in run:
                 do_cross_rand(run, nsim, nobs)
