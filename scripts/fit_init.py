@@ -48,7 +48,7 @@ paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 partreader = csiborgtools.read.ParticleReader(paths)
 
 if args.ics is None or args.ics[0] == -1:
-    ics = paths.get_ics()
+    ics = paths.get_ics("csiborg")
 else:
     ics = args.ics
 
@@ -68,7 +68,7 @@ for nsim in [ics[i] for i in jobs]:
 
     parts = csiborgtools.read.read_h5(paths.initmatch(nsim, "particles"))
     parts = parts['particles']
-    clump_map = csiborgtools.read.read_h5(paths.particles_path(nsim))
+    clump_map = csiborgtools.read.read_h5(paths.particles(nsim))
     clump_map = clump_map["clumpmap"]
     clumps_cat = csiborgtools.read.ClumpsCatalogue(nsim, paths, rawdata=True,
                                                    load_fitted=False)

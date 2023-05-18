@@ -60,7 +60,7 @@ tpcf = csiborgtools.clustering.Mock2PCF()
 
 if args.ics is None or args.ics[0] == -1:
     if args.simname == "csiborg":
-        ics = paths.get_ics()
+        ics = paths.get_ics("csiborg")
     else:
         ics = paths.get_quijote_ics()
 else:

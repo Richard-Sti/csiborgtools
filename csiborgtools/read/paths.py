@@ -88,13 +88,6 @@ class Paths:
         self._check_directory(path)
         self._quijote_dir = path
 
-    @staticmethod
-    def get_quijote_ics():
-        """
-        Quijote IC realisation IDs.
-        """
-        return numpy.arange(100, dtype=int)
-
     @property
     def postdir(self):
         """
@@ -132,7 +125,7 @@ class Paths:
 
     def mmain(self, nsnap, nsim):
         """
-        Path to the `mmain` files summed substructure files.
+        Path to the `mmain` CSiBORG files of summed substructure.
 
         Parameters
         ----------
@@ -154,8 +147,8 @@ class Paths:
 
     def initmatch(self, nsim, kind):
         """
-        Path to the `initmatch` files where the clump match between the
-        initial and final snapshot is stored.
+        Path to the `initmatch` files where the halo match between the
+        initial and final snapshot of a CSiBORG realisaiton is stored.
 
         Parameters
         ----------
@@ -176,26 +169,35 @@ class Paths:
             warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
         return join(fdir, f"{kind}_{str(nsim).zfill(5)}.{ftype}")
 
-    def get_ics(self):
+    def get_ics(self, simname):
         """
-        Get CSiBORG IC realisation IDs from the list of folders in
-        `self.srcdir`.
+        Get available IC realisation IDs for either the CSiBORG or Quijote
+        simulation suite.
+
+        Parameters
+        ----------
+        simname : str
+            Simulation name. Must be one of `["csiborg", "quijote"]`.
 
         Returns
         -------
         ids : 1-dimensional array
         """
-        files = glob(join(self.srcdir, "ramses_out*"))
-        files = [f.split("/")[-1] for f in files]      # Select only file names
-        files = [f for f in files if "_inv" not in f]  # Remove inv. ICs
-        files = [f for f in files if "_new" not in f]  # Remove _new
-        files = [f for f in files if "OLD" not in f]   # Remove _old
-        ids = [int(f.split("_")[-1]) for f in files]
-        try:
-            ids.remove(5511)
-        except ValueError:
-            pass
-        return numpy.sort(ids)
+        assert simname in ["csiborg", "quijote"]
+        if simname == "csiborg":
+            files = glob(join(self.srcdir, "ramses_out*"))
+            files = [f.split("/")[-1] for f in files]      # Only file names
+            files = [f for f in files if "_inv" not in f]  # Remove inv. ICs
+            files = [f for f in files if "_new" not in f]  # Remove _new
+            files = [f for f in files if "OLD" not in f]   # Remove _old
+            ids = [int(f.split("_")[-1]) for f in files]
+            try:
+                ids.remove(5511)
+            except ValueError:
+                pass
+            return numpy.sort(ids)
+        else:
+            return numpy.arange(100, dtype=int)
 
     def ic_path(self, nsim, tonew=False):
         """
@@ -239,7 +241,7 @@ class Paths:
         snaps = [int(snap.split("_")[-1].lstrip("0")) for snap in snaps]
         return numpy.sort(snaps)
 
-    def snapshot_path(self, nsnap, nsim):
+    def snapshot(self, nsnap, nsim):
         """
         Path to a CSiBORG IC realisation snapshot.
 
@@ -258,9 +260,10 @@ class Paths:
         simpath = self.ic_path(nsim, tonew=tonew)
         return join(simpath, f"output_{str(nsnap).zfill(5)}")
 
-    def structfit_path(self, nsnap, nsim, kind):
+    def structfit(self, nsnap, nsim, kind):
         """
-        Path to the clump or halo catalogue from `fit_halos.py`.
+        Path to the clump or halo catalogue from `fit_halos.py`. Only CSiBORG
+        is supported.
 
         Parameters
         ----------
@@ -283,9 +286,9 @@ class Paths:
         fname = f"{kind}_out_{str(nsim).zfill(5)}_{str(nsnap).zfill(5)}.npy"
         return join(fdir, fname)
 
-    def overlap_path(self, nsim0, nsimx, smoothed):
+    def overlap(self, nsim0, nsimx, smoothed):
         """
-        Path to the overlap files between two simulations.
+        Path to the overlap files between two CSiBORG simulations.
 
         Parameters
         ----------
@@ -309,9 +312,10 @@ class Paths:
             fname = fname.replace("overlap", "overlap_smoothed")
         return join(fdir, fname)
 
-    def particles_path(self, nsim):
+    def particles(self, nsim):
         """
-        Path to the files containing all particles.
+        Path to the files containing all particles of a CSiBORG realisation at
+        :math:`z = 0`.
 
         Parameters
         ----------
@@ -331,7 +335,7 @@ class Paths:
 
     def field_path(self, kind, MAS, grid, nsim, in_rsp):
         """
-        Path to the files containing the calculated density fields.
+        Path to the files containing the calculated density fields in CSiBORG.
 
         Parameters
         ----------

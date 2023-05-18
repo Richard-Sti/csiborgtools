@@ -48,7 +48,7 @@ if nproc > 1:
 paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 cols_collect = [("r", numpy.float32), ("M", numpy.float32)]
 if args.ics is None or args.ics == -1:
-    nsims = paths.get_ics()
+    nsims = paths.get_ics("csiborg")
 else:
     nsims = args.ics
 
@@ -61,7 +61,7 @@ for i, nsim in enumerate(nsims):
     nsnap = max(paths.get_snapshots(nsim))
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
 
-    f = csiborgtools.read.read_h5(paths.particles_path(nsim))
+    f = csiborgtools.read.read_h5(paths.particles(nsim))
     particles = f["particles"]
     clump_map = f["clumpmap"]
     clid2map = {clid: i for i, clid in enumerate(clump_map[:, 0])}

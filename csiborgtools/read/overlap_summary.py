@@ -71,8 +71,8 @@ class PairOverlap:
 
         # We first load in the output files. We need to find the right
         # combination of the reference and cross simulation.
-        fname = paths.overlap_path(nsim0, nsimx, smoothed=False)
-        fname_inv = paths.overlap_path(nsimx, nsim0, smoothed=False)
+        fname = paths.overlap(nsim0, nsimx, smoothed=False)
+        fname_inv = paths.overlap(nsimx, nsim0, smoothed=False)
         if isfile(fname):
             data_ngp = numpy.load(fname, allow_pickle=True)
             to_invert = False
@@ -83,7 +83,7 @@ class PairOverlap:
         else:
             raise FileNotFoundError(f"No file found for {nsim0} and {nsimx}.")
 
-        fname_smooth = paths.overlap_path(cat0.nsim, catx.nsim, smoothed=True)
+        fname_smooth = paths.overlap(cat0.nsim, catx.nsim, smoothed=True)
         data_smooth = numpy.load(fname_smooth, allow_pickle=True)
 
         # Create mapping from halo indices to array positions in the catalogue.
@@ -628,11 +628,11 @@ def get_cross_sims(nsim0, paths, smoothed):
         Whether to use the smoothed overlap or not.
     """
     nsimxs = []
-    for nsimx in paths.get_ics():
+    for nsimx in paths.get_ics("csiborg"):
         if nsimx == nsim0:
             continue
-        f1 = paths.overlap_path(nsim0, nsimx, smoothed)
-        f2 = paths.overlap_path(nsimx, nsim0, smoothed)
+        f1 = paths.overlap(nsim0, nsimx, smoothed)
+        f2 = paths.overlap(nsimx, nsim0, smoothed)
         if isfile(f1) or isfile(f2):
             nsimxs.append(nsimx)
     return nsimxs

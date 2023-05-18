@@ -443,7 +443,7 @@ class ClumpsCatalogue(BaseCSiBORG):
         self._data["parent"] = mmain["ultimate_parent"]
 
         if load_fitted:
-            fits = numpy.load(paths.structfit_path(self.nsnap, nsim, "clumps"))
+            fits = numpy.load(paths.structfit(self.nsnap, nsim, "clumps"))
             cols = [col for col in fits.dtype.names if col != "index"]
             X = [fits[col] for col in cols]
             self._data = add_columns(self._data, X, cols)
@@ -519,7 +519,7 @@ class HaloCatalogue(BaseCSiBORG):
             self._clumps_cat = ClumpsCatalogue(nsim, paths, rawdata=True,
                                                load_fitted=False)
         if load_fitted:
-            fits = numpy.load(paths.structfit_path(self.nsnap, nsim, "halos"))
+            fits = numpy.load(paths.structfit(self.nsnap, nsim, "halos"))
             cols = [col for col in fits.dtype.names if col != "index"]
             X = [fits[col] for col in cols]
             self._data = add_columns(self._data, X, cols)

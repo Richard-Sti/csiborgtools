@@ -55,7 +55,7 @@ partreader = csiborgtools.read.ParticleReader(paths)
 pars_extract = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'M', "ID"]
 
 if args.ics is None or args.ics[0] == -1:
-    ics = paths.get_ics()
+    ics = paths.get_ics("csiborg")
 else:
     ics = args.ics
 
@@ -87,7 +87,7 @@ jobs = csiborgtools.fits.split_jobs(len(ics), nproc)[rank]
 for i in jobs:
     nsim = ics[i]
     nsnap = max(paths.get_snapshots(nsim))
-    fname = paths.particles_path(nsim)
+    fname = paths.particles(nsim)
     # We first read in the clump IDs of the particles and infer the sorting.
     # Right away we dump the clump IDs to a HDF5 file and clear up memory.
     print(f"{datetime.now()}: rank {rank} loading particles {nsim}.",
@@ -146,7 +146,7 @@ for i in jobs:
         start_loop = kf
 
     # We save the mapping to a HDF5 file
-    with h5py.File(paths.particles_path(nsim), "r+") as f:
+    with h5py.File(paths.particles(nsim), "r+") as f:
         f.create_dataset("clumpmap", data=clump_map)
         f.close()
 

@@ -45,12 +45,12 @@ def pair_match(nsim0, nsimx, sigma, smoothen, verbose):
     catx = HaloCatalogue(nsimx, paths, load_initial=True, bounds=bounds,
                          with_lagpatch=True, load_clumps_cat=True)
 
-    clumpmap0 = read_h5(paths.particles_path(nsim0))["clumpmap"]
-    parts0 = read_h5(paths.initmatch_path(nsim0, "particles"))["particles"]
+    clumpmap0 = read_h5(paths.particles(nsim0))["clumpmap"]
+    parts0 = read_h5(paths.initmatch(nsim0, "particles"))["particles"]
     clid2map0 = {clid: i for i, clid in enumerate(clumpmap0[:, 0])}
 
-    clumpmapx = read_h5(paths.particles_path(nsimx))["clumpmap"]
-    partsx = read_h5(paths.initmatch_path(nsimx, "particles"))["particles"]
+    clumpmapx = read_h5(paths.particles(nsimx))["clumpmap"]
+    partsx = read_h5(paths.initmatch(nsimx, "particles"))["particles"]
     clid2mapx = {clid: i for i, clid in enumerate(clumpmapx[:, 0])}
 
     # We generate the background density fields. Loads halos's particles one by
@@ -77,7 +77,7 @@ def pair_match(nsim0, nsimx, sigma, smoothen, verbose):
         for j, match in enumerate(matches):
             match_hids[i][j] = catx["index"][match]
 
-    fout = paths.overlap_path(nsim0, nsimx, smoothed=False)
+    fout = paths.overlap(nsim0, nsimx, smoothed=False)
     numpy.savez(fout, ref_hids=cat0["index"], match_hids=match_hids,
                 ngp_overlap=ngp_overlap)
     if verbose:
@@ -99,7 +99,7 @@ def pair_match(nsim0, nsimx, sigma, smoothen, verbose):
                                               match_indxs, smooth_kwargs,
                                               verbose=verbose)
 
-    fout = paths.overlap_path(nsim0, nsimx, smoothed=True)
+    fout = paths.overlap(nsim0, nsimx, smoothed=True)
     numpy.savez(fout, smoothed_overlap=smoothed_overlap, sigma=sigma)
     if verbose:
         print(f"{datetime.now()}: calculated smoothing, saved to {fout}.",

@@ -51,12 +51,12 @@ def do_mmain(nsim):
 
 if nproc > 1:
     if rank == 0:
-        tasks = list(paths.get_ics())
+        tasks = list(paths.get_ics("csiborg"))
         master_process(tasks, comm, verbose=True)
     else:
         worker_process(do_mmain, comm, verbose=False)
 else:
-    tasks = paths.get_ics()
+    tasks = paths.get_ics("csiborg")
     for task in tasks:
         print(f"{datetime.now()}: completing task `{task}`.", flush=True)
         do_mmain(task)

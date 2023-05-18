@@ -76,7 +76,7 @@ class ParticleReader:
             Dictionary of information paramaters. Note that both keys and
             values are strings.
         """
-        snappath = self.paths.snapshot_path(nsnap, nsim)
+        snappath = self.paths.snapshot(nsnap, nsim)
         filename = join(snappath, "info_{}.txt".format(str(nsnap).zfill(5)))
         with open(filename, "r") as f:
             info = f.read().split()
@@ -110,7 +110,7 @@ class ParticleReader:
         partfiles : list of `scipy.io.FortranFile`
             Opened part files.
         """
-        snappath = self.paths.snapshot_path(nsnap, nsim)
+        snappath = self.paths.snapshot(nsnap, nsim)
         ncpu = int(self.read_info(nsnap, nsim)["ncpu"])
         nsnap = str(nsnap).zfill(5)
         if verbose:

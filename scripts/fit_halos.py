@@ -47,7 +47,7 @@ partreader = csiborgtools.read.ParticleReader(paths)
 nfwpost = csiborgtools.fits.NFWPosterior()
 
 if args.ics is None or args.ics[0] == -1:
-    ics = paths.get_ics()
+    ics = paths.get_ics("csiborg")
 else:
     ics = args.ics
 
@@ -108,7 +108,7 @@ for nsim in [ics[i] for i in jobs]:
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
 
     # Particle archive
-    f = csiborgtools.read.read_h5(paths.particles_path(nsim))
+    f = csiborgtools.read.read_h5(paths.particles(nsim))
     particles = f["particles"]
     clump_map = f["clumpmap"]
     clid2map = {clid: i for i, clid in enumerate(clump_map[:, 0])}
@@ -153,6 +153,6 @@ for nsim in [ics[i] for i in jobs]:
     if args.kind == "halos":
         out = out[ismain]
 
-    fout = paths.structfit_path(nsnap, nsim, args.kind)
+    fout = paths.structfit(nsnap, nsim, args.kind)
     print(f"Saving to `{fout}`.", flush=True)
     numpy.save(fout, out)

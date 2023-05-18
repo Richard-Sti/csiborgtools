@@ -55,7 +55,7 @@ def get_combs():
     seed to minimise loading the same files simultaneously.
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    ics = paths.get_ics()
+    ics = paths.get_ics("csiborg")
     combs = list(combinations(ics, 2))
     Random(42).shuffle(combs)
     return combs

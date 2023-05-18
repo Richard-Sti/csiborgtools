@@ -50,7 +50,7 @@ partreader = csiborgtools.read.ParticleReader(paths)
 pars_extract = ["x", "y", "z", "M", "ID"]
 
 if args.ics is None or args.ics[0] == -1:
-    ics = paths.get_ics()
+    ics = paths.get_ics("csiborg")
 else:
     ics = args.ics
 
@@ -64,7 +64,7 @@ for i in jobs:
     print(f"{datetime.now()}: reading and processing simulation {nsim}.",
           flush=True)
     # We first load the particle IDs in the final snapshot.
-    pidf = csiborgtools.read.read_h5(paths.particles_path(nsim))
+    pidf = csiborgtools.read.read_h5(paths.particles(nsim))
     pidf = pidf["particle_ids"]
     # Then we load the particles in the initil snapshot and make sure that
     # their particle IDs are sorted as in the final snapshot.

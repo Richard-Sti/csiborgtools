@@ -48,7 +48,7 @@ args = parser.parse_args()
 paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 
 if args.ics is None or args.ics[0] == -1:
-    ics = paths.get_ics()
+    ics = paths.get_ics("csiborg")
 else:
     ics = args.ics
 
