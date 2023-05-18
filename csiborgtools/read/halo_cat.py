@@ -709,9 +709,7 @@ class QuijoteHaloCatalogue(BaseCatalogue):
         -------
         cat : instance of csiborgtools.read.QuijoteHaloCatalogue
         """
-        boxwidth = 1000 / 0.6711  # Quijote box width in cMpc
-        new_origin = fiducial_observers(boxwidth, rmax)[n]
-
+        new_origin = fiducial_observers(self.box.boxsize, rmax)[n]
         # We make a copy of the catalogue to avoid modifying the original.
         # Then, we shift coordinates back to the original box frame and then to
         # the new origin.
