@@ -14,6 +14,9 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 A script to calculate the auto-2PCF of CSiBORG catalogues.
+
+TODO:
+    - [ ] Add support for new catalogue readers. Currently will not work.
 """
 from argparse import ArgumentParser
 from copy import deepcopy

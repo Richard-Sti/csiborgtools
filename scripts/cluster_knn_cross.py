@@ -16,6 +16,7 @@
 A script to calculate the KNN-CDF for a set of CSiBORG halo catalogues.
 
 TODO:
+    - [ ] Add support for new catalogue readers. Currently will not work.
     - [ ] Update catalogue readers.
     - [ ] Update paths.
     - [ ] Update to cross-correlate different mass populations from different
