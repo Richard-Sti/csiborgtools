@@ -123,6 +123,29 @@ class Paths:
             warn(f"Created directory `{fpath}`.", UserWarning, stacklevel=1)
         return fpath
 
+    @staticmethod
+    def quijote_fiducial_nsim(nsim, nobs=None):
+        """
+        Fiducial Quijote simulation ID. Combines the IC realisation and
+        observer placement.
+
+        Parameters
+        ----------
+        nsim : int
+            IC realisation index.
+        nobs : int, optional
+            Fiducial observer index.
+
+        Returns
+        -------
+        id : str
+        """
+        if nobs is None:
+            assert isinstance(nsim, str)
+            assert len(nsim) == 5
+            return nsim
+        return f"{str(nobs).zfill(2)}{str(nsim).zfill(3)}"
+
     def mmain(self, nsnap, nsim):
         """
         Path to the `mmain` CSiBORG files of summed substructure.
@@ -364,8 +387,41 @@ class Paths:
         fname = f"{kind}_{MAS}_{str(nsim).zfill(5)}_grid{grid}.npy"
         return join(fdir, fname)
 
-    def cross_neighbour_path(self, simname, run, nsim=None):
-        pass
+    def cross_nearest(self, simname, run, nsim=None, nobs=None):
+        """
+        Path to the files containing distance from a halo in a reference
+        simulation to the nearest halo from a cross simulation.
+
+        Parameters
+        ----------
+        simname : str
+            Simulation name. Must be one of: `csiborg`, `quijote`.
+        run : str
+            Run name.
+        nsim : int, optional
+            IC realisation index.
+        nobs : int, optional
+            Fiducial observer index in Quijote simulations.
+
+        Returns
+        -------
+        path : str
+        """
+        assert simname in ["csiborg", "quijote"]
+        fdir = join(self.postdir, "nearest_neighbour")
+        if not isdir(fdir):
+            makedirs(fdir)
+            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
+        if nsim is not None:
+            if simname == "csiborg":
+                nsim = str(nsim).zfill(5)
+            else:
+                nsim = self.quijote_fiducial_nsim(nsim, nobs)
+            return join(fdir, f"{simname}_nn_{nsim}_{run}.npz")
+
+        files = glob(join(fdir, f"{simname}_nn_*"))
+        run = "_" + run
+        return [f for f in files if run in f]
 
     def knnauto(self, simname, run, nsim=None, nobs=None):
         """
@@ -377,7 +433,7 @@ class Paths:
         simname : str
             Simulation name. Must be either `csiborg` or `quijote`.
         run : str
-            Type of run.
+            Run name.
         nsim : int, optional
             IC realisation index.
         nobs : int, optional
@@ -396,8 +452,7 @@ class Paths:
             if simname == "csiborg":
                 nsim = str(nsim).zfill(5)
             else:
-                assert nobs is not None
-                nsim = f"{str(nobs).zfill(2)}{str(nsim).zfill(3)}"
+                nsim = self.quijote_fiducial_nsim(nsim, nobs)
             return join(fdir, f"{simname}_knncdf_{nsim}_{run}.p")
 
         files = glob(join(fdir, f"{simname}_knncdf*"))
