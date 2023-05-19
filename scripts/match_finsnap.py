@@ -74,8 +74,9 @@ def find_neighbour(args, nsim, cats, paths, comm):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--run", type=str)
-    parser.add_argument("--simname", type=str, choices=["csiborg", "quijote"])
+    parser.add_argument("--run", type=str, help="Run name")
+    parser.add_argument("--simname", type=str, choices=["csiborg", "quijote"],
+                        help="Simulation name")
     parser.add_argument("--nsims", type=int, nargs="+", default=None,
                         help="Indices of simulations to cross. If `-1` processes all simulations.")  # noqa
     parser.add_argument("--Rmax", type=float, default=155/0.705,
