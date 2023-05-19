@@ -158,7 +158,7 @@ def open_catalogues(args, config, paths, comm):
     rank = comm.Get_rank()
     nproc = comm.Get_size()
 
-    if args.verbose:
+    if args.verbose and rank == 0:
         print(f"{datetime.now()}: opening catalogues.", flush=True)
 
     if rank == 0:
