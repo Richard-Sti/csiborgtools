@@ -60,9 +60,7 @@ def get_nsims(args, paths):
 
 def read_single_catalogue(args, config, nsim, run, rmax, paths, nobs=None):
     """
-    Read a single halo catalogue and apply selection criteria to it. If the run
-    name contains `poisson` then the halo positions are replaces with random
-    samples from a Poisson distribution.
+    Read a single halo catalogue and apply selection criteria to it.
 
     Parameters
     ----------
@@ -93,11 +91,10 @@ def read_single_catalogue(args, config, nsim, run, rmax, paths, nobs=None):
     if args.simname == "csiborg":
         cat = csiborgtools.read.HaloCatalogue(nsim, paths)
     else:
+        cat = csiborgtools.read.QuijoteHaloCatalogue(nsim, paths, nsnap=4)
         if nobs is not None:
-            cat = csiborgtools.read.QuijoteHaloCatalogue(nsim, paths, nsnap=4)
             # We may optionally already here pick a fiducial observer.
-            if nobs is not None:
-                cat = cat.pick_fiducial_observer(nobs, args.Rmax)
+            cat = cat.pick_fiducial_observer(nobs, args.Rmax)
 
     cat.apply_bounds({"dist": (0, rmax)})
     # We then first read off the primary selection bounds.
@@ -132,12 +129,6 @@ def read_single_catalogue(args, config, nsim, run, rmax, paths, nobs=None):
                 cat[pname], cat[sname], nbins=config["nbins_marks"])
         cat.apply_bounds({sname: (sel.get("min", None), sel.get("max", None))})
 
-    if selection.get("poisson", False):
-        rvs_gen = csiborgtools.clustering.RVSinsphere(rmax)
-        pos = rvs_gen(len(cat), random_state=None)
-        for i, p in enumerate(['x', 'y', 'z']):
-            cat.data[p] = pos[:, i]
-
     return cat
 
 
@@ -163,7 +154,7 @@ def open_catalogues(args, config, paths, comm):
         Dictionary of halo catalogues. Keys are simulation indices, values are
         the catalogues.
     """
-    nsims = get_nsims(args, paths)[:2]  # TODO increase this.
+    nsims = get_nsims(args, paths)
     rank = comm.Get_rank()
     nproc = comm.Get_size()
 
