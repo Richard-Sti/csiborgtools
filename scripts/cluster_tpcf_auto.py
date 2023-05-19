@@ -14,23 +14,18 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 A script to calculate the auto-2PCF of CSiBORG catalogues.
-
-TODO:
-    - [ ] Add support for new catalogue readers. Currently will not work.
 """
 from argparse import ArgumentParser
-from copy import deepcopy
 from datetime import datetime
-from warnings import warn
+from distutils.util import strtobool
 
 import joblib
 import numpy
 import yaml
 from mpi4py import MPI
 
-from taskmaster import master_process, worker_process
-
-from .cluster_knn_auto import read_single
+from taskmaster import work_delegation
+from utils import open_catalogues
 
 try:
     import csiborgtools
@@ -41,84 +36,51 @@ except ModuleNotFoundError:
     import csiborgtools
 
 
-###############################################################################
-#                            MPI and arguments                                #
-###############################################################################
-comm = MPI.COMM_WORLD
-rank = comm.Get_rank()
-nproc = comm.Get_size()
-
-parser = ArgumentParser()
-parser.add_argument("--runs", type=str, nargs="+")
-parser.add_argument("--ics", type=int, nargs="+", default=None,
-                    help="IC realisations. If `-1` processes all simulations.")
-parser.add_argument("--simname", type=str, choices=["csiborg", "quijote"])
-args = parser.parse_args()
-with open("../scripts/tpcf_auto.yml", "r") as file:
-    config = yaml.safe_load(file)
-
-Rmax = 155 / 0.705  # Mpc (h = 0.705) high resolution region radius
-paths = csiborgtools.read.Paths()
-tpcf = csiborgtools.clustering.Mock2PCF()
-
-if args.ics is None or args.ics[0] == -1:
-    if args.simname == "csiborg":
-        ics = paths.get_ics("csiborg")
-    else:
-        ics = paths.get_quijote_ics()
-else:
-    ics = args.ics
-
-###############################################################################
-#                                 Analysis                                    #
-###############################################################################
-
-
-def do_auto(run, nsim):
-    _config = config.get(run, None)
-    if _config is None:
-        warn("No configuration for run {}.".format(run), stacklevel=1)
-        return
-
-    rvs_gen = csiborgtools.clustering.RVSinsphere(Rmax)
+def do_auto(args, config, cats, nsim, paths):
+    tpcf = csiborgtools.clustering.Mock2PCF()
+    rvs_gen = csiborgtools.clustering.RVSinsphere(args.Rmax)
     bins = numpy.logspace(
-        numpy.log10(config["rpmin"]),
-        numpy.log10(config["rpmax"]),
-        config["nrpbins"] + 1,
-    )
-    cat = read_single(nsim, _config)
+        numpy.log10(config["rpmin"]), numpy.log10(config["rpmax"]),
+        config["nrpbins"] + 1,)
+    cat = cats[nsim]
+
     pos = cat.position(in_initial=False, cartesian=True)
     nrandom = int(config["randmult"] * pos.shape[0])
     rp, wp = tpcf(pos, rvs_gen, nrandom, bins)
 
-    fout = paths.tpcfauto(args.simname, run, nsim)
+    fout = paths.knnauto(args.simname, args.run, nsim)
     joblib.dump({"rp": rp, "wp": wp}, fout)
 
 
-def do_runs(nsim):
-    for run in args.runs:
-        do_auto(run, nsim)
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument("--run", type=str, help="Run name.")
+    parser.add_argument("--simname", type=str, choices=["csiborg", "quijote"],
+                        help="Simulation name")
+    parser.add_argument("--nsims", type=int, nargs="+", default=None,
+                        help="Indices of simulations to cross. If `-1` processes all simulations.")  # noqa
+    parser.add_argument("--Rmax", type=float, default=155/0.705,
+                        help="High-resolution region radius")  # noqa
+    parser.add_argument("--verbose", type=lambda x: bool(strtobool(x)),
+                        default=False)
+    args = parser.parse_args()
 
+    with open("./cluster_tpcf_auto.yml", "r") as file:
+        config = yaml.safe_load(file)
 
-###############################################################################
-#                             MPI task delegation                             #
-###############################################################################
+    comm = MPI.COMM_WORLD
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    cats = open_catalogues(args, config, paths, comm)
 
+    if args.verbose and comm.Get_rank() == 0:
+        print(f"{datetime.now()}: starting to calculate the 2PCF statistic.")
 
-if nproc > 1:
-    if rank == 0:
-        tasks = deepcopy(ics)
-        master_process(tasks, comm, verbose=True)
-    else:
-        worker_process(do_runs, comm, verbose=False)
-else:
-    tasks = deepcopy(ics)
-    for task in tasks:
-        print("{}: completing task `{}`.".format(datetime.now(), task))
-        do_runs(task)
-comm.Barrier()
+    def do_work(nsim):
+        return do_auto(args, config, cats, nsim, paths)
 
+    nsims = list(cats.keys())
+    work_delegation(do_work, nsims, comm, master_verbose=args.verbose)
 
-if rank == 0:
-    print("{}: all finished.".format(datetime.now()))
-quit()  # Force quit the script
+    comm.Barrier()
+    if comm.Get_rank() == 0:
+        print(f"{datetime.now()}: all finished. Quitting.")
