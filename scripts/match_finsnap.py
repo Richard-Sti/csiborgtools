@@ -15,9 +15,6 @@
 Script to find the nearest neighbour of each halo in a given halo catalogue
 from the remaining catalogues in the suite (CSIBORG or Quijote). The script is
 MPI parallelized over the reference simulations.
-
-TODO:
-    - [ ] Consider nearest neighbour only within some mass range ?
 """
 from argparse import ArgumentParser
 from datetime import datetime
