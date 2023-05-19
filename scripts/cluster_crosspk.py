@@ -16,6 +16,7 @@
 MPI script to calculate the matter cross power spectrum between CSiBORG
 IC realisations. Units are Mpc/h.
 """
+raise NotImplementedError("This script is currently not working.")
 from argparse import ArgumentParser
 from datetime import datetime
 from gc import collect

@@ -22,6 +22,7 @@ TODO:
     - [ ] Update to cross-correlate different mass populations from different
     simulations.
 """
+raise NotImplementedError("This script is currently not working.")
 from argparse import ArgumentParser
 from datetime import datetime
 from itertools import combinations
