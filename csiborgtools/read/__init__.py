@@ -16,6 +16,7 @@ from .box_units import CSiBORGBox, QuijoteBox  # noqa
 from .halo_cat import (ClumpsCatalogue, HaloCatalogue,  # noqa
                        QuijoteHaloCatalogue, fiducial_observers)
 from .knn_summary import kNNCDFReader  # noqa
+from .nearest_neighbour_summary import NearestNeighbourReader  # noqa
 from .obs import (SDSS, MCXCClusters, PlanckClusters, TwoMPPGalaxies,  # noqa
                   TwoMPPGroups)
 from .overlap_summary import (NPairsOverlap, PairOverlap,  # noqa
