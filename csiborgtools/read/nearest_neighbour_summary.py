@@ -34,6 +34,8 @@ class NearestNeighbourReader:
         Radius of the high-resolution region.
     paths : py:class`csiborgtools.read.Paths`
         Paths object.
+
+    TODO: docs
     """
     _paths = None
     _rmax_radial = None
@@ -42,7 +44,7 @@ class NearestNeighbourReader:
     _nbins_neighbour = None
 
     def __init__(self, rmax_radial, nbins_radial, rmax_neighbour,
-                 nbins_neighbour, paths):
+                 nbins_neighbour, paths, **kwargs):
         self.paths = paths
         self.rmax_radial = rmax_radial
         self.nbins_radial = nbins_radial
@@ -152,7 +154,47 @@ class NearestNeighbourReader:
         nbins = self.nbins_neighbour + 1
         return numpy.linspace(0, self.rmax_neighbour, nbins)
 
+    def bin_centres(self, kind):
+        """
+        Bin centres. Either for `radial` or `neighbour` bins.
+
+        Parameters
+        ----------
+        kind : str
+            Bin kind. Either `radial` or `neighbour`.
+
+        Returns
+        -------
+        bin_centres : 1-dimensional array
+        """
+        assert kind in ["radial", "neighbour"]
+        if kind == "radial":
+            edges = self.radial_bin_edges
+        else:
+            edges = self.neighbour_bin_edges
+        return 0.5 * (edges[1:] + edges[:-1])
+
     def read_single(self, simname, run, nsim, nobs=None):
+        """
+        Read in the nearest neighbour distances for halos from a single
+        simulation.
+
+        Parameters
+        ----------
+        simname : str
+            Simulation name. Must be either `csiborg` or `quijote`.
+        run : str
+            Run name.
+        nsim : int
+            Simulation index.
+        nobs : int, optional
+            Fiducial Quijote observer index.
+
+        Returns
+        -------
+        data : numpy archive
+            Archive with keys `ndist`, `rdist`, `mass`, `cross_hindxs``
+        """
         assert simname in ["csiborg", "quijote"]
         fpath = self.paths.cross_nearest(simname, run, nsim, nobs)
         return numpy.load(fpath)
@@ -195,6 +237,13 @@ class NearestNeighbourReader:
         return out
 
 
+
+
+###############################################################################
+#                           Support functions                                 #
+###############################################################################
+
+
 @jit(nopython=True)
 def count_neighbour(counts, ndist, rdist, rbin_edges, rmax_neighbour,
                     nbins_neighbour):
@@ -221,7 +270,7 @@ def count_neighbour(counts, ndist, rdist, rbin_edges, rmax_neighbour,
     -------
     counts : 2-dimensional array of shape `(nbins_radial, nbins_neighbour)`
     """
-    ncross = counts.shape[1]
+    ncross = ndist.shape[1]
     # We normalise the neighbour distance by the maximum neighbour distance and
     # multiply by the number of bins. This way, the floor of each distance is
     # the bin number.
