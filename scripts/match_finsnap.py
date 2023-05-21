@@ -58,15 +58,18 @@ def find_neighbour(args, nsim, cats, paths, comm):
     -------
     None
     """
-    dist, cross_hindxs = csiborgtools.match.find_neighbour(nsim, cats)
+    ndist, cross_hindxs = csiborgtools.match.find_neighbour(nsim, cats)
 
     mass_key = "totpartmass" if args.simname == "csiborg" else "group_mass"
-    mass = cats[nsim][mass_key]
+    cat0 = cats[nsim]
+    mass = cat0[mass_key]
+    rdist = cat0.radial_distance(in_initial=False)
 
     fout = paths.cross_nearest(args.simname, args.run, nsim)
     if args.verbose:
         print(f"Rank {comm.Get_rank()} writing to `{fout}`.", flush=True)
-    numpy.savez(fout, dist=dist, cross_hindxs=cross_hindxs, mass=mass)
+    numpy.savez(fout, ndist=ndist, cross_hindxs=cross_hindxs, mass=mass,
+                rdist=rdist)
 
 
 if __name__ == "__main__":
