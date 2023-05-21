@@ -15,4 +15,4 @@
 
 dpi = 450
 fout = "../plots/"
-mplstyle = ["notebook"]
+mplstyle = ["science", "notebook"]
