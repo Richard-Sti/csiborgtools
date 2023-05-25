@@ -56,14 +56,16 @@ def get_overlap(nsim0):
     cat0 = open_cat(nsim0)
 
     catxs = []
+    print("Opening catalogues...", flush=True)
     for nsimx in tqdm(nsimxs):
         catxs.append(open_cat(nsimx))
 
     reader = csiborgtools.read.NPairsOverlap(cat0, catxs, paths)
-    x = reader.cat0("totpartmass")
+    mass = reader.cat0("totpartmass")
+    hindxs = reader.cat0("index")
     summed_overlap = reader.summed_overlap(True)
     prob_nomatch = reader.prob_nomatch(True)
-    return x, summed_overlap, prob_nomatch
+    return mass, hindxs, summed_overlap, prob_nomatch
 
 
 def plot_summed_overlap(nsim0):
@@ -71,7 +73,7 @@ def plot_summed_overlap(nsim0):
     Plot the summed overlap and probability of no matching for a single
     reference simulation as a function of the reference halo mass.
     """
-    x, summed_overlap, prob_nomatch = get_overlap(nsim0)
+    x, __, summed_overlap, prob_nomatch = get_overlap(nsim0)
 
     mean_overlap = numpy.mean(summed_overlap, axis=1)
     std_overlap = numpy.std(summed_overlap, axis=1)
@@ -308,6 +310,22 @@ def plot_kl_vs_ks(simname, run, nsim, nobs, kwargs):
         plt.close()
 
 
+def plot_kl_vs_overlap(run, nsim, kwargs):
+    paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
+    nn_reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
+    data = nn_reader.read_single("csiborg", run, nsim, nobs=None)
+    hindxs = data["ref_hindxs"]
+
+    x = get_overlap(nsim)
+
+    print(x)
+
+
+###############################################################################
+#                        Command line interface                               #
+###############################################################################
+
+
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument('-c', '--clean', action='store_true')
@@ -324,11 +342,11 @@ if __name__ == "__main__":
                         "rmax_neighbour": 100.,
                         "nbins_neighbour": 150,
                         "paths_kind": csiborgtools.paths_glamdring}
-
-    paths = csiborgtools.read.Paths(**neighbour_kwargs["paths_kind"])
-    nn_reader = csiborgtools.read.NearestNeighbourReader(**neighbour_kwargs,
-                                                         paths=paths)
     run = "mass003"
 
-    # for ic in [7444, 8812, 9700]:
-    #     plot_summed_overlap(ic)
+    # paths = csiborgtools.read.Paths(**neighbour_kwargs["paths_kind"])
+    # nn_reader = csiborgtools.read.NearestNeighbourReader(**neighbour_kwargs,
+    #                                                      paths=paths)
+
+    plot_kl_vs_overlap("mass003", 7444, neighbour_kwargs)
+
