@@ -69,7 +69,7 @@ def find_neighbour(args, nsim, cats, paths, comm):
     if args.verbose:
         print(f"Rank {comm.Get_rank()} writing to `{fout}`.", flush=True)
     numpy.savez(fout, ndist=ndist, cross_hindxs=cross_hindxs, mass=mass,
-                rdist=rdist)
+                ref_hindxs=cat0["index"], rdist=rdist)
 
 
 if __name__ == "__main__":
