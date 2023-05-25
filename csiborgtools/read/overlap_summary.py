@@ -484,6 +484,8 @@ class NPairsOverlap:
 
     def __init__(self, cat0, catxs, paths, verbose=True):
         pairs = [None] * len(catxs)
+        if verbose:
+            print("Loading individual overlap objects...", flush=True)
         for i, catx in enumerate(tqdm(catxs) if verbose else catxs):
             pairs[i] = PairOverlap(cat0, catx, paths)
 
@@ -506,6 +508,8 @@ class NPairsOverlap:
         summed_overlap : 2-dimensional array of shape `(nhalos, ncatxs)`
         """
         out = [None] * len(self)
+        if verbose:
+            print("Calculating summed overlap...", flush=True)
         for i, pair in enumerate(tqdm(self.pairs) if verbose else self.pairs):
             out[i] = pair.summed_overlap(from_smoothed)
         return numpy.vstack(out).T
@@ -527,6 +531,8 @@ class NPairsOverlap:
         prob_nomatch : 2-dimensional array of shape `(nhalos, ncatxs)`
         """
         out = [None] * len(self)
+        if verbose:
+            print("Calculating probability of no match...", flush=True)
         for i, pair in enumerate(tqdm(self.pairs) if verbose else self.pairs):
             out[i] = pair.prob_nomatch(from_smoothed)
         return numpy.vstack(out).T
@@ -568,6 +574,8 @@ class NPairsOverlap:
             Returned only if `return_full` is `True`.
         """
         mus, stds = [None] * len(self), [None] * len(self)
+        if verbose:
+            print("Calculating counterpart masses...", flush=True)
         for i, pair in enumerate(tqdm(self.pairs) if verbose else self.pairs):
             mus[i], stds[i] = pair.counterpart_mass(
                 from_smoothed=from_smoothed,
