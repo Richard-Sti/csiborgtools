@@ -17,6 +17,7 @@ from os.path import join
 from argparse import ArgumentParser
 
 import matplotlib.pyplot as plt
+from astropy import units
 import numpy
 
 import scienceplots  # noqa
@@ -213,6 +214,42 @@ def plot_dist(run, kind, kwargs):
         plt.close()
 
 
+def plot_cdf_r200(run, kwargs):
+    print("Plotting the matching probability.", flush=True)
+    paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
+
+    box = csiborgtools.read.QuijoteBox(nsnap=4)
+    # Get R200 in Mpc of a halo of mass 1e14 Msun
+    Msun = 1.98847e30
+    M200 = 1e14 * Msun * units.kg
+    rhoc = box.cosmo.critical_density0
+    R200 = (M200 / (4 * numpy.pi / 3 * 200 * rhoc))**(1. / 3)
+    R200 = R200.to(units.Mpc)
+    R200 = R200.value
+
+    reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
+    x = reader.bin_centres("neighbour")
+    y = read_dist("quijote", run, "cdf", kwargs)
+    ncdf = y.shape[0]
+
+    with plt.style.context(utils.mplstyle):
+        plt.figure()
+        for i in range(ncdf):
+            plt.plot(x, y[i], c="C0")
+        plt.yscale("log")
+        plt.xlabel(r"$r_{1\mathrm{NN}} / R_{200}$")
+        plt.ylabel(r"$\mathrm{CDF}(r_{1\mathrm{NN}})$")
+        plt.xscale("log")
+        plt.grid(alpha=0.25)
+
+        plt.tight_layout()
+        for ext in ["png"]:
+            fout = join(utils.fout, f"1nn_r200_quijote_{run}.{ext}")
+            print(f"Saving to `{fout}`.")
+            plt.savefig(fout, dpi=utils.dpi, bbox_inches="tight")
+        plt.close()
+
+
 def plot_significance_hist(simname, run, nsim, nobs, kind, kwargs):
     """Plot a histogram of the significance of the 1NN distance."""
     assert kind in ["kl", "ks"]
@@ -311,14 +348,55 @@ def plot_kl_vs_ks(simname, run, nsim, nobs, kwargs):
 
 
 def plot_kl_vs_overlap(run, nsim, kwargs):
+    """
+    Plot KL divergence vs overlap.
+    """
     paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
     nn_reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
-    data = nn_reader.read_single("csiborg", run, nsim, nobs=None)
-    hindxs = data["ref_hindxs"]
+    nn_data = nn_reader.read_single("csiborg", run, nsim, nobs=None)
+    nn_hindxs = nn_data["ref_hindxs"]
 
-    x = get_overlap(nsim)
+    mass, overlap_hindxs, summed_overlap, prob_nomatch = get_overlap(nsim)
 
-    print(x)
+    # We need to match the hindxs between the two.
+    hind2overlap_array = {hind: i for i, hind in enumerate(overlap_hindxs)}
+    mask = numpy.asanyarray([hind2overlap_array[hind] for hind in nn_hindxs])
+
+    summed_overlap = summed_overlap[mask]
+    prob_nomatch = prob_nomatch[mask]
+    mass = mass[mask]
+
+    kl = make_kl("csiborg", run, nsim, nobs=None, kwargs=kwargs)
+
+    with plt.style.context(utils.mplstyle):
+        plt.figure()
+        mu = numpy.mean(prob_nomatch, axis=1)
+        plt.scatter(kl, 1 - mu, c=numpy.log10(mass))
+        plt.colorbar(label=r"$\log M_{\rm tot} / M_\odot$")
+        plt.xlabel(r"$D_{\mathrm{KL}}$ of $r_{1\mathrm{NN}}$ distribution")
+        plt.ylabel(r"$1 - \langle \eta^{\mathcal{B}}_a \rangle_{\mathcal{B}}$")
+
+        plt.tight_layout()
+        for ext in ["png"]:
+            fout = join(utils.fout, f"kl_vs_overlap_mean_{run}_{str(nsim).zfill(5)}.{ext}")  # noqa
+            print(f"Saving to `{fout}`.")
+            plt.savefig(fout, dpi=utils.dpi, bbox_inches="tight")
+        plt.close()
+
+    with plt.style.context(utils.mplstyle):
+        plt.figure()
+        std = numpy.std(prob_nomatch, axis=1)
+        plt.scatter(kl, std, c=numpy.log10(mass))
+        plt.colorbar(label=r"$\log M_{\rm tot} / M_\odot$")
+        plt.xlabel(r"$D_{\mathrm{KL}}$ of $r_{1\mathrm{NN}}$ distribution")
+        plt.ylabel(r"$\langle \left(\eta^{\mathcal{B}}_a - \langle \eta^{\mathcal{B}^\prime}_a \rangle_{\mathcal{B}^\prime}\right)^2\rangle_{\mathcal{B}}^{1/2}$")  # noqa
+
+        plt.tight_layout()
+        for ext in ["png"]:
+            fout = join(utils.fout, f"kl_vs_overlap_std_{run}_{str(nsim).zfill(5)}.{ext}")  # noqa
+            print(f"Saving to `{fout}`.")
+            plt.savefig(fout, dpi=utils.dpi, bbox_inches="tight")
+        plt.close()
 
 
 ###############################################################################
@@ -348,5 +426,7 @@ if __name__ == "__main__":
     # nn_reader = csiborgtools.read.NearestNeighbourReader(**neighbour_kwargs,
     #                                                      paths=paths)
 
-    plot_kl_vs_overlap("mass003", 7444, neighbour_kwargs)
+    # plot_kl_vs_overlap("mass003", 7444, neighbour_kwargs)
+
+    plot_cdf_r200("mass003", neighbour_kwargs)
 
