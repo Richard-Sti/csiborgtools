@@ -17,7 +17,6 @@ from os.path import join
 from argparse import ArgumentParser
 
 import matplotlib.pyplot as plt
-from astropy import units
 import numpy
 
 import scienceplots  # noqa
