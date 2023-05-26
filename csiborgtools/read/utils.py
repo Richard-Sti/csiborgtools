@@ -18,6 +18,7 @@ Various coordinate transformations.
 from os.path import isfile
 
 import numpy
+from astropy import units
 from h5py import File
 
 ###############################################################################
@@ -133,6 +134,29 @@ def real2redshift(pos, vel, origin, box, in_box_units, periodic_wrap=True,
         pos[pos > boxsize] -= boxsize
         pos[pos < 0] += boxsize
     return pos
+
+
+def M200_to_R200(M200, cosmo):
+    r"""
+    Convert :math:M_{200} to :math:`R_{200}`.
+
+    Parameters
+    ----------
+    M200 : float
+        :math:`M_{200}` in :math:`M_{\odot}`.
+    cosmo : astropy cosmology object
+        Cosmology.
+
+    Returns
+    -------
+    R200 : float
+        :math:`R_{200}` in :math:`\mathrm{Mpc}`.
+    """
+    Msun = 1.98847e30
+    M200 = 1e14 * Msun * units.kg
+    rhoc = cosmo.critical_density0
+    R200 = (M200 / (4 * numpy.pi / 3 * 200 * rhoc))**(1. / 3)
+    return R200.to(units.Mpc).value
 
 
 ###############################################################################
