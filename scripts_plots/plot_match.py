@@ -173,7 +173,7 @@ def make_ks(simname, run, nsim, nobs, kwargs):
     return reader.ks_significance(simname, run, nsim, cdf, nobs=nobs)
 
 
-def plot_dist(run, kind, kwargs):
+def plot_dist(run, kind, kwargs, r200):
     """
     Plot the PDF/CDF of the nearest neighbour distance for Quijote and CSiBORG.
     """
@@ -182,6 +182,8 @@ def plot_dist(run, kind, kwargs):
     paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
     reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
     x = reader.bin_centres("neighbour")
+    if r200 is not None:
+        x /= r200
 
     y_quijote = read_dist("quijote", run, kind, kwargs)
     y_csiborg = read_dist("csiborg", run, kind, kwargs)
@@ -199,7 +201,10 @@ def plot_dist(run, kind, kwargs):
             plt.plot(x, y_quijote[i], c="C0", label=label1)
             plt.plot(x, y_csiborg[i], c="C1", label=label2)
         plt.xlim(0, 75)
-        plt.xlabel(r"$r_{1\mathrm{NN}}~[\mathrm{Mpc}]$")
+        if r200 is None:
+            plt.xlabel(r"$r_{1\mathrm{NN}}~[\mathrm{Mpc}]$")
+        else:
+            plt.xlabel(r"$r_{1\mathrm{NN}} / R_{200c}$")
         if kind == "pdf":
             plt.ylabel(r"$p(r_{1\mathrm{NN}})$")
         else:
@@ -209,42 +214,6 @@ def plot_dist(run, kind, kwargs):
         plt.tight_layout()
         for ext in ["png"]:
             fout = join(utils.fout, f"1nn_{kind}_{run}.{ext}")
-            print(f"Saving to `{fout}`.")
-            plt.savefig(fout, dpi=utils.dpi, bbox_inches="tight")
-        plt.close()
-
-
-def plot_cdf_r200(run, kwargs):
-    print("Plotting the matching probability.", flush=True)
-    paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
-
-    box = csiborgtools.read.QuijoteBox(nsnap=4)
-    # Get R200 in Mpc of a halo of mass 1e14 Msun
-    Msun = 1.98847e30
-    M200 = 1e14 * Msun * units.kg
-    rhoc = box.cosmo.critical_density0
-    R200 = (M200 / (4 * numpy.pi / 3 * 200 * rhoc))**(1. / 3)
-    R200 = R200.to(units.Mpc)
-    R200 = R200.value
-
-    reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
-    x = reader.bin_centres("neighbour")
-    y = read_dist("quijote", run, "cdf", kwargs)
-    ncdf = y.shape[0]
-
-    with plt.style.context(utils.mplstyle):
-        plt.figure()
-        for i in range(ncdf):
-            plt.plot(x, y[i], c="C0")
-        plt.yscale("log")
-        plt.xlabel(r"$r_{1\mathrm{NN}} / R_{200}$")
-        plt.ylabel(r"$\mathrm{CDF}(r_{1\mathrm{NN}})$")
-        plt.xscale("log")
-        plt.grid(alpha=0.25)
-
-        plt.tight_layout()
-        for ext in ["png"]:
-            fout = join(utils.fout, f"1nn_r200_quijote_{run}.{ext}")
             print(f"Saving to `{fout}`.")
             plt.savefig(fout, dpi=utils.dpi, bbox_inches="tight")
         plt.close()
@@ -416,16 +385,30 @@ if __name__ == "__main__":
             delete_disk_caches_for_function(func)
 
     neighbour_kwargs = {"rmax_radial": 155 / 0.705,
-                        "nbins_radial": 20,
+                        "nbins_radial": 50,
                         "rmax_neighbour": 100.,
                         "nbins_neighbour": 150,
                         "paths_kind": csiborgtools.paths_glamdring}
     run = "mass003"
 
-    # paths = csiborgtools.read.Paths(**neighbour_kwargs["paths_kind"])
-    # nn_reader = csiborgtools.read.NearestNeighbourReader(**neighbour_kwargs,
-    #                                                      paths=paths)
+    # plot_dist("mass003", "pdf", neighbour_kwargs)
+
+    paths = csiborgtools.read.Paths(**neighbour_kwargs["paths_kind"])
+    nn_reader = csiborgtools.read.NearestNeighbourReader(**neighbour_kwargs,
+                                                         paths=paths)
+
+    # sizes = numpy.full(2700, numpy.nan)
+    # from tqdm import trange
+    # k = 0
+    # for nsim in trange(100):
+    #     for nobs in range(27):
+    #         d = nn_reader.read_single("quijote", run, nsim, nobs)
+    #         sizes[k] = d["mass"].size
+
+    #         k += 1
+    # print(sizes)
+    # print(numpy.mean(sizes), numpy.std(sizes))
 
     # plot_kl_vs_overlap("mass003", 7444, neighbour_kwargs)
 
-    plot_cdf_r200("mass003", neighbour_kwargs)
+    # plot_cdf_r200("mass003", neighbour_kwargs)
