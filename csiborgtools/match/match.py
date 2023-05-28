@@ -419,7 +419,7 @@ class ParticleOverlap:
         delta : 3-dimensional array
         """
         nshift = read_nshift(smooth_kwargs)
-        cells = pos2cell(pos)
+        cells = pos2cell(pos, BOX_SIZE)
         # Check that minima and maxima are integers
         if not (mins is None and maxs is None):
             assert mins.dtype.char in numpy.typecodes["AllInteger"]
@@ -432,10 +432,10 @@ class ParticleOverlap:
             ncells = maxs - mins + 1  # To get the number of cells
         else:
             mins = [0, 0, 0]
-            ncells = BOX_SIZE
+            ncells = (BOX_SIZE, ) * 3
 
         # Preallocate and fill the array
-        delta = numpy.zeros((ncells,) * 3, dtype=numpy.float32)
+        delta = numpy.zeros(ncells, dtype=numpy.float32)
         fill_delta(delta, cells[:, 0], cells[:, 1], cells[:, 2], *mins, mass)
         if smooth_kwargs is not None:
             gaussian_filter(delta, output=delta, **smooth_kwargs)
