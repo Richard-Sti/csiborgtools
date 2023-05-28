@@ -27,7 +27,7 @@ from .readsim import ParticleReader
 CONV_NAME = {
     "length": ["x", "y", "z", "peak_x", "peak_y", "peak_z", "Rs", "rmin",
                "rmax", "r200c", "r500c", "r200m", "x0", "y0", "z0",
-               "lagpatch"],
+               "lagpatch_size"],
     "velocity": ["vx", "vy", "vz"],
     "mass": ["mass_cl", "totpartmass", "m200c", "m500c", "mass_mmain", "M",
              "m200m"],

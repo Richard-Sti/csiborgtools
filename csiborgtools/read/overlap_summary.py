@@ -276,10 +276,10 @@ class PairOverlap:
         if norm_kind == "r200c":
             norm = self.cat0("r200c")
         if norm_kind == "ref_patch":
-            norm = self.cat0("lagpatch")
+            norm = self.cat0("lagpatch_size")
         if norm_kind == "sum_patch":
-            patch0 = self.cat0("lagpatch")
-            patchx = self.catx("lagpatch")
+            patch0 = self.cat0("lagpatch_size")
+            patchx = self.catx("lagpatch_size")
             norm = [None] * len(self)
             for i, ind in enumerate(self["match_indxs"]):
                 norm[i] = patch0[i] + patchx[ind]

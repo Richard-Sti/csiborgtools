@@ -163,7 +163,7 @@ class RealisationsMatcher:
             print(f"{datetime.now()}: querying the KNN.", flush=True)
         match_indxs = radius_neighbours(
             catx.knn(in_initial=True), cat0.position(in_initial=True),
-            radiusX=cat0["lagpatch"], radiusKNN=catx["lagpatch"],
+            radiusX=cat0["lagpatch_size"], radiusKNN=catx["lagpatch_size"],
             nmult=self.nmult, enforce_int32=True, verbose=verbose)
 
         # We next remove neighbours whose mass is too large/small.

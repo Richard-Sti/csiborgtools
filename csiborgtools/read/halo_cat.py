@@ -551,7 +551,7 @@ class HaloCatalogue(BaseCSiBORG):
             self._data = self.box.convert_from_box(self._data, names)
 
             if load_initial:
-                names = ["x0", "y0", "z0", "lagpatch"]
+                names = ["x0", "y0", "z0", "lagpatch_size"]
                 self._data = self.box.convert_from_box(self._data, names)
 
             if bounds is not None:
