@@ -540,7 +540,7 @@ class HaloCatalogue(BaseCSiBORG):
 
         if not rawdata:
             if with_lagpatch:
-                self._data = self._data[numpy.isfinite(self['lagpatch'])]
+                self._data = self._data[numpy.isfinite(self["lagpatch_size"])]
             # Flip positions and convert from code units to cMpc. Convert M too
             flip_cols(self._data, "x", "z")
             for p in ("x", "y", "z"):
