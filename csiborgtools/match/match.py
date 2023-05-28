@@ -419,7 +419,7 @@ class ParticleOverlap:
         delta : 3-dimensional array
         """
         nshift = read_nshift(smooth_kwargs)
-        cells = self.pos2cell(pos)
+        cells = pos2cell(pos)
         # Check that minima and maxima are integers
         if not (mins is None and maxs is None):
             assert mins.dtype.char in numpy.typecodes["AllInteger"]
