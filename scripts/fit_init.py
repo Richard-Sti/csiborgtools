@@ -22,8 +22,6 @@ from datetime import datetime
 
 import numpy
 from mpi4py import MPI
-
-from numba import jit
 from tqdm import tqdm
 
 try:
@@ -59,32 +57,7 @@ cols_collect = [("index", numpy.int32),
                 ("y", numpy.float32),
                 ("z", numpy.float32),
                 ("lagpatch_size", numpy.float32),
-                ("lagpatch_ncells", numpy.int32)]
-
-
-@jit(nopython=True)
-def delta2ncells(delta):
-    """
-    Calculate the number of cells in `delta` that are non-zero.
-
-    Parameters
-    ----------
-    delta : 3-dimensional array
-        Halo density field.
-
-    Returns
-    -------
-    ncells : int
-        Number of non-zero cells.
-    """
-    tot = 0
-    imax, jmax, kmax = delta.shape
-    for i in range(imax):
-        for j in range(jmax):
-            for k in range(kmax):
-                if delta[i, j, k] > 0:
-                    tot += 1
-    return tot
+                ("lagpatch_ncells", numpy.int32),]
 
 
 # MPI loop over simulations
@@ -124,9 +97,9 @@ for nsim in [ics[i] for i in jobs]:
         out["x"][i], out["y"][i], out["z"][i] = cm
         out["lagpatch_size"][i] = patchsize
 
-        # Calculate the number of cells with > 1 density. No smoothing.
+        # Calculate the number of cells with > 0 density.
         delta = overlapper.make_delta(part[:, :3], part[:, 3], subbox=True)
-        out["lagpatch_ncells"][i] = delta2ncells(delta)
+        out["lagpatch_ncells"][i] = csiborgtools.fits.delta2ncells(delta)
 
     out = out[ismain]
     # Now save it
