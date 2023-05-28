@@ -22,6 +22,8 @@ from datetime import datetime
 
 import numpy
 from mpi4py import MPI
+
+from numba import jit
 from tqdm import tqdm
 
 try:
@@ -56,13 +58,40 @@ cols_collect = [("index", numpy.int32),
                 ("x", numpy.float32),
                 ("y", numpy.float32),
                 ("z", numpy.float32),
-                ("lagpatch", numpy.float32),]
+                ("lagpatch_size", numpy.float32),
+                ("lagpatch_volume", numpy.float32)]
+
+
+@jit(nopython=True)
+def delta2ncells(delta):
+    """
+    Calculate the number of cells in `delta` that are non-zero.
+
+    Parameters
+    ----------
+    delta : 3-dimensional array
+        Halo density field.
+
+    Returns
+    -------
+    ncells : int
+        Number of non-zero cells.
+    """
+    tot = 0
+    imax, jmax, kmax = delta.shape
+    for i in range(imax):
+        for j in range(jmax):
+            for k in range(kmax):
+                if delta[i, j, k] > 0:
+                    tot += 1
+    return tot
 
 
 # MPI loop over simulations
 jobs = csiborgtools.fits.split_jobs(len(ics), nproc)[rank]
 for nsim in [ics[i] for i in jobs]:
     nsnap = max(paths.get_snapshots(nsim))
+    overlapper = csiborgtools.match.ParticleOverlap()
     print(f"{datetime.now()}: rank {rank} calculating simulation `{nsim}`.",
           flush=True)
 
@@ -88,11 +117,16 @@ for nsim in [ics[i] for i in jobs]:
         if part is None or part.size < 100:
             continue
 
+        # Calculate the centre of mass and the Lagrangian patch size.
         dist, cm = csiborgtools.fits.dist_centmass(part)
         # We enforce a maximum patchsize of 0.075 in box coordinates.
         patchsize = min(numpy.percentile(dist, 99), 0.075)
         out["x"][i], out["y"][i], out["z"][i] = cm
-        out["lagpatch"][i] = patchsize
+        out["lagpatch_size"][i] = patchsize
+
+        # Calculate the number of cells with > 1 density. No smoothing.
+        delta = overlapper.make_delta(part[:, :3], part[:, 3], subbox=True)
+        out["lagpatch_volume"][i] = delta2ncells(delta)
 
     out = out[ismain]
     # Now save it
