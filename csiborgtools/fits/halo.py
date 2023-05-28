@@ -15,8 +15,9 @@
 """A clump object."""
 from abc import ABC
 
-from numba import jit
 import numpy
+
+from numba import jit
 
 
 class BaseStructure(ABC):
@@ -337,3 +338,28 @@ def dist_centmass(clump):
     cmx, cmy, cmz = [numpy.average(xi, weights=mass) for xi in (x, y, z)]
     dist = ((x - cmx)**2 + (y - cmy)**2 + (z - cmz)**2)**0.5
     return dist, [cmx, cmy, cmz]
+
+
+@jit(nopython=True)
+def delta2ncells(delta):
+    """
+    Calculate the number of cells in `delta` that are non-zero.
+
+    Parameters
+    ----------
+    delta : 3-dimensional array
+        Halo density field.
+
+    Returns
+    -------
+    ncells : int
+        Number of non-zero cells.
+    """
+    tot = 0
+    imax, jmax, kmax = delta.shape
+    for i in range(imax):
+        for j in range(jmax):
+            for k in range(kmax):
+                if delta[i, j, k] > 0:
+                    tot += 1
+    return tot
