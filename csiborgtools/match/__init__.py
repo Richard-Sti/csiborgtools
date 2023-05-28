@@ -16,5 +16,4 @@ from .match import (ParticleOverlap, RealisationsMatcher,  # noqa
                     calculate_overlap, calculate_overlap_indxs,
                     cosine_similarity)
 from .nearest_neighbour import find_neighbour  # noqa
-from .num_density import binned_counts, number_density  # noqa
 from .utils import concatenate_parts  # noqa
