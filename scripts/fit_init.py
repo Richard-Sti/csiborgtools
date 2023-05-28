@@ -59,7 +59,7 @@ cols_collect = [("index", numpy.int32),
                 ("y", numpy.float32),
                 ("z", numpy.float32),
                 ("lagpatch_size", numpy.float32),
-                ("lagpatch_volume", numpy.float32)]
+                ("lagpatch_ncells", numpy.int32)]
 
 
 @jit(nopython=True)
@@ -126,7 +126,7 @@ for nsim in [ics[i] for i in jobs]:
 
         # Calculate the number of cells with > 1 density. No smoothing.
         delta = overlapper.make_delta(part[:, :3], part[:, 3], subbox=True)
-        out["lagpatch_volume"][i] = delta2ncells(delta)
+        out["lagpatch_ncells"][i] = delta2ncells(delta)
 
     out = out[ismain]
     # Now save it
