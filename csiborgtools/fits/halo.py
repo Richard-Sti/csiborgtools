@@ -363,3 +363,26 @@ def delta2ncells(delta):
                 if delta[i, j, k] > 0:
                     tot += 1
     return tot
+
+
+@jit(nopython=True)
+def number_counts(x, bin_edges):
+    """
+    Calculate counts of samples in bins.
+
+    Parameters
+    ----------
+    x : 1-dimensional array
+        Samples' values.
+    bin_edges : 1-dimensional array
+        Bin edges.
+
+    Returns
+    -------
+    counts : 1-dimensional array
+        Bin counts.
+    """
+    out = numpy.full(bin_edges.size - 1, numpy.nan, dtype=numpy.float32)
+    for i in range(bin_edges.size - 1):
+        out[i] = numpy.sum((x >= bin_edges[i]) & (x < bin_edges[i + 1]))
+    return out
