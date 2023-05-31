@@ -19,12 +19,11 @@ from os.path import join
 from argparse import ArgumentParser
 
 import matplotlib.pyplot as plt
-from scipy.stats import gaussian_kde
 import numpy
 
 import scienceplots  # noqa
 import utils
-from cache_to_disk import cache_to_disk, delete_disk_caches_for_function
+from cache_to_disk import cache_to_disk, delete_disk_caches_for_function  # noqa
 from tqdm import tqdm
 
 try:
@@ -72,6 +71,7 @@ def plot_mass_vs_ncells(nsim, pdf=False):
             print(f"Saving to `{fout}`.")
             plt.savefig(fout, dpi=utils.dpi, bbox_inches="tight")
         plt.close()
+
 
 def get_median_errors(x):
     """
@@ -127,7 +127,8 @@ def plot_hmf(pdf=False):
     csiborg_hmf[:, x > 4e15] = numpy.nan
     quijote_hmf[:, x > 4e15] = numpy.nan
     with plt.style.context(utils.mplstyle):
-        fig, ax = plt.subplots(nrows=2, sharex=True, figsize=(3.5, 2.625 * 1.5),
+        fig, ax = plt.subplots(nrows=2, sharex=True,
+                               figsize=(3.5, 2.625 * 1.5),
                                gridspec_kw={"height_ratios": [1, 0.5]})
         fig.subplots_adjust(hspace=0, wspace=0)
 
