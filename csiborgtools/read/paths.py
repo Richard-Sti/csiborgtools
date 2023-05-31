@@ -387,6 +387,28 @@ class Paths:
         fname = f"{kind}_{MAS}_{str(nsim).zfill(5)}_grid{grid}.npy"
         return join(fdir, fname)
 
+    def halo_counts(self, simname, nsim):
+        """
+        Path to the files containing the binned halo counts.
+
+        Parameters
+        ----------
+        simname : str
+            Simulation name. Must be `csiborg` or `quijote`.
+        nsim : int
+            IC realisation index.
+
+        Returns
+        -------
+        path : str
+        """
+        fdir = join(self.postdir, "HMF")
+        if not isdir(fdir):
+            makedirs(fdir)
+            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
+        fname = f"halo_counts_{simname}_{str(nsim).zfill(5)}.npz"
+        return join(fdir, fname)
+
     def cross_nearest(self, simname, run, nsim=None, nobs=None):
         """
         Path to the files containing distance from a halo in a reference
