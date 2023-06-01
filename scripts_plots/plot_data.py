@@ -73,18 +73,10 @@ def plot_mass_vs_ncells(nsim, pdf=False):
         plt.close()
 
 
-def get_median_errors(x):
-    """
-    Get the median and errors corresponding to the 16th and 84th percentiles of
-    a 2-dimensional array of shape `(nsims, nbins)`.
-    """
-    pmin = 15.865525393145707
-    pmax = 84.13447460685429
-    y = numpy.median(x, axis=0)
-    ymax = numpy.percentile(x, pmax, axis=0)
-    ymin = numpy.percentile(x, pmin, axis=0)
-    yerr = numpy.array([y - ymin, ymax - y])
-    return y, yerr
+def process_counts(counts):
+    mean = numpy.mean(counts, axis=0)
+    std = numpy.std(counts, axis=0)
+    return mean, std
 
 
 def plot_hmf(pdf=False):
@@ -97,12 +89,10 @@ def plot_hmf(pdf=False):
         data = numpy.load(paths.halo_counts("csiborg", nsim))
         if i == 0:
             bins = data["bins"]
-            rmax = data["rmax"]
-            csiborg_hmf = numpy.full((len(csiborg_nsims), len(bins) - 1),
-                                     numpy.nan, dtype=numpy.float32)
-        csiborg_hmf[i, :] = data["counts"]
-    csiborg_hmf /= numpy.diff(bins).reshape(1, -1)
-    csiborg_hmf /= 4 / 3 * numpy.pi * rmax**3
+            csiborg_counts = numpy.full((len(csiborg_nsims), len(bins) - 1),
+                                        numpy.nan, dtype=numpy.float32)
+        csiborg_counts[i, :] = data["counts"]
+    csiborg_counts /= numpy.diff(bins).reshape(1, -1)
 
     print("Loading Quijote halo counts.", flush=True)
     quijote_nsims = paths.get_ics("quijote")
@@ -110,55 +100,48 @@ def plot_hmf(pdf=False):
         data = numpy.load(paths.halo_counts("quijote", nsim))
         if i == 0:
             bins = data["bins"]
-            rmax = data["rmax"]
             nmax = data["counts"].shape[0]
-            quijote_hmf = numpy.full(
+            quijote_counts = numpy.full(
                 (len(quijote_nsims) * nmax, len(bins) - 1), numpy.nan,
                 dtype=numpy.float32)
-        quijote_hmf[i * nmax:(i + 1) * nmax, :] = data["counts"]
-    quijote_hmf /= numpy.diff(bins).reshape(1, -1)
-    quijote_hmf /= 4 / 3 * numpy.pi * rmax**3
+        quijote_counts[i * nmax:(i + 1) * nmax, :] = data["counts"]
+    quijote_counts /= numpy.diff(bins).reshape(1, -1)
 
     x = 10**(0.5 * (bins[1:] + bins[:-1]))
     # Edit lower limits
-    csiborg_hmf[:, x < 1e12] = numpy.nan
-    quijote_hmf[:, x < 8e12] = numpy.nan
+    csiborg_counts[:, x < 1e12] = numpy.nan
+    quijote_counts[:, x < 8e12] = numpy.nan
     # Edit upper limits
-    csiborg_hmf[:, x > 4e15] = numpy.nan
-    quijote_hmf[:, x > 4e15] = numpy.nan
+    csiborg_counts[:, x > 4e15] = numpy.nan
+    quijote_counts[:, x > 4e15] = numpy.nan
+
     with plt.style.context(utils.mplstyle):
+        cols = plt.rcParams["axes.prop_cycle"].by_key()["color"]
         fig, ax = plt.subplots(nrows=2, sharex=True,
-                               figsize=(3.5, 2.625 * 1.5),
-                               gridspec_kw={"height_ratios": [1, 0.5]})
+                               figsize=(3.5, 2.625 * 1.25),
+                               gridspec_kw={"height_ratios": [1, 0.65]})
         fig.subplots_adjust(hspace=0, wspace=0)
 
-        y_csiborg, yerr_csiborg = get_median_errors(csiborg_hmf)
-        ax[0].plot(x, y_csiborg, label="CSiBORG")
-        ax[0].fill_between(x, y_csiborg - yerr_csiborg[0, :],
-                           y_csiborg + yerr_csiborg[1, :], alpha=0.5)
+        mean_csiborg, std_csiborg = process_counts(csiborg_counts)
+        ax[0].plot(x, mean_csiborg, label="CSiBORG")
+        ax[0].fill_between(x, mean_csiborg - std_csiborg,
+                           mean_csiborg + std_csiborg, alpha=0.5)
 
-        y_quijote, yerr_quijote = get_median_errors(quijote_hmf)
-        ax[0].plot(x, y_quijote, label="Quijote")
-        ax[0].fill_between(x, y_quijote - yerr_quijote[0, :],
-                           y_quijote + yerr_quijote[1, :], alpha=0.5)
+        mean_quijote, std_quijote = process_counts(quijote_counts)
+        ax[0].plot(x, mean_quijote, label="Quijote")
+        ax[0].fill_between(x, mean_quijote - std_quijote,
+                           mean_quijote + std_quijote, alpha=0.5)
 
-        log_y_csiborg = numpy.log10(y_csiborg)
-        std_log_y_csiborg = (yerr_csiborg[0, :] + yerr_csiborg[1, :])
-        std_log_y_csiborg /= y_csiborg * numpy.log(10)
+        log_y = numpy.log10(mean_csiborg / mean_quijote)
+        err = numpy.sqrt((std_csiborg / mean_csiborg / numpy.log(10))**2
+                         + (std_quijote / mean_quijote / numpy.log(10))**2)
 
-        log_y_quijote = numpy.log10(y_quijote)
-        std_log_y_quijote = (yerr_quijote[0, :] + yerr_quijote[1, :])
-        std_log_y_quijote /= y_quijote * numpy.log(10)
-
-        y = log_y_csiborg - log_y_quijote
-        err = numpy.sqrt(std_log_y_csiborg**2 + std_log_y_quijote**2)
-        print(err)
-
-        ax[1].plot(x, 10**y)
-        ax[1].fill_between(x, 10**(y - err), 10**(y + err), alpha=0.5)
+        ax[1].plot(x, 10**log_y, c=cols[2])
+        ax[1].fill_between(x, 10**(log_y - err), 10**(log_y + err), alpha=0.5,
+                           color=cols[2])
         ax[1].axhline(1, color="k", ls=plt.rcParams["lines.linestyle"],
                       lw=0.5 * plt.rcParams["lines.linewidth"], zorder=0)
-        ax[0].set_ylabel(r"$\frac{\mathrm{d}^2 n}{\mathrm{d}\log M_{\rm h}~\mathrm{d}V}~\mathrm{dex}^{-1}~\mathrm{Mpc}^{-3}$")  # noqa
+        ax[0].set_ylabel(r"$\frac{\mathrm{d} n}{\mathrm{d}\log M_{\rm h}}~\mathrm{dex}^{-1}$")  # noqa
         ax[1].set_xlabel(r"$M_{\rm h}$ [$M_\odot$]")
         ax[1].set_ylabel(r"$\mathrm{CSiBORG} / \mathrm{Quijote}$")
 
