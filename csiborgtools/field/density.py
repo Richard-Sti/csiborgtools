@@ -20,8 +20,10 @@ TODO:
 """
 from abc import ABC
 
-import MAS_library as MASL
 import numpy
+
+import MAS_library as MASL
+from numba import jit
 from tqdm import trange
 
 from ..read.utils import real2redshift
@@ -220,6 +222,36 @@ class VelocityField(BaseField):
         self.box = box
         self.MAS = MAS
 
+    @staticmethod
+    @jit(nopython=True)
+    def radial_velocity(rho_vel):
+        """
+        Calculate the radial velocity field around the observer in the centre
+        of the box.
+
+        Parameters
+        ----------
+        rho_vel : 4-dimensional array of shape `(3, grid, grid, grid)`.
+            Velocity field along each axis.
+
+        Returns
+        -------
+        radvel : 3-dimensional array of shape `(grid, grid, grid)`.
+            Radial velocity field.
+        """
+        grid = rho_vel.shape[1]
+        radvel = numpy.zeros((grid, grid, grid), dtype=numpy.float32)
+        for i in range(grid):
+            px = i - 0.5 * (grid - 1)
+            for j in range(grid):
+                py = j - 0.5 * (grid - 1)
+                for k in range(grid):
+                    pz = k - 0.5 * (grid - 1)
+                    vx, vy, vz = rho_vel[:, i, j, k]
+                    radvel[i, j, k] = ((px * vx + py * vy + pz * vz)
+                                       / numpy.sqrt(px**2 + py**2 + pz**2))
+        return radvel
+
     def __call__(self, parts, grid, mpart, flip_xz=True, nbatch=30,
                  verbose=True):
         """
@@ -245,7 +277,7 @@ class VelocityField(BaseField):
 
         Returns
         -------
-        rho_vel : 3-dimensional array of shape `(3, grid, grid, grid)`.
+        rho_vel : 4-dimensional array of shape `(3, grid, grid, grid)`.
             Velocity field along each axis.
 
         References
