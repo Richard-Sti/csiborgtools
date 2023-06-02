@@ -175,16 +175,24 @@ def load_field(kind, nsim, grid, MAS, in_rsp=False):
 def get_sky_label(kind, volume_weight):
     if volume_weight:
         if kind == "density":
-            label = r"$\log \int_{0}^{R} r^2 \delta(r, \mathrm{RA}, \mathrm{dec}) \mathrm{d} r$"  # noqa
+            label = r"$\log \int_{0}^{R} r^2 \rho(r, \mathrm{RA}, \mathrm{dec}) \mathrm{d} r$"  # noqa
+        if kind == "overdensity":
+            label = r"$\log \int_{0}^{R} r^2 \left[\delta(r, \mathrm{RA}, \mathrm{dec}) + 2\right] \mathrm{d} r$"  # noqa
         elif kind == "potential":
             label = r"$\int_{0}^{R} r^2 \phi(r, \mathrm{RA}, \mathrm{dec}) \mathrm{d} r$"  # noqa
+        elif kind == "radvel":
+            label = r"$\int_{0}^{R} r^2 v_r(r, \mathrm{RA}, \mathrm{dec}) \mathrm{d} r$"  # noqa
         else:
             label = None
     else:
         if kind == "density":
-            label = r"$\log \int_{0}^{R} \delta(r, \mathrm{RA}, \mathrm{dec}) \mathrm{d} r$"  # noqa
+            label = r"$\log \int_{0}^{R} \rho(r, \mathrm{RA}, \mathrm{dec}) \mathrm{d} r$"  # noqa
+        if kind == "overdensity":
+            label = r"$\log \int_{0}^{R} \left[\delta(r, \mathrm{RA}, \mathrm{dec}) + 2\right] \mathrm{d} r$"  # noqa
         elif kind == "potential":
             label = r"$\int_{0}^{R} \phi(r, \mathrm{RA}, \mathrm{dec}) \mathrm{d} r$"  # noqa
+        elif kind == "radvel":
+            label = r"$\int_{0}^{R} v_r(r, \mathrm{RA}, \mathrm{dec}) \mathrm{d} r$"  # noqa
         else:
             label = None
     return label
@@ -200,7 +208,12 @@ def plot_sky_distribution(kind, nsim, grid, nside, MAS="PCS", plot_groups=True,
     nsnap = max(paths.get_snapshots(nsim))
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
 
-    field = load_field(kind, nsim, grid, MAS=MAS, in_rsp=False)
+    if kind == "overdensity":
+        field = load_field("density", nsim, grid, MAS=MAS, in_rsp=False)
+        density_gen = csiborgtools.field.DensityField(box, MAS)
+        field = density_gen.overdensity_field(field) + 2
+    else:
+        field = load_field(kind, nsim, grid, MAS=MAS, in_rsp=False)
 
     angpos = csiborgtools.field.nside2radec(nside)
     dist = numpy.linspace(dmin, dmax, 500)
@@ -209,7 +222,7 @@ def plot_sky_distribution(kind, nsim, grid, nside, MAS="PCS", plot_groups=True,
 
     with plt.style.context(utils.mplstyle):
         label = get_sky_label(kind, volume_weight)
-        if kind == "density":
+        if kind in ["density", "overdensity"]:
             out = numpy.log10(out)
         healpy.mollview(out, fig=0, title="", unit=label)
 
@@ -258,6 +271,6 @@ if __name__ == "__main__":
     # plot_mass_vs_normcells(7444 + 24 * 4, pdf=False)
     # plot_mass_vs_ncells(7444, pdf=True)
     # plot_hmf(pdf=True)
-    plot_sky_distribution("potential", 7444, 256, nside=64, plot_groups=False,
-                          dmin=50, dmax=100, plot_halos=5e13,
-                          volume_weight=True)
+    plot_sky_distribution("overdensity", 7444, 256, nside=64,
+                          plot_groups=False, dmin=0, dmax=50,
+                          plot_halos=5e13, volume_weight=True)
