@@ -304,6 +304,7 @@ class VelocityField(BaseField):
             mass = force_single_precision(mass, "particle_mass")
             if flip_xz:
                 pos[:, [0, 2]] = pos[:, [2, 0]]
+                vel[:, [0, 2]] = vel[:, [2, 0]]
             vel *= mass.reshape(-1, 1) / mpart
 
             for i in range(3):
