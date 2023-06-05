@@ -84,8 +84,6 @@ def velocity_field(nsim, parser_args):
 
 
 def potential_field(nsim, parser_args):
-    if parser_args.in_rsp:
-        raise NotImplementedError("Potential field in RSP not implemented.")
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsnap = max(paths.get_snapshots(nsim))
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
@@ -99,6 +97,10 @@ def potential_field(nsim, parser_args):
     gen = csiborgtools.field.PotentialField(box, parser_args.MAS)
     field = gen(rho)
 
+    if parser_args.in_rsp:
+        parts = csiborgtools.read.read_h5(paths.particles(nsim))["particles"]
+        field = csiborgtools.field.field2rsp(field, parts=parts, box=box,
+                                             verbose=parser_args.verbose)
     fout = paths.field(parser_args.kind, parser_args.MAS, parser_args.grid,
                        nsim, parser_args.in_rsp)
     print(f"{datetime.now()}: saving output to `{fout}`.")
@@ -126,6 +128,11 @@ def radvel_field(nsim, parser_args):
                        nsim, parser_args.in_rsp)
     print(f"{datetime.now()}: saving output to `{fout}`.")
     numpy.save(fout, field)
+
+
+###############################################################################
+#                          Command line interface                             #
+###############################################################################
 
 
 if __name__ == "__main__":
