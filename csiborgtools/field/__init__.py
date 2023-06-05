@@ -18,7 +18,8 @@ try:
     import MAS_library as MASL  # noqa
 
     from .density import DensityField, PotentialField, VelocityField  # noqa
-    from .interp import evaluate_cartesian, evaluate_sky, make_sky  # noqa
+    from .interp import (evaluate_cartesian, evaluate_sky, field2rsp,  # noqa
+                         make_sky)
     from .utils import nside2radec, smoothen_field  # noqa
 except ImportError:
     warn("MAS_library not found, `DensityField` will not be available", UserWarning)  # noqa
