@@ -162,14 +162,50 @@ def plot_hmf(pdf=False):
         plt.close()
 
 
-###############################################################################
-#                           Sky distribution                                  #
-###############################################################################
-
 @cache_to_disk(7)
 def load_field(kind, nsim, grid, MAS, in_rsp=False):
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    print(paths.field(kind, MAS, grid, nsim, in_rsp=in_rsp))
     return numpy.load(paths.field(kind, MAS, grid, nsim, in_rsp=in_rsp))
+
+
+###############################################################################
+#                             Projected field                                 #
+###############################################################################
+
+
+def plot_projected_field(kind, nsim, grid, in_rsp, MAS="PCS", pdf=False):
+    print(f"Plotting projected field `{kind}`. ", flush=True)
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    nsnap = max(paths.get_snapshots(nsim))
+    box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
+
+    if kind == "overdensity":
+        field = load_field("density", nsim, grid, MAS=MAS, in_rsp=in_rsp)
+        density_gen = csiborgtools.field.DensityField(box, MAS)
+        field = density_gen.overdensity_field(field) + 2
+    else:
+        field = load_field(kind, nsim, grid, MAS=MAS, in_rsp=in_rsp)
+
+    print(field)
+
+    with plt.style.context(utils.mplstyle):
+        fig, ax = plt.subplots(figsize=(3.5 * 2, 2.625), ncols=3, sharey=True,
+                               sharex=True)
+        fig.subplots_adjust(hspace=0, wspace=0)
+        for i in range(3):
+            ax[i].imshow(numpy.sum(field, axis=i))
+
+        fig.tight_layout(h_pad=0, w_pad=0)
+        for ext in ["png"] if pdf is False else ["png", "pdf"]:
+            fout = join(utils.fout, f"field_{kind}_{nsim}_rsp{in_rsp}.{ext}")
+            print(f"Saving to `{fout}`.")
+            fig.savefig(fout, dpi=utils.dpi, bbox_inches="tight")
+        plt.close()
+
+###############################################################################
+#                             Sky distribution                                #
+###############################################################################
 
 
 def get_sky_label(kind, volume_weight):
@@ -261,7 +297,7 @@ if __name__ == "__main__":
     parser.add_argument('-c', '--clean', action='store_true')
     args = parser.parse_args()
 
-    cached_funcs = []
+    cached_funcs = ["load_field"]
     if args.clean:
         for func in cached_funcs:
             print(f"Cleaning cache for function {func}.")
@@ -271,6 +307,8 @@ if __name__ == "__main__":
     # plot_mass_vs_normcells(7444 + 24 * 4, pdf=False)
     # plot_mass_vs_ncells(7444, pdf=True)
     # plot_hmf(pdf=True)
-    plot_sky_distribution("overdensity", 7444, 256, nside=64,
-                          plot_groups=False, dmin=0, dmax=50,
-                          plot_halos=5e13, volume_weight=True)
+    # plot_sky_distribution("radvel", 7444, 256, nside=64,
+    #                       plot_groups=False, dmin=50, dmax=100,
+    #                       plot_halos=5e13, volume_weight=False)
+
+    plot_projected_field("potential", 7444, 256, in_rsp=True)
