@@ -22,3 +22,4 @@ scripts_test/
 scripts_plots/python.sh
 scripts_plots/submit.sh
 scripts_plots/*.out
+scripts_plots/*.sh
