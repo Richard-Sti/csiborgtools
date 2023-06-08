@@ -106,8 +106,12 @@ def read_single_catalogue(args, config, nsim, run, rmax, paths, nobs=None):
             pname = _name
     if pname is None:
         raise KeyError(f"Invalid names `{sel['name']}`.")
-
-    cat.apply_bounds({pname: (sel.get("min", None), sel.get("max", None))})
+    xmin = sel.get("min", None)
+    xmax = sel.get("max", None)
+    if sel.get("islog", False):
+        xmin = 10**xmin if xmin is not None else None
+        xmax = 10**xmax if xmax is not None else None
+    cat.apply_bounds({pname: (xmin, xmax)})
 
     # Now the secondary selection bounds. If needed transfrom the secondary
     # property before applying the bounds.
