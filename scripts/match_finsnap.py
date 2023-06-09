@@ -23,8 +23,8 @@ from distutils.util import strtobool
 import numpy
 import yaml
 from mpi4py import MPI
-
 from taskmaster import work_delegation
+
 from utils import open_catalogues
 
 try:
@@ -58,18 +58,18 @@ def find_neighbour(args, nsim, cats, paths, comm):
     -------
     None
     """
-    ndist, cross_hindxs = csiborgtools.match.find_neighbour(nsim, cats)
+    ndist, __ = csiborgtools.match.find_neighbour(nsim, cats)
 
     mass_key = "totpartmass" if args.simname == "csiborg" else "group_mass"
     cat0 = cats[nsim]
     mass = cat0[mass_key]
-    rdist = cat0.radial_distance(in_initial=False)
+    rdist = cat0.radial_distance(in_initial=False).astype(numpy.float32)
 
     fout = paths.cross_nearest(args.simname, args.run, nsim)
     if args.verbose:
         print(f"Rank {comm.Get_rank()} writing to `{fout}`.", flush=True)
-    numpy.savez(fout, ndist=ndist, cross_hindxs=cross_hindxs, mass=mass,
-                ref_hindxs=cat0["index"], rdist=rdist)
+    numpy.savez(fout, ndist=ndist, mass=mass, ref_hindxs=cat0["index"],
+                rdist=rdist)
 
 
 if __name__ == "__main__":
