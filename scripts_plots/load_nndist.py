@@ -46,7 +46,6 @@ if __name__ == "__main__":
         print(f"Cleaning cache for function {func}.")
         delete_disk_caches_for_function(func)
 
-    runs = ["mass001", "mass002", "mass003", "mass004", "mass005", "mass006",
-            "mass007", "mass008", "mass009"]
+    runs = ["mass001", "mass003", "mass005", "mass007", "mass009"]
 
     work_delegation(main, runs, MPI.COMM_WORLD)
