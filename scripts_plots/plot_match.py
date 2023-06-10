@@ -147,11 +147,14 @@ def plot_summed_overlap(nsim0):
 ###############################################################################
 
 
-@cache_to_disk(60)
+@cache_to_disk(7)
 def read_dist(simname, run, kind, kwargs):
     paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
     reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
-    return reader.build_dist(simname, run, kind, verbose=True)
+
+    fpath = paths.cross_nearest(simname, run, "tot_counts", nsim=0, nobs=0)
+    counts = numpy.load(fpath)["counts"]
+    return reader.build_dist(counts, kind, verbose=True)
 
 
 @cache_to_disk(7)
