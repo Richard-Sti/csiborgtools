@@ -230,48 +230,31 @@ class NearestNeighbourReader:
         return count_neighbour(out, ndist, rdist, self.radial_bin_edges,
                                self.rmax_neighbour, self.nbins_neighbour)
 
-    def build_dist(self, simname, run, kind, verbose=True):
+    def build_dist(self, counts, kind):
         """
-        Build the a PDF or a CDF for the nearest neighbour distribution.
-        Counts the binned number of neighbour for each halo as a funtion of its
-        radial distance from the centre of the high-resolution region.
+        Build the a PDF or a CDF for the nearest neighbour distribution from
+        binned counts as a function of radial distance from the centre of the
+        high-resolution region.
 
         Parameters
         ----------
-        simname : str
-            Simulation name. Must be either `csiborg` or `quijote`.
-        run : str
-            Run name.
-        kind : str
-            Distribution kind. Either `pdf` or `cdf`.
-        verbose : bool, optional
-            Verbosity flag.
+        counts : 2-dimensional array of shape `(nbins_radial, nbins_neighbour)`
+            Binned counts of the number of neighbours as a function of
+            radial distance.
 
         Returns
         -------
         dist : 2-dimensional array of shape `(nbins_radial, nbins_neighbour)`
         """
-        assert simname in ["csiborg", "quijote"]
         assert kind in ["pdf", "cdf"]
-        # We first bin the distances as a function of each reference halo
-        # radial distance and then its nearest neighbour distance.
-        fpaths = self.paths.cross_nearest(simname, run)
-        if simname == "quijote":
-            fpaths = fpaths
-        out = numpy.zeros((self.nbins_radial, self.nbins_neighbour),
-                          dtype=numpy.float32)
-        for fpath in tqdm(fpaths) if verbose else fpaths:
-            data = numpy.load(fpath)
-            out = self.count_neighbour(out, data["ndist"], data["rdist"])
-
         if kind == "pdf":
             neighbour_bin_edges = self.neighbour_bin_edges
             dx = neighbour_bin_edges[1] - neighbour_bin_edges[0]
-            out /= numpy.sum(dx * out, axis=1).reshape(-1, 1)
+            counts /= numpy.sum(dx * counts, axis=1).reshape(-1, 1)
         else:
-            out = numpy.cumsum(out, axis=1, out=out)
-            out /= out[:, -1].reshape(-1, 1)
-        return out
+            counts = numpy.cumsum(counts, axis=1, out=counts)
+            counts /= counts[:, -1].reshape(-1, 1)
+        return counts
 
     def kl_divergence(self, simname, run, nsim, pdf, nobs=None, verbose=True):
         r"""
