@@ -422,8 +422,8 @@ class Paths:
         run : str
             Run name.
         kind : str
-            Whether raw distances or counts in bins. Must be one of `dist` or
-            `bin_dist`.
+            Whether raw distances or counts in bins. Must be one of `dist`,
+            `bin_dist` or `tot_counts`.
         nsim : int, optional
             IC realisation index.
         nobs : int, optional
@@ -434,7 +434,7 @@ class Paths:
         path : str
         """
         assert simname in ["csiborg", "quijote"]
-        assert kind in ["dist", "bin_dist"]
+        assert kind in ["dist", "bin_dist", "tot_counts"]
         fdir = join(self.postdir, "nearest_neighbour")
         if not isdir(fdir):
             makedirs(fdir)
