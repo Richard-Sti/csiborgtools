@@ -15,8 +15,6 @@
 Script to find the nearest neighbour of each halo in a given halo catalogue
 from the remaining catalogues in the suite (CSIBORG or Quijote). The script is
 MPI parallelized over the reference simulations.
-
-Deletes the Quijote temporary files.
 """
 from argparse import ArgumentParser
 from datetime import datetime
@@ -70,21 +68,26 @@ def find_neighbour(args, nsim, cats, paths, comm, save_kind):
     cat0 = cats[nsim]
     rdist = cat0.radial_distance(in_initial=False)
 
-    out = {"mass": cat0[mass_key],
-           "ref_hindxs": cat0["index"],
-           "rdist": rdist}
-    # By default we already save the binned counts too.
-    reader = csiborgtools.read.NearestNeighbourReader(**neighbour_kwargs)
-    out = numpy.zeros((reader.nbins_radial, reader.nbins_neighbour),
-                      dtype=numpy.float32)
-    reader.count_neighbour(out, ndist, rdist)
-    out.update({"counts": out})
-
+    # Distance is saved optionally, whereas binned distance is always saved.
     if save_kind == "dist":
-        out.update({"ndist": ndist,
-                    "cross_hindxs": cross_hindxs})
+        out = {"ndist": ndist,
+               "cross_hindxs": cross_hindxs,
+               "mass": cat0[mass_key],
+               "ref_hindxs": cat0["index"],
+               "rdist": rdist}
+        fout = paths.cross_nearest(args.simname, args.run, "dist", nsim)
+        if args.verbose:
+            print(f"Rank {comm.Get_rank()} writing to `{fout}`.", flush=True)
+        numpy.savez(fout, **out)
 
-    fout = paths.cross_nearest(args.simname, args.run, save_kind, nsim)
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    reader = csiborgtools.read.NearestNeighbourReader(paths=paths,
+                                                      **neighbour_kwargs)
+    counts = numpy.zeros((reader.nbins_radial, reader.nbins_neighbour),
+                         dtype=numpy.float32)
+    counts = reader.count_neighbour(counts, ndist, rdist)
+    out = {"counts": counts}
+    fout = paths.cross_nearest(args.simname, args.run, "bin_dist", nsim)
     if args.verbose:
         print(f"Rank {comm.Get_rank()} writing to `{fout}`.", flush=True)
     numpy.savez(fout, **out)
@@ -113,17 +116,16 @@ def collect_dist(args, paths):
         fname = fnames[i]
         data = numpy.load(fname)
         if i == 0:
-            out = data["out"]
+            out = data["counts"]
         else:
-            out += data["out"]
+            out += data["counts"]
 
-        if args.simname == "quijote":
-            remove(fname)
+        remove(fname)
 
     fout = paths.cross_nearest(args.simname, args.run, "tot_counts",
                                nsim=0, nobs=0)
     if args.verbose:
-        print(f"Writing to summed counts to `{fout}`.", flush=True)
+        print(f"Writing the summed counts to `{fout}`.", flush=True)
     numpy.savez(fout, tot_counts=out)
 
 
@@ -153,7 +155,7 @@ if __name__ == "__main__":
     cats = open_catalogues(args, config, paths, comm)
 
     def do_work(nsim):
-        return find_neighbour(args, nsim, cats, paths, comm)
+        return find_neighbour(args, nsim, cats, paths, comm, save_kind)
 
     work_delegation(do_work, list(cats.keys()), comm,
                     master_verbose=args.verbose)
