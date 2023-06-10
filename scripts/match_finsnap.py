@@ -27,7 +27,7 @@ from mpi4py import MPI
 from taskmaster import work_delegation
 from tqdm import trange
 
-from utils import neighbour_kwargs, open_catalogues
+from utils import open_catalogues
 
 try:
     import csiborgtools
@@ -81,8 +81,8 @@ def find_neighbour(args, nsim, cats, paths, comm, save_kind):
         numpy.savez(fout, **out)
 
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    reader = csiborgtools.read.NearestNeighbourReader(paths=paths,
-                                                      **neighbour_kwargs)
+    reader = csiborgtools.read.NearestNeighbourReader(
+        paths=paths, **csiborgtools.neighbour_kwargs)
     counts = numpy.zeros((reader.nbins_radial, reader.nbins_neighbour),
                          dtype=numpy.float32)
     counts = reader.count_neighbour(counts, ndist, rdist)

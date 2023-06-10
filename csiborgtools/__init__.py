@@ -19,3 +19,10 @@ paths_glamdring = {"srcdir": "/mnt/extraspace/hdesmond/",
                    "postdir": "/mnt/extraspace/rstiskalek/CSiBORG/",
                    "quijote_dir": "/mnt/extraspace/rstiskalek/Quijote",
                    }
+
+
+neighbour_kwargs = {"rmax_radial": 155 / 0.705,
+                    "nbins_radial": 50,
+                    "rmax_neighbour": 100.,
+                    "nbins_neighbour": 150,
+                    "paths_kind": paths_glamdring}
