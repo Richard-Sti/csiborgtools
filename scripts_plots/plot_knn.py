@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 import numpy
 
 import scienceplots  # noqa
-import utils
+import plt_utils
 
 try:
     import csiborgtools
@@ -40,7 +40,7 @@ def plot_knn(runname):
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     reader = csiborgtools.read.kNNCDFReader(paths)
 
-    with plt.style.context(utils.mplstyle):
+    with plt.style.context(plt_utils.mplstyle):
         plt.figure()
 
         # Quijote kNN
@@ -92,9 +92,9 @@ def plot_knn(runname):
         plt.ylabel(r"$P(k | V = 4 \pi r^3 / 3)$")
 
         for ext in ["png"]:
-            fout = join(utils.fout, f"knn_{runname}.{ext}")
+            fout = join(plt_utils.fout, f"knn_{runname}.{ext}")
             print("Saving to `{fout}`.".format(fout=fout))
-            plt.savefig(fout, dpi=utils.dpi, bbox_inches="tight")
+            plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
 
 
