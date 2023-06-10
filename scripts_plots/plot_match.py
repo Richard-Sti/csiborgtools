@@ -147,7 +147,7 @@ def plot_summed_overlap(nsim0):
 ###############################################################################
 
 
-@cache_to_disk(7)
+@cache_to_disk(60)
 def read_dist(simname, run, kind, kwargs):
     paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
     reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
@@ -172,7 +172,7 @@ def make_ks(simname, run, nsim, nobs, kwargs):
     return reader.ks_significance(simname, run, nsim, cdf, nobs=nobs)
 
 
-def plot_dist(run, kind, kwargs, r200):
+def plot_dist(run, kind, kwargs, r200=None):
     """
     Plot the PDF/CDF of the nearest neighbour distance for Quijote and CSiBORG.
     """
@@ -213,6 +213,40 @@ def plot_dist(run, kind, kwargs, r200):
         plt.tight_layout()
         for ext in ["png"]:
             fout = join(utils.fout, f"1nn_{kind}_{run}.{ext}")
+            print(f"Saving to `{fout}`.")
+            plt.savefig(fout, dpi=utils.dpi, bbox_inches="tight")
+        plt.close()
+
+
+def plot_cdf_diff(run, kwargs):
+    """
+    Plot the CDF difference between Quijote and CSiBORG.
+    """
+    print("Plotting the CDF difference.", flush=True)
+    paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
+    reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
+    x = reader.bin_centres("neighbour")
+
+    with plt.style.context(utils.mplstyle):
+        cols = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+        plt.figure()
+
+        runs = ["mass001", "mass002", "mass003"]
+
+        for i, run in enumerate(runs):
+            y_quijote = read_dist("quijote", run, "cdf", kwargs)
+            y_csiborg = read_dist("csiborg", run, "cdf", kwargs)
+            ncdf = y_csiborg.shape[0]
+            for j in range(ncdf):
+                plt.plot(x, y_csiborg[j] - y_quijote[j], c=cols[i])
+        plt.xlim(0, 50)
+        plt.xlabel(r"$r_{1\mathrm{NN}}~[\mathrm{Mpc}]$")
+        plt.ylabel(r"$\mathrm{CDF}(r_{1\mathrm{NN}})$")
+        plt.ylim(0)
+        # plt.legend()
+        plt.tight_layout()
+        for ext in ["png"]:
+            fout = join(utils.fout, f"1nn_diff_{run}.{ext}")
             print(f"Saving to `{fout}`.")
             plt.savefig(fout, dpi=utils.dpi, bbox_inches="tight")
         plt.close()
@@ -388,9 +422,12 @@ if __name__ == "__main__":
                         "rmax_neighbour": 100.,
                         "nbins_neighbour": 150,
                         "paths_kind": csiborgtools.paths_glamdring}
-    run = "mass003"
+    run = "mass001"
 
-    # plot_dist("mass003", "pdf", neighbour_kwargs)
+    # plot_dist(run, "pdf", neighbour_kwargs)
+    plot_cdf_diff(run, neighbour_kwargs)
+
+    quit()
 
     paths = csiborgtools.read.Paths(**neighbour_kwargs["paths_kind"])
     nn_reader = csiborgtools.read.NearestNeighbourReader(**neighbour_kwargs,

@@ -114,7 +114,7 @@ def plot_hmf(pdf=False):
     x = 10**(0.5 * (bins[1:] + bins[:-1]))
     # Edit lower limits
     csiborg_counts[:, x < 1e12] = numpy.nan
-    quijote_counts[:, x < 8e12] = numpy.nan
+    quijote_counts[:, x < 10**(12.4)] = numpy.nan
     # Edit upper limits
     csiborg_counts[:, x > 4e15] = numpy.nan
     quijote_counts[:, x > 4e15] = numpy.nan
@@ -321,12 +321,26 @@ if __name__ == "__main__":
             print(f"Cleaning cache for function {func}.")
             delete_disk_caches_for_function(func)
 
+    # cat = open_quijote(0)
+    # x = cat["group_mass"]
+    # x = numpy.log10(x)
+    # print(x.min(), x.max())
+
+    # with plt.style.context(utils.mplstyle):
+    #     plt.figure()
+    #     plt.hist(x, bins=30)
+    #     plt.savefig(join(utils.fout, "group_mass_hist.png"), dpi=utils.dpi)
+    #     plt.close()
+
+    # quit()
+
     # plot_mass_vs_occupancy(7444)
     # plot_mass_vs_normcells(7444 + 24 * 4, pdf=False)
     # plot_mass_vs_ncells(7444, pdf=True)
-    # plot_hmf(pdf=True)
+    plot_hmf(pdf=True)
     # plot_sky_distribution("radvel", 7444, 256, nside=64,
     #                       plot_groups=False, dmin=50, dmax=100,
     #                       plot_halos=5e13, volume_weight=False)
 
-    plot_projected_field("potential", 7444, 256, in_rsp=True)
+    # plot_projected_field("overdensity", 7444, 1024, in_rsp=True, highres_only=False)
+    # plot_projected_field("overdensity", 7444, 1024, in_rsp=False, highres_only=False)

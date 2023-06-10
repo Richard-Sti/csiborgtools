@@ -25,7 +25,7 @@ import yaml
 from mpi4py import MPI
 from taskmaster import work_delegation
 
-from utils import open_catalogues
+from utils import neighbour_kwargs, open_catalogues
 
 try:
     import csiborgtools
@@ -36,7 +36,7 @@ except ModuleNotFoundError:
     import csiborgtools
 
 
-def find_neighbour(args, nsim, cats, paths, comm):
+def find_neighbour(args, nsim, cats, paths, comm, save_kind):
     """
     Find the nearest neighbour of each halo in the given catalogue.
 
@@ -53,11 +53,14 @@ def find_neighbour(args, nsim, cats, paths, comm):
         Paths object.
     comm : mpi4py.MPI.Comm
         MPI communicator.
+    save_kind : str
+        Kind of data to save. Must be either `dist` or `bin_dist`.
 
     Returns
     -------
     None
     """
+    assert save_kind in ["dist", "bin_dist"]
     ndist, __ = csiborgtools.match.find_neighbour(nsim, cats)
 
     mass_key = "totpartmass" if args.simname == "csiborg" else "group_mass"
@@ -65,7 +68,30 @@ def find_neighbour(args, nsim, cats, paths, comm):
     mass = cat0[mass_key]
     rdist = cat0.radial_distance(in_initial=False).astype(numpy.float32)
 
-    fout = paths.cross_nearest(args.simname, args.run, nsim)
+    # TODO WORK HERE
+
+
+    out = {"ndist": ndist,
+           "mass": mass,
+           "ref_hindxs": cat0["index"],
+           "rdist": rdist}
+
+    if save_kind == "dist":
+        out.update({"ndist": ndist,
+               "mass": mass,
+               "ref_hindxs": cat0["index"],
+               rdist: "rdist"})
+
+    reader = csiborgtools.read.NearestNeighbourReader(**neighbour_kwargs)
+    out = numpy.zeros((reader.nbins_radial, reader.nbins_neighbour),
+                      dtype=numpy.float32)
+    reader.count_neighbour(out, ndist, rdist)
+
+
+
+    fout = paths.cross_nearest(args.simname, args.run, save_kind, nsim)
+
+
     if args.verbose:
         print(f"Rank {comm.Get_rank()} writing to `{fout}`.", flush=True)
     numpy.savez(fout, ndist=ndist, mass=mass, ref_hindxs=cat0["index"],
