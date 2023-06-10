@@ -208,6 +208,28 @@ class NearestNeighbourReader:
         fpath = self.paths.cross_nearest(simname, run, nsim, nobs)
         return numpy.load(fpath)
 
+    def count_neighbour(self, out, ndist, rdist):
+        """
+        Count the number of neighbours for each halo as a function of its
+        radial distance.
+
+        Parameters
+        ----------
+        out : 2-dimensional array of shape `(nbins_radial, nbins_neighbour)`
+            Output array to write to. Results are added to this array.
+        ndist : 2-dimensional array of shape `(nhalos, ncross_simulations)`
+            Distance of each halo to its nearest neighbour from a cross
+            simulation.
+        rdist : 1-dimensional array of shape `(nhalos, )`
+            Distance of each halo to the centre of the high-resolution region.
+
+        Returns
+        -------
+        out : 2-dimensional array of shape `(nbins_radial, nbins_neighbour)`
+        """
+        return count_neighbour(out, ndist, rdist, self.radial_bin_edges,
+                               self.rmax_neighbour, self.nbins_neighbour)
+
     def build_dist(self, simname, run, kind, verbose=True):
         """
         Build the a PDF or a CDF for the nearest neighbour distribution.
@@ -231,7 +253,6 @@ class NearestNeighbourReader:
         """
         assert simname in ["csiborg", "quijote"]
         assert kind in ["pdf", "cdf"]
-        rbin_edges = self.radial_bin_edges
         # We first bin the distances as a function of each reference halo
         # radial distance and then its nearest neighbour distance.
         fpaths = self.paths.cross_nearest(simname, run)
@@ -241,9 +262,7 @@ class NearestNeighbourReader:
                           dtype=numpy.float32)
         for fpath in tqdm(fpaths) if verbose else fpaths:
             data = numpy.load(fpath)
-            out = count_neighbour(
-                out, data["ndist"], data["rdist"], rbin_edges,
-                self.rmax_neighbour, self.nbins_neighbour)
+            out = self.count_neighbour(out, data["ndist"], data["rdist"])
 
         if kind == "pdf":
             neighbour_bin_edges = self.neighbour_bin_edges
