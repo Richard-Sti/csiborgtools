@@ -13,16 +13,16 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
-from os.path import join
 from argparse import ArgumentParser
+from os.path import join
 
 import matplotlib.pyplot as plt
 import numpy
-
 import scienceplots  # noqa
-import utils
 from cache_to_disk import cache_to_disk, delete_disk_caches_for_function
 from tqdm import tqdm
+
+import plt_utils
 
 try:
     import csiborgtools
@@ -88,7 +88,7 @@ def plot_summed_overlap(nsim0):
     mean_prob_nomatch = mean_prob_nomatch[mask]
 
     # Mean summed overlap
-    with plt.style.context(utils.mplstyle):
+    with plt.style.context(plt_utils.mplstyle):
         plt.figure()
         plt.hexbin(x, mean_overlap, mincnt=1, xscale="log", bins="log",
                    gridsize=50)
@@ -99,13 +99,13 @@ def plot_summed_overlap(nsim0):
 
         plt.tight_layout()
         for ext in ["png", "pdf"]:
-            fout = join(utils.fout, f"overlap_mean_{nsim0}.{ext}")
+            fout = join(plt_utils.fout, f"overlap_mean_{nsim0}.{ext}")
             print(f"Saving to `{fout}`.")
-            plt.savefig(fout, dpi=utils.dpi, bbox_inches="tight")
+            plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
 
     # Std summed overlap
-    with plt.style.context(utils.mplstyle):
+    with plt.style.context(plt_utils.mplstyle):
         plt.figure()
         plt.hexbin(x, std_overlap, mincnt=1, xscale="log", bins="log",
                    gridsize=50)
@@ -116,13 +116,13 @@ def plot_summed_overlap(nsim0):
         plt.tight_layout()
 
         for ext in ["png", "pdf"]:
-            fout = join(utils.fout, f"overlap_std_{nsim0}.{ext}")
+            fout = join(plt_utils.fout, f"overlap_std_{nsim0}.{ext}")
             print(f"Saving to `{fout}`.")
-            plt.savefig(fout, dpi=utils.dpi, bbox_inches="tight")
+            plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
 
     # 1 - mean summed overlap vs mean prob nomatch
-    with plt.style.context(utils.mplstyle):
+    with plt.style.context(plt_utils.mplstyle):
         plt.figure()
         plt.scatter(1 - mean_overlap, mean_prob_nomatch, c=numpy.log10(x), s=2,
                     rasterized=True)
@@ -136,9 +136,9 @@ def plot_summed_overlap(nsim0):
         plt.tight_layout()
 
         for ext in ["png", "pdf"]:
-            fout = join(utils.fout, f"overlap_vs_prob_nomatch_{nsim0}.{ext}")
+            fout = join(plt_utils.fout, f"overlap_vs_prob_nomatch_{nsim0}.{ext}")
             print(f"Saving to `{fout}`.")
-            plt.savefig(fout, dpi=utils.dpi, bbox_inches="tight")
+            plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
 
 
@@ -153,8 +153,8 @@ def read_dist(simname, run, kind, kwargs):
     reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
 
     fpath = paths.cross_nearest(simname, run, "tot_counts", nsim=0, nobs=0)
-    counts = numpy.load(fpath)["counts"]
-    return reader.build_dist(counts, kind, verbose=True)
+    counts = numpy.load(fpath)["tot_counts"]
+    return reader.build_dist(counts, kind)
 
 
 @cache_to_disk(7)
@@ -191,7 +191,7 @@ def plot_dist(run, kind, kwargs, r200=None):
     y_csiborg = read_dist("csiborg", run, kind, kwargs)
     ncdf = y_csiborg.shape[0]
 
-    with plt.style.context(utils.mplstyle):
+    with plt.style.context(plt_utils.mplstyle):
         plt.figure()
         for i in range(ncdf):
             if i == 0:
@@ -215,9 +215,9 @@ def plot_dist(run, kind, kwargs, r200=None):
         plt.legend()
         plt.tight_layout()
         for ext in ["png"]:
-            fout = join(utils.fout, f"1nn_{kind}_{run}.{ext}")
+            fout = join(plt_utils.fout, f"1nn_{kind}_{run}.{ext}")
             print(f"Saving to `{fout}`.")
-            plt.savefig(fout, dpi=utils.dpi, bbox_inches="tight")
+            plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
 
 
@@ -230,11 +230,11 @@ def plot_cdf_diff(run, kwargs):
     reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
     x = reader.bin_centres("neighbour")
 
-    with plt.style.context(utils.mplstyle):
+    with plt.style.context(plt_utils.mplstyle):
         cols = plt.rcParams["axes.prop_cycle"].by_key()["color"]
         plt.figure()
 
-        runs = ["mass001", "mass002", "mass003"]
+        runs = ["mass009"]
 
         for i, run in enumerate(runs):
             y_quijote = read_dist("quijote", run, "cdf", kwargs)
@@ -249,9 +249,9 @@ def plot_cdf_diff(run, kwargs):
         # plt.legend()
         plt.tight_layout()
         for ext in ["png"]:
-            fout = join(utils.fout, f"1nn_diff_{run}.{ext}")
+            fout = join(plt_utils.fout, f"1nn_diff_{run}.{ext}")
             print(f"Saving to `{fout}`.")
-            plt.savefig(fout, dpi=utils.dpi, bbox_inches="tight")
+            plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
 
 
@@ -266,7 +266,7 @@ def plot_significance_hist(simname, run, nsim, nobs, kind, kwargs):
         x = numpy.log10(x)
     x = x[numpy.isfinite(x)]
 
-    with plt.style.context(utils.mplstyle):
+    with plt.style.context(plt_utils.mplstyle):
         plt.figure()
         plt.hist(x, bins="auto")
 
@@ -280,9 +280,9 @@ def plot_significance_hist(simname, run, nsim, nobs, kind, kwargs):
         for ext in ["png"]:
             if simname == "quijote":
                 nsim = paths.quijote_fiducial_nsim(nsim, nobs)
-            fout = join(utils.fout, f"significance_{kind}_{simname}_{run}_{str(nsim).zfill(5)}.{ext}")  # noqa
+            fout = join(plt_utils.fout, f"significance_{kind}_{simname}_{run}_{str(nsim).zfill(5)}.{ext}")  # noqa
             print(f"Saving to `{fout}`.")
-            plt.savefig(fout, dpi=utils.dpi, bbox_inches="tight")
+            plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
 
 
@@ -300,7 +300,7 @@ def plot_significance_mass(simname, run, nsim, nobs, kind, kwargs):
     else:
         y = make_ks(simname, run, nsim, nobs, kwargs)
 
-    with plt.style.context(utils.mplstyle):
+    with plt.style.context(plt_utils.mplstyle):
         plt.figure()
         plt.scatter(x, y)
 
@@ -316,9 +316,9 @@ def plot_significance_mass(simname, run, nsim, nobs, kind, kwargs):
         for ext in ["png"]:
             if simname == "quijote":
                 nsim = paths.quijote_fiducial_nsim(nsim, nobs)
-            fout = join(utils.fout, f"significance_vs_mass_{kind}_{simname}_{run}_{str(nsim).zfill(5)}.{ext}")  # noqa
+            fout = join(plt_utils.fout, f"significance_vs_mass_{kind}_{simname}_{run}_{str(nsim).zfill(5)}.{ext}")  # noqa
             print(f"Saving to `{fout}`.")
-            plt.savefig(fout, dpi=utils.dpi, bbox_inches="tight")
+            plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
 
 
@@ -333,7 +333,7 @@ def plot_kl_vs_ks(simname, run, nsim, nobs, kwargs):
     y_kl = make_kl(simname, run, nsim, nobs, kwargs)
     y_ks = make_ks(simname, run, nsim, nobs, kwargs)
 
-    with plt.style.context(utils.mplstyle):
+    with plt.style.context(plt_utils.mplstyle):
         plt.figure()
         plt.scatter(y_kl, y_ks, c=numpy.log10(x))
         plt.colorbar(label=r"$\log M_{\rm tot} / M_\odot$")
@@ -346,9 +346,9 @@ def plot_kl_vs_ks(simname, run, nsim, nobs, kwargs):
         for ext in ["png"]:
             if simname == "quijote":
                 nsim = paths.quijote_fiducial_nsim(nsim, nobs)
-            fout = join(utils.fout, f"kl_vs_ks{simname}_{run}_{str(nsim).zfill(5)}.{ext}")  # noqa
+            fout = join(plt_utils.fout, f"kl_vs_ks{simname}_{run}_{str(nsim).zfill(5)}.{ext}")  # noqa
             print(f"Saving to `{fout}`.")
-            plt.savefig(fout, dpi=utils.dpi, bbox_inches="tight")
+            plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
 
 
@@ -373,7 +373,7 @@ def plot_kl_vs_overlap(run, nsim, kwargs):
 
     kl = make_kl("csiborg", run, nsim, nobs=None, kwargs=kwargs)
 
-    with plt.style.context(utils.mplstyle):
+    with plt.style.context(plt_utils.mplstyle):
         plt.figure()
         mu = numpy.mean(prob_nomatch, axis=1)
         plt.scatter(kl, 1 - mu, c=numpy.log10(mass))
@@ -383,12 +383,12 @@ def plot_kl_vs_overlap(run, nsim, kwargs):
 
         plt.tight_layout()
         for ext in ["png"]:
-            fout = join(utils.fout, f"kl_vs_overlap_mean_{run}_{str(nsim).zfill(5)}.{ext}")  # noqa
+            fout = join(plt_utils.fout, f"kl_vs_overlap_mean_{run}_{str(nsim).zfill(5)}.{ext}")  # noqa
             print(f"Saving to `{fout}`.")
-            plt.savefig(fout, dpi=utils.dpi, bbox_inches="tight")
+            plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
 
-    with plt.style.context(utils.mplstyle):
+    with plt.style.context(plt_utils.mplstyle):
         plt.figure()
         std = numpy.std(prob_nomatch, axis=1)
         plt.scatter(kl, std, c=numpy.log10(mass))
@@ -398,9 +398,9 @@ def plot_kl_vs_overlap(run, nsim, kwargs):
 
         plt.tight_layout()
         for ext in ["png"]:
-            fout = join(utils.fout, f"kl_vs_overlap_std_{run}_{str(nsim).zfill(5)}.{ext}")  # noqa
+            fout = join(plt_utils.fout, f"kl_vs_overlap_std_{run}_{str(nsim).zfill(5)}.{ext}")  # noqa
             print(f"Saving to `{fout}`.")
-            plt.savefig(fout, dpi=utils.dpi, bbox_inches="tight")
+            plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
 
 
@@ -413,6 +413,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument('-c', '--clean', action='store_true')
     args = parser.parse_args()
+    neighbour_kwargs = csiborgtools.neighbour_kwargs
 
     cached_funcs = ["get_overlap", "read_dist", "make_kl", "make_ks"]
     if args.clean:
@@ -420,21 +421,21 @@ if __name__ == "__main__":
             print(f"Cleaning cache for function {func}.")
             delete_disk_caches_for_function(func)
 
-    neighbour_kwargs = {"rmax_radial": 155 / 0.705,
-                        "nbins_radial": 50,
-                        "rmax_neighbour": 100.,
-                        "nbins_neighbour": 150,
-                        "paths_kind": csiborgtools.paths_glamdring}
-    run = "mass001"
+    run = "mass009"
 
-    # plot_dist(run, "pdf", neighbour_kwargs)
-    plot_cdf_diff(run, neighbour_kwargs)
+    # plot_dist(run, "cdf", neighbour_kwargs)
+    # plot_cdf_diff(run, neighbour_kwargs)
 
-    quit()
+    # plot_significance_hist("csiborg", run, 7444, nobs=None, kind="ks",
+    #                        kwargs=neighbour_kwargs)
+    # plot_significance_mass("csiborg", run, 7444, nobs=None, kind="ks",
+    #                        kwargs=neighbour_kwargs)
 
-    paths = csiborgtools.read.Paths(**neighbour_kwargs["paths_kind"])
-    nn_reader = csiborgtools.read.NearestNeighbourReader(**neighbour_kwargs,
-                                                         paths=paths)
+    # quit()
+
+    # paths = csiborgtools.read.Paths(**neighbour_kwargs["paths_kind"])
+    # nn_reader = csiborgtools.read.NearestNeighbourReader(**neighbour_kwargs,
+    #                                                      paths=paths)
 
     # sizes = numpy.full(2700, numpy.nan)
     # from tqdm import trange

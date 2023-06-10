@@ -21,7 +21,7 @@ import numpy
 import healpy
 
 import scienceplots  # noqa
-import utils
+import plt_utils
 from cache_to_disk import cache_to_disk, delete_disk_caches_for_function  # noqa
 from tqdm import tqdm
 
@@ -54,7 +54,7 @@ def plot_mass_vs_ncells(nsim, pdf=False):
     cat = open_csiborg(nsim)
     mpart = 4.38304044e+09
 
-    with plt.style.context(utils.mplstyle):
+    with plt.style.context(plt_utils.mplstyle):
         plt.figure()
         plt.scatter(cat["totpartmass"], cat["lagpatch_ncells"], s=0.25,
                     rasterized=True)
@@ -66,9 +66,9 @@ def plot_mass_vs_ncells(nsim, pdf=False):
         plt.ylabel(r"$N_{\rm cells}$")
 
         for ext in ["png"] if pdf is False else ["png", "pdf"]:
-            fout = join(utils.fout, f"init_mass_vs_ncells_{nsim}.{ext}")
+            fout = join(plt_utils.fout, f"init_mass_vs_ncells_{nsim}.{ext}")
             print(f"Saving to `{fout}`.")
-            plt.savefig(fout, dpi=utils.dpi, bbox_inches="tight")
+            plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
 
 
@@ -119,7 +119,7 @@ def plot_hmf(pdf=False):
     csiborg_counts[:, x > 4e15] = numpy.nan
     quijote_counts[:, x > 4e15] = numpy.nan
 
-    with plt.style.context(utils.mplstyle):
+    with plt.style.context(plt_utils.mplstyle):
         cols = plt.rcParams["axes.prop_cycle"].by_key()["color"]
         fig, ax = plt.subplots(nrows=2, sharex=True,
                                figsize=(3.5, 2.625 * 1.25),
@@ -156,9 +156,9 @@ def plot_hmf(pdf=False):
 
         fig.tight_layout(h_pad=0, w_pad=0)
         for ext in ["png"] if pdf is False else ["png", "pdf"]:
-            fout = join(utils.fout, f"hmf_comparison.{ext}")
+            fout = join(plt_utils.fout, f"hmf_comparison.{ext}")
             print(f"Saving to `{fout}`.")
-            fig.savefig(fout, dpi=utils.dpi, bbox_inches="tight")
+            fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
 
 
@@ -197,7 +197,7 @@ def plot_projected_field(kind, nsim, grid, in_rsp, MAS="PCS",
         field = field[start:end, start:end, start:end]
 
     labels = [r"$y-z$", r"$x-z$", r"$x-y$"]
-    with plt.style.context(utils.mplstyle):
+    with plt.style.context(plt_utils.mplstyle):
         fig, ax = plt.subplots(figsize=(3.5 * 2, 2.625), ncols=3, sharey=True,
                                sharex=True)
         fig.subplots_adjust(hspace=0, wspace=0)
@@ -216,9 +216,9 @@ def plot_projected_field(kind, nsim, grid, in_rsp, MAS="PCS",
 
         fig.tight_layout(h_pad=0, w_pad=0)
         for ext in ["png"] if pdf is False else ["png", "pdf"]:
-            fout = join(utils.fout, f"field_{kind}_{nsim}_rsp{in_rsp}.{ext}")
+            fout = join(plt_utils.fout, f"field_{kind}_{nsim}_rsp{in_rsp}.{ext}")
             print(f"Saving to `{fout}`.")
-            fig.savefig(fout, dpi=utils.dpi, bbox_inches="tight")
+            fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
 
 ###############################################################################
@@ -274,7 +274,7 @@ def plot_sky_distribution(kind, nsim, grid, nside, MAS="PCS", plot_groups=True,
     out = csiborgtools.field.make_sky(field, angpos=angpos, dist=dist, box=box,
                                       volume_weight=volume_weight)
 
-    with plt.style.context(utils.mplstyle):
+    with plt.style.context(plt_utils.mplstyle):
         label = get_sky_label(kind, volume_weight)
         if kind in ["density", "overdensity"]:
             out = numpy.log10(out)
@@ -299,9 +299,9 @@ def plot_sky_distribution(kind, nsim, grid, nside, MAS="PCS", plot_groups=True,
             plt.legend(markerscale=10)
 
         for ext in ["png"] if pdf is False else ["png", "pdf"]:
-            fout = join(utils.fout, f"sky_{kind}_{nsim}_from_{dmin}_to_{dmax}_vol{volume_weight}.{ext}")  # noqa
+            fout = join(plt_utils.fout, f"sky_{kind}_{nsim}_from_{dmin}_to_{dmax}_vol{volume_weight}.{ext}")  # noqa
             print(f"Saving to `{fout}`.")
-            plt.savefig(fout, dpi=utils.dpi, bbox_inches="tight")
+            plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
 
 
