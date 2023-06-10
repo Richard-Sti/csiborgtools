@@ -15,10 +15,13 @@
 Script to find the nearest neighbour of each halo in a given halo catalogue
 from the remaining catalogues in the suite (CSIBORG or Quijote). The script is
 MPI parallelized over the reference simulations.
+
+Deletes the Quijote temporary files.
 """
 from argparse import ArgumentParser
 from datetime import datetime
 from distutils.util import strtobool
+from os import remove
 
 import numpy
 import yaml
@@ -113,6 +116,9 @@ def collect_dist(args, paths):
             out = data["out"]
         else:
             out += data["out"]
+
+        if args.simname == "quijote":
+            remove(fname)
 
     fout = paths.cross_nearest(args.simname, args.run, "tot_counts",
                                nsim=0, nobs=0)
