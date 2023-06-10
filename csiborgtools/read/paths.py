@@ -410,7 +410,7 @@ class Paths:
         fname = f"halo_counts_{simname}_{str(nsim).zfill(5)}.npz"
         return join(fdir, fname)
 
-    def cross_nearest(self, simname, run, nsim=None, nobs=None):
+    def cross_nearest(self, simname, run, kind, nsim=None, nobs=None):
         """
         Path to the files containing distance from a halo in a reference
         simulation to the nearest halo from a cross simulation.
@@ -421,6 +421,9 @@ class Paths:
             Simulation name. Must be one of: `csiborg`, `quijote`.
         run : str
             Run name.
+        kind : str
+            Whether raw distances or counts in bins. Must be one of `dist` or
+            `bin_dist`.
         nsim : int, optional
             IC realisation index.
         nobs : int, optional
@@ -431,6 +434,7 @@ class Paths:
         path : str
         """
         assert simname in ["csiborg", "quijote"]
+        assert kind in ["dist", "bin_dist"]
         fdir = join(self.postdir, "nearest_neighbour")
         if not isdir(fdir):
             makedirs(fdir)
@@ -440,9 +444,9 @@ class Paths:
                 nsim = str(nsim).zfill(5)
             else:
                 nsim = self.quijote_fiducial_nsim(nsim, nobs)
-            return join(fdir, f"{simname}_nn_{nsim}_{run}.npz")
+            return join(fdir, f"{simname}_nn_{kind}_{nsim}_{run}.npz")
 
-        files = glob(join(fdir, f"{simname}_nn_*"))
+        files = glob(join(fdir, f"{simname}_nn_{kind}_*"))
         run = "_" + run
         return [f for f in files if run in f]
 
