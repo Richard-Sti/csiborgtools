@@ -24,6 +24,7 @@ import numpy
 import yaml
 from mpi4py import MPI
 from taskmaster import work_delegation
+from tqdm import trange
 
 from utils import neighbour_kwargs, open_catalogues
 
@@ -61,41 +62,63 @@ def find_neighbour(args, nsim, cats, paths, comm, save_kind):
     None
     """
     assert save_kind in ["dist", "bin_dist"]
-    ndist, __ = csiborgtools.match.find_neighbour(nsim, cats)
-
+    ndist, cross_hindxs = csiborgtools.match.find_neighbour(nsim, cats)
     mass_key = "totpartmass" if args.simname == "csiborg" else "group_mass"
     cat0 = cats[nsim]
-    mass = cat0[mass_key]
-    rdist = cat0.radial_distance(in_initial=False).astype(numpy.float32)
+    rdist = cat0.radial_distance(in_initial=False)
 
-    # TODO WORK HERE
-
-
-    out = {"ndist": ndist,
-           "mass": mass,
+    out = {"mass": cat0[mass_key],
            "ref_hindxs": cat0["index"],
            "rdist": rdist}
-
-    if save_kind == "dist":
-        out.update({"ndist": ndist,
-               "mass": mass,
-               "ref_hindxs": cat0["index"],
-               rdist: "rdist"})
-
+    # By default we already save the binned counts too.
     reader = csiborgtools.read.NearestNeighbourReader(**neighbour_kwargs)
     out = numpy.zeros((reader.nbins_radial, reader.nbins_neighbour),
                       dtype=numpy.float32)
     reader.count_neighbour(out, ndist, rdist)
+    out.update({"counts": out})
 
-
+    if save_kind == "dist":
+        out.update({"ndist": ndist,
+                    "cross_hindxs": cross_hindxs})
 
     fout = paths.cross_nearest(args.simname, args.run, save_kind, nsim)
-
-
     if args.verbose:
         print(f"Rank {comm.Get_rank()} writing to `{fout}`.", flush=True)
-    numpy.savez(fout, ndist=ndist, mass=mass, ref_hindxs=cat0["index"],
-                rdist=rdist)
+    numpy.savez(fout, **out)
+
+
+def collect_dist(args, paths):
+    """
+    Collect the binned nearest neighbour distances into a single file.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Command line arguments.
+    paths : csiborgtools.paths.Paths
+        Paths object.
+
+    Returns
+    -------
+    """
+    fnames = paths.cross_nearest(args.simname, args.run, "bin_dist")
+
+    if args.verbose:
+        print("Collecting counts into a single file.", flush=True)
+
+    for i in trange(len(fnames)) if args.verbose else range(len(fnames)):
+        fname = fnames[i]
+        data = numpy.load(fname)
+        if i == 0:
+            out = data["out"]
+        else:
+            out += data["out"]
+
+    fout = paths.cross_nearest(args.simname, args.run, "tot_counts",
+                               nsim=0, nobs=0)
+    if args.verbose:
+        print(f"Writing to summed counts to `{fout}`.", flush=True)
+    numpy.savez(fout, tot_counts=out)
 
 
 if __name__ == "__main__":
@@ -113,7 +136,13 @@ if __name__ == "__main__":
     with open("./match_finsnap.yml", "r") as file:
         config = yaml.safe_load(file)
 
+    if args.simname == "csiborg":
+        save_kind = "dist"
+    else:
+        save_kind = "bin_dist"
+
     comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     cats = open_catalogues(args, config, paths, comm)
 
@@ -124,5 +153,6 @@ if __name__ == "__main__":
                     master_verbose=args.verbose)
 
     comm.Barrier()
-    if comm.Get_rank() == 0:
+    if rank == 0:
+        collect_dist(args, paths)
         print(f"{datetime.now()}: all finished. Quitting.")
