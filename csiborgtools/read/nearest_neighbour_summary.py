@@ -205,7 +205,7 @@ class NearestNeighbourReader:
             Archive with keys `ndist`, `rdist`, `mass`, `cross_hindxs``
         """
         assert simname in ["csiborg", "quijote"]
-        fpath = self.paths.cross_nearest(simname, run, nsim, nobs)
+        fpath = self.paths.cross_nearest(simname, run, "dist", nsim, nobs)
         return numpy.load(fpath)
 
     def count_neighbour(self, out, ndist, rdist):
