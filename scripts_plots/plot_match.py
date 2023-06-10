@@ -136,7 +136,8 @@ def plot_summed_overlap(nsim0):
         plt.tight_layout()
 
         for ext in ["png", "pdf"]:
-            fout = join(plt_utils.fout, f"overlap_vs_prob_nomatch_{nsim0}.{ext}")
+            fout = join(plt_utils.fout,
+                        f"overlap_vs_prob_nomatch_{nsim0}.{ext}")
             print(f"Saving to `{fout}`.")
             plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
