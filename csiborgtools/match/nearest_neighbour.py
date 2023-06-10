@@ -40,7 +40,7 @@ def find_neighbour(nsim0, cats):
     cat0 = cats[nsim0]
     X = cat0.position(in_initial=False)
     shape = (X.shape[0], len(cats) - 1)
-    dists = numpy.full(shape, numpy.nan, dtype=numpy.float16)
+    dists = numpy.full(shape, numpy.nan, dtype=numpy.float32)
     cross_hindxs = numpy.full(shape, numpy.nan, dtype=numpy.int32)
 
     i = 0
