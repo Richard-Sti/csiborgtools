@@ -16,7 +16,6 @@
 from argparse import ArgumentParser
 from os.path import join
 
-import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy
 import scienceplots  # noqa
@@ -24,7 +23,6 @@ from cache_to_disk import cache_to_disk, delete_disk_caches_for_function
 from tqdm import tqdm
 
 import plt_utils
-from inv_pit import InversePIT
 
 try:
     import csiborgtools
@@ -41,6 +39,15 @@ except ModuleNotFoundError:
 def open_cat(nsim):
     """
     Open a CSiBORG halo catalogue.
+
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+
+    Returns
+    -------
+    cat : csiborgtools.read.HaloCatalogue
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     bounds = {"totpartmass": (1e12, None)}
@@ -52,6 +59,22 @@ def get_overlap(nsim0):
     """
     Calculate the summed overlap and probability of no match for a single
     reference simulation.
+
+    Parameters
+    ----------
+    nsim0 : int
+        Simulation index.
+
+    Returns
+    -------
+    mass : 1-dimensional array
+        Mass of halos in the reference simulation.
+    hindxs : 1-dimensional array
+        Halo indices in the reference simulation.
+    summed_overlap : 1-dimensional array
+        Summed overlap for each halo in the reference simulation.
+    prob_nomatch : 1-dimensional array
+        Probability of no match for each halo in the reference simulation.
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsimxs = csiborgtools.read.get_cross_sims(nsim0, paths, smoothed=True)
@@ -70,10 +93,20 @@ def get_overlap(nsim0):
     return mass, hindxs, summed_overlap, prob_nomatch
 
 
-def plot_summed_overlap(nsim0):
+def plot_summed_overlap_vs_mass(nsim0):
     """
-    Plot the summed overlap and probability of no matching for a single
-    reference simulation as a function of the reference halo mass.
+    Plot the summer overlap of probaiblity of no matching for a single
+    reference simulations as a function of the reference halo mass, along with
+    their comparison.
+
+    Parameters
+    ----------
+    nsim0 : int
+        Simulation index.
+
+    Returns
+    -------
+    None
     """
     x, __, summed_overlap, prob_nomatch = get_overlap(nsim0)
 
@@ -81,7 +114,6 @@ def plot_summed_overlap(nsim0):
     std_overlap = numpy.std(summed_overlap, axis=1)
 
     mean_prob_nomatch = numpy.mean(prob_nomatch, axis=1)
-    # std_prob_nomatch = numpy.std(prob_nomatch, axis=1)
 
     mask = mean_overlap > 0
     x = x[mask]
@@ -150,8 +182,26 @@ def plot_summed_overlap(nsim0):
 ###############################################################################
 
 
-@cache_to_disk(7)
 def read_dist(simname, run, kind, kwargs):
+    """
+    Read PDF/CDF of a nearest neighbour distribution.
+
+    Parameters
+    ----------
+    simname : str
+        Simulation name. Must be either `csiborg` or `quijote`.
+    run : str
+        Run name.
+    kind : str
+        Kind of distribution. Must be either `pdf` or `cdf`.
+    kwargs : dict
+        Nearest neighbour reader keyword arguments.
+
+    Returns
+    -------
+    dist : 2-dimensional array
+        Distribution of distances in radial and neighbour bins.
+    """
     paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
     reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
 
@@ -162,25 +212,72 @@ def read_dist(simname, run, kind, kwargs):
 
 @cache_to_disk(7)
 def make_kl(simname, run, nsim, nobs, kwargs):
+    """
+    Calculate the KL divergence between the distribution of nearest neighbour
+    distances of haloes in a reference simulation with respect to Quijote.
+
+    Parameters
+    ----------
+    simname : str
+        Simulation name. Must be either `csiborg` or `quijote`.
+    run : str
+        Run name.
+    nsim : int
+        Simulation index.
+    nobs : int
+        Fiducial Quijote observer index. For CSiBORG must be set to `None`.
+    kwargs : dict
+        Nearest neighbour reader keyword arguments.
+
+    Returns
+    -------
+    kl : 1-dimensional array
+        KL divergence of the distribution of nearest neighbour distances
+        of each halo in the reference simulation.
+    """
     paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
     reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
-
+    # This is the reference PDF. Must be Quijote!
     pdf = read_dist("quijote", run, "pdf", kwargs)
     return reader.kl_divergence(simname, run, nsim, pdf, nobs=nobs)
 
 
 @cache_to_disk(7)
 def make_ks(simname, run, nsim, nobs, kwargs):
+    """
+    Calculate the KS significance between the distribution of nearest neighbour
+    distances of haloes in a reference simulation with respect to Quijote.
+
+    Parameters
+    ----------
+    simname : str
+        Simulation name. Must be either `csiborg` or `quijote`.
+    run : str
+        Run name.
+    nsim : int
+        Simulation index.
+    nobs : int
+        Fiducial Quijote observer index. For CSiBORG must be set to `None`.
+    kwargs : dict
+        Nearest neighbour reader keyword arguments.
+
+    Returns
+    -------
+    ks : 1-dimensional array
+        KS significance of the distribution of nearest neighbour distances of
+        each halo in the reference simulation.
+    """
     paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
     reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
-
+    # This is the reference CDF. Must be Quijote!
     cdf = read_dist("quijote", run, "cdf", kwargs)
     return reader.ks_significance(simname, run, nsim, cdf, nobs=nobs)
 
 
 def pull_cdf(x, fid_cdf, test_cdf):
     """
-    Pull a CDF so that it matches the fiducial CDF at 0.5.
+    Pull a CDF so that it matches the fiducial CDF at 0.5. Rescales the x-axis,
+    while keeping the corresponding CDF values fixed.
 
     Parameters
     ----------
