@@ -19,10 +19,11 @@ the final snapshot.
 from math import floor
 
 import numpy
-from numba import jit
-from scipy.integrate import quad
+from scipy.integrate import cumulative_trapezoid, quad
 from scipy.interpolate import interp1d
 from scipy.stats import gaussian_kde, kstest
+
+from numba import jit
 from tqdm import tqdm
 
 
@@ -252,7 +253,8 @@ class NearestNeighbourReader:
             dx = neighbour_bin_edges[1] - neighbour_bin_edges[0]
             counts /= numpy.sum(dx * counts, axis=1).reshape(-1, 1)
         else:
-            counts = numpy.cumsum(counts, axis=1, out=counts)
+            x = self.bin_centres("neighbour")
+            counts = cumulative_trapezoid(counts, x, axis=1, initial=0)
             counts /= counts[:, -1].reshape(-1, 1)
         return counts
 
