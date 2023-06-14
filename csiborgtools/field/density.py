@@ -14,9 +14,6 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 Density field and cross-correlation calculations.
-
-TODO:
-    - [ ] Project the velocity field along the line of sight.
 """
 from abc import ABC
 

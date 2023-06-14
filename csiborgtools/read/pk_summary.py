@@ -36,7 +36,7 @@ class PKReader:
         Output precision. By default `numpy.float32`.
     """
     def __init__(self, ics, hw, fskel=None, dtype=numpy.float32):
-        self.ics= ics
+        self.ics = ics
         self.hw = hw
         if fskel is None:
             fskel = "/mnt/extraspace/rstiskalek/csiborg/crosspk/out_{}_{}_{}.p"
