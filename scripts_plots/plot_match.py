@@ -16,6 +16,7 @@
 from argparse import ArgumentParser
 from os.path import join
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy
 import scienceplots  # noqa
@@ -23,6 +24,7 @@ from cache_to_disk import cache_to_disk, delete_disk_caches_for_function
 from tqdm import tqdm
 
 import plt_utils
+from inv_pit import InversePIT
 
 try:
     import csiborgtools
@@ -136,7 +138,8 @@ def plot_summed_overlap(nsim0):
         plt.tight_layout()
 
         for ext in ["png", "pdf"]:
-            fout = join(plt_utils.fout, f"overlap_vs_prob_nomatch_{nsim0}.{ext}")
+            fout = join(plt_utils.fout,
+                        f"overlap_vs_prob_nomatch_{nsim0}.{ext}")
             print(f"Saving to `{fout}`.")
             plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
@@ -175,7 +178,31 @@ def make_ks(simname, run, nsim, nobs, kwargs):
     return reader.ks_significance(simname, run, nsim, cdf, nobs=nobs)
 
 
-def plot_dist(run, kind, kwargs, r200=None):
+def pull_cdf(x, fid_cdf, test_cdf):
+    """
+    Pull a CDF so that it matches the fiducial CDF at 0.5.
+
+    Parameters
+    ----------
+    x : 1-dimensional array
+        The x-axis of the CDF.
+    fid_cdf : 1-dimensional array
+        The fiducial CDF.
+    test_cdf : 1-dimensional array
+        The test CDF to be pulled.
+
+    Returns
+    -------
+    xnew : 1-dimensional array
+        The new x-axis of the test CDF.
+    test_cdf : 1-dimensional array
+        The new test CDF.
+    """
+    xnew = x * numpy.interp(0.5, fid_cdf, x) / numpy.interp(0.5, test_cdf, x)
+    return xnew, test_cdf
+
+
+def plot_dist(run, kind, kwargs, pulled_cdf=False, r200=None):
     """
     Plot the PDF/CDF of the nearest neighbour distance for Quijote and CSiBORG.
     """
@@ -189,20 +216,26 @@ def plot_dist(run, kind, kwargs, r200=None):
 
     y_quijote = read_dist("quijote", run, kind, kwargs)
     y_csiborg = read_dist("csiborg", run, kind, kwargs)
-    ncdf = y_csiborg.shape[0]
 
     with plt.style.context(plt_utils.mplstyle):
         plt.figure()
-        for i in range(ncdf):
+        for i in range(y_csiborg.shape[0]):
             if i == 0:
                 label1 = "Quijote"
                 label2 = "CSiBORG"
             else:
                 label1 = None
                 label2 = None
-            plt.plot(x, y_quijote[i], c="C0", label=label1)
-            plt.plot(x, y_csiborg[i], c="C1", label=label2)
-        plt.xlim(0, 75)
+
+            if not pulled_cdf:
+                plt.plot(x, y_quijote[i], c="C0", label=label1)
+                plt.plot(x, y_csiborg[i], c="C1", label=label2)
+            else:
+                plt.plot(*pull_cdf(x, y_quijote[0], y_quijote[i]), c="C0",
+                         label=label1)
+                plt.plot(*pull_cdf(x, y_csiborg[0], y_csiborg[i]), c="C1",
+                         label=label2)
+
         if r200 is None:
             plt.xlabel(r"$r_{1\mathrm{NN}}~[\mathrm{Mpc}]$")
         else:
@@ -211,17 +244,38 @@ def plot_dist(run, kind, kwargs, r200=None):
             plt.ylabel(r"$p(r_{1\mathrm{NN}})$")
         else:
             plt.ylabel(r"$\mathrm{CDF}(r_{1\mathrm{NN}})$")
+            xmax = numpy.min(x[numpy.isclose(y_quijote[-1, :], 1.)])
+            if xmax > 0:
+                plt.xlim(0, xmax)
             plt.ylim(0, 1)
         plt.legend()
         plt.tight_layout()
         for ext in ["png"]:
-            fout = join(plt_utils.fout, f"1nn_{kind}_{run}.{ext}")
+            if pulled_cdf:
+                fout = join(plt_utils.fout, f"1nn_{kind}_{run}_pulled.{ext}")
+            else:
+                fout = join(plt_utils.fout, f"1nn_{kind}_{run}.{ext}")
             print(f"Saving to `{fout}`.")
             plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
 
 
-def plot_cdf_diff(run, kwargs):
+def get_cdf_diff(x, y_csiborg, y_quijote):
+    y_quijote = read_dist("quijote", run, "cdf", kwargs)
+    y_csiborg = read_dist("csiborg", run, "cdf", kwargs)
+    ncdf = y_csiborg.shape[0]
+    for j in range(ncdf):
+        if pulled_cdf:
+            x1, y1 = pull_cdf(x, y_csiborg[0], y_csiborg[j])
+            y1 = numpy.interp(x, x1, y1, left=0., right=1.)
+            x2, y2 = pull_cdf(x, y_quijote[0], y_quijote[j])
+            y2 = numpy.interp(x, x2, y2, left=0., right=1.)
+        else:
+            y1 = y_csiborg[j]
+            y2 = y_quijote[j]
+
+
+def plot_cdf_diff(run, kwargs, pulled_cdf=False,):
     """
     Plot the CDF difference between Quijote and CSiBORG.
     """
@@ -231,25 +285,35 @@ def plot_cdf_diff(run, kwargs):
     x = reader.bin_centres("neighbour")
 
     with plt.style.context(plt_utils.mplstyle):
-        cols = plt.rcParams["axes.prop_cycle"].by_key()["color"]
         plt.figure()
 
-        runs = ["mass009"]
+        runs = ["mass001"]
 
         for i, run in enumerate(runs):
             y_quijote = read_dist("quijote", run, "cdf", kwargs)
             y_csiborg = read_dist("csiborg", run, "cdf", kwargs)
             ncdf = y_csiborg.shape[0]
             for j in range(ncdf):
-                plt.plot(x, y_csiborg[j] - y_quijote[j], c=cols[i])
-        plt.xlim(0, 50)
+                if pulled_cdf:
+                    x1, y1 = pull_cdf(x, y_csiborg[0], y_csiborg[j])
+                    y1 = numpy.interp(x, x1, y1, left=0., right=1.)
+                    x2, y2 = pull_cdf(x, y_quijote[0], y_quijote[j])
+                    y2 = numpy.interp(x, x2, y2, left=0., right=1.)
+                else:
+                    y1 = y_csiborg[j]
+                    y2 = y_quijote[j]
+                plt.plot(x, y1 - y2, c="C0")
+        plt.xlim(0, 30)
         plt.xlabel(r"$r_{1\mathrm{NN}}~[\mathrm{Mpc}]$")
-        plt.ylabel(r"$\mathrm{CDF}(r_{1\mathrm{NN}})$")
+        plt.ylabel(r"$\Delta \mathrm{CDF}(r_{1\mathrm{NN}})$")
         plt.ylim(0)
         # plt.legend()
         plt.tight_layout()
         for ext in ["png"]:
-            fout = join(plt_utils.fout, f"1nn_diff_{run}.{ext}")
+            if pulled_cdf:
+                fout = join(plt_utils.fout, f"1nn_diff_{run}_pulled.{ext}")
+            else:
+                fout = join(plt_utils.fout, f"1nn_diff_{run}.{ext}")
             print(f"Saving to `{fout}`.")
             plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
@@ -421,10 +485,11 @@ if __name__ == "__main__":
             print(f"Cleaning cache for function {func}.")
             delete_disk_caches_for_function(func)
 
-    run = "mass009"
-
-    # plot_dist(run, "cdf", neighbour_kwargs)
-    # plot_cdf_diff(run, neighbour_kwargs)
+    # for i in range(1, 10):
+    #     run = f"mass00{i}"
+    #     plot_dist(run, "cdf", neighbour_kwargs)
+    # plot_dist("mass005", "cdf", neighbour_kwargs, pulled_cdf=True, )
+    plot_cdf_diff("mass009", neighbour_kwargs, pulled_cdf=True)
 
     # plot_significance_hist("csiborg", run, 7444, nobs=None, kind="ks",
     #                        kwargs=neighbour_kwargs)
