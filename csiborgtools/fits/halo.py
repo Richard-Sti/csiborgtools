@@ -58,7 +58,6 @@ class BaseStructure(ABC):
 
     @info.setter
     def info(self, info):
-        # TODO turn this into a structured array and add some checks
         self._info = info
 
     @property
