@@ -38,7 +38,7 @@ except ModuleNotFoundError:
 
 def open_cat(nsim):
     """
-    Open a CSiBORG halo catalogue.
+    Open a CSiBORG halo catalogue. Applies only mass selection.
 
     Parameters
     ----------
@@ -210,6 +210,186 @@ def read_dist(simname, run, kind, kwargs):
     return reader.build_dist(counts, kind)
 
 
+def pull_cdf(x, fid_cdf, test_cdf):
+    """
+    Pull a CDF so that it matches the fiducial CDF at 0.5. Rescales the x-axis,
+    while keeping the corresponding CDF values fixed.
+
+    Parameters
+    ----------
+    x : 1-dimensional array
+        The x-axis of the CDF.
+    fid_cdf : 1-dimensional array
+        The fiducial CDF.
+    test_cdf : 1-dimensional array
+        The test CDF to be pulled.
+
+    Returns
+    -------
+    xnew : 1-dimensional array
+        The new x-axis of the test CDF.
+    test_cdf : 1-dimensional array
+        The new test CDF.
+    """
+    xnew = x * numpy.interp(0.5, fid_cdf, x) / numpy.interp(0.5, test_cdf, x)
+    return xnew, test_cdf
+
+
+def plot_dist(run, kind, kwargs, pulled_cdf=False, r200=None):
+    r"""
+    Plot the PDF or CDF of the nearest neighbour distance for CSiBORG and
+    Quijote.
+
+    Parameters
+    ----------
+    run : str
+        Run name.
+    kind : str
+        Kind of distribution. Must be either `pdf` or `cdf`.
+    kwargs : dict
+        Nearest neighbour reader keyword arguments.
+    pulled_cdf : bool, optional
+        Whether to pull the CDFs of CSiBORG and Quijote so that they match
+        (individually) at 0.5. Default is `False`.
+    r200 : float, optional
+        Halo radial size :math:`R_{200}`. If set, the x-axis will be scaled by
+        it.
+
+    Returns
+    -------
+    None
+    """
+    assert kind in ["pdf", "cdf"]
+    print(f"Plotting the {kind} for {run}...", flush=True)
+    reader = csiborgtools.read.NearestNeighbourReader(
+        **kwargs, paths=csiborgtools.read.Paths(**kwargs["paths_kind"]))
+    r = reader.bin_centres("neighbour")
+    r = r / r200 if r200 is not None else r
+
+    y_csiborg = read_dist("csiborg", run, kind, kwargs)
+    y_quijote = read_dist("quijote", run, kind, kwargs)
+
+    with plt.style.context(plt_utils.mplstyle):
+        plt.figure()
+        # Plot data
+        for i in range(y_csiborg.shape[0]):
+            if pulled_cdf:
+                x1, y1 = pull_cdf(r, y_csiborg[0], y_csiborg[i])
+                x2, y2 = pull_cdf(r, y_quijote[0], y_quijote[i])
+            else:
+                x1, y1 = r, y_csiborg[i]
+                x2, y2 = r, y_quijote[i]
+
+            plt.plot(x1, y1, c="C0", label="CSiBORG" if i == 0 else None)
+            plt.plot(x2, y2, c="C1", label="Quijote" if i == 0 else None)
+        # Plot labels
+        if r200 is None:
+            plt.xlabel(r"$r_{1\mathrm{NN}}~[\mathrm{Mpc}]$")
+        else:
+            plt.xlabel(r"$r_{1\mathrm{NN}} / R_{200c}$")
+        if kind == "pdf":
+            plt.ylabel(r"$p(r_{1\mathrm{NN}})$")
+        else:
+            plt.ylabel(r"$\mathrm{CDF}(r_{1\mathrm{NN}})$")
+            xmax = numpy.min(r[numpy.isclose(y_quijote[-1, :], 1.)])
+            if xmax > 0:
+                plt.xlim(0, xmax)
+            plt.ylim(0, 1)
+
+        plt.legend(fontsize="small")
+        plt.tight_layout()
+        for ext in ["png"]:
+            if pulled_cdf:
+                fout = join(plt_utils.fout, f"1nn_{kind}_{run}_pulled.{ext}")
+            else:
+                fout = join(plt_utils.fout, f"1nn_{kind}_{run}.{ext}")
+            print(f"Saving to `{fout}`.")
+            plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
+        plt.close()
+
+
+def get_cdf_diff(x, y_csiborg, y_quijote, pulled_cdf):
+    """
+    Get difference between the two CDFs as a function of radial distance.
+
+    Parameters
+    ----------
+    x : 1-dimensional array
+        The x-axis of the CDFs.
+    y_csiborg : 2-dimensional array
+        The CDFs of CSiBORG.
+    y_quijote : 2-dimensional array
+        The CDFs of Quijote.
+    pulled_cdf : bool
+        Whether to pull the CDFs of CSiBORG and Quijote.
+
+    Returns
+    -------
+    dy : 2-dimensional array
+        The difference between the two CDFs.
+    """
+    dy = numpy.full_like(y_csiborg, numpy.nan)
+    for i in range(y_csiborg.shape[0]):
+        if pulled_cdf:
+            x1, y1 = pull_cdf(x, y_csiborg[0], y_csiborg[i])
+            y1 = numpy.interp(x, x1, y1, left=0., right=1.)
+            x2, y2 = pull_cdf(x, y_quijote[0], y_quijote[i])
+            y2 = numpy.interp(x, x2, y2, left=0., right=1.)
+            dy[i] = y1 - y2
+        else:
+            dy[i] = y_csiborg[i] - y_quijote[i]
+    return dy
+
+
+def plot_cdf_diff(runs, kwargs, pulled_cdf=False):
+    """
+    Plot the CDF difference between Quijote and CSiBORG.
+
+    Parameters
+    ----------
+    runs : list of str
+        Run names.
+    kwargs : dict
+        Nearest neighbour reader keyword arguments.
+    pulled_cdf : bool, optional
+        Whether to pull the CDFs of CSiBORG and Quijote.
+
+    Returns
+    -------
+    None
+    """
+    print("Plotting the CDF difference...", flush=True)
+    paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
+    reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
+    r = reader.bin_centres("neighbour")
+
+    with plt.style.context(plt_utils.mplstyle):
+        cols = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+
+        plt.figure()
+        for i, run in enumerate(runs):
+            y_quijote = read_dist("quijote", run, "cdf", kwargs)
+            y_csiborg = read_dist("csiborg", run, "cdf", kwargs)
+
+            dy = get_cdf_diff(r, y_csiborg, y_quijote, pulled_cdf)
+            for j in range(y_csiborg.shape[0]):
+                plt.plot(r, dy[j], c=cols[i])
+
+        # Plot labels
+        plt.xlabel(r"$r_{1\mathrm{NN}}~[\mathrm{Mpc}]$")
+        plt.ylabel(r"$\Delta \mathrm{CDF}(r_{1\mathrm{NN}})$")
+
+        plt.tight_layout()
+        for ext in ["png"]:
+            if pulled_cdf:
+                fout = join(plt_utils.fout, f"1nn_diff_pulled.{ext}")
+            else:
+                fout = join(plt_utils.fout, f"1nn_diff.{ext}")
+            print(f"Saving to `{fout}`.")
+            plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
+        plt.close()
+
+
 @cache_to_disk(7)
 def make_kl(simname, run, nsim, nobs, kwargs):
     """
@@ -274,152 +454,31 @@ def make_ks(simname, run, nsim, nobs, kwargs):
     return reader.ks_significance(simname, run, nsim, cdf, nobs=nobs)
 
 
-def pull_cdf(x, fid_cdf, test_cdf):
+def plot_significance_hist(simname, run, nsim, nobs, kind, kwargs):
     """
-    Pull a CDF so that it matches the fiducial CDF at 0.5. Rescales the x-axis,
-    while keeping the corresponding CDF values fixed.
+    Plot a histogram of the significance of the 1NN distance.
 
     Parameters
     ----------
-    x : 1-dimensional array
-        The x-axis of the CDF.
-    fid_cdf : 1-dimensional array
-        The fiducial CDF.
-    test_cdf : 1-dimensional array
-        The test CDF to be pulled.
+    simname : str
+        Simulation name. Must be either `csiborg` or `quijote`.
+    run : str
+        Run name.
+    nsim : int
+        Simulation index.
+    nobs : int
+        Fiducial Quijote observer index. For CSiBORG must be set to `None`.
+    kind : str
+        Must be either `kl` (Kullback-Leibler diverge) or `ks`
+        (Kolmogorov-Smirnov p-value).
+    kwargs : dict
+        Nearest neighbour reader keyword arguments.
 
     Returns
     -------
-    xnew : 1-dimensional array
-        The new x-axis of the test CDF.
-    test_cdf : 1-dimensional array
-        The new test CDF.
+    None
     """
-    xnew = x * numpy.interp(0.5, fid_cdf, x) / numpy.interp(0.5, test_cdf, x)
-    return xnew, test_cdf
-
-
-def plot_dist(run, kind, kwargs, pulled_cdf=False, r200=None):
-    """
-    Plot the PDF/CDF of the nearest neighbour distance for Quijote and CSiBORG.
-    """
-    assert kind in ["pdf", "cdf"]
-    print(f"Plotting the {kind}.", flush=True)
-    paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
-    reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
-    x = reader.bin_centres("neighbour")
-    if r200 is not None:
-        x /= r200
-
-    y_quijote = read_dist("quijote", run, kind, kwargs)
-    y_csiborg = read_dist("csiborg", run, kind, kwargs)
-
-    with plt.style.context(plt_utils.mplstyle):
-        plt.figure()
-        for i in range(y_csiborg.shape[0]):
-            if i == 0:
-                label1 = "Quijote"
-                label2 = "CSiBORG"
-            else:
-                label1 = None
-                label2 = None
-
-            if not pulled_cdf:
-                plt.plot(x, y_quijote[i], c="C0", label=label1)
-                plt.plot(x, y_csiborg[i], c="C1", label=label2)
-            else:
-                plt.plot(*pull_cdf(x, y_quijote[0], y_quijote[i]), c="C0",
-                         label=label1)
-                plt.plot(*pull_cdf(x, y_csiborg[0], y_csiborg[i]), c="C1",
-                         label=label2)
-
-        if r200 is None:
-            plt.xlabel(r"$r_{1\mathrm{NN}}~[\mathrm{Mpc}]$")
-        else:
-            plt.xlabel(r"$r_{1\mathrm{NN}} / R_{200c}$")
-        if kind == "pdf":
-            plt.ylabel(r"$p(r_{1\mathrm{NN}})$")
-        else:
-            plt.ylabel(r"$\mathrm{CDF}(r_{1\mathrm{NN}})$")
-            xmax = numpy.min(x[numpy.isclose(y_quijote[-1, :], 1.)])
-            if xmax > 0:
-                plt.xlim(0, xmax)
-            plt.ylim(0, 1)
-        plt.legend()
-        plt.tight_layout()
-        for ext in ["png"]:
-            if pulled_cdf:
-                fout = join(plt_utils.fout, f"1nn_{kind}_{run}_pulled.{ext}")
-            else:
-                fout = join(plt_utils.fout, f"1nn_{kind}_{run}.{ext}")
-            print(f"Saving to `{fout}`.")
-            plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
-        plt.close()
-
-
-def get_cdf_diff(x, y_csiborg, y_quijote):
-    y_quijote = read_dist("quijote", run, "cdf", kwargs)
-    y_csiborg = read_dist("csiborg", run, "cdf", kwargs)
-    ncdf = y_csiborg.shape[0]
-    for j in range(ncdf):
-        if pulled_cdf:
-            x1, y1 = pull_cdf(x, y_csiborg[0], y_csiborg[j])
-            y1 = numpy.interp(x, x1, y1, left=0., right=1.)
-            x2, y2 = pull_cdf(x, y_quijote[0], y_quijote[j])
-            y2 = numpy.interp(x, x2, y2, left=0., right=1.)
-        else:
-            y1 = y_csiborg[j]
-            y2 = y_quijote[j]
-
-
-def plot_cdf_diff(run, kwargs, pulled_cdf=False,):
-    """
-    Plot the CDF difference between Quijote and CSiBORG.
-    """
-    print("Plotting the CDF difference.", flush=True)
-    paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
-    reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
-    x = reader.bin_centres("neighbour")
-
-    with plt.style.context(plt_utils.mplstyle):
-        plt.figure()
-
-        runs = ["mass001"]
-
-        for i, run in enumerate(runs):
-            y_quijote = read_dist("quijote", run, "cdf", kwargs)
-            y_csiborg = read_dist("csiborg", run, "cdf", kwargs)
-            ncdf = y_csiborg.shape[0]
-            for j in range(ncdf):
-                if pulled_cdf:
-                    x1, y1 = pull_cdf(x, y_csiborg[0], y_csiborg[j])
-                    y1 = numpy.interp(x, x1, y1, left=0., right=1.)
-                    x2, y2 = pull_cdf(x, y_quijote[0], y_quijote[j])
-                    y2 = numpy.interp(x, x2, y2, left=0., right=1.)
-                else:
-                    y1 = y_csiborg[j]
-                    y2 = y_quijote[j]
-                plt.plot(x, y1 - y2, c="C0")
-        plt.xlim(0, 30)
-        plt.xlabel(r"$r_{1\mathrm{NN}}~[\mathrm{Mpc}]$")
-        plt.ylabel(r"$\Delta \mathrm{CDF}(r_{1\mathrm{NN}})$")
-        plt.ylim(0)
-        # plt.legend()
-        plt.tight_layout()
-        for ext in ["png"]:
-            if pulled_cdf:
-                fout = join(plt_utils.fout, f"1nn_diff_{run}_pulled.{ext}")
-            else:
-                fout = join(plt_utils.fout, f"1nn_diff_{run}.{ext}")
-            print(f"Saving to `{fout}`.")
-            plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
-        plt.close()
-
-
-def plot_significance_hist(simname, run, nsim, nobs, kind, kwargs):
-    """Plot a histogram of the significance of the 1NN distance."""
     assert kind in ["kl", "ks"]
-    paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
     if kind == "kl":
         x = make_kl(simname, run, nsim, nobs, kwargs)
     else:
@@ -436,10 +495,11 @@ def plot_significance_hist(simname, run, nsim, nobs, kind, kwargs):
         else:
             plt.xlabel(r"$D_{\mathrm{KL}}$ of $r_{1\mathrm{NN}}$ distribution")
         plt.ylabel(r"Counts")
-        plt.tight_layout()
 
+        plt.tight_layout()
         for ext in ["png"]:
             if simname == "quijote":
+                paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
                 nsim = paths.quijote_fiducial_nsim(nsim, nobs)
             fout = join(plt_utils.fout, f"significance_{kind}_{simname}_{run}_{str(nsim).zfill(5)}.{ext}")  # noqa
             print(f"Saving to `{fout}`.")
@@ -450,25 +510,45 @@ def plot_significance_hist(simname, run, nsim, nobs, kind, kwargs):
 def plot_significance_mass(simname, run, nsim, nobs, kind, kwargs):
     """
     Plot significance of the 1NN distance as a function of the total mass.
+
+    Parameters
+    ----------
+    simname : str
+        Simulation name. Must be either `csiborg` or `quijote`.
+    run : str
+        Run name.
+    nsim : int
+        Simulation index.
+    nobs : int
+        Fiducial Quijote observer index. For CSiBORG must be set to `None`.
+    kind : str
+        Must be either `kl` (Kullback-Leibler diverge) or `ks`
+        (Kolmogorov-Smirnov p-value).
+    kwargs : dict
+        Nearest neighbour reader keyword arguments.
+
+    Returns
+    -------
+    None
     """
     assert kind in ["kl", "ks"]
     paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
     reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
-
     x = reader.read_single(simname, run, nsim, nobs)["mass"]
     if kind == "kl":
         y = make_kl(simname, run, nsim, nobs, kwargs)
     else:
         y = make_ks(simname, run, nsim, nobs, kwargs)
+        y = numpy.log10(y)
 
     with plt.style.context(plt_utils.mplstyle):
         plt.figure()
         plt.scatter(x, y)
 
-        plt.xscale("log")
         plt.xlabel(r"$M_{\rm tot} / M_\odot$")
+        plt.xscale("log")
         if kind == "ks":
-            plt.ylabel(r"$p$-value of $r_{1\mathrm{NN}}$ distribution")
+            plt.ylabel(r"$\log p$-value of $r_{1\mathrm{NN}}$ distribution")
             plt.yscale("log")
         else:
             plt.ylabel(r"$D_{\mathrm{KL}}$ of $r_{1\mathrm{NN}}$ distribution")
@@ -477,7 +557,9 @@ def plot_significance_mass(simname, run, nsim, nobs, kind, kwargs):
         for ext in ["png"]:
             if simname == "quijote":
                 nsim = paths.quijote_fiducial_nsim(nsim, nobs)
-            fout = join(plt_utils.fout, f"significance_vs_mass_{kind}_{simname}_{run}_{str(nsim).zfill(5)}.{ext}")  # noqa
+            fout = (f"significance_vs_mass_{kind}_{simname}_{run}"
+                    + f"_{str(nsim).zfill(5)}.{ext}")
+            fout = join(plt_utils.fout, fout)
             print(f"Saving to `{fout}`.")
             plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
@@ -486,6 +568,23 @@ def plot_significance_mass(simname, run, nsim, nobs, kind, kwargs):
 def plot_kl_vs_ks(simname, run, nsim, nobs, kwargs):
     """
     Plot Kullback-Leibler divergence vs Kolmogorov-Smirnov statistic p-value.
+
+    Parameters
+    ----------
+    simname : str
+        Simulation name. Must be either `csiborg` or `quijote`.
+    run : str
+        Run name.
+    nsim : int
+        Simulation index.
+    nobs : int
+        Fiducial Quijote observer index. For CSiBORG must be set to `None`.
+    kwargs : dict
+        Nearest neighbour reader keyword arguments.
+
+    Returns
+    -------
+    None
     """
     paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
     reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
@@ -496,18 +595,18 @@ def plot_kl_vs_ks(simname, run, nsim, nobs, kwargs):
 
     with plt.style.context(plt_utils.mplstyle):
         plt.figure()
-        plt.scatter(y_kl, y_ks, c=numpy.log10(x))
+        plt.scatter(y_kl, numpy.log10(y_ks), c=numpy.log10(x))
         plt.colorbar(label=r"$\log M_{\rm tot} / M_\odot$")
 
         plt.xlabel(r"$D_{\mathrm{KL}}$ of $r_{1\mathrm{NN}}$ distribution")
-        plt.ylabel(r"$p$-value of $r_{1\mathrm{NN}}$ distribution")
-        plt.yscale("log")
+        plt.ylabel(r"$\log p$-value of $r_{1\mathrm{NN}}$ distribution")
 
         plt.tight_layout()
         for ext in ["png"]:
             if simname == "quijote":
                 nsim = paths.quijote_fiducial_nsim(nsim, nobs)
-            fout = join(plt_utils.fout, f"kl_vs_ks{simname}_{run}_{str(nsim).zfill(5)}.{ext}")  # noqa
+            fout = join(plt_utils.fout,
+                        f"kl_vs_ks{simname}_{run}_{str(nsim).zfill(5)}.{ext}")
             print(f"Saving to `{fout}`.")
             plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
@@ -515,7 +614,20 @@ def plot_kl_vs_ks(simname, run, nsim, nobs, kwargs):
 
 def plot_kl_vs_overlap(run, nsim, kwargs):
     """
-    Plot KL divergence vs overlap.
+    Plot KL divergence vs overlap for CSiBORG.
+
+    Parameters
+    ----------
+    run : str
+        Run name.
+    nsim : int
+        Simulation index.
+    kwargs : dict
+        Nearest neighbour reader keyword arguments.
+
+    Returns
+    -------
+    None
     """
     paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
     nn_reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
@@ -544,7 +656,8 @@ def plot_kl_vs_overlap(run, nsim, kwargs):
 
         plt.tight_layout()
         for ext in ["png"]:
-            fout = join(plt_utils.fout, f"kl_vs_overlap_mean_{run}_{str(nsim).zfill(5)}.{ext}")  # noqa
+            fout = join(plt_utils.fout,
+                        f"kl_vs_overlap_mean_{run}_{str(nsim).zfill(5)}.{ext}")
             print(f"Saving to `{fout}`.")
             plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
@@ -555,11 +668,12 @@ def plot_kl_vs_overlap(run, nsim, kwargs):
         plt.scatter(kl, std, c=numpy.log10(mass))
         plt.colorbar(label=r"$\log M_{\rm tot} / M_\odot$")
         plt.xlabel(r"$D_{\mathrm{KL}}$ of $r_{1\mathrm{NN}}$ distribution")
-        plt.ylabel(r"$\langle \left(\eta^{\mathcal{B}}_a - \langle \eta^{\mathcal{B}^\prime}_a \rangle_{\mathcal{B}^\prime}\right)^2\rangle_{\mathcal{B}}^{1/2}$")  # noqa
+        plt.ylabel(r"Ensemble std of summed overlap")
 
         plt.tight_layout()
         for ext in ["png"]:
-            fout = join(plt_utils.fout, f"kl_vs_overlap_std_{run}_{str(nsim).zfill(5)}.{ext}")  # noqa
+            fout = join(plt_utils.fout,
+                        f"kl_vs_overlap_std_{run}_{str(nsim).zfill(5)}.{ext}")
             print(f"Saving to `{fout}`.")
             plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
@@ -586,31 +700,10 @@ if __name__ == "__main__":
     #     run = f"mass00{i}"
     #     plot_dist(run, "cdf", neighbour_kwargs)
     # plot_dist("mass005", "cdf", neighbour_kwargs, pulled_cdf=True, )
-    plot_cdf_diff("mass009", neighbour_kwargs, pulled_cdf=True)
+    runs = ["mass001", "mass009"]
+    plot_cdf_diff(runs, neighbour_kwargs, pulled_cdf=True)
 
     # plot_significance_hist("csiborg", run, 7444, nobs=None, kind="ks",
     #                        kwargs=neighbour_kwargs)
     # plot_significance_mass("csiborg", run, 7444, nobs=None, kind="ks",
     #                        kwargs=neighbour_kwargs)
-
-    # quit()
-
-    # paths = csiborgtools.read.Paths(**neighbour_kwargs["paths_kind"])
-    # nn_reader = csiborgtools.read.NearestNeighbourReader(**neighbour_kwargs,
-    #                                                      paths=paths)
-
-    # sizes = numpy.full(2700, numpy.nan)
-    # from tqdm import trange
-    # k = 0
-    # for nsim in trange(100):
-    #     for nobs in range(27):
-    #         d = nn_reader.read_single("quijote", run, nsim, nobs)
-    #         sizes[k] = d["mass"].size
-
-    #         k += 1
-    # print(sizes)
-    # print(numpy.mean(sizes), numpy.std(sizes))
-
-    # plot_kl_vs_overlap("mass003", 7444, neighbour_kwargs)
-
-    # plot_cdf_r200("mass003", neighbour_kwargs)

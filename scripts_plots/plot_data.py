@@ -35,7 +35,16 @@ except ModuleNotFoundError:
 
 def open_csiborg(nsim):
     """
-    Open a CSiBORG halo catalogue.
+    Open a CSiBORG halo catalogue. Applies mass and distance selection.
+
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+
+    Returns
+    -------
+    cat : csiborgtools.read.HaloCatalogue
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     bounds = {"totpartmass": (None, None), "dist": (0, 155/0.705)}
@@ -43,6 +52,20 @@ def open_csiborg(nsim):
 
 
 def open_quijote(nsim, nobs=None):
+    """
+    Open a Quijote halo catalogue. Applies mass and distance selection.
+
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+    nobs : int, optional
+        Fiducial observer index.
+
+    Returns
+    -------
+    cat : csiborgtools.read.QuijoteHaloCatalogue
+    """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     cat = csiborgtools.read.QuijoteHaloCatalogue(nsim, paths, nsnap=4)
     if nobs is not None:
@@ -51,6 +74,10 @@ def open_quijote(nsim, nobs=None):
 
 
 def plot_mass_vs_ncells(nsim, pdf=False):
+    """
+    TODO: documentation
+
+    """
     cat = open_csiborg(nsim)
     mpart = 4.38304044e+09
 
@@ -77,13 +104,10 @@ def plot_mass_vs_ncells(nsim, pdf=False):
 ###############################################################################
 
 
-def process_counts(counts):
-    mean = numpy.mean(counts, axis=0)
-    std = numpy.std(counts, axis=0)
-    return mean, std
-
-
 def plot_hmf(pdf=False):
+    """
+    TODO: documentation
+    """
     print("Plotting the HMF...", flush=True)
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 
@@ -126,23 +150,27 @@ def plot_hmf(pdf=False):
                                gridspec_kw={"height_ratios": [1, 0.65]})
         fig.subplots_adjust(hspace=0, wspace=0)
 
-        mean_csiborg, std_csiborg = process_counts(csiborg_counts)
+        # Upper panel data
+        mean_csiborg = numpy.mean(csiborg_counts, axis=0)
+        std_csiborg = numpy.std(csiborg_counts, axis=0)
         ax[0].plot(x, mean_csiborg, label="CSiBORG")
         ax[0].fill_between(x, mean_csiborg - std_csiborg,
                            mean_csiborg + std_csiborg, alpha=0.5)
 
-        mean_quijote, std_quijote = process_counts(quijote_counts)
+        mean_quijote = numpy.mean(quijote_counts, axis=0)
+        std_quijote = numpy.std(quijote_counts, axis=0)
         ax[0].plot(x, mean_quijote, label="Quijote")
         ax[0].fill_between(x, mean_quijote - std_quijote,
                            mean_quijote + std_quijote, alpha=0.5)
-
+        # Lower panel data
         log_y = numpy.log10(mean_csiborg / mean_quijote)
         err = numpy.sqrt((std_csiborg / mean_csiborg / numpy.log(10))**2
                          + (std_quijote / mean_quijote / numpy.log(10))**2)
-
         ax[1].plot(x, 10**log_y, c=cols[2])
         ax[1].fill_between(x, 10**(log_y - err), 10**(log_y + err), alpha=0.5,
                            color=cols[2])
+
+        # Labels and accesories
         ax[1].axhline(1, color="k", ls=plt.rcParams["lines.linestyle"],
                       lw=0.5 * plt.rcParams["lines.linewidth"], zorder=0)
         ax[0].set_ylabel(r"$\frac{\mathrm{d} n}{\mathrm{d}\log M_{\rm h}}~\mathrm{dex}^{-1}$")  # noqa
@@ -162,8 +190,10 @@ def plot_hmf(pdf=False):
         plt.close()
 
 
-@cache_to_disk(7)
 def load_field(kind, nsim, grid, MAS, in_rsp=False):
+    """
+    TODO: documentation
+    """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     return numpy.load(paths.field(kind, MAS, grid, nsim, in_rsp=in_rsp))
 
@@ -175,6 +205,9 @@ def load_field(kind, nsim, grid, MAS, in_rsp=False):
 
 def plot_projected_field(kind, nsim, grid, in_rsp, MAS="PCS",
                          highres_only=True, pdf=False):
+    """
+    TODO documentation
+    """
     print(f"Plotting projected field `{kind}`. ", flush=True)
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsnap = max(paths.get_snapshots(nsim))
@@ -190,10 +223,8 @@ def plot_projected_field(kind, nsim, grid, in_rsp, MAS="PCS",
     if highres_only:
         csiborgtools.field.fill_outside(field, numpy.nan, rmax=155.5,
                                         boxsize=677.7)
-        # start = field.shape[0] // 4
         start = round(field.shape[0] * 0.27)
         end = round(field.shape[0] * 0.73)
-        # end = field.shape[0] - start
         field = field[start:end, start:end, start:end]
 
     labels = [r"$y-z$", r"$x-z$", r"$x-y$"]
@@ -216,7 +247,8 @@ def plot_projected_field(kind, nsim, grid, in_rsp, MAS="PCS",
 
         fig.tight_layout(h_pad=0, w_pad=0)
         for ext in ["png"] if pdf is False else ["png", "pdf"]:
-            fout = join(plt_utils.fout, f"field_{kind}_{nsim}_rsp{in_rsp}.{ext}")
+            fout = join(plt_utils.fout,
+                        f"field_{kind}_{nsim}_rsp{in_rsp}.{ext}")
             print(f"Saving to `{fout}`.")
             fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
@@ -227,6 +259,10 @@ def plot_projected_field(kind, nsim, grid, in_rsp, MAS="PCS",
 
 
 def get_sky_label(kind, volume_weight):
+    """
+    TODO: documentation
+
+    """
     if volume_weight:
         if kind == "density":
             label = r"$\log \int_{0}^{R} r^2 \rho(r, \mathrm{RA}, \mathrm{dec}) \mathrm{d} r$"  # noqa
@@ -256,7 +292,9 @@ def plot_sky_distribution(kind, nsim, grid, nside, MAS="PCS", plot_groups=True,
                           dmin=0, dmax=220, plot_halos=None,
                           volume_weight=True, pdf=False):
     """
-    NOTE: add distance for groups.
+    TODO:
+        - documentation
+        - add distance for groups.
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsnap = max(paths.get_snapshots(nsim))
