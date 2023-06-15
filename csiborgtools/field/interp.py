@@ -260,7 +260,6 @@ def fill_outside(field, fill_value, rmax, boxsize):
     N = imax
     # Squared radial distance from the center of the box in box units.
     rmax_box2 = (N * rmax / boxsize)**2
-    # print("Box ", rmax_box2)
 
     for i in range(N):
         idist2 = (i - 0.5 * (N - 1))**2
@@ -268,7 +267,6 @@ def fill_outside(field, fill_value, rmax, boxsize):
             jdist2 = (j - 0.5 * (N - 1))**2
             for k in range(N):
                 kdist2 = (k - 0.5 * (N - 1))**2
-                # print(idist2 + jdist2 + kdist2 > rmax_box2)
                 if idist2 + jdist2 + kdist2 > rmax_box2:
                     field[i, j, k] = fill_value
     return field
