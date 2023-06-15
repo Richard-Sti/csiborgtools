@@ -677,17 +677,24 @@ def plot_significance_vs_mass(simname, runs, nsim, nobs, kind, kwargs):
     assert kind in ["kl", "ks"]
     paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
     reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
-    x = reader.read_single(simname, run, nsim, nobs)["mass"]
-    if kind == "kl":
-        y = make_kl(simname, run, nsim, nobs, kwargs)
-    else:
-        y = make_ks(simname, run, nsim, nobs, kwargs)
-        y = numpy.log10(y)
 
     with plt.style.context(plt_utils.mplstyle):
         plt.figure()
-        plt.scatter(x, y)
+        for run in runs:
+            x = reader.read_single(simname, run, nsim, nobs)["mass"]
+            ykl = make_kl(simname, run, nsim, nobs, kwargs)
+            yks = numpy.log10(make_ks(simname, run, nsim, nobs, kwargs))
 
+            if kind == "kl":
+                y = ykl
+                c = yks
+            else:
+                y = yks
+                c = ykl
+
+            plt.scatter(x, y, c=c)
+
+        plt.colorbar()
         plt.xlabel(r"$M_{\rm tot} / M_\odot$")
         plt.xscale("log")
         if kind == "ks":
