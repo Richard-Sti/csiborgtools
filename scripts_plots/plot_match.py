@@ -873,12 +873,14 @@ if __name__ == "__main__":
         for pulled_cdf in [True, False]:
             plot_cdf_diff(runs, neighbour_kwargs, pulled_cdf=pulled_cdf,
                           runs_to_mass=runs_to_mass)
-    if True:
+    if False:
         runs = [f"mass00{i}" for i in range(1, 9)]
         for kind in ["kl", "ks"]:
             plot_significance("csiborg", runs, 7444, nobs=None, kind=kind,
                               kwargs=neighbour_kwargs,
                               runs_to_mass=runs_to_mass)
 
-    # plot_significance_mass("csiborg", run, 7444, nobs=None, kind="ks",
-    #                        kwargs=neighbour_kwargs)
+    if True:
+        runs = [f"mass00{i}" for i in range(1, 10)]
+        plot_significance_vs_mass("csiborg", runs, 7444, nobs=None, kind="ks",
+                                  kwargs=neighbour_kwargs)
