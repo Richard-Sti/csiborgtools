@@ -16,6 +16,7 @@
 from argparse import ArgumentParser
 from os.path import join
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy
 import scienceplots  # noqa
@@ -235,7 +236,7 @@ def pull_cdf(x, fid_cdf, test_cdf):
     return xnew, test_cdf
 
 
-def plot_dist(run, kind, kwargs, pulled_cdf=False, r200=None):
+def plot_dist(run, kind, kwargs, runs_to_mass, pulled_cdf=False, r200=None):
     r"""
     Plot the PDF or CDF of the nearest neighbour distance for CSiBORG and
     Quijote.
@@ -248,6 +249,8 @@ def plot_dist(run, kind, kwargs, pulled_cdf=False, r200=None):
         Kind of distribution. Must be either `pdf` or `cdf`.
     kwargs : dict
         Nearest neighbour reader keyword arguments.
+    runs_to_mass : dict
+        Dictionary mapping run names to halo mass range.
     pulled_cdf : bool, optional
         Whether to pull the CDFs of CSiBORG and Quijote so that they match
         (individually) at 0.5. Default is `False`.
@@ -263,6 +266,7 @@ def plot_dist(run, kind, kwargs, pulled_cdf=False, r200=None):
     print(f"Plotting the {kind} for {run}...", flush=True)
     reader = csiborgtools.read.NearestNeighbourReader(
         **kwargs, paths=csiborgtools.read.Paths(**kwargs["paths_kind"]))
+    raddist = reader.bin_centres("radial")
     r = reader.bin_centres("neighbour")
     r = r / r200 if r200 is not None else r
 
@@ -270,9 +274,21 @@ def plot_dist(run, kind, kwargs, pulled_cdf=False, r200=None):
     y_quijote = read_dist("quijote", run, kind, kwargs)
 
     with plt.style.context(plt_utils.mplstyle):
-        plt.figure()
+        norm = mpl.colors.Normalize(vmin=numpy.min(raddist),
+                                    vmax=numpy.max(raddist))
+        cmap = mpl.cm.ScalarMappable(norm=norm, cmap=mpl.cm.viridis)
+        cmap.set_array([])
+
+        fig, ax = plt.subplots()
+        if run != "mass009":
+            ax.set_title(r"${} \leq \log M_{{\rm tot}} / M_\odot < {}$"
+                         .format(*runs_to_mass[run]), fontsize="small")
+        else:
+            ax.set_title(r"$\log M_{{\rm tot}} / M_\odot \geq {}$"
+                         .format(runs_to_mass[run][0]), fontsize="small")
         # Plot data
-        for i in range(y_csiborg.shape[0]):
+        nrad = y_csiborg.shape[0]
+        for i in range(nrad):
             if pulled_cdf:
                 x1, y1 = pull_cdf(r, y_csiborg[0], y_csiborg[i])
                 x2, y2 = pull_cdf(r, y_quijote[0], y_quijote[i])
@@ -280,31 +296,56 @@ def plot_dist(run, kind, kwargs, pulled_cdf=False, r200=None):
                 x1, y1 = r, y_csiborg[i]
                 x2, y2 = r, y_quijote[i]
 
-            plt.plot(x1, y1, c="C0", label="CSiBORG" if i == 0 else None)
-            plt.plot(x2, y2, c="C1", label="Quijote" if i == 0 else None)
+            ax.plot(x1, y1, c=cmap.to_rgba(raddist[i]),
+                    label="CSiBORG" if i == 0 else None)
+            ax.plot(x2, y2, c="gray", ls="--",
+                    label="Quijote" if i == 0 else None)
+
+        fig.colorbar(cmap, ax=ax, label=r"$R_{\rm dist}~[\mathrm{Mpc}]$")
+        ax.grid(alpha=0.5, lw=0.4)
         # Plot labels
-        if r200 is None:
-            plt.xlabel(r"$r_{1\mathrm{NN}}~[\mathrm{Mpc}]$")
+        if pulled_cdf:
+            if r200 is None:
+                ax.set_xlabel(r"$\tilde{r}_{1\mathrm{NN}}~[\mathrm{Mpc}]$")
+                if kind == "pdf":
+                    ax.set_ylabel(r"$p(\tilde{r}_{1\mathrm{NN}})$")
+                else:
+                    ax.set_ylabel(r"$\mathrm{CDF}(\tilde{r}_{1\mathrm{NN}})$")
+            else:
+                ax.set_xlabel(r"$\tilde{r}_{1\mathrm{NN}} / R_{200c}$")
+                if kind == "pdf":
+                    ax.set_ylabel(r"$p(\tilde{r}_{1\mathrm{NN}} / R_{200c})$")
+                else:
+                    ax.set_ylabel(r"$\mathrm{CDF}(\tilde{r}_{1\mathrm{NN}} / R_{200c})$")  # noqa
         else:
-            plt.xlabel(r"$r_{1\mathrm{NN}} / R_{200c}$")
-        if kind == "pdf":
-            plt.ylabel(r"$p(r_{1\mathrm{NN}})$")
-        else:
-            plt.ylabel(r"$\mathrm{CDF}(r_{1\mathrm{NN}})$")
+            if r200 is None:
+                ax.set_xlabel(r"$r_{1\mathrm{NN}}~[\mathrm{Mpc}]$")
+                if kind == "pdf":
+                    ax.set_ylabel(r"$p(r_{1\mathrm{NN}})$")
+                else:
+                    ax.set_ylabel(r"$\mathrm{CDF}(r_{1\mathrm{NN}})$")
+            else:
+                ax.set_xlabel(r"$r_{1\mathrm{NN}} / R_{200c}$")
+                if kind == "pdf":
+                    ax.set_ylabel(r"$p(r_{1\mathrm{NN}} / R_{200c})$")
+                else:
+                    ax.set_ylabel(r"$\mathrm{CDF}(r_{1\mathrm{NN}} / R_{200c})$")  # noqa
+
+        if kind == "cdf":
             xmax = numpy.min(r[numpy.isclose(y_quijote[-1, :], 1.)])
             if xmax > 0:
-                plt.xlim(0, xmax)
-            plt.ylim(0, 1)
+                ax.set_xlim(0, xmax)
+            ax.set_ylim(0, 1)
 
-        plt.legend(fontsize="small")
-        plt.tight_layout()
+        ax.legend(fontsize="small")
+        fig.tight_layout()
         for ext in ["png"]:
             if pulled_cdf:
                 fout = join(plt_utils.fout, f"1nn_{kind}_{run}_pulled.{ext}")
             else:
                 fout = join(plt_utils.fout, f"1nn_{kind}_{run}.{ext}")
             print(f"Saving to `{fout}`.")
-            plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
+            fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
 
 
@@ -341,7 +382,7 @@ def get_cdf_diff(x, y_csiborg, y_quijote, pulled_cdf):
     return dy
 
 
-def plot_cdf_diff(runs, kwargs, pulled_cdf=False):
+def plot_cdf_diff(runs, kwargs, pulled_cdf, runs_to_mass):
     """
     Plot the CDF difference between Quijote and CSiBORG.
 
@@ -351,8 +392,10 @@ def plot_cdf_diff(runs, kwargs, pulled_cdf=False):
         Run names.
     kwargs : dict
         Nearest neighbour reader keyword arguments.
-    pulled_cdf : bool, optional
+    pulled_cdf : bool
         Whether to pull the CDFs of CSiBORG and Quijote.
+    runs_to_mass : dict
+        Dictionary mapping run names to halo mass range.
 
     Returns
     -------
@@ -362,31 +405,54 @@ def plot_cdf_diff(runs, kwargs, pulled_cdf=False):
     paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
     reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
     r = reader.bin_centres("neighbour")
+    runs_to_mass = [numpy.mean(runs_to_mass[run]) for run in runs]
 
     with plt.style.context(plt_utils.mplstyle):
-        cols = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+        norm = mpl.colors.Normalize(vmin=min(runs_to_mass),
+                                    vmax=max(runs_to_mass))
+        cmap = mpl.cm.ScalarMappable(norm=norm, cmap=mpl.cm.viridis)
+        cmap.set_array([])
 
-        plt.figure()
+        fig, ax = plt.subplots()
         for i, run in enumerate(runs):
             y_quijote = read_dist("quijote", run, "cdf", kwargs)
             y_csiborg = read_dist("csiborg", run, "cdf", kwargs)
 
             dy = get_cdf_diff(r, y_csiborg, y_quijote, pulled_cdf)
-            for j in range(y_csiborg.shape[0]):
-                plt.plot(r, dy[j], c=cols[i])
+            ax.plot(r, numpy.median(dy, axis=0),
+                    c=cmap.to_rgba(runs_to_mass[i]))
+            ax.fill_between(r, *numpy.percentile(dy, [16, 84], axis=0),
+                            alpha=0.5, color=cmap.to_rgba(runs_to_mass[i]))
+        fig.colorbar(cmap, ax=ax, ticks=runs_to_mass,
+                     label=r"$\log M_{\rm tot} / M_\odot$")
+        ax.set_xlim(0.0, 55)
+        ax.set_ylim(0)
+
+        ax.grid(alpha=1/3, lw=0.4)
 
         # Plot labels
-        plt.xlabel(r"$r_{1\mathrm{NN}}~[\mathrm{Mpc}]$")
-        plt.ylabel(r"$\Delta \mathrm{CDF}(r_{1\mathrm{NN}})$")
+        if pulled_cdf:
+            ax.set_xlabel(r"$\tilde{r}_{1\mathrm{NN}}~[\mathrm{Mpc}]$")
+        else:
+            ax.set_xlabel(r"$r_{1\mathrm{NN}}~[\mathrm{Mpc}]$")
+        ax.set_ylabel(r"$\Delta \mathrm{CDF}(r_{1\mathrm{NN}})$")
 
-        plt.tight_layout()
+        # Plot labels
+        if pulled_cdf:
+            ax.set_xlabel(r"$\tilde{r}_{1\mathrm{NN}}~[\mathrm{Mpc}]$")
+            ax.set_ylabel(r"$\Delta \mathrm{CDF}(\tilde{r}_{1\mathrm{NN}})$")
+        else:
+            ax.set_xlabel(r"$r_{1\mathrm{NN}}~[\mathrm{Mpc}]$")
+            ax.set_ylabel(r"$\Delta \mathrm{CDF}(r_{1\mathrm{NN}})$")
+
+        fig.tight_layout()
         for ext in ["png"]:
             if pulled_cdf:
                 fout = join(plt_utils.fout, f"1nn_diff_pulled.{ext}")
             else:
                 fout = join(plt_utils.fout, f"1nn_diff.{ext}")
             print(f"Saving to `{fout}`.")
-            plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
+            fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
 
 
@@ -454,16 +520,17 @@ def make_ks(simname, run, nsim, nobs, kwargs):
     return reader.ks_significance(simname, run, nsim, cdf, nobs=nobs)
 
 
-def plot_significance_hist(simname, run, nsim, nobs, kind, kwargs):
+def get_cumulative_significance(simname, runs, nsim, nobs, kind, kwargs):
     """
-    Plot a histogram of the significance of the 1NN distance.
+    Calculate the cumulative significance of the distribution of nearest
+    neighbours and evaluate it at the same points for all runs.
 
     Parameters
     ----------
     simname : str
         Simulation name. Must be either `csiborg` or `quijote`.
-    run : str
-        Run name.
+    runs : list of str
+        Run names.
     nsim : int
         Simulation index.
     nobs : int
@@ -476,34 +543,108 @@ def plot_significance_hist(simname, run, nsim, nobs, kind, kwargs):
 
     Returns
     -------
+    z : 1-dimensional array
+        Points where the cumulative significance is evaluated.
+    cumsum : 2-dimensional array of shape `(len(runs), len(z)))`
+        Cumulative significance of the distribution of nearest neighbours.
+    """
+    significances = []
+    for run in runs:
+        if kind == "kl":
+            x = make_kl(simname, run, nsim, nobs, kwargs)
+        else:
+            x = make_ks(simname, run, nsim, nobs, kwargs)
+            x = numpy.log10(x)
+        x = x[numpy.isfinite(x)]
+        x = numpy.sort(x)
+        significances.append(x)
+    z = numpy.hstack(significances).reshape(-1, )
+
+    if kind == "ks":
+        zmin, zmax = numpy.percentile(z, [1, 100])
+    else:
+        zmin, zmax = numpy.percentile(z, [0.0, 99.9])
+    z = numpy.linspace(zmin, zmax, 1000, dtype=numpy.float32)
+
+    cumsum = numpy.full((len(runs), z.size), numpy.nan, dtype=numpy.float32)
+    for i, run in enumerate(runs):
+        x = significances[i]
+        y = numpy.linspace(0, 1, x.size)
+        cumsum[i, :] = numpy.interp(z, x, y, left=0, right=1)
+
+    return z, cumsum
+
+
+def plot_significance(simname, runs, nsim, nobs, kind, kwargs, runs_to_mass):
+    """
+    Plot cumulative significance of the 1NN distribution.
+
+    Parameters
+    ----------
+    simname : str
+        Simulation name. Must be either `csiborg` or `quijote`.
+    runs : list of str
+        Run names.
+    nsim : int
+        Simulation index.
+    nobs : int
+        Fiducial Quijote observer index. For CSiBORG must be set to `None`.
+    kind : str
+        Must be either `kl` (Kullback-Leibler diverge) or `ks`
+        (Kolmogorov-Smirnov p-value).
+    kwargs : dict
+        Nearest neighbour reader keyword arguments.
+    runs_to_mass : dict
+        Dictionary mapping run names to total halo mass range.
+
+    Returns
+    -------
     None
     """
     assert kind in ["kl", "ks"]
-    if kind == "kl":
-        x = make_kl(simname, run, nsim, nobs, kwargs)
-    else:
-        x = make_ks(simname, run, nsim, nobs, kwargs)
-        x = numpy.log10(x)
-    x = x[numpy.isfinite(x)]
+    runs_to_mass = [numpy.mean(runs_to_mass[run]) for run in runs]
 
     with plt.style.context(plt_utils.mplstyle):
-        plt.figure()
-        plt.hist(x, bins="auto")
+        norm = mpl.colors.Normalize(vmin=min(runs_to_mass),
+                                    vmax=max(runs_to_mass))
+        cmap = mpl.cm.ScalarMappable(norm=norm, cmap=mpl.cm.viridis)
+        cmap.set_array([])
 
+        fig, ax = plt.subplots(figsize=(3.5, 2.625 * 1.2), nrows=2,
+                               sharex=True, height_ratios=[1, 0.5])
+        fig.subplots_adjust(hspace=0, wspace=0)
+        z, cumsum = get_cumulative_significance(simname, runs, nsim, nobs,
+                                                kind, kwargs)
+
+        for i in range(len(runs)):
+            ax[0].plot(z, cumsum[i, :], color=cmap.to_rgba(runs_to_mass[i]))
+
+            dy = cumsum[-1, :] - cumsum[i, :]
+            if kind == "kl":
+                dy *= -1
+            ax[1].plot(z, dy, color=cmap.to_rgba(runs_to_mass[i]))
+
+        cbar_ax = fig.add_axes([1.0, 0.125, 0.035, 0.85])
+        fig.colorbar(cmap, cax=cbar_ax, ticks=runs_to_mass,
+                     label=r"$\log M_{\rm tot} / M_\odot$")
+
+        ax[0].set_xlim(z[0], z[-1])
+        ax[0].set_ylim(1e-5, 1.)
         if kind == "ks":
-            plt.xlabel(r"$\log p$-value of $r_{1\mathrm{NN}}$ distribution")
+            ax[1].set_xlabel(r"$\log p$-value of $r_{1\mathrm{NN}}$ distribution")  # noqa
         else:
-            plt.xlabel(r"$D_{\mathrm{KL}}$ of $r_{1\mathrm{NN}}$ distribution")
-        plt.ylabel(r"Counts")
+            ax[1].set_xlabel(r"$D_{\mathrm{KL}}$ of $r_{1\mathrm{NN}}$ distribution")  # noqa
+        ax[0].set_ylabel(r"Cumulative norm. counts")
+        ax[1].set_ylabel(r"$\Delta f$")
 
-        plt.tight_layout()
+        fig.tight_layout(h_pad=0, w_pad=0)
         for ext in ["png"]:
             if simname == "quijote":
                 paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
                 nsim = paths.quijote_fiducial_nsim(nsim, nobs)
-            fout = join(plt_utils.fout, f"significance_{kind}_{simname}_{run}_{str(nsim).zfill(5)}.{ext}")  # noqa
+            fout = join(plt_utils.fout, f"significance_{kind}_{simname}_{str(nsim).zfill(5)}.{ext}")  # noqa
             print(f"Saving to `{fout}`.")
-            plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
+            fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
 
 
@@ -531,6 +672,7 @@ def plot_significance_mass(simname, run, nsim, nobs, kind, kwargs):
     -------
     None
     """
+    print(f"Plotting {kind} significance histogram.")
     assert kind in ["kl", "ks"]
     paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
     reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
@@ -690,20 +832,45 @@ if __name__ == "__main__":
     args = parser.parse_args()
     neighbour_kwargs = csiborgtools.neighbour_kwargs
 
+    runs_to_mass = {
+        "mass001": (12.4, 12.8),
+        "mass002": (12.6, 13.0),
+        "mass003": (12.8, 13.2),
+        "mass004": (13.0, 13.4),
+        "mass005": (13.2, 13.6),
+        "mass006": (13.4, 13.8),
+        "mass007": (13.6, 14.0),
+        "mass008": (13.8, 14.2),
+        "mass009": (14.0, 14.4),  # There is no upper limit.
+        }
+
     cached_funcs = ["get_overlap", "read_dist", "make_kl", "make_ks"]
     if args.clean:
         for func in cached_funcs:
             print(f"Cleaning cache for function {func}.")
             delete_disk_caches_for_function(func)
 
-    # for i in range(1, 10):
-    #     run = f"mass00{i}"
-    #     plot_dist(run, "cdf", neighbour_kwargs)
-    # plot_dist("mass005", "cdf", neighbour_kwargs, pulled_cdf=True, )
-    runs = ["mass001", "mass009"]
-    plot_cdf_diff(runs, neighbour_kwargs, pulled_cdf=True)
+    # Plot 1NN distance distributions.
+    if False:
+        for i in range(1, 10):
+            run = f"mass00{i}"
+            for pulled_cdf in [True, False]:
+                plot_dist(run, "cdf", neighbour_kwargs, runs_to_mass,
+                          pulled_cdf=pulled_cdf,)
+            plot_dist(run, "pdf", neighbour_kwargs, runs_to_mass)
 
-    # plot_significance_hist("csiborg", run, 7444, nobs=None, kind="ks",
-    #                        kwargs=neighbour_kwargs)
+    # Plot 1NN CDF differences.
+    if False:
+        runs = [f"mass00{i}" for i in range(1, 10)]
+        for pulled_cdf in [True, False]:
+            plot_cdf_diff(runs, neighbour_kwargs, pulled_cdf=pulled_cdf,
+                          runs_to_mass=runs_to_mass)
+    if True:
+        runs = [f"mass00{i}" for i in range(1, 9)]
+        for kind in ["kl", "ks"]:
+            plot_significance("csiborg", runs, 7444, nobs=None, kind=kind,
+                              kwargs=neighbour_kwargs,
+                              runs_to_mass=runs_to_mass)
+
     # plot_significance_mass("csiborg", run, 7444, nobs=None, kind="ks",
     #                        kwargs=neighbour_kwargs)
