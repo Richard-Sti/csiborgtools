@@ -75,8 +75,18 @@ def open_quijote(nsim, nobs=None):
 
 def plot_mass_vs_ncells(nsim, pdf=False):
     """
-    TODO: documentation
+    Plot the halo mass vs. number of occupied cells in the initial snapshot.
 
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+    pdf : bool, optional
+        Whether to save the figure as a PDF file.
+
+    Returns
+    -------
+    None
     """
     cat = open_csiborg(nsim)
     mpart = 4.38304044e+09
@@ -106,7 +116,16 @@ def plot_mass_vs_ncells(nsim, pdf=False):
 
 def plot_hmf(pdf=False):
     """
-    TODO: documentation
+    Plot the (ultimate paretn) halo mass function of CSiBORG and Quijote.
+
+    Parameters
+    ----------
+    pdf : bool, optional
+        Whether to save the figure as a PDF file.
+
+    Returns
+    -------
+    None
     """
     print("Plotting the HMF...", flush=True)
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
@@ -192,7 +211,24 @@ def plot_hmf(pdf=False):
 
 def load_field(kind, nsim, grid, MAS, in_rsp=False):
     """
-    TODO: documentation
+    Load a single field.
+
+    Parameters
+    ----------
+    kind : str
+        Field kind.
+    nsim : int
+        Simulation index.
+    grid : int
+        Grid size.
+    MAS : str
+        Mass assignment scheme.
+    in_rsp : bool, optional
+        Whether to load the field in redshift space.
+
+    Returns
+    -------
+    field : n-dimensional array
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     return numpy.load(paths.field(kind, MAS, grid, nsim, in_rsp=in_rsp))
@@ -206,7 +242,28 @@ def load_field(kind, nsim, grid, MAS, in_rsp=False):
 def plot_projected_field(kind, nsim, grid, in_rsp, MAS="PCS",
                          highres_only=True, pdf=False):
     """
-    TODO documentation
+    Plot the mean projected field.
+
+    Parameters
+    ----------
+    kind : str
+        Field kind.
+    nsim : int
+        Simulation index.
+    grid : int
+        Grid size.
+    in_rsp : bool
+        Whether to load the field in redshift space.
+    MAS : str, optional
+        Mass assignment scheme.
+    highres_only : bool, optional
+        Whether to only plot the high-resolution region.
+    pdf : bool, optional
+        Whether to save the figure as a PDF.
+
+    Returns
+    -------
+    None
     """
     print(f"Plotting projected field `{kind}`. ", flush=True)
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
