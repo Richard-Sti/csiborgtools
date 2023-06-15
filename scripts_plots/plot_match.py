@@ -648,7 +648,7 @@ def plot_significance(simname, runs, nsim, nobs, kind, kwargs, runs_to_mass):
         plt.close()
 
 
-def plot_significance_mass(simname, run, nsim, nobs, kind, kwargs):
+def plot_significance_vs_mass(simname, runs, nsim, nobs, kind, kwargs):
     """
     Plot significance of the 1NN distance as a function of the total mass.
 
@@ -656,8 +656,8 @@ def plot_significance_mass(simname, run, nsim, nobs, kind, kwargs):
     ----------
     simname : str
         Simulation name. Must be either `csiborg` or `quijote`.
-    run : str
-        Run name.
+    runs : list of str
+        Run names.
     nsim : int
         Simulation index.
     nobs : int
@@ -673,6 +673,7 @@ def plot_significance_mass(simname, run, nsim, nobs, kind, kwargs):
     None
     """
     print(f"Plotting {kind} significance histogram.")
+    # TODO: work here next
     assert kind in ["kl", "ks"]
     paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
     reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
