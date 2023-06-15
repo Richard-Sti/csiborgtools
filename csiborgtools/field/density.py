@@ -367,9 +367,9 @@ class TidalTensorField(BaseField):
     box : :py:class:`csiborgtools.read.CSiBORGBox`
         The simulation box information and transformations.
     MAS : str
-        Mass assignment scheme. Options are Options are: 'NGP' (nearest grid
-        point), 'CIC' (cloud-in-cell), 'TSC' (triangular-shape cloud), 'PCS'
-        (piecewise cubic spline).
+        Mass assignment scheme used to calculate the density field. Options
+        are: 'NGP' (nearest grid point), 'CIC' (cloud-in-cell), 'TSC'
+        (triangular-shape cloud), 'PCS' (piecewise cubic spline).
     """
     def __init__(self, box, MAS):
         self.box = box
@@ -381,8 +381,6 @@ class TidalTensorField(BaseField):
         Calculate eigenvalues of the tidal tensor field, sorted in increasing
         order.
 
-        TODO: evaluate this on a grid instead.
-
         Parameters
         ----------
         tidal_tensor : :py:class:`MAS_library.tidal_tensor`
@@ -393,20 +391,14 @@ class TidalTensorField(BaseField):
         -------
         eigvals : 3-dimensional array of shape `(grid, grid, grid)`
         """
-        n_samples = tidal_tensor.T00.size
-        # We create a array and then calculate the eigenvalues.
-        Teval = numpy.full((n_samples, 3, 3), numpy.nan, dtype=numpy.float32)
-        Teval[:, 0, 0] = tidal_tensor.T00
-        Teval[:, 0, 1] = tidal_tensor.T01
-        Teval[:, 0, 2] = tidal_tensor.T02
-        Teval[:, 1, 1] = tidal_tensor.T11
-        Teval[:, 1, 2] = tidal_tensor.T12
-        Teval[:, 2, 2] = tidal_tensor.T22
+        # TODO needs to be checked further
+        grid = tidal_tensor.T00.shape[0]
+        eigvals = numpy.full((grid, grid, grid, 3), numpy.nan,
+                             dtype=numpy.float32)
+        dummy = numpy.full((3, 3), numpy.nan, dtype=numpy.float32)
 
-        eigvals = numpy.full((n_samples, 3), numpy.nan, dtype=numpy.float32)
-        for i in range(n_samples):
-            eigvals[i, :] = numpy.linalg.eigvalsh(Teval[i, ...], 'U')
-            eigvals[i, :] = numpy.sort(eigvals[i, :])
+        # FILL IN THESER ARGUMENTS
+        tidal_tensor_to_eigenvalues(eigvals, dummy, ...)
 
         return eigvals
 
@@ -427,3 +419,23 @@ class TidalTensorField(BaseField):
         """
         return MASL.tidal_tensor(overdensity_field, self.box._omega_m,
                                  self.box._aexp, self.MAS)
+
+
+@jit(nopython=True)
+def tidal_tensor_to_eigenvalues(eigvals, dummy, T00, T01, T02, T11, T12, T22):
+    """
+    TODO: needs to be checked further.
+    """
+    grid = T00.shape[0]
+    for i in range(grid):
+        for j in range(grid):
+            for k in range(grid):
+                dummy[0, 0] = T00[i, j, k]
+                dummy[0, 1] = T01[i, j, k]
+                dummy[0, 2] = T02[i, j, k]
+                dummy[1, 1] = T11[i, j, k]
+                dummy[1, 2] = T12[i, j, k]
+                dummy[2, 2] = T22[i, j, k]
+                eigvals[i, j, k, :] = numpy.linalg.eigvalsh(dummy, 'U')
+                eigvals[i, j, k, :] = numpy.sort(eigvals[i, j, k, :])
+    return eigvals
