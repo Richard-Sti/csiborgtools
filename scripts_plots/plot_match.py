@@ -774,14 +774,14 @@ def plot_kl_vs_ks(simname, runs, nsim, nobs, kwargs):
         plt.close()
 
 
-def plot_kl_vs_overlap(run, nsim, kwargs):
+def plot_kl_vs_overlap(runs, nsim, kwargs):
     """
     Plot KL divergence vs overlap for CSiBORG.
 
     Parameters
     ----------
-    run : str
-        Run name.
+    runs : str
+        Run names.
     nsim : int
         Simulation index.
     kwargs : dict
@@ -793,25 +793,37 @@ def plot_kl_vs_overlap(run, nsim, kwargs):
     """
     paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
     nn_reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
-    nn_data = nn_reader.read_single("csiborg", run, nsim, nobs=None)
-    nn_hindxs = nn_data["ref_hindxs"]
 
-    mass, overlap_hindxs, summed_overlap, prob_nomatch = get_overlap(nsim)
+    xs, ys1, ys2, cs = [], [], [], []
+    for run in runs:
+        nn_data = nn_reader.read_single("csiborg", run, nsim, nobs=None)
+        nn_hindxs = nn_data["ref_hindxs"]
+        mass, overlap_hindxs, summed_overlap, prob_nomatch = get_overlap(nsim)
 
-    # We need to match the hindxs between the two.
-    hind2overlap_array = {hind: i for i, hind in enumerate(overlap_hindxs)}
-    mask = numpy.asanyarray([hind2overlap_array[hind] for hind in nn_hindxs])
+        # We need to match the hindxs between the two.
+        hind2overlap_array = {hind: i for i, hind in enumerate(overlap_hindxs)}
+        mask = numpy.asanyarray([hind2overlap_array[hind]
+                                 for hind in nn_hindxs])
+        summed_overlap = summed_overlap[mask]
+        prob_nomatch = prob_nomatch[mask]
+        mass = mass[mask]
 
-    summed_overlap = summed_overlap[mask]
-    prob_nomatch = prob_nomatch[mask]
-    mass = mass[mask]
+        kl = make_kl("csiborg", run, nsim, nobs=None, kwargs=kwargs)
 
-    kl = make_kl("csiborg", run, nsim, nobs=None, kwargs=kwargs)
+        xs.append(kl)
+        ys1.append(1 - numpy.mean(prob_nomatch, axis=1))
+        ys2.append(numpy.std(prob_nomatch, axis=1))
+        cs.append(numpy.log10(mass))
+
+    xs = numpy.concatenate(xs)
+    ys1 = numpy.concatenate(ys1)
+    ys2 = numpy.concatenate(ys2)
+    cs = numpy.concatenate(cs)
 
     with plt.style.context(plt_utils.mplstyle):
         plt.figure()
-        mu = numpy.mean(prob_nomatch, axis=1)
-        plt.scatter(kl, 1 - mu, c=numpy.log10(mass))
+        plt.hexbin(xs, ys1, C=cs, gridsize=50, mincnt=0,
+                   reduce_C_function=numpy.median)
         plt.colorbar(label=r"$\log M_{\rm tot} / M_\odot$")
         plt.xlabel(r"$D_{\mathrm{KL}}$ of $r_{1\mathrm{NN}}$ distribution")
         plt.ylabel(r"$1 - \langle \eta^{\mathcal{B}}_a \rangle_{\mathcal{B}}$")
@@ -819,15 +831,15 @@ def plot_kl_vs_overlap(run, nsim, kwargs):
         plt.tight_layout()
         for ext in ["png"]:
             fout = join(plt_utils.fout,
-                        f"kl_vs_overlap_mean_{run}_{str(nsim).zfill(5)}.{ext}")
+                        f"kl_vs_overlap_mean_{str(nsim).zfill(5)}.{ext}")
             print(f"Saving to `{fout}`.")
             plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
 
     with plt.style.context(plt_utils.mplstyle):
         plt.figure()
-        std = numpy.std(prob_nomatch, axis=1)
-        plt.scatter(kl, std, c=numpy.log10(mass))
+        plt.hexbin(xs, ys2, C=cs, gridsize=50, mincnt=0,
+                   reduce_C_function=numpy.median)
         plt.colorbar(label=r"$\log M_{\rm tot} / M_\odot$")
         plt.xlabel(r"$D_{\mathrm{KL}}$ of $r_{1\mathrm{NN}}$ distribution")
         plt.ylabel(r"Ensemble std of summed overlap")
@@ -835,7 +847,7 @@ def plot_kl_vs_overlap(run, nsim, kwargs):
         plt.tight_layout()
         for ext in ["png"]:
             fout = join(plt_utils.fout,
-                        f"kl_vs_overlap_std_{run}_{str(nsim).zfill(5)}.{ext}")
+                        f"kl_vs_overlap_std_{str(nsim).zfill(5)}.{ext}")
             print(f"Saving to `{fout}`.")
             plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
@@ -898,5 +910,10 @@ if __name__ == "__main__":
             plot_significance_vs_mass("csiborg", runs, 7444, nobs=None,
                                       kind=kind, kwargs=neighbour_kwargs)
 
-    runs = [f"mass00{i}" for i in range(1, 10)]
-    plot_kl_vs_ks("csiborg", runs, 7444, None, kwargs=neighbour_kwargs)
+    if False:
+        runs = [f"mass00{i}" for i in range(1, 10)]
+        plot_kl_vs_ks("csiborg", runs, 7444, None, kwargs=neighbour_kwargs)
+
+    if True:
+        runs = [f"mass00{i}" for i in range(1, 10)]
+        plot_kl_vs_overlap(runs, 7444, neighbour_kwargs)
