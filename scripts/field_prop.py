@@ -150,7 +150,7 @@ def velocity_field(nsim, parser_args, to_save=True):
                            nsim, in_rsp=False)
         print(f"{datetime.now()}: saving output to `{fout}`.")
         numpy.save(fout, field)
-    return fout
+    return field
 
 
 ###############################################################################
@@ -158,7 +158,23 @@ def velocity_field(nsim, parser_args, to_save=True):
 ###############################################################################
 
 
-def potential_field(nsim, parser_args):
+def potential_field(nsim, parser_args, to_save=True):
+    """
+    Calculate the potential field in the CSiBORG simulation.
+
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+    parser_args : argparse.Namespace
+        Parsed arguments.
+    to_save : bool, optional
+        Whether to save the output to disk.
+
+    Returns
+    -------
+    potential : 3-dimensional array
+    """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsnap = max(paths.get_snapshots(nsim))
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
@@ -167,6 +183,9 @@ def potential_field(nsim, parser_args):
     density_gen = csiborgtools.field.DensityField(box, parser_args.MAS)
     rho = numpy.load(paths.field("density", parser_args.MAS, parser_args.grid,
                                  nsim, in_rsp=False))
+    if parser_args.smooth_scale > 0:
+        rho = csiborgtools.field.smoothen_field(rho, parser_args.smooth_scale,
+                                                box.boxsize, threads=1)
     rho = density_gen.overdensity_field(rho)
     # Calculate the real space potentiel field
     gen = csiborgtools.field.PotentialField(box, parser_args.MAS)
@@ -176,10 +195,12 @@ def potential_field(nsim, parser_args):
         parts = csiborgtools.read.read_h5(paths.particles(nsim))["particles"]
         field = csiborgtools.field.field2rsp(field, parts=parts, box=box,
                                              verbose=parser_args.verbose)
-    fout = paths.field(parser_args.kind, parser_args.MAS, parser_args.grid,
-                       nsim, parser_args.in_rsp)
-    print(f"{datetime.now()}: saving output to `{fout}`.")
-    numpy.save(fout, field)
+    if to_save:
+        fout = paths.field(parser_args.kind, parser_args.MAS, parser_args.grid,
+                           nsim, parser_args.in_rsp)
+        print(f"{datetime.now()}: saving output to `{fout}`.")
+        numpy.save(fout, field)
+    return field
 
 
 ###############################################################################
@@ -187,9 +208,28 @@ def potential_field(nsim, parser_args):
 ###############################################################################
 
 
-def radvel_field(nsim, parser_args):
+def radvel_field(nsim, parser_args, to_save=True):
+    """
+    Calculate the radial velocity field in the CSiBORG simulation.
+
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+    parser_args : argparse.Namespace
+        Parsed arguments.
+    to_save : bool, optional
+        Whether to save the output to disk.
+
+    Returns
+    -------
+    radvel : 3-dimensional array
+    """
     if parser_args.in_rsp:
         raise NotImplementedError("Radial vel. field in RSP not implemented.")
+    if parser_args.smooth_scale > 0:
+        raise NotImplementedError(
+            "Smoothed radial vel. field not implemented.")
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsnap = max(paths.get_snapshots(nsim))
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
@@ -198,11 +238,12 @@ def radvel_field(nsim, parser_args):
                                  nsim, parser_args.in_rsp))
     gen = csiborgtools.field.VelocityField(box, parser_args.MAS)
     field = gen.radial_velocity(vel)
-
-    fout = paths.field("radvel", parser_args.MAS, parser_args.grid,
-                       nsim, parser_args.in_rsp)
-    print(f"{datetime.now()}: saving output to `{fout}`.")
-    numpy.save(fout, field)
+    if to_save:
+        fout = paths.field("radvel", parser_args.MAS, parser_args.grid,
+                           nsim, parser_args.in_rsp)
+        print(f"{datetime.now()}: saving output to `{fout}`.")
+        numpy.save(fout, field)
+    return field
 
 
 ###############################################################################
