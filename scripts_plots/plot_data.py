@@ -209,8 +209,8 @@ def plot_hmf(pdf=False):
         plt.close()
 
 
-def load_field(kind, nsim, grid, MAS, in_rsp=False):
-    """
+def load_field(kind, nsim, grid, MAS, in_rsp=False, smooth_scale=None):
+    r"""
     Load a single field.
 
     Parameters
@@ -225,13 +225,16 @@ def load_field(kind, nsim, grid, MAS, in_rsp=False):
         Mass assignment scheme.
     in_rsp : bool, optional
         Whether to load the field in redshift space.
+    smooth_scale : float, optional
+        Smoothing scale in :math:`\mathrm{Mpc} / h`.
 
     Returns
     -------
     field : n-dimensional array
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    return numpy.load(paths.field(kind, MAS, grid, nsim, in_rsp=in_rsp))
+    return numpy.load(paths.field(kind, MAS, grid, nsim, in_rsp=in_rsp,
+                                  smooth_scale=smooth_scale))
 
 
 ###############################################################################
@@ -239,9 +242,9 @@ def load_field(kind, nsim, grid, MAS, in_rsp=False):
 ###############################################################################
 
 
-def plot_projected_field(kind, nsim, grid, in_rsp, MAS="PCS",
+def plot_projected_field(kind, nsim, grid, in_rsp, smooth_scale, MAS="PCS",
                          highres_only=True, slice_find=None, pdf=False):
-    """
+    r"""
     Plot the mean projected field, however can also plot a single slice.
 
     Parameters
@@ -254,6 +257,8 @@ def plot_projected_field(kind, nsim, grid, in_rsp, MAS="PCS",
         Grid size.
     in_rsp : bool
         Whether to load the field in redshift space.
+    smooth_scale : float
+        Smoothing scale in :math:`\mathrm{Mpc} / h`.
     MAS : str, optional
         Mass assignment scheme.
     highres_only : bool, optional
@@ -273,11 +278,13 @@ def plot_projected_field(kind, nsim, grid, in_rsp, MAS="PCS",
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
 
     if kind == "overdensity":
-        field = load_field("density", nsim, grid, MAS=MAS, in_rsp=in_rsp)
+        field = load_field("density", nsim, grid, MAS=MAS, in_rsp=in_rsp,
+                           smooth_scale=smooth_scale)
         density_gen = csiborgtools.field.DensityField(box, MAS)
-        field = density_gen.overdensity_field(field) + 2
+        field = density_gen.overdensity_field(field) + 1
     else:
-        field = load_field(kind, nsim, grid, MAS=MAS, in_rsp=in_rsp)
+        field = load_field(kind, nsim, grid, MAS=MAS, in_rsp=in_rsp,
+                           smooth_scale=smooth_scale)
 
     if kind == "velocity":
         field = field[0, ...]
@@ -355,8 +362,12 @@ def plot_projected_field(kind, nsim, grid, in_rsp, MAS="PCS",
 
         fig.tight_layout(h_pad=0, w_pad=0)
         for ext in ["png"] if pdf is False else ["png", "pdf"]:
-            fout = join(plt_utils.fout,
-                        f"field_{kind}_{nsim}_rsp{in_rsp}.{ext}")
+            fout = join(
+                plt_utils.fout,
+                f"field_{kind}_{nsim}_rsp{in_rsp}_hres{highres_only}.{ext}")
+            if smooth_scale is not None and smooth_scale > 0:
+                smooth_scale = float(smooth_scale)
+                fout = fout.replace(f".{ext}", f"_smooth{smooth_scale}.{ext}")
             print(f"Saving to `{fout}`.")
             fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
@@ -407,8 +418,8 @@ def get_sky_label(kind, volume_weight):
     return label
 
 
-def plot_sky_distribution(kind, nsim, grid, nside, MAS="PCS", plot_groups=True,
-                          dmin=0, dmax=220, plot_halos=None,
+def plot_sky_distribution(kind, nsim, grid, nside, smooth_scale, MAS="PCS",
+                          plot_groups=True, dmin=0, dmax=220, plot_halos=None,
                           volume_weight=True, pdf=False):
     r"""
     Plot the sky distribution of a given field kind on the sky along with halos
@@ -428,6 +439,8 @@ def plot_sky_distribution(kind, nsim, grid, nside, MAS="PCS", plot_groups=True,
         Grid size.
     nside : int
         Healpix nside of the sky projection.
+    smooth_scale : float
+        Smoothing scale in :math:`\mathrm{Mpc} / h`.
     MAS : str, optional
         Mass assignment scheme.
     plot_groups : bool, optional
@@ -448,11 +461,13 @@ def plot_sky_distribution(kind, nsim, grid, nside, MAS="PCS", plot_groups=True,
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
 
     if kind == "overdensity":
-        field = load_field("density", nsim, grid, MAS=MAS, in_rsp=False)
+        field = load_field("density", nsim, grid, MAS=MAS, in_rsp=False,
+                           smooth_scale=smooth_scale)
         density_gen = csiborgtools.field.DensityField(box, MAS)
-        field = density_gen.overdensity_field(field) + 2
+        field = density_gen.overdensity_field(field) + 1
     else:
-        field = load_field(kind, nsim, grid, MAS=MAS, in_rsp=False)
+        field = load_field(kind, nsim, grid, MAS=MAS, in_rsp=False,
+                           smooth_scale=smooth_scale)
 
     angpos = csiborgtools.field.nside2radec(nside)
     dist = numpy.linspace(dmin, dmax, 500)
@@ -520,12 +535,14 @@ if __name__ == "__main__":
                               plot_halos=5e13, volume_weight=False)
 
     if True:
-        kind = "radvel"
+        kind = "overdensity"
         grid = 256
+        smooth_scale = 10
         # plot_projected_field("overdensity", 7444, grid, in_rsp=True,
         #                      highres_only=False)
         plot_projected_field(kind, 7444, grid, in_rsp=False,
-                             slice_find=0.5, highres_only=True)
+                             smooth_scale=smooth_scale, slice_find=0.5,
+                             highres_only=True)
 
     if False:
         paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
