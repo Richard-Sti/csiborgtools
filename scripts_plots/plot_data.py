@@ -317,8 +317,18 @@ def plot_projected_field(kind, nsim, grid, in_rsp, MAS="PCS",
 
 def get_sky_label(kind, volume_weight):
     """
-    TODO: documentation
+    Get the sky label for a given field kind.
 
+    Parameters
+    ----------
+    kind : str
+        Field kind.
+    volume_weight : bool
+        Whether to volume weight the field.
+
+    Returns
+    -------
+    label : str
     """
     if volume_weight:
         if kind == "density":
@@ -348,10 +358,38 @@ def get_sky_label(kind, volume_weight):
 def plot_sky_distribution(kind, nsim, grid, nside, MAS="PCS", plot_groups=True,
                           dmin=0, dmax=220, plot_halos=None,
                           volume_weight=True, pdf=False):
-    """
-    TODO:
-        - documentation
-        - add distance for groups.
+    r"""
+    Plot the sky distribution of a given field kind on the sky along with halos
+    and selected observations.
+
+    TODO
+    ----
+    - Add distance for groups.
+
+    Parameters
+    ----------
+    field : str
+        Field kind.
+    nsim : int
+        Simulation index.
+    grid : int
+        Grid size.
+    nside : int
+        Healpix nside of the sky projection.
+    MAS : str, optional
+        Mass assignment scheme.
+    plot_groups : bool, optional
+        Whether to plot the 2M++ groups.
+    dmin : float, optional
+        Minimum projection distance in :math:`\mathrm{Mpc}/h`.
+    dmax : float, optional
+        Maximum projection distance in :math:`\mathrm{Mpc}/h`.
+    plot_halos : list, optional
+        Minimum halo mass to plot in :math:`M_\odot`.
+    volume_weight : bool, optional
+        Whether to volume weight the field.
+    pdf : bool, optional
+        Whether to save the figure as a pdf.
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsnap = max(paths.get_snapshots(nsim))
@@ -416,26 +454,19 @@ if __name__ == "__main__":
             print(f"Cleaning cache for function {func}.")
             delete_disk_caches_for_function(func)
 
-    # cat = open_quijote(0)
-    # x = cat["group_mass"]
-    # x = numpy.log10(x)
-    # print(x.min(), x.max())
+    if False:
+        plot_mass_vs_ncells(7444, pdf=False)
 
-    # with plt.style.context(utils.mplstyle):
-    #     plt.figure()
-    #     plt.hist(x, bins=30)
-    #     plt.savefig(join(utils.fout, "group_mass_hist.png"), dpi=utils.dpi)
-    #     plt.close()
+    if False:
+        plot_hmf(pdf=False)
 
-    # quit()
+    if False:
+        plot_sky_distribution("radvel", 7444, 256, nside=64,
+                              plot_groups=False, dmin=50, dmax=100,
+                              plot_halos=5e13, volume_weight=False)
 
-    # plot_mass_vs_occupancy(7444)
-    # plot_mass_vs_normcells(7444 + 24 * 4, pdf=False)
-    # plot_mass_vs_ncells(7444, pdf=True)
-    plot_hmf(pdf=True)
-    # plot_sky_distribution("radvel", 7444, 256, nside=64,
-    #                       plot_groups=False, dmin=50, dmax=100,
-    #                       plot_halos=5e13, volume_weight=False)
-
-    # plot_projected_field("overdensity", 7444, 1024, in_rsp=True, highres_only=False)
-    # plot_projected_field("overdensity", 7444, 1024, in_rsp=False, highres_only=False)
+    if True:
+        plot_projected_field("overdensity", 7444, 1024, in_rsp=True,
+                             highres_only=False)
+        plot_projected_field("overdensity", 7444, 1024, in_rsp=False,
+                             highres_only=False)
