@@ -279,6 +279,9 @@ def plot_projected_field(kind, nsim, grid, in_rsp, MAS="PCS",
     else:
         field = load_field(kind, nsim, grid, MAS=MAS, in_rsp=in_rsp)
 
+    if kind == "velocity":
+        field = field[0, ...]
+
     if highres_only:
         csiborgtools.field.fill_outside(field, numpy.nan, rmax=155.5,
                                         boxsize=677.7)
@@ -517,9 +520,22 @@ if __name__ == "__main__":
                               plot_halos=5e13, volume_weight=False)
 
     if True:
-        kind = "environment"
+        kind = "radvel"
         grid = 256
         # plot_projected_field("overdensity", 7444, grid, in_rsp=True,
         #                      highres_only=False)
         plot_projected_field(kind, 7444, grid, in_rsp=False,
-                             slice_find=0.5, highres_only=False)
+                             slice_find=0.5, highres_only=True)
+
+    if False:
+        paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+
+        d = csiborgtools.read.read_h5(paths.particles(7444))["particles"]
+
+        plt.figure()
+        plt.hist(d[:100000, 4], bins="auto")
+
+        plt.tight_layout()
+        plt.savefig("../plots/velocity_distribution.png", dpi=450,
+                    bbox_inches="tight")
+
