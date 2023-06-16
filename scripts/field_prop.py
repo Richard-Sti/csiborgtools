@@ -19,6 +19,7 @@ simulations' final snapshot.
 from argparse import ArgumentParser
 from datetime import datetime
 from distutils.util import strtobool
+from gc import collect
 
 import numpy
 from mpi4py import MPI
@@ -131,6 +132,51 @@ def radvel_field(nsim, parser_args):
 
 
 ###############################################################################
+#                        Environment classification                           #
+###############################################################################
+
+
+def environment_field(nsim, parser_args):
+    if parser_args.in_rsp:
+        raise NotImplementedError("Env. field in RSP not implemented.")
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    nsnap = max(paths.get_snapshots(nsim))
+    box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
+    density_gen = csiborgtools.field.DensityField(box, parser_args.MAS)
+    gen = csiborgtools.field.TidalTensorField(box, parser_args.MAS)
+
+    # Load the real space overdensity field
+    if parser_args.verbose:
+        print(f"{datetime.now()}: loading density field.")
+    rho = numpy.load(paths.field("density", parser_args.MAS, parser_args.grid,
+                                 nsim, in_rsp=False))
+    rho = density_gen.overdensity_field(rho)
+    # Calculate the real space tidal tensor field, delete overdensity.
+    if parser_args.verbose:
+        print(f"{datetime.now()}: calculating tidal tensor field.")
+    tensor_field = gen(rho)
+    del rho
+    collect()
+    # Calculate the eigenvalues of the tidal tensor field, delete tensor field.
+    if parser_args.verbose:
+        print(f"{datetime.now()}: calculating eigenvalues.")
+    eigvals = gen.tensor_field_eigvals(tensor_field)
+    del tensor_field
+    collect()
+    # Classify the environment based on the eigenvalues.
+    if parser_args.verbose:
+        print(f"{datetime.now()}: classifying environment.")
+    env = gen.eigvals_to_environment(eigvals)
+    del eigvals
+    collect()
+
+    fout = paths.field("environment", parser_args.MAS, parser_args.grid,
+                       nsim, parser_args.in_rsp)
+    print(f"{datetime.now()}: saving output to `{fout}`.")
+    numpy.save(fout, env)
+
+
+###############################################################################
 #                          Command line interface                             #
 ###############################################################################
 
@@ -140,7 +186,8 @@ if __name__ == "__main__":
     parser.add_argument("--nsims", type=int, nargs="+", default=None,
                         help="IC realisations. `-1` for all simulations.")
     parser.add_argument("--kind", type=str,
-                        choices=["density", "velocity", "radvel", "potential"],
+                        choices=["density", "velocity", "radvel", "potential",
+                                 "environment"],
                         help="What derived field to calculate?")
     parser.add_argument("--MAS", type=str,
                         choices=["NGP", "CIC", "TSC", "PCS"])
@@ -163,6 +210,8 @@ if __name__ == "__main__":
             radvel_field(nsim, parser_args)
         elif parser_args.kind == "potential":
             potential_field(nsim, parser_args)
+        elif parser_args.kind == "environment":
+            environment_field(nsim, parser_args)
         else:
             raise RuntimeError(f"Field {parser_args.kind} is not implemented.")
 
