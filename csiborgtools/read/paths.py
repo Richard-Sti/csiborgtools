@@ -364,7 +364,7 @@ class Paths:
         ----------
         kind : str
             Field type. Must be one of: `density`, `velocity`, `potential`,
-            `radvel`.
+            `radvel`, `environment`.
         MAS : str
            Mass-assignment scheme.
         grid : int
@@ -379,7 +379,8 @@ class Paths:
         path : str
         """
         fdir = join(self.postdir, "environment")
-        assert kind in ["density", "velocity", "potential", "radvel"]
+        assert kind in ["density", "velocity", "potential", "radvel",
+                        "environment"]
         if not isdir(fdir):
             makedirs(fdir)
             warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
