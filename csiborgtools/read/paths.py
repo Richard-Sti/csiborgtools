@@ -389,8 +389,9 @@ class Paths:
         if in_rsp:
             kind = kind + "_rsp"
         fname = f"{kind}_{MAS}_{str(nsim).zfill(5)}_grid{grid}.npy"
-        if smooth_scale is not None:
-            fname = fname.replace(".npy", f"smooth{smooth_scale:.2f}.npy")
+        if smooth_scale is not None and smooth_scale > 0:
+            smooth_scale = float(smooth_scale)
+            fname = fname.replace(".npy", f"smooth{smooth_scale}.npy")
         return join(fdir, fname)
 
     def halo_counts(self, simname, nsim):
