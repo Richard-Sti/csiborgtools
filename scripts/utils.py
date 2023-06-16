@@ -165,6 +165,8 @@ def open_catalogues(args, config, paths, comm):
     if args.verbose and rank == 0:
         print(f"{datetime.now()}: opening catalogues.", flush=True)
 
+    # We first load all catalogues on the zeroth rank and broadcast their
+    # names.
     if rank == 0:
         cats = {}
         if args.simname == "csiborg":
@@ -182,12 +184,27 @@ def open_catalogues(args, config, paths, comm):
                     name = paths.quijote_fiducial_nsim(nsim, nobs)
                     cat = ref_cat.pick_fiducial_observer(nobs, rmax=args.Rmax)
                     cats.update({name: cat})
-
+        names = list(cats.keys())
         if nproc > 1:
             for i in range(1, nproc):
-                comm.send(cats, dest=i, tag=nproc + i)
+                comm.send(names, dest=i, tag=nproc + i)
     else:
-        cats = comm.recv(source=0, tag=nproc + rank)
+        names = comm.recv(source=0, tag=nproc + rank)
+
+    comm.Barrier()
+    # We then broadcast the catalogues to all ranks, one-by-one as MPI can
+    # only pass messages smaller than 2GB.
+    if nproc == 1:
+        return cats
+
+    if rank > 0:
+        cats = {}
+    for name in names:
+        if rank == 0:
+            for i in range(1, nproc):
+                comm.send(cats[name], dest=i, tag=nproc + i)
+        else:
+            cats.update({name: comm.recv(source=0, tag=nproc + rank)})
     return cats
 
 
