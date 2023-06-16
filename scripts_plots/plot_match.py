@@ -679,35 +679,29 @@ def plot_significance_vs_mass(simname, runs, nsim, nobs, kind, kwargs):
 
     with plt.style.context(plt_utils.mplstyle):
         plt.figure()
-        xs, ys, cs = [], [], []
+        xs, ys = [], []
         for run in runs:
             x = reader.read_single(simname, run, nsim, nobs)["mass"]
-            ykl = make_kl(simname, run, nsim, nobs, kwargs)
-            yks = numpy.log10(make_ks(simname, run, nsim, nobs, kwargs))
-            y, c = (ykl, yks) if kind == "kl" else (yks, ykl)
+            if kind == "kl":
+                y = make_kl(simname, run, nsim, nobs, kwargs)
+            else:
+                y = numpy.log10(make_ks(simname, run, nsim, nobs, kwargs))
             xs.append(x)
             ys.append(y)
-            cs.append(c)
         xs = numpy.concatenate(xs)
         ys = numpy.concatenate(ys)
-        cs = numpy.concatenate(cs)
 
-        plt.hexbin(xs, ys, C=cs, gridsize=75, mincnt=0, xscale="log",
-                   reduce_C_function=numpy.median,
-                   cmap="viridis" if kind == "ks" else "viridis_r")
+        plt.hexbin(xs, ys, gridsize=75, mincnt=1, xscale="log", bins="log")
 
         plt.xlabel(r"$M_{\rm tot} / M_\odot$")
-        ks_label = r"$\log p$-value of $r_{1\mathrm{NN}}$ distribution"
-        kl_label = r"$D_{\mathrm{KL}}$ of $r_{1\mathrm{NN}}$ distribution"
         plt.xlim(numpy.min(xs))
         if kind == "ks":
-            plt.ylabel(ks_label)
-            plt.colorbar(label=kl_label)
+            plt.ylabel(r"$\log p$-value of $r_{1\mathrm{NN}}$ distribution")
             plt.ylim(top=0)
         else:
-            plt.ylabel(kl_label)
-            plt.colorbar(label=ks_label)
+            plt.ylabel(r"$D_{\mathrm{KL}}$ of $r_{1\mathrm{NN}}$ distribution")
             plt.ylim(bottom=0)
+        plt.colorbar(label="Bin counts")
 
         plt.tight_layout()
         for ext in ["png"]:
@@ -904,7 +898,7 @@ if __name__ == "__main__":
                               kwargs=neighbour_kwargs,
                               runs_to_mass=runs_to_mass)
 
-    if False:
+    if True:
         runs = [f"mass00{i}" for i in range(1, 10)]
         for kind in ["kl", "ks"]:
             plot_significance_vs_mass("csiborg", runs, 7444, nobs=None,
@@ -914,6 +908,6 @@ if __name__ == "__main__":
         runs = [f"mass00{i}" for i in range(1, 10)]
         plot_kl_vs_ks("csiborg", runs, 7444, None, kwargs=neighbour_kwargs)
 
-    if True:
+    if False:
         runs = [f"mass00{i}" for i in range(1, 10)]
         plot_kl_vs_overlap(runs, 7444, neighbour_kwargs)
