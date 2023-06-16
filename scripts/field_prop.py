@@ -56,6 +56,24 @@ def density_field(nsim, parser_args):
     numpy.save(fout, field)
 
 
+def density_field_smoothed(nsim, parser_args, to_save=True):
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    nsnap = max(paths.get_snapshots(nsim))
+    box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
+
+    # Load the real space overdensity field
+    rho = numpy.load(paths.field("density", parser_args.MAS, parser_args.grid,
+                                 nsim, in_rsp=False))
+    rho = csiborgtools.field.smoothen_field(rho, parser_args.smooth_scale,
+                                            box.boxsize, threads=1)
+    if to_save:
+        fout = paths.field("density", parser_args.MAS, parser_args.grid,
+                           nsim, parser_args.in_rsp, parser_args.smooth_scale)
+        print(f"{datetime.now()}: saving output to `{fout}`.")
+        numpy.save(fout, rho)
+    return rho
+
+
 ###############################################################################
 #                            Velocity field                                   #
 ###############################################################################
@@ -194,6 +212,7 @@ if __name__ == "__main__":
     parser.add_argument("--grid", type=int, help="Grid resolution.")
     parser.add_argument("--in_rsp", type=lambda x: bool(strtobool(x)),
                         help="Calculate in RSP?")
+    parser.add_argument("--smooth_scale", type=float, default=0)
     parser.add_argument("--verbose", type=lambda x: bool(strtobool(x)),
                         help="Verbosity flag for reading in particles.")
     parser_args = parser.parse_args()
@@ -203,7 +222,10 @@ if __name__ == "__main__":
 
     def main(nsim):
         if parser_args.kind == "density":
-            density_field(nsim, parser_args)
+            if parser_args.smooth_scale > 0:
+                density_field_smoothed(nsim, parser_args)
+            else:
+                density_field(nsim, parser_args)
         elif parser_args.kind == "velocity":
             velocity_field(nsim, parser_args)
         elif parser_args.kind == "radvel":
