@@ -119,7 +119,6 @@ def collect_dist(args, paths):
             out = data["counts"]
         else:
             out += data["counts"]
-
         remove(fname)
 
     fout = paths.cross_nearest(args.simname, args.run, "tot_counts",
