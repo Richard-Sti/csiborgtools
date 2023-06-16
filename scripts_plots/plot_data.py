@@ -240,9 +240,9 @@ def load_field(kind, nsim, grid, MAS, in_rsp=False):
 
 
 def plot_projected_field(kind, nsim, grid, in_rsp, MAS="PCS",
-                         highres_only=True, pdf=False):
+                         highres_only=True, slice_find=None, pdf=False):
     """
-    Plot the mean projected field.
+    Plot the mean projected field, however can also plot a single slice.
 
     Parameters
     ----------
@@ -258,6 +258,8 @@ def plot_projected_field(kind, nsim, grid, in_rsp, MAS="PCS",
         Mass assignment scheme.
     highres_only : bool, optional
         Whether to only plot the high-resolution region.
+    slice_find : float, optional
+        Which slice to plot in fractional units (i.e. 1. is the last slice)
     pdf : bool, optional
         Whether to save the figure as a PDF.
 
@@ -284,23 +286,69 @@ def plot_projected_field(kind, nsim, grid, in_rsp, MAS="PCS",
         end = round(field.shape[0] * 0.73)
         field = field[start:end, start:end, start:end]
 
+    if kind != "environment":
+        cmap = "viridis"
+    else:
+        cmap = "brg"
+
     labels = [r"$y-z$", r"$x-z$", r"$x-y$"]
     with plt.style.context(plt_utils.mplstyle):
         fig, ax = plt.subplots(figsize=(3.5 * 2, 2.625), ncols=3, sharey=True,
-                               sharex=True)
+                               sharex="col")
         fig.subplots_adjust(hspace=0, wspace=0)
         for i in range(3):
-            img = numpy.nanmean(field, axis=i)
+            if slice_find is None:
+                img = numpy.nanmean(field, axis=i)
+            else:
+                ii = int(field.shape[i] * slice_find)
+                img = numpy.take(field, ii, axis=i)
+
             if i == 0:
                 vmin, vmax = numpy.nanpercentile(img, [1, 99])
-                im = ax[i].imshow(numpy.nanmean(field, axis=i), vmin=vmin,
-                                  vmax=vmax)
+                im = ax[i].imshow(img, vmin=vmin, vmax=vmax, cmap=cmap)
             else:
-                ax[i].imshow(numpy.nanmean(field, axis=i), vmin=vmin,
-                             vmax=vmax)
+                ax[i].imshow(img, vmin=vmin, vmax=vmax, cmap=cmap)
+
+            if not highres_only:
+                theta = numpy.linspace(0, 2 * numpy.pi, 100)
+                rad = 155.5 / 677.7 * grid
+                ax[i].plot(rad * numpy.cos(theta) + grid // 2,
+                           rad * numpy.sin(theta) + grid // 2,
+                           lw=plt.rcParams["lines.linewidth"], zorder=1,
+                           c="red", ls="--")
             ax[i].set_title(labels[i])
+
+        if highres_only:
+            ncells = end - start
+            size = ncells / grid * 677.7
+        else:
+            ncells = grid
+            size = 677.7
+
+        # Get beautiful ticks
+        yticks = numpy.linspace(0, ncells, 6).astype(int)
+        yticks = numpy.append(yticks, ncells // 2)
+        ax[0].set_yticks(yticks)
+        ax[0].set_yticklabels((yticks * size / ncells - size / 2).astype(int))
+        ax[0].set_ylabel(r"$x_i ~ [\mathrm{Mpc} / h]$")
+
+        for i in range(3):
+            xticks = numpy.linspace(0, ncells, 6).astype(int)
+            xticks = numpy.append(xticks, ncells // 2)
+            xticks = numpy.sort(xticks)
+            if i < 2:
+                xticks = xticks[:-1]
+            ax[i].set_xticks(xticks)
+            ax[i].set_xticklabels(
+                (xticks * size / ncells - size / 2).astype(int))
+            ax[i].set_xlabel(r"$x_j ~ [\mathrm{Mpc} / h]$")
+
         cbar_ax = fig.add_axes([1.0, 0.1, 0.025, 0.8])
-        fig.colorbar(im, cax=cbar_ax, label="Mean projected field")
+        if slice_find is None:
+            clabel = "Mean projected field"
+        else:
+            clabel = "Sliced field"
+        fig.colorbar(im, cax=cbar_ax, label=clabel)
 
         fig.tight_layout(h_pad=0, w_pad=0)
         for ext in ["png"] if pdf is False else ["png", "pdf"]:
@@ -309,6 +357,7 @@ def plot_projected_field(kind, nsim, grid, in_rsp, MAS="PCS",
             print(f"Saving to `{fout}`.")
             fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
+
 
 ###############################################################################
 #                             Sky distribution                                #
@@ -461,12 +510,16 @@ if __name__ == "__main__":
         plot_hmf(pdf=False)
 
     if False:
-        plot_sky_distribution("radvel", 7444, 256, nside=64,
-                              plot_groups=False, dmin=50, dmax=100,
+        kind = "environment"
+        grid = 256
+        plot_sky_distribution(kind, 7444, grid, nside=64,
+                              plot_groups=False, dmin=0, dmax=25,
                               plot_halos=5e13, volume_weight=False)
 
     if True:
-        plot_projected_field("overdensity", 7444, 1024, in_rsp=True,
-                             highres_only=False)
-        plot_projected_field("overdensity", 7444, 1024, in_rsp=False,
-                             highres_only=False)
+        kind = "environment"
+        grid = 256
+        # plot_projected_field("overdensity", 7444, grid, in_rsp=True,
+        #                      highres_only=False)
+        plot_projected_field(kind, 7444, grid, in_rsp=False,
+                             slice_find=0.5, highres_only=False)
