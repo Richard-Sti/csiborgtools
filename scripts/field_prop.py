@@ -40,7 +40,23 @@ from utils import get_nsims
 ###############################################################################
 
 
-def density_field(nsim, parser_args):
+def density_field(nsim, parser_args, to_save=True):
+    """
+    Calculate the density field in the CSiBORG simulation.
+
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+    parser_args : argparse.Namespace
+        Parsed arguments.
+    to_save : bool, optional
+        Whether to save the output to disk.
+
+    Returns
+    -------
+    field : 3-dimensional array
+    """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsnap = max(paths.get_snapshots(nsim))
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
@@ -50,13 +66,32 @@ def density_field(nsim, parser_args):
     field = gen(parts, parser_args.grid, in_rsp=parser_args.in_rsp,
                 verbose=parser_args.verbose)
 
-    fout = paths.field("density", parser_args.MAS, parser_args.grid,
-                       nsim, parser_args.in_rsp)
-    print(f"{datetime.now()}: saving output to `{fout}`.")
-    numpy.save(fout, field)
+    if to_save:
+        fout = paths.field("density", parser_args.MAS, parser_args.grid,
+                           nsim, parser_args.in_rsp)
+        print(f"{datetime.now()}: saving output to `{fout}`.")
+        numpy.save(fout, field)
+    return field
 
 
 def density_field_smoothed(nsim, parser_args, to_save=True):
+    """
+    Calculate the smoothed density field in the CSiBORG simulation. The
+    unsmoothed density field must already be precomputed.
+
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+    parser_args : argparse.Namespace
+        Parsed arguments.
+    to_save : bool, optional
+        Whether to save the output to disk.
+
+    Returns
+    -------
+    smoothed_density : 3-dimensional array
+    """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsnap = max(paths.get_snapshots(nsim))
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
@@ -79,9 +114,28 @@ def density_field_smoothed(nsim, parser_args, to_save=True):
 ###############################################################################
 
 
-def velocity_field(nsim, parser_args):
+def velocity_field(nsim, parser_args, to_save=True):
+    """
+    Calculate the velocity field in the CSiBORG simulation.
+
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+    parser_args : argparse.Namespace
+        Parsed arguments.
+    to_save : bool, optional
+        Whether to save the output to disk.
+
+    Returns
+    -------
+    velfield : 4-dimensional array
+    """
     if parser_args.in_rsp:
         raise NotImplementedError("Velocity field in RSP is not implemented.")
+    if parser_args.smooth_scale > 0:
+        raise NotImplementedError(
+            "Smoothed velocity field is not implemented.")
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     mpart = 1.1641532e-10  # Particle mass in CSiBORG simulations.
     nsnap = max(paths.get_snapshots(nsim))
@@ -91,10 +145,12 @@ def velocity_field(nsim, parser_args):
     gen = csiborgtools.field.VelocityField(box, parser_args.MAS)
     field = gen(parts, parser_args.grid, mpart, verbose=parser_args.verbose)
 
-    fout = paths.field("velocity", parser_args.MAS, parser_args.grid,
-                       nsim, in_rsp=False)
-    print(f"{datetime.now()}: saving output to `{fout}`.")
-    numpy.save(fout, field)
+    if to_save:
+        fout = paths.field("velocity", parser_args.MAS, parser_args.grid,
+                           nsim, in_rsp=False)
+        print(f"{datetime.now()}: saving output to `{fout}`.")
+        numpy.save(fout, field)
+    return fout
 
 
 ###############################################################################
