@@ -672,42 +672,48 @@ def plot_significance_vs_mass(simname, runs, nsim, nobs, kind, kwargs):
     -------
     None
     """
-    print(f"Plotting {kind} significance histogram.")
-    # TODO: work here next
+    print(f"Plotting {kind} significance vs mass.")
     assert kind in ["kl", "ks"]
     paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
     reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
 
     with plt.style.context(plt_utils.mplstyle):
         plt.figure()
+        xs, ys, cs = [], [], []
         for run in runs:
             x = reader.read_single(simname, run, nsim, nobs)["mass"]
             ykl = make_kl(simname, run, nsim, nobs, kwargs)
             yks = numpy.log10(make_ks(simname, run, nsim, nobs, kwargs))
+            y, c = (ykl, yks) if kind == "kl" else (yks, ykl)
+            xs.append(x)
+            ys.append(y)
+            cs.append(c)
+        xs = numpy.concatenate(xs)
+        ys = numpy.concatenate(ys)
+        cs = numpy.concatenate(cs)
 
-            if kind == "kl":
-                y = ykl
-                c = yks
-            else:
-                y = yks
-                c = ykl
+        plt.hexbin(xs, ys, C=cs, gridsize=75, mincnt=0, xscale="log",
+                   reduce_C_function=numpy.median,
+                   cmap="viridis" if kind == "ks" else "viridis_r")
 
-            plt.scatter(x, y, c=c)
-
-        plt.colorbar()
         plt.xlabel(r"$M_{\rm tot} / M_\odot$")
-        plt.xscale("log")
+        ks_label = r"$\log p$-value of $r_{1\mathrm{NN}}$ distribution"
+        kl_label = r"$D_{\mathrm{KL}}$ of $r_{1\mathrm{NN}}$ distribution"
+        plt.xlim(numpy.min(xs))
         if kind == "ks":
-            plt.ylabel(r"$\log p$-value of $r_{1\mathrm{NN}}$ distribution")
-            plt.yscale("log")
+            plt.ylabel(ks_label)
+            plt.colorbar(label=kl_label)
+            plt.ylim(top=0)
         else:
-            plt.ylabel(r"$D_{\mathrm{KL}}$ of $r_{1\mathrm{NN}}$ distribution")
+            plt.ylabel(kl_label)
+            plt.colorbar(label=ks_label)
+            plt.ylim(bottom=0)
 
         plt.tight_layout()
         for ext in ["png"]:
             if simname == "quijote":
                 nsim = paths.quijote_fiducial_nsim(nsim, nobs)
-            fout = (f"significance_vs_mass_{kind}_{simname}_{run}"
+            fout = (f"significance_vs_mass_{kind}_{simname}"
                     + f"_{str(nsim).zfill(5)}.{ext}")
             fout = join(plt_utils.fout, fout)
             print(f"Saving to `{fout}`.")
@@ -715,7 +721,7 @@ def plot_significance_vs_mass(simname, runs, nsim, nobs, kind, kwargs):
         plt.close()
 
 
-def plot_kl_vs_ks(simname, run, nsim, nobs, kwargs):
+def plot_kl_vs_ks(simname, runs, nsim, nobs, kwargs):
     """
     Plot Kullback-Leibler divergence vs Kolmogorov-Smirnov statistic p-value.
 
@@ -723,8 +729,8 @@ def plot_kl_vs_ks(simname, run, nsim, nobs, kwargs):
     ----------
     simname : str
         Simulation name. Must be either `csiborg` or `quijote`.
-    run : str
-        Run name.
+    runs : str
+        Run names.
     nsim : int
         Simulation index.
     nobs : int
@@ -739,13 +745,19 @@ def plot_kl_vs_ks(simname, run, nsim, nobs, kwargs):
     paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
     reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
 
-    x = reader.read_single(simname, run, nsim, nobs)["mass"]
-    y_kl = make_kl(simname, run, nsim, nobs, kwargs)
-    y_ks = make_ks(simname, run, nsim, nobs, kwargs)
+    xs, ys, cs = [], [], []
+    for run in runs:
+        cs.append(reader.read_single(simname, run, nsim, nobs)["mass"])
+        xs.append(make_kl(simname, run, nsim, nobs, kwargs))
+        ys.append(make_ks(simname, run, nsim, nobs, kwargs))
+    xs = numpy.concatenate(xs)
+    ys = numpy.log10(numpy.concatenate(ys))
+    cs = numpy.log10(numpy.concatenate(cs))
 
     with plt.style.context(plt_utils.mplstyle):
         plt.figure()
-        plt.scatter(y_kl, numpy.log10(y_ks), c=numpy.log10(x))
+        plt.hexbin(xs, ys, C=cs, gridsize=50, mincnt=0,
+                   reduce_C_function=numpy.median)
         plt.colorbar(label=r"$\log M_{\rm tot} / M_\odot$")
 
         plt.xlabel(r"$D_{\mathrm{KL}}$ of $r_{1\mathrm{NN}}$ distribution")
@@ -756,7 +768,7 @@ def plot_kl_vs_ks(simname, run, nsim, nobs, kwargs):
             if simname == "quijote":
                 nsim = paths.quijote_fiducial_nsim(nsim, nobs)
             fout = join(plt_utils.fout,
-                        f"kl_vs_ks{simname}_{run}_{str(nsim).zfill(5)}.{ext}")
+                        f"kl_vs_ks_{simname}_{run}_{str(nsim).zfill(5)}.{ext}")
             print(f"Saving to `{fout}`.")
             plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
@@ -880,7 +892,11 @@ if __name__ == "__main__":
                               kwargs=neighbour_kwargs,
                               runs_to_mass=runs_to_mass)
 
-    if True:
+    if False:
         runs = [f"mass00{i}" for i in range(1, 10)]
-        plot_significance_vs_mass("csiborg", runs, 7444, nobs=None, kind="ks",
-                                  kwargs=neighbour_kwargs)
+        for kind in ["kl", "ks"]:
+            plot_significance_vs_mass("csiborg", runs, 7444, nobs=None,
+                                      kind=kind, kwargs=neighbour_kwargs)
+
+    runs = [f"mass00{i}" for i in range(1, 10)]
+    plot_kl_vs_ks("csiborg", runs, 7444, None, kwargs=neighbour_kwargs)
