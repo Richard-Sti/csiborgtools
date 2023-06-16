@@ -391,16 +391,42 @@ class TidalTensorField(BaseField):
         -------
         eigvals : 3-dimensional array of shape `(grid, grid, grid)`
         """
-        # TODO needs to be checked further
         grid = tidal_tensor.T00.shape[0]
         eigvals = numpy.full((grid, grid, grid, 3), numpy.nan,
                              dtype=numpy.float32)
-        dummy = numpy.full((3, 3), numpy.nan, dtype=numpy.float32)
+        dummy_vector = numpy.full(3, numpy.nan, dtype=numpy.float32)
+        dummy_tensor = numpy.full((3, 3), numpy.nan, dtype=numpy.float32)
 
-        # FILL IN THESER ARGUMENTS
-        tidal_tensor_to_eigenvalues(eigvals, dummy, ...)
-
+        tidal_tensor_to_eigenvalues(eigvals, dummy_vector, dummy_tensor,
+                                    tidal_tensor.T00, tidal_tensor.T01,
+                                    tidal_tensor.T02, tidal_tensor.T11,
+                                    tidal_tensor.T12, tidal_tensor.T22)
         return eigvals
+
+    @staticmethod
+    def eigvals_to_environment(eigvals, threshold=0.0):
+        """
+        Calculate the environment of each grid cell based on the eigenvalues
+        of the tidal tensor field.
+
+        Parameters
+        ----------
+        eigvals : 4-dimensional array of shape `(grid, grid, grid, 3)`
+            The eigenvalues of the tidal tensor field.
+
+        Returns
+        -------
+        environment : 3-dimensional array of shape `(grid, grid, grid)`
+            The environment of each grid cell. Possible values are:
+            - 0: void
+            - 1: sheet
+            - 2: filament
+            - 3: knot
+        """
+        environment = numpy.full(eigvals.shape[:-1], numpy.nan,
+                                 dtype=numpy.float32)
+        eigenvalues_to_environment(environment, eigvals, threshold)
+        return environment
 
     def __call__(self, overdensity_field):
         """
@@ -422,20 +448,90 @@ class TidalTensorField(BaseField):
 
 
 @jit(nopython=True)
-def tidal_tensor_to_eigenvalues(eigvals, dummy, T00, T01, T02, T11, T12, T22):
+def tidal_tensor_to_eigenvalues(eigvals, dummy_vector, dummy_tensor,
+                                T00, T01, T02, T11, T12, T22):
     """
-    TODO: needs to be checked further.
+    Calculate eigenvalues of the tidal tensor field, sorted in decreasing
+    absolute value order. JIT implementation to speed up the work.
+
+    Parameters
+    ----------
+    eigvals : 3-dimensional array of shape `(grid, grid, grid)`
+        Array to store the eigenvalues.
+    dummy_vector : 1-dimensional array of shape `(3,)`
+        Dummy vector to store the eigenvalues.
+    dummy_tensor : 2-dimensional array of shape `(3, 3)`
+        Dummy tensor to store the tidal tensor.
+    T00 : 3-dimensional array of shape `(grid, grid, grid)`
+        Tidal tensor component :math:`T_{00}`.
+    T01 : 3-dimensional array of shape `(grid, grid, grid)`
+        Tidal tensor component :math:`T_{01}`.
+    T02 : 3-dimensional array of shape `(grid, grid, grid)`
+        Tidal tensor component :math:`T_{02}`.
+    T11 : 3-dimensional array of shape `(grid, grid, grid)`
+        Tidal tensor component :math:`T_{11}`.
+    T12 : 3-dimensional array of shape `(grid, grid, grid)`
+        Tidal tensor component :math:`T_{12}`.
+    T22 : 3-dimensional array of shape `(grid, grid, grid)`
+        Tidal tensor component :math:`T_{22}`.
+
+    Returns
+    -------
+    eigvals : 3-dimensional array of shape `(grid, grid, grid)`
     """
     grid = T00.shape[0]
     for i in range(grid):
         for j in range(grid):
             for k in range(grid):
-                dummy[0, 0] = T00[i, j, k]
-                dummy[0, 1] = T01[i, j, k]
-                dummy[0, 2] = T02[i, j, k]
-                dummy[1, 1] = T11[i, j, k]
-                dummy[1, 2] = T12[i, j, k]
-                dummy[2, 2] = T22[i, j, k]
-                eigvals[i, j, k, :] = numpy.linalg.eigvalsh(dummy, 'U')
-                eigvals[i, j, k, :] = numpy.sort(eigvals[i, j, k, :])
+                dummy_tensor[0, 0] = T00[i, j, k]
+                dummy_tensor[1, 1] = T11[i, j, k]
+                dummy_tensor[2, 2] = T22[i, j, k]
+
+                dummy_tensor[0, 1] = T01[i, j, k]
+                dummy_tensor[1, 0] = T01[i, j, k]
+
+                dummy_tensor[0, 2] = T02[i, j, k]
+                dummy_tensor[2, 0] = T02[i, j, k]
+
+                dummy_tensor[1, 2] = T12[i, j, k]
+                dummy_tensor[2, 1] = T12[i, j, k]
+                dummy_vector[:] = numpy.linalg.eigvalsh(dummy_tensor)
+
+                eigvals[i, j, k, :] = dummy_vector[
+                    numpy.argsort(numpy.abs(dummy_vector))][::-1]
     return eigvals
+
+
+@jit(nopython=True)
+def eigenvalues_to_environment(environment, eigvals, th):
+    """
+    Classify the environment of each grid cell based on the eigenvalues of the
+    tidal tensor field.
+
+    Parameters
+    ----------
+    environment : 3-dimensional array of shape `(grid, grid, grid)`
+        Array to store the environment.
+    eigvals : 4-dimensional array of shape `(grid, grid, grid, 3)`
+        The eigenvalues of the tidal tensor field.
+    th : float
+        Threshold value to classify the environment.
+
+    Returns
+    -------
+    environment : 3-dimensional array of shape `(grid, grid, grid)`
+    """
+    grid = eigvals.shape[0]
+    for i in range(grid):
+        for j in range(grid):
+            for k in range(grid):
+                lmbda1, lmbda2, lmbda3 = eigvals[i, j, k, :]
+                if lmbda1 < th and lmbda2 < th and lmbda3 < th:
+                    environment[i, j, k] = 0
+                elif lmbda1 < th and lmbda2 < th:
+                    environment[i, j, k] = 1
+                elif lmbda1 < th:
+                    environment[i, j, k] = 2
+                else:
+                    environment[i, j, k] = 3
+    return environment
