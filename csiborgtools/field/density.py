@@ -305,7 +305,7 @@ class VelocityField(BaseField):
             vel *= mass.reshape(-1, 1) / mpart
 
             for i in range(3):
-                MASL.MA(pos, rho_vel[i], self.boxsize, self.MAS, W=vel[i, :],
+                MASL.MA(pos, rho_vel[i], self.boxsize, self.MAS, W=vel[:, i],
                         verbose=False)
             if end == nparts:
                 break
@@ -417,11 +417,8 @@ class TidalTensorField(BaseField):
         Returns
         -------
         environment : 3-dimensional array of shape `(grid, grid, grid)`
-            The environment of each grid cell. Possible values are:
-            - 0: void
-            - 1: sheet
-            - 2: filament
-            - 3: knot
+            The environment of each grid cell. Possible values are 0 (void),
+            1 (sheet), 2 (filament), 3 (knot).
         """
         environment = numpy.full(eigvals.shape[:-1], numpy.nan,
                                  dtype=numpy.float32)
