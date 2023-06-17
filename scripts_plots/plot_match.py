@@ -648,7 +648,32 @@ def plot_significance(simname, runs, nsim, nobs, kind, kwargs, runs_to_mass):
         plt.close()
 
 
-def plot_significance_vs_mass(simname, runs, nsim, nobs, kind, kwargs):
+def make_binlims(run, runs_to_mass):
+    """
+    Make bin limits for the 1NN distance runs, corresponding to the first half
+    of the log-mass bin.
+
+    Parameters
+    ----------
+    run : str
+        Run name.
+    runs_to_mass : dict
+        Dictionary mapping run names to total halo mass range.
+
+    Returns
+    -------
+    xmin, xmax : floats
+    """
+    xmin, xmax = runs_to_mass[run]
+    xmax = xmin + (xmax - xmin) / 2
+    xmin, xmax = 10**xmin, 10**xmax
+    if run == "mass009":
+        xmax = numpy.infty
+    return xmin, xmax
+
+
+def plot_significance_vs_mass(simname, runs, nsim, nobs, kind, kwargs,
+                              runs_to_mass):
     """
     Plot significance of the 1NN distance as a function of the total mass.
 
@@ -667,6 +692,8 @@ def plot_significance_vs_mass(simname, runs, nsim, nobs, kind, kwargs):
         (Kolmogorov-Smirnov p-value).
     kwargs : dict
         Nearest neighbour reader keyword arguments.
+    runs_to_mass : dict
+        Dictionary mapping run names to total halo mass range.
 
     Returns
     -------
@@ -686,8 +713,12 @@ def plot_significance_vs_mass(simname, runs, nsim, nobs, kind, kwargs):
                 y = make_kl(simname, run, nsim, nobs, kwargs)
             else:
                 y = numpy.log10(make_ks(simname, run, nsim, nobs, kwargs))
-            xs.append(x)
-            ys.append(y)
+
+            xmin, xmax = make_binlims(run, runs_to_mass)
+            mask = (x >= xmin) & (x < xmax)
+            xs.append(x[mask])
+            ys.append(y[mask])
+
         xs = numpy.concatenate(xs)
         ys = numpy.concatenate(ys)
 
@@ -715,7 +746,7 @@ def plot_significance_vs_mass(simname, runs, nsim, nobs, kind, kwargs):
         plt.close()
 
 
-def plot_kl_vs_ks(simname, runs, nsim, nobs, kwargs):
+def plot_kl_vs_ks(simname, runs, nsim, nobs, kwargs, runs_to_mass):
     """
     Plot Kullback-Leibler divergence vs Kolmogorov-Smirnov statistic p-value.
 
@@ -731,6 +762,8 @@ def plot_kl_vs_ks(simname, runs, nsim, nobs, kwargs):
         Fiducial Quijote observer index. For CSiBORG must be set to `None`.
     kwargs : dict
         Nearest neighbour reader keyword arguments.
+    runs_to_mass : dict
+        Dictionary mapping run names to total halo mass range.
 
     Returns
     -------
@@ -741,9 +774,16 @@ def plot_kl_vs_ks(simname, runs, nsim, nobs, kwargs):
 
     xs, ys, cs = [], [], []
     for run in runs:
-        cs.append(reader.read_single(simname, run, nsim, nobs)["mass"])
-        xs.append(make_kl(simname, run, nsim, nobs, kwargs))
-        ys.append(make_ks(simname, run, nsim, nobs, kwargs))
+        c = reader.read_single(simname, run, nsim, nobs)["mass"]
+        x = make_kl(simname, run, nsim, nobs, kwargs)
+        y = make_ks(simname, run, nsim, nobs, kwargs)
+
+        cmin, cmax = make_binlims(run, runs_to_mass)
+        mask = (c >= cmin) & (c < cmax)
+        xs.append(x[mask])
+        ys.append(y[mask])
+        cs.append(c[mask])
+
     xs = numpy.concatenate(xs)
     ys = numpy.log10(numpy.concatenate(ys))
     cs = numpy.log10(numpy.concatenate(cs))
@@ -768,7 +808,7 @@ def plot_kl_vs_ks(simname, runs, nsim, nobs, kwargs):
         plt.close()
 
 
-def plot_kl_vs_overlap(runs, nsim, kwargs):
+def plot_kl_vs_overlap(runs, nsim, kwargs, runs_to_mass):
     """
     Plot KL divergence vs overlap for CSiBORG.
 
@@ -780,6 +820,8 @@ def plot_kl_vs_overlap(runs, nsim, kwargs):
         Simulation index.
     kwargs : dict
         Nearest neighbour reader keyword arguments.
+    runs_to_mass : dict
+        Dictionary mapping run names to total halo mass range.
 
     Returns
     -------
@@ -802,12 +844,15 @@ def plot_kl_vs_overlap(runs, nsim, kwargs):
         prob_nomatch = prob_nomatch[mask]
         mass = mass[mask]
 
-        kl = make_kl("csiborg", run, nsim, nobs=None, kwargs=kwargs)
-
-        xs.append(kl)
-        ys1.append(1 - numpy.mean(prob_nomatch, axis=1))
-        ys2.append(numpy.std(prob_nomatch, axis=1))
-        cs.append(numpy.log10(mass))
+        x = make_kl("csiborg", run, nsim, nobs=None, kwargs=kwargs)
+        y1 = 1 - numpy.mean(prob_nomatch, axis=1)
+        y2 = numpy.std(prob_nomatch, axis=1)
+        cmin, cmax = make_binlims(run, runs_to_mass)
+        mask = (mass >= cmin) & (mass < cmax)
+        xs.append(x[mask])
+        ys1.append(y1[mask])
+        ys2.append(y2[mask])
+        cs.append(numpy.log10(mass[mask]))
 
     xs = numpy.concatenate(xs)
     ys1 = numpy.concatenate(ys1)
@@ -891,23 +936,25 @@ if __name__ == "__main__":
         for pulled_cdf in [True, False]:
             plot_cdf_diff(runs, neighbour_kwargs, pulled_cdf=pulled_cdf,
                           runs_to_mass=runs_to_mass)
-    if False:
+    if True:
         runs = [f"mass00{i}" for i in range(1, 9)]
         for kind in ["kl", "ks"]:
             plot_significance("csiborg", runs, 7444, nobs=None, kind=kind,
                               kwargs=neighbour_kwargs,
                               runs_to_mass=runs_to_mass)
 
-    if True:
+    if False:
         runs = [f"mass00{i}" for i in range(1, 10)]
         for kind in ["kl", "ks"]:
             plot_significance_vs_mass("csiborg", runs, 7444, nobs=None,
-                                      kind=kind, kwargs=neighbour_kwargs)
+                                      kind=kind, kwargs=neighbour_kwargs,
+                                      runs_to_mass=runs_to_mass)
 
     if False:
         runs = [f"mass00{i}" for i in range(1, 10)]
-        plot_kl_vs_ks("csiborg", runs, 7444, None, kwargs=neighbour_kwargs)
+        plot_kl_vs_ks("csiborg", runs, 7444, None, kwargs=neighbour_kwargs,
+                      runs_to_mass=runs_to_mass)
 
     if False:
         runs = [f"mass00{i}" for i in range(1, 10)]
-        plot_kl_vs_overlap(runs, 7444, neighbour_kwargs)
+        plot_kl_vs_overlap(runs, 7444, neighbour_kwargs, runs_to_mass)
