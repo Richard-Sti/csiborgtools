@@ -251,7 +251,23 @@ def radvel_field(nsim, parser_args, to_save=True):
 ###############################################################################
 
 
-def environment_field(nsim, parser_args):
+def environment_field(nsim, parser_args, to_save):
+    """
+    Calculate the environmental classification in the CSiBORG simulation.
+
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+    parser_args : argparse.Namespace
+        Parsed arguments.
+    to_save : bool, optional
+        Whether to save the output to disk.
+
+    Returns
+    -------
+    env : 3-dimensional array
+    """
     if parser_args.in_rsp:
         raise NotImplementedError("Env. field in RSP not implemented.")
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
@@ -265,6 +281,9 @@ def environment_field(nsim, parser_args):
         print(f"{datetime.now()}: loading density field.")
     rho = numpy.load(paths.field("density", parser_args.MAS, parser_args.grid,
                                  nsim, in_rsp=False))
+    if parser_args.smooth_scale > 0:
+        rho = csiborgtools.field.smoothen_field(rho, parser_args.smooth_scale,
+                                                box.boxsize, threads=1)
     rho = density_gen.overdensity_field(rho)
     # Calculate the real space tidal tensor field, delete overdensity.
     if parser_args.verbose:
@@ -272,12 +291,14 @@ def environment_field(nsim, parser_args):
     tensor_field = gen(rho)
     del rho
     collect()
+
     # Calculate the eigenvalues of the tidal tensor field, delete tensor field.
     if parser_args.verbose:
         print(f"{datetime.now()}: calculating eigenvalues.")
     eigvals = gen.tensor_field_eigvals(tensor_field)
     del tensor_field
     collect()
+
     # Classify the environment based on the eigenvalues.
     if parser_args.verbose:
         print(f"{datetime.now()}: classifying environment.")
@@ -285,10 +306,12 @@ def environment_field(nsim, parser_args):
     del eigvals
     collect()
 
-    fout = paths.field("environment", parser_args.MAS, parser_args.grid,
-                       nsim, parser_args.in_rsp)
-    print(f"{datetime.now()}: saving output to `{fout}`.")
-    numpy.save(fout, env)
+    if to_save:
+        fout = paths.field("environment", parser_args.MAS, parser_args.grid,
+                           nsim, parser_args.in_rsp)
+        print(f"{datetime.now()}: saving output to `{fout}`.")
+        numpy.save(fout, env)
+    return env
 
 
 ###############################################################################
