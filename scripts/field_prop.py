@@ -268,8 +268,6 @@ def environment_field(nsim, parser_args, to_save=True):
     -------
     env : 3-dimensional array
     """
-    if parser_args.in_rsp:
-        raise NotImplementedError("Env. field in RSP not implemented.")
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsnap = max(paths.get_snapshots(nsim))
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
@@ -292,7 +290,22 @@ def environment_field(nsim, parser_args, to_save=True):
     del rho
     collect()
 
-    # TODO: Optionally drag the field to RSP.
+    # Optionally drag the field to RSP.
+    if parser_args.in_rsp:
+        parts = csiborgtools.read.read_h5(paths.particles(nsim))["particles"]
+        fields = (tensor_field.T00, tensor_field.T11, tensor_field.T22,
+                  tensor_field.T01, tensor_field.T02, tensor_field.T12)
+
+        T00, T11, T22, T01, T02, T12 = csiborgtools.field.field2rsp(
+            fields, parts, box, verbose=parser_args.verbose)
+        tensor_field.T00[...] = T00
+        tensor_field.T11[...] = T11
+        tensor_field.T22[...] = T22
+        tensor_field.T01[...] = T01
+        tensor_field.T02[...] = T02
+        tensor_field.T12[...] = T12
+        del T00, T11, T22, T01, T02, T12
+        collect()
 
     # Calculate the eigenvalues of the tidal tensor field, delete tensor field.
     if parser_args.verbose:
