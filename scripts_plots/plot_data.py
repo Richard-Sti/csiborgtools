@@ -16,6 +16,7 @@
 from os.path import join
 from argparse import ArgumentParser
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy
 import healpy
@@ -296,10 +297,11 @@ def plot_projected_field(kind, nsim, grid, in_rsp, smooth_scale, MAS="PCS",
         end = round(field.shape[0] * 0.73)
         field = field[start:end, start:end, start:end]
 
-    if kind != "environment":
-        cmap = "viridis"
+    if kind == "environment":
+        cmap = mpl.colors.ListedColormap(
+            ['red', 'lightcoral', 'limegreen', 'khaki'])
     else:
-        cmap = "brg"
+        cmap = "viridis"
 
     labels = [r"$y-z$", r"$x-z$", r"$x-y$"]
     with plt.style.context(plt_utils.mplstyle):
@@ -327,7 +329,7 @@ def plot_projected_field(kind, nsim, grid, in_rsp, smooth_scale, MAS="PCS",
                 rad = R * numpy.sqrt(1 - z**2 / R**2)
                 ax[i].plot(rad * numpy.cos(theta) + grid // 2,
                            rad * numpy.sin(theta) + grid // 2,
-                           lw=plt.rcParams["lines.linewidth"], zorder=1,
+                           lw=0.75 * plt.rcParams["lines.linewidth"], zorder=1,
                            c="red", ls="--")
             ax[i].set_title(labels[i])
 
@@ -356,12 +358,23 @@ def plot_projected_field(kind, nsim, grid, in_rsp, smooth_scale, MAS="PCS",
                 (xticks * size / ncells - size / 2).astype(int))
             ax[i].set_xlabel(r"$x_j ~ [\mathrm{Mpc} / h]$")
 
-        cbar_ax = fig.add_axes([1.0, 0.1, 0.025, 0.8])
+        cbar_ax = fig.add_axes([0.982, 0.155, 0.025, 0.75],
+                               transform=ax[2].transAxes)
         if slice_find is None:
             clabel = "Mean projected field"
         else:
             clabel = "Sliced field"
-        fig.colorbar(im, cax=cbar_ax, label=clabel)
+
+        if kind == "environment":
+            bounds = [0, 1, 2, 3, 4]
+            norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+            cbar = fig.colorbar(
+                mpl.cm.ScalarMappable(cmap=cmap, norm=norm), cax=cbar_ax,
+                ticks=[0.5, 1.5, 2.5, 3.5])
+            cbar.ax.set_yticklabels(["knot", "filament", "sheet", "void"],
+                                    rotation=90, va="center")
+        else:
+            fig.colorbar(im, cax=cbar_ax, label=clabel)
 
         fig.tight_layout(h_pad=0, w_pad=0)
         for ext in ["png"] if pdf is False else ["png", "pdf"]:
@@ -538,13 +551,13 @@ if __name__ == "__main__":
                               plot_halos=5e13, volume_weight=False)
 
     if True:
-        kind = "overdensity"
-        grid = 1024
+        kind = "environment"
+        grid = 256
         smooth_scale = 0
         # plot_projected_field("overdensity", 7444, grid, in_rsp=True,
         #                      highres_only=False)
         plot_projected_field(kind, 7444, grid, in_rsp=False,
-                             smooth_scale=smooth_scale, slice_find=0.7,
+                             smooth_scale=smooth_scale, slice_find=0.5,
                              highres_only=False)
 
     if False:
