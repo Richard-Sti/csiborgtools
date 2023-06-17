@@ -922,7 +922,7 @@ if __name__ == "__main__":
             delete_disk_caches_for_function(func)
 
     # Plot 1NN distance distributions.
-    if False:
+    if True:
         for i in range(1, 10):
             run = f"mass00{i}"
             for pulled_cdf in [True, False]:
@@ -931,7 +931,7 @@ if __name__ == "__main__":
             plot_dist(run, "pdf", neighbour_kwargs, runs_to_mass)
 
     # Plot 1NN CDF differences.
-    if False:
+    if True:
         runs = [f"mass00{i}" for i in range(1, 10)]
         for pulled_cdf in [True, False]:
             plot_cdf_diff(runs, neighbour_kwargs, pulled_cdf=pulled_cdf,
@@ -943,18 +943,18 @@ if __name__ == "__main__":
                               kwargs=neighbour_kwargs,
                               runs_to_mass=runs_to_mass)
 
-    if False:
+    if True:
         runs = [f"mass00{i}" for i in range(1, 10)]
         for kind in ["kl", "ks"]:
             plot_significance_vs_mass("csiborg", runs, 7444, nobs=None,
                                       kind=kind, kwargs=neighbour_kwargs,
                                       runs_to_mass=runs_to_mass)
 
-    if False:
+    if True:
         runs = [f"mass00{i}" for i in range(1, 10)]
         plot_kl_vs_ks("csiborg", runs, 7444, None, kwargs=neighbour_kwargs,
                       runs_to_mass=runs_to_mass)
 
-    if False:
+    if True:
         runs = [f"mass00{i}" for i in range(1, 10)]
         plot_kl_vs_overlap(runs, 7444, neighbour_kwargs, runs_to_mass)
