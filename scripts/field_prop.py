@@ -197,7 +197,7 @@ def potential_field(nsim, parser_args, to_save=True):
                                              verbose=parser_args.verbose)
     if to_save:
         fout = paths.field(parser_args.kind, parser_args.MAS, parser_args.grid,
-                           nsim, parser_args.in_rsp)
+                           nsim, parser_args.in_rsp, parser_args.smooth_scale)
         print(f"{datetime.now()}: saving output to `{fout}`.")
         numpy.save(fout, field)
     return field
@@ -251,7 +251,7 @@ def radvel_field(nsim, parser_args, to_save=True):
 ###############################################################################
 
 
-def environment_field(nsim, parser_args, to_save):
+def environment_field(nsim, parser_args, to_save=True):
     """
     Calculate the environmental classification in the CSiBORG simulation.
 
@@ -292,6 +292,8 @@ def environment_field(nsim, parser_args, to_save):
     del rho
     collect()
 
+    # TODO: Optionally drag the field to RSP.
+
     # Calculate the eigenvalues of the tidal tensor field, delete tensor field.
     if parser_args.verbose:
         print(f"{datetime.now()}: calculating eigenvalues.")
@@ -308,7 +310,7 @@ def environment_field(nsim, parser_args, to_save):
 
     if to_save:
         fout = paths.field("environment", parser_args.MAS, parser_args.grid,
-                           nsim, parser_args.in_rsp)
+                           nsim, parser_args.in_rsp, parser_args.smooth_scale)
         print(f"{datetime.now()}: saving output to `{fout}`.")
         numpy.save(fout, env)
     return env
