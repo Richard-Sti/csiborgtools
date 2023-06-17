@@ -319,9 +319,12 @@ def plot_projected_field(kind, nsim, grid, in_rsp, smooth_scale, MAS="PCS",
             else:
                 ax[i].imshow(img, vmin=vmin, vmax=vmax, cmap=cmap)
 
-            if not highres_only:
+            frad = 155.5 / 677.7
+            if not highres_only and 0.5 - frad < slice_find < 0.5 + frad:
                 theta = numpy.linspace(0, 2 * numpy.pi, 100)
-                rad = 155.5 / 677.7 * grid
+                z = (slice_find - 0.5) * grid
+                R = 155.5 / 677.7 * grid
+                rad = R * numpy.sqrt(1 - z**2 / R**2)
                 ax[i].plot(rad * numpy.cos(theta) + grid // 2,
                            rad * numpy.sin(theta) + grid // 2,
                            lw=plt.rcParams["lines.linewidth"], zorder=1,
@@ -536,13 +539,13 @@ if __name__ == "__main__":
 
     if True:
         kind = "overdensity"
-        grid = 256
-        smooth_scale = 10
+        grid = 1024
+        smooth_scale = 0
         # plot_projected_field("overdensity", 7444, grid, in_rsp=True,
         #                      highres_only=False)
         plot_projected_field(kind, 7444, grid, in_rsp=False,
-                             smooth_scale=smooth_scale, slice_find=0.5,
-                             highres_only=True)
+                             smooth_scale=smooth_scale, slice_find=0.7,
+                             highres_only=False)
 
     if False:
         paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
