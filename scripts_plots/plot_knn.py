@@ -41,6 +41,10 @@ def plot_knn(runname):
     Parameters
     ----------
     runname : str
+
+    Returns
+    -------
+    None
     """
     print(f"Plotting kNN CDF for {runname}.")
     cols = plt.rcParams["axes.prop_cycle"].by_key()["color"]
