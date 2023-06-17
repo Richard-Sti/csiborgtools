@@ -168,17 +168,17 @@ def divide_nonzero(field0, field1):
                     field0[i, j, k] /= field1[i, j, k]
 
 
-def field2rsp(field, parts, box, nbatch=30, flip_partsxz=True, init_value=0.,
+def field2rsp(*fields, parts, box, nbatch=30, flip_partsxz=True, init_value=0.,
               verbose=True):
     """
-    Forward model real space scalar field to redshift space. Attaches field
+    Forward model real space scalar fields to redshift space. Attaches field
     values to particles, those are then moved to redshift space and from their
     positions reconstructs back the field on a grid by NGP interpolation.
 
     Parameters
     ----------
-    field : 3-dimensional array of shape `(grid, grid, grid)`
-        Real space field to be evolved to redshift space.
+    fields : (list of) 3-dimensional array of shape `(grid, grid, grid)`
+        Real space fields to be evolved to redshift space.
     parts : 2-dimensional array of shape `(n_parts, 6)`
         Particle positions and velocities in real space. Must be organised as
         `x, y, z, vx, vy, vz`.
@@ -199,39 +199,50 @@ def field2rsp(field, parts, box, nbatch=30, flip_partsxz=True, init_value=0.,
     -------
     rsp_fields : (list of) 3-dimensional array of shape `(grid, grid, grid)`
     """
-    rsp_field = numpy.full(field.shape, init_value, dtype=numpy.float32)
-    cellcounts = numpy.zeros(rsp_field.shape, dtype=numpy.float32)
-    # We iterate over the fields and in the inner loop over the particles. This
-    # is slower than iterating over the particles and in the inner loop over
-    # the fields, but it is more memory efficient. Typically we will only have
-    # one field.
+    nfields = len(fields)
+    # Check that all fields have the same shape.
+    if nfields > 1:
+        assert all(fields[0].shape == fields[i].shape
+                   for i in range(1, nfields))
+
+    rsp_fields = [numpy.full(field.shape, init_value, dtype=numpy.float32)
+                  for field in fields]
+    cellcounts = numpy.zeros(rsp_fields[0].shape, dtype=numpy.float32)
+
     nparts = parts.shape[0]
     batch_size = nparts // nbatch
     start = 0
-    for k in trange(nbatch + 1) if verbose else range(nbatch + 1):
+    for __ in trange(nbatch + 1) if verbose else range(nbatch + 1):
+        # We first load the batch of particles into memory and flip x and z.
         end = min(start + batch_size, nparts)
         pos = parts[start:end]
         pos, vel = pos[:, :3], pos[:, 3:6]
         if flip_partsxz:
             pos[:, [0, 2]] = pos[:, [2, 0]]
             vel[:, [0, 2]] = vel[:, [2, 0]]
-        # Evaluate the field at the particle positions in real space.
-        values = evaluate_cartesian(field, pos=pos)
-        # Move particles to redshift space.
+        # Then move the particles to redshift space.
         rsp_pos = real2redshift(pos, vel, [0.5, 0.5, 0.5], box,
                                 in_box_units=True, periodic_wrap=True,
                                 make_copy=True)
-        # Assign particles' values to the grid.
-        MASL.MA(rsp_pos, rsp_field, 1., "NGP", W=values)
-        # Count the number of particles in each grid cell.
+        # ... and count the number of particles in each grid cell.
         MASL.MA(rsp_pos, cellcounts, 1., "NGP")
+
+        # Now finally we evaluate the field at the particle positions in real
+        # space and then assign the values to the grid in redshift space.
+        for i in range(nfields):
+            values = evaluate_cartesian(fields[i], pos=pos)
+            MASL.MA(rsp_pos, rsp_fields[i], 1., "NGP", W=values)
         if end == nparts:
             break
         start = end
 
-    # Finally divide by the number of particles in each cell and smooth.
-    divide_nonzero(rsp_field, cellcounts)
-    return rsp_field
+    # We divide by the number of particles in each cell.
+    for i in range(len(fields)):
+        divide_nonzero(rsp_fields[i], cellcounts)
+
+    if len(fields) == 1:
+        return rsp_fields[0]
+    return rsp_fields
 
 
 @jit(nopython=True)
