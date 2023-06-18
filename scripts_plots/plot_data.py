@@ -322,15 +322,24 @@ def plot_projected_field(kind, nsim, grid, in_rsp, smooth_scale, MAS="PCS",
                 ax[i].imshow(img, vmin=vmin, vmax=vmax, cmap=cmap)
 
             frad = 155.5 / 677.7
-            if not highres_only and 0.5 - frad < slice_find < 0.5 + frad:
-                theta = numpy.linspace(0, 2 * numpy.pi, 100)
+            R = 155.5 / 677.7 * grid
+            if slice_find is None:
+                rad = R
+                plot_circle = True
+            elif (not highres_only and 0.5 - frad < slice_find < 0.5 + frad):
                 z = (slice_find - 0.5) * grid
-                R = 155.5 / 677.7 * grid
                 rad = R * numpy.sqrt(1 - z**2 / R**2)
+                plot_circle = True
+            else:
+                plot_circle = False
+
+            if not highres_only and plot_circle:
+                theta = numpy.linspace(0, 2 * numpy.pi, 100)
                 ax[i].plot(rad * numpy.cos(theta) + grid // 2,
                            rad * numpy.sin(theta) + grid // 2,
                            lw=0.75 * plt.rcParams["lines.linewidth"], zorder=1,
                            c="red", ls="--")
+
             ax[i].set_title(labels[i])
 
         if highres_only:
@@ -551,7 +560,7 @@ if __name__ == "__main__":
                               plot_halos=5e13, volume_weight=False)
 
     if True:
-        kind = "environment"
+        kind = "density"
         grid = 256
         smooth_scale = 0
         # plot_projected_field("overdensity", 7444, grid, in_rsp=True,
