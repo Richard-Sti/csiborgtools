@@ -193,7 +193,7 @@ def potential_field(nsim, parser_args, to_save=True):
 
     if parser_args.in_rsp:
         parts = csiborgtools.read.read_h5(paths.particles(nsim))["particles"]
-        field = csiborgtools.field.field2rsp(field, parts=parts, box=box,
+        field = csiborgtools.field.field2rsp(*field, parts=parts, box=box,
                                              verbose=parser_args.verbose)
     if to_save:
         fout = paths.field(parser_args.kind, parser_args.MAS, parser_args.grid,
@@ -297,7 +297,7 @@ def environment_field(nsim, parser_args, to_save=True):
                   tensor_field.T01, tensor_field.T02, tensor_field.T12)
 
         T00, T11, T22, T01, T02, T12 = csiborgtools.field.field2rsp(
-            fields, parts, box, verbose=parser_args.verbose)
+            *fields, parts=parts, box=box, verbose=parser_args.verbose)
         tensor_field.T00[...] = T00
         tensor_field.T11[...] = T11
         tensor_field.T22[...] = T22
