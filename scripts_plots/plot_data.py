@@ -422,7 +422,7 @@ def get_sky_label(kind, volume_weight):
         if kind == "density":
             label = r"$\log \int_{0}^{R} r^2 \rho(r, \mathrm{RA}, \mathrm{dec}) \mathrm{d} r$"  # noqa
         if kind == "overdensity":
-            label = r"$\log \int_{0}^{R} r^2 \left[\delta(r, \mathrm{RA}, \mathrm{dec}) + 2\right] \mathrm{d} r$"  # noqa
+            label = r"$\log \int_{0}^{R} r^2 \left[\delta(r, \mathrm{RA}, \mathrm{dec}) + 1\right] \mathrm{d} r$"  # noqa
         elif kind == "potential":
             label = r"$\int_{0}^{R} r^2 \phi(r, \mathrm{RA}, \mathrm{dec}) \mathrm{d} r$"  # noqa
         elif kind == "radvel":
@@ -433,7 +433,7 @@ def get_sky_label(kind, volume_weight):
         if kind == "density":
             label = r"$\log \int_{0}^{R} \rho(r, \mathrm{RA}, \mathrm{dec}) \mathrm{d} r$"  # noqa
         if kind == "overdensity":
-            label = r"$\log \int_{0}^{R} \left[\delta(r, \mathrm{RA}, \mathrm{dec}) + 2\right] \mathrm{d} r$"  # noqa
+            label = r"$\log \int_{0}^{R} \left[\delta(r, \mathrm{RA}, \mathrm{dec}) + 1\right] \mathrm{d} r$"  # noqa
         elif kind == "potential":
             label = r"$\int_{0}^{R} \phi(r, \mathrm{RA}, \mathrm{dec}) \mathrm{d} r$"  # noqa
         elif kind == "radvel":
@@ -443,9 +443,9 @@ def get_sky_label(kind, volume_weight):
     return label
 
 
-def plot_sky_distribution(kind, nsim, grid, nside, smooth_scale, MAS="PCS",
-                          plot_groups=True, dmin=0, dmax=220, plot_halos=None,
-                          volume_weight=True, pdf=False):
+def plot_sky_distribution(field, nsim, grid, nside, smooth_scale=None,
+                          MAS="PCS", plot_groups=True, dmin=0, dmax=220,
+                          plot_halos=None, volume_weight=True, pdf=False):
     r"""
     Plot the sky distribution of a given field kind on the sky along with halos
     and selected observations.
@@ -503,7 +503,7 @@ def plot_sky_distribution(kind, nsim, grid, nside, smooth_scale, MAS="PCS",
         label = get_sky_label(kind, volume_weight)
         if kind in ["density", "overdensity"]:
             out = numpy.log10(out)
-        healpy.mollview(out, fig=0, title="", unit=label)
+        healpy.mollview(out, fig=0, title="", unit=label, rot=90)
 
         if plot_halos is not None:
             bounds = {"dist": (dmin, dmax),
@@ -512,7 +512,7 @@ def plot_sky_distribution(kind, nsim, grid, nside, smooth_scale, MAS="PCS",
             X = cat.position(cartesian=False)
             healpy.projscatter(numpy.deg2rad(X[:, 2] + 90),
                                numpy.deg2rad(X[:, 1]),
-                               s=1, c="red", label="CSiBORG haloes")
+                               s=5, c="red", label="CSiBORG haloes")
 
         if plot_groups:
             groups = csiborgtools.read.TwoMPPGroups(fpath="/mnt/extraspace/rstiskalek/catalogs/2M++_group_catalog.dat")  # noqa
@@ -521,7 +521,7 @@ def plot_sky_distribution(kind, nsim, grid, nside, smooth_scale, MAS="PCS",
                                label="2M++ groups")
 
         if plot_halos is not None or plot_groups:
-            plt.legend(markerscale=10)
+            plt.legend(markerscale=5)
 
         for ext in ["png"] if pdf is False else ["png", "pdf"]:
             fout = join(plt_utils.fout, f"sky_{kind}_{nsim}_from_{dmin}_to_{dmax}_vol{volume_weight}.{ext}")  # noqa
@@ -552,14 +552,14 @@ if __name__ == "__main__":
     if False:
         plot_hmf(pdf=False)
 
-    if False:
-        kind = "environment"
-        grid = 256
-        plot_sky_distribution(kind, 7444, grid, nside=64,
-                              plot_groups=False, dmin=0, dmax=25,
-                              plot_halos=5e13, volume_weight=False)
-
     if True:
+        kind = "overdensity"
+        grid = 1024
+        plot_sky_distribution(kind, 7444, grid, nside=64,
+                              plot_groups=False, dmin=45, dmax=60,
+                              plot_halos=5e13, volume_weight=True)
+
+    if False:
         kind = "density"
         grid = 256
         smooth_scale = 0
