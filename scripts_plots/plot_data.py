@@ -19,6 +19,7 @@ from argparse import ArgumentParser
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy
+from h5py import File
 import healpy
 
 import scienceplots  # noqa
@@ -244,7 +245,8 @@ def load_field(kind, nsim, grid, MAS, in_rsp=False, smooth_scale=None):
 
 
 def plot_projected_field(kind, nsim, grid, in_rsp, smooth_scale, MAS="PCS",
-                         highres_only=True, slice_find=None, pdf=False):
+                         vel_component=0, highres_only=True, slice_find=None,
+                         pdf=False):
     r"""
     Plot the mean projected field, however can also plot a single slice.
 
@@ -262,6 +264,8 @@ def plot_projected_field(kind, nsim, grid, in_rsp, smooth_scale, MAS="PCS",
         Smoothing scale in :math:`\mathrm{Mpc} / h`.
     MAS : str, optional
         Mass assignment scheme.
+    vel_component : int, optional
+        Which velocity field component to plot.
     highres_only : bool, optional
         Whether to only plot the high-resolution region.
     slice_find : float, optional
@@ -283,12 +287,16 @@ def plot_projected_field(kind, nsim, grid, in_rsp, smooth_scale, MAS="PCS",
                            smooth_scale=smooth_scale)
         density_gen = csiborgtools.field.DensityField(box, MAS)
         field = density_gen.overdensity_field(field) + 1
+    elif kind == "borg_density":
+        field = File(paths.borg_mcmc(nsim), 'r')
+        field = field["scalars"]["BORG_final_density"][...]
     else:
         field = load_field(kind, nsim, grid, MAS=MAS, in_rsp=in_rsp,
                            smooth_scale=smooth_scale)
 
     if kind == "velocity":
-        field = field[0, ...]
+        field = field[vel_component, ...]
+        field = box.box2vel(field)
 
     if highres_only:
         csiborgtools.field.fill_outside(field, numpy.nan, rmax=155.5,
@@ -552,22 +560,23 @@ if __name__ == "__main__":
     if False:
         plot_hmf(pdf=False)
 
-    if True:
+    if False:
         kind = "overdensity"
         grid = 1024
         plot_sky_distribution(kind, 7444, grid, nside=64,
                               plot_groups=False, dmin=45, dmax=60,
                               plot_halos=5e13, volume_weight=True)
 
-    if False:
-        kind = "density"
+    if True:
+        kind = "overdensity"
         grid = 256
         smooth_scale = 0
         # plot_projected_field("overdensity", 7444, grid, in_rsp=True,
         #                      highres_only=False)
         plot_projected_field(kind, 7444, grid, in_rsp=False,
                              smooth_scale=smooth_scale, slice_find=0.5,
-                             highres_only=False)
+                             MAS="PCS",
+                             highres_only=True)
 
     if False:
         paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
