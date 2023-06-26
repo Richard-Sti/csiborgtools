@@ -24,10 +24,9 @@ from ..read.utils import radec_to_cartesian, real2redshift
 from .utils import force_single_precision
 
 
-def evaluate_cartesian(*fields, pos):
+def evaluate_cartesian(*fields, pos, interp="CIC"):
     """
-    Evaluate a scalar field at Cartesian coordinates using CIC
-    interpolation.
+    Evaluate a scalar field at Cartesian coordinates.
 
     Parameters
     ----------
@@ -36,19 +35,29 @@ def evaluate_cartesian(*fields, pos):
     pos : 2-dimensional array of shape `(n_samples, 3)`
         Positions to evaluate the density field. Assumed to be in box
         units.
+    interp : str, optional
+        Interpolation method. Can be either `CIC` or `NGP`.
 
     Returns
     -------
     interp_fields : (list of) 1-dimensional array of shape `(n_samples,).
     """
+    assert interp in ["CIC", "NGP"]
     boxsize = 1.
     pos = force_single_precision(pos, "pos")
 
     nsamples = pos.shape[0]
     interp_fields = [numpy.full(nsamples, numpy.nan, dtype=numpy.float32)
                      for __ in range(len(fields))]
-    for i, field in enumerate(fields):
-        MASL.CIC_interp(field, boxsize, pos, interp_fields[i])
+
+    if interp == "CIC":
+        for i, field in enumerate(fields):
+            MASL.CIC_interp(field, boxsize, pos, interp_fields[i])
+    else:
+        pos = numpy.floor(pos * fields[0].shape[0]).astype(numpy.int32)
+        for i, field in enumerate(fields):
+            for j in range(nsamples):
+                interp_fields[i][j] = field[pos[j, 0], pos[j, 1], pos[j, 2]]
 
     if len(fields) == 1:
         return interp_fields[0]
