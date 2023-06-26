@@ -642,7 +642,10 @@ def plot_significance(simname, runs, nsim, nobs, kind, kwargs, runs_to_mass):
             if simname == "quijote":
                 paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
                 nsim = paths.quijote_fiducial_nsim(nsim, nobs)
-            fout = join(plt_utils.fout, f"significance_{kind}_{simname}_{str(nsim).zfill(5)}.{ext}")  # noqa
+            nsim = str(nsim).zfill(5)
+            fout = join(
+                plt_utils.fout,
+                f"significance_{kind}_{simname}_{nsim}_{runs}.{ext}")
             print(f"Saving to `{fout}`.")
             fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
@@ -738,8 +741,8 @@ def plot_significance_vs_mass(simname, runs, nsim, nobs, kind, kwargs,
         for ext in ["png"]:
             if simname == "quijote":
                 nsim = paths.quijote_fiducial_nsim(nsim, nobs)
-            fout = (f"significance_vs_mass_{kind}_{simname}"
-                    + f"_{str(nsim).zfill(5)}.{ext}")
+            nsim = str(nsim).zfill(5)
+            fout = (f"sgnf_vs_mass_{kind}_{simname}_{nsim}_{runs}.{ext}")
             fout = join(plt_utils.fout, fout)
             print(f"Saving to `{fout}`.")
             plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
@@ -801,8 +804,10 @@ def plot_kl_vs_ks(simname, runs, nsim, nobs, kwargs, runs_to_mass):
         for ext in ["png"]:
             if simname == "quijote":
                 nsim = paths.quijote_fiducial_nsim(nsim, nobs)
-            fout = join(plt_utils.fout,
-                        f"kl_vs_ks_{simname}_{run}_{str(nsim).zfill(5)}.{ext}")
+            nsim = str(nsim).zfill(5)
+            fout = join(
+                plt_utils.fout,
+                f"kl_vs_ks_{simname}_{run}_{nsim}_{runs}.{ext}")
             print(f"Saving to `{fout}`.")
             plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
@@ -885,8 +890,9 @@ def plot_kl_vs_overlap(runs, nsim, kwargs, runs_to_mass):
 
         plt.tight_layout()
         for ext in ["png"]:
+            nsim = str(nsim).zfill(5)
             fout = join(plt_utils.fout,
-                        f"kl_vs_overlap_std_{str(nsim).zfill(5)}.{ext}")
+                        f"kl_vs_overlap_std_{nsim}_{runs}.{ext}")
             print(f"Saving to `{fout}`.")
             plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
