@@ -177,8 +177,30 @@ def divide_nonzero(field0, field1):
                     field0[i, j, k] /= field1[i, j, k]
 
 
-def field2rsp(*fields, parts, box, nbatch=30, flip_partsxz=True, init_value=0.,
-              verbose=True):
+def observer_vobs(velocity_field):
+    """
+    Calculate the observer velocity from a velocity field. Assumes the observer
+    is in the centre of the box.
+
+    Parameters
+    ----------
+    velocity_field : 4-dimensional array of shape `(3, grid, grid, grid)`
+        Velocity field to calculate the observer velocity from.
+
+    Returns
+    -------
+    vobs : 1-dimensional array of shape `(3,)`
+        Observer velocity in units of `velocity_field`.
+    """
+    pos = numpy.asanyarray([0.5, 0.5, 0.5]).reshape(1, 3)
+    vobs = numpy.full(3, numpy.nan, dtype=numpy.float32)
+    for i in range(3):
+        vobs[i] = evaluate_cartesian(velocity_field[i, ...], pos=pos)[0]
+    return vobs
+
+
+def field2rsp(*fields, parts, vobs, box, nbatch=30, flip_partsxz=True,
+              init_value=0., verbose=True):
     """
     Forward model real space scalar fields to redshift space. Attaches field
     values to particles, those are then moved to redshift space and from their
@@ -191,6 +213,8 @@ def field2rsp(*fields, parts, box, nbatch=30, flip_partsxz=True, init_value=0.,
     parts : 2-dimensional array of shape `(n_parts, 6)`
         Particle positions and velocities in real space. Must be organised as
         `x, y, z, vx, vy, vz`.
+    vobs : 1-dimensional array of shape `(3,)`
+        Observer velocity in units matching `parts`.
     box : :py:class:`csiborgtools.read.CSiBORGBox`
         The simulation box information and transformations.
     nbatch : int, optional
@@ -208,6 +232,7 @@ def field2rsp(*fields, parts, box, nbatch=30, flip_partsxz=True, init_value=0.,
     -------
     rsp_fields : (list of) 3-dimensional array of shape `(grid, grid, grid)`
     """
+    raise NotImplementedError("Figure out what to do with Vobs.")
     nfields = len(fields)
     # Check that all fields have the same shape.
     if nfields > 1:
