@@ -61,52 +61,28 @@ def density_field(nsim, parser_args, to_save=True):
     nsnap = max(paths.get_snapshots(nsim))
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
     parts = csiborgtools.read.read_h5(paths.particles(nsim))["particles"]
-
     gen = csiborgtools.field.DensityField(box, parser_args.MAS)
-    field = gen(parts, parser_args.grid, in_rsp=parser_args.in_rsp,
-                verbose=parser_args.verbose)
+
+    if parser_args.kind == "density":
+        field = gen(parts, parser_args.grid, in_rsp=False,
+                    verbose=parser_args.verbose)
+        if parser_args.in_rsp:
+            field = csiborgtools.field.field2rsp(*field, parts=parts, box=box,
+                                                 verbose=parser_args.verbose)
+    else:
+        field = gen(parts, parser_args.grid, in_rsp=parser_args.in_rsp,
+                    verbose=parser_args.verbose)
+
+    if parser_args.smooth_scale > 0:
+        field = csiborgtools.field.smoothen_field(
+            field, parser_args.smooth_scale, box.boxsize * box.h, threads=1)
 
     if to_save:
-        fout = paths.field("density", parser_args.MAS, parser_args.grid,
-                           nsim, parser_args.in_rsp)
+        fout = paths.field(parser_args.kind, parser_args.MAS, parser_args.grid,
+                           nsim, parser_args.in_rsp, parser_args.smooth_scale)
         print(f"{datetime.now()}: saving output to `{fout}`.")
         numpy.save(fout, field)
     return field
-
-
-def density_field_smoothed(nsim, parser_args, to_save=True):
-    """
-    Calculate the smoothed density field in the CSiBORG simulation. The
-    unsmoothed density field must already be precomputed.
-
-    Parameters
-    ----------
-    nsim : int
-        Simulation index.
-    parser_args : argparse.Namespace
-        Parsed arguments.
-    to_save : bool, optional
-        Whether to save the output to disk.
-
-    Returns
-    -------
-    smoothed_density : 3-dimensional array
-    """
-    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    nsnap = max(paths.get_snapshots(nsim))
-    box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
-
-    # Load the real space overdensity field
-    rho = numpy.load(paths.field("density", parser_args.MAS, parser_args.grid,
-                                 nsim, in_rsp=False))
-    rho = csiborgtools.field.smoothen_field(rho, parser_args.smooth_scale,
-                                            box.boxsize, threads=1)
-    if to_save:
-        fout = paths.field("density", parser_args.MAS, parser_args.grid,
-                           nsim, parser_args.in_rsp, parser_args.smooth_scale)
-        print(f"{datetime.now()}: saving output to `{fout}`.")
-        numpy.save(fout, rho)
-    return rho
 
 
 ###############################################################################
@@ -185,7 +161,7 @@ def potential_field(nsim, parser_args, to_save=True):
                                  nsim, in_rsp=False))
     if parser_args.smooth_scale > 0:
         rho = csiborgtools.field.smoothen_field(rho, parser_args.smooth_scale,
-                                                box.boxsize, threads=1)
+                                                box.boxsize * box.h, threads=1)
     rho = density_gen.overdensity_field(rho)
     # Calculate the real space potentiel field
     gen = csiborgtools.field.PotentialField(box, parser_args.MAS)
@@ -281,7 +257,7 @@ def environment_field(nsim, parser_args, to_save=True):
                                  nsim, in_rsp=False))
     if parser_args.smooth_scale > 0:
         rho = csiborgtools.field.smoothen_field(rho, parser_args.smooth_scale,
-                                                box.boxsize, threads=1)
+                                                box.boxsize * box.h, threads=1)
     rho = density_gen.overdensity_field(rho)
     # Calculate the real space tidal tensor field, delete overdensity.
     if parser_args.verbose:
@@ -339,16 +315,19 @@ if __name__ == "__main__":
     parser.add_argument("--nsims", type=int, nargs="+", default=None,
                         help="IC realisations. `-1` for all simulations.")
     parser.add_argument("--kind", type=str,
-                        choices=["density", "velocity", "radvel", "potential",
-                                 "environment"],
+                        choices=["density", "rspdensity", "velocity", "radvel",
+                                 "potential", "environment"],
                         help="What derived field to calculate?")
     parser.add_argument("--MAS", type=str,
                         choices=["NGP", "CIC", "TSC", "PCS"])
     parser.add_argument("--grid", type=int, help="Grid resolution.")
     parser.add_argument("--in_rsp", type=lambda x: bool(strtobool(x)),
                         help="Calculate in RSP?")
-    parser.add_argument("--smooth_scale", type=float, default=0)
+    parser.add_argument("--smooth_scale", type=float, default=0,
+                        help="Smoothing scale in Mpc/h.")
     parser.add_argument("--verbose", type=lambda x: bool(strtobool(x)),
+                        help="Verbosity flag for reading in particles.")
+    parser.add_argument("--simname", type=str, default="csiborg",
                         help="Verbosity flag for reading in particles.")
     parser_args = parser.parse_args()
     comm = MPI.COMM_WORLD
@@ -356,11 +335,8 @@ if __name__ == "__main__":
     nsims = get_nsims(parser_args, paths)
 
     def main(nsim):
-        if parser_args.kind == "density":
-            if parser_args.smooth_scale > 0:
-                density_field_smoothed(nsim, parser_args)
-            else:
-                density_field(nsim, parser_args)
+        if parser_args.kind == "density" or parser_args.kind == "rspdensity":
+            density_field(nsim, parser_args)
         elif parser_args.kind == "velocity":
             velocity_field(nsim, parser_args)
         elif parser_args.kind == "radvel":
