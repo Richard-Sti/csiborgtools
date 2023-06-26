@@ -31,16 +31,21 @@ class Paths:
         Path to the folder where the RAMSES outputs are stored.
     postdir: str, optional
         Path to the folder where post-processed files are stored.
+    borg_dir : str, optional
+        Path to the folder where BORG MCMC chains are stored.
     quiote_dir : str, optional
         Path to the folder where Quijote simulations are stored.
     """
     _srcdir = None
     _postdir = None
+    _borg_dir = None
     _quijote_dir = None
 
-    def __init__(self, srcdir=None, postdir=None, quijote_dir=None):
+    def __init__(self, srcdir=None, postdir=None, borg_dir=None,
+                 quijote_dir=None):
         self.srcdir = srcdir
         self.postdir = postdir
+        self.borg_dir = borg_dir
         self.quijote_dir = quijote_dir
 
     @staticmethod
@@ -67,6 +72,26 @@ class Paths:
             return
         self._check_directory(path)
         self._srcdir = path
+
+    @property
+    def borg_dir(self):
+        """
+        Path to the folder where BORG MCMC chains are stored.
+
+        Returns
+        -------
+        path : str
+        """
+        if self._borg_dir is None:
+            raise ValueError("`borg_dir` is not set!")
+        return self._borg_dir
+
+    @borg_dir.setter
+    def borg_dir(self, path):
+        if path is None:
+            return
+        self._check_directory(path)
+        self._borg_dir = path
 
     @property
     def quijote_dir(self):
@@ -145,6 +170,21 @@ class Paths:
             assert len(nsim) == 5
             return nsim
         return f"{str(nobs).zfill(2)}{str(nsim).zfill(3)}"
+
+    def borg_mcmc(self, nsim):
+        """
+        Path to the BORG MCMC chain file.
+
+        Parameters
+        ----------
+        nsim : int
+            IC realisation index.
+
+        Returns
+        -------
+        path : str
+        """
+        return join(self.borg_dir, "mcmc", f"mcmc_{nsim}.h5")
 
     def mmain(self, nsnap, nsim):
         """
