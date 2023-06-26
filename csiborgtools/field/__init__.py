@@ -17,9 +17,10 @@ from warnings import warn
 try:
     import MAS_library as MASL  # noqa
 
-    from .density import DensityField, PotentialField, VelocityField, TidalTensorField  # noqa
+    from .density import (DensityField, PotentialField,  # noqa
+                          TidalTensorField, VelocityField)
     from .interp import (evaluate_cartesian, evaluate_sky, field2rsp,  # noqa
-                         make_sky, fill_outside)  # noqa
+                         fill_outside, make_sky, observer_vobs)
     from .utils import nside2radec, smoothen_field  # noqa
 except ImportError:
     warn("MAS_library not found, `DensityField` will not be available", UserWarning)  # noqa
