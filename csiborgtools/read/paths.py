@@ -373,7 +373,7 @@ class Paths:
             IC realisation index.
         in_rsp : bool
             Whether the calculation is performed in redshift space.
-        smooth_scale : float
+        smooth_scale : float, optional
             Smoothing scale in :math:`\mathrm{Mpc}/h`
 
         Returns
