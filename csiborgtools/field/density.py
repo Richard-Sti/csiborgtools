@@ -17,13 +17,13 @@ Density field and cross-correlation calculations.
 """
 from abc import ABC
 
-import numpy
-
 import MAS_library as MASL
+import numpy
 from numba import jit
 from tqdm import trange
 
 from ..read.utils import real2redshift
+from .interp import divide_nonzero
 from .utils import force_single_precision
 
 
@@ -249,7 +249,7 @@ class VelocityField(BaseField):
                                        / numpy.sqrt(px**2 + py**2 + pz**2))
         return radvel
 
-    def __call__(self, parts, grid, mpart, flip_xz=True, nbatch=30,
+    def __call__(self, parts, grid, flip_xz=True, nbatch=30,
                  verbose=True):
         """
         Calculate the velocity field using a Pylians routine [1, 2].
@@ -263,8 +263,6 @@ class VelocityField(BaseField):
             Columns are: `x`, `y`, `z`, `vx`, `vy`, `vz`, `M`.
         grid : int
             Grid size.
-        mpart : float
-            Particle mass.
         flip_xz : bool, optional
             Whether to flip the `x` and `z` coordinates.
         nbatch : int, optional
@@ -287,6 +285,7 @@ class VelocityField(BaseField):
         rho_vely = numpy.zeros((grid, grid, grid), dtype=numpy.float32)
         rho_velz = numpy.zeros((grid, grid, grid), dtype=numpy.float32)
         rho_vel = [rho_velx, rho_vely, rho_velz]
+        cellcounts = numpy.zeros((grid, grid, grid), dtype=numpy.float32)
 
         nparts = parts.shape[0]
         batch_size = nparts // nbatch
@@ -302,16 +301,22 @@ class VelocityField(BaseField):
             if flip_xz:
                 pos[:, [0, 2]] = pos[:, [2, 0]]
                 vel[:, [0, 2]] = vel[:, [2, 0]]
-            vel *= mass.reshape(-1, 1) / mpart
+            vel *= mass.reshape(-1, 1)
 
             for i in range(3):
                 MASL.MA(pos, rho_vel[i], self.boxsize, self.MAS, W=vel[:, i],
                         verbose=False)
+
+            MASL.MA(pos, cellcounts, self.boxsize, self.MAS, W=mass,
+                    verbose=False)
             if end == nparts:
                 break
             start = end
 
-        return numpy.stack(rho_vel)
+        for i in range(3):
+            divide_nonzero(rho_vel[i], cellcounts)
+
+        return numpy.stack([rho_velx, rho_vely, rho_velz])
 
 
 ###############################################################################
