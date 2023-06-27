@@ -19,6 +19,7 @@ from os.path import join
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy
+from scipy.stats import kendalltau
 import scienceplots  # noqa
 from cache_to_disk import cache_to_disk, delete_disk_caches_for_function
 from tqdm import tqdm
@@ -596,6 +597,7 @@ def plot_significance(simname, runs, nsim, nobs, kind, kwargs, runs_to_mass):
         Nearest neighbour reader keyword arguments.
     runs_to_mass : dict
         Dictionary mapping run names to total halo mass range.
+    upper_threshold : bool, optional
 
     Returns
     -------
@@ -676,7 +678,7 @@ def make_binlims(run, runs_to_mass):
 
 
 def plot_significance_vs_mass(simname, runs, nsim, nobs, kind, kwargs,
-                              runs_to_mass):
+                              runs_to_mass, upper_threshold=False):
     """
     Plot significance of the 1NN distance as a function of the total mass.
 
@@ -697,6 +699,8 @@ def plot_significance_vs_mass(simname, runs, nsim, nobs, kind, kwargs,
         Nearest neighbour reader keyword arguments.
     runs_to_mass : dict
         Dictionary mapping run names to total halo mass range.
+    upper_threshold : bool, optional
+        Whether to enforce an upper threshold on halo mass.
 
     Returns
     -------
@@ -718,17 +722,20 @@ def plot_significance_vs_mass(simname, runs, nsim, nobs, kind, kwargs,
                 y = numpy.log10(make_ks(simname, run, nsim, nobs, kwargs))
 
             xmin, xmax = make_binlims(run, runs_to_mass)
-            mask = (x >= xmin) & (x < xmax)
-            xs.append(x[mask])
+
+            mask = (x >= xmin) & (x < xmax if upper_threshold else True)
+            xs.append(numpy.log10(x[mask]))
             ys.append(y[mask])
 
         xs = numpy.concatenate(xs)
         ys = numpy.concatenate(ys)
 
-        plt.hexbin(xs, ys, gridsize=75, mincnt=1, xscale="log", bins="log")
+        plt.hexbin(xs, ys, gridsize=75, mincnt=1, bins="log")
+        mask = numpy.isfinite(xs) & numpy.isfinite(ys)
+        corr = plt_utils.latex_float(*kendalltau(xs[mask], ys[mask]))
+        plt.title(r"$\tau = {}, p = {}$".format(*corr), fontsize="small")
 
-        plt.xlabel(r"$M_{\rm tot} / M_\odot$")
-        plt.xlim(numpy.min(xs))
+        plt.xlabel(r"$\log M_{\rm tot} / M_\odot$")
         if kind == "ks":
             plt.ylabel(r"$\log p$-value of $r_{1\mathrm{NN}}$ distribution")
             plt.ylim(top=0)
@@ -742,14 +749,17 @@ def plot_significance_vs_mass(simname, runs, nsim, nobs, kind, kwargs,
             if simname == "quijote":
                 nsim = paths.quijote_fiducial_nsim(nsim, nobs)
             nsim = str(nsim).zfill(5)
-            fout = (f"sgnf_vs_mass_{kind}_{simname}_{nsim}_{runs}.{ext}")
+            fout = f"sgnf_vs_mass_{kind}_{simname}_{nsim}_{runs}.{ext}"
+            if upper_threshold:
+                fout = fout.replace(f".{ext}", f"_upper_threshold.{ext}")
             fout = join(plt_utils.fout, fout)
             print(f"Saving to `{fout}`.")
             plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
 
 
-def plot_kl_vs_ks(simname, runs, nsim, nobs, kwargs, runs_to_mass):
+def plot_kl_vs_ks(simname, runs, nsim, nobs, kwargs, runs_to_mass,
+                  upper_threshold=False):
     """
     Plot Kullback-Leibler divergence vs Kolmogorov-Smirnov statistic p-value.
 
@@ -767,6 +777,8 @@ def plot_kl_vs_ks(simname, runs, nsim, nobs, kwargs, runs_to_mass):
         Nearest neighbour reader keyword arguments.
     runs_to_mass : dict
         Dictionary mapping run names to total halo mass range.
+    upper_threshold : bool, optional
+        Whether to enforce an upper threshold on halo mass.
 
     Returns
     -------
@@ -782,7 +794,7 @@ def plot_kl_vs_ks(simname, runs, nsim, nobs, kwargs, runs_to_mass):
         y = make_ks(simname, run, nsim, nobs, kwargs)
 
         cmin, cmax = make_binlims(run, runs_to_mass)
-        mask = (c >= cmin) & (c < cmax)
+        mask = (c >= cmin) & (c < cmax if upper_threshold else True)
         xs.append(x[mask])
         ys.append(y[mask])
         cs.append(c[mask])
@@ -795,6 +807,9 @@ def plot_kl_vs_ks(simname, runs, nsim, nobs, kwargs, runs_to_mass):
         plt.figure()
         plt.hexbin(xs, ys, C=cs, gridsize=50, mincnt=0,
                    reduce_C_function=numpy.median)
+        mask = numpy.isfinite(xs) & numpy.isfinite(ys)
+        corr = plt_utils.latex_float(*kendalltau(xs[mask], ys[mask]))
+        plt.title(r"$\tau = {}, p = {}$".format(*corr), fontsize="small")
         plt.colorbar(label=r"$\log M_{\rm tot} / M_\odot$")
 
         plt.xlabel(r"$D_{\mathrm{KL}}$ of $r_{1\mathrm{NN}}$ distribution")
@@ -808,12 +823,15 @@ def plot_kl_vs_ks(simname, runs, nsim, nobs, kwargs, runs_to_mass):
             fout = join(
                 plt_utils.fout,
                 f"kl_vs_ks_{simname}_{run}_{nsim}_{runs}.{ext}")
+            if upper_threshold:
+                fout = fout.replace(f".{ext}", f"_upper_threshold.{ext}")
             print(f"Saving to `{fout}`.")
             plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
 
 
-def plot_kl_vs_overlap(runs, nsim, kwargs, runs_to_mass):
+def plot_kl_vs_overlap(runs, nsim, kwargs, runs_to_mass, plot_std=True,
+                       upper_threshold=False):
     """
     Plot KL divergence vs overlap for CSiBORG.
 
@@ -827,6 +845,10 @@ def plot_kl_vs_overlap(runs, nsim, kwargs, runs_to_mass):
         Nearest neighbour reader keyword arguments.
     runs_to_mass : dict
         Dictionary mapping run names to total halo mass range.
+    plot_std : bool, optional
+        Whether to plot the standard deviation of the overlap distribution.
+    upper_threshold : bool, optional
+        Whether to enforce an upper threshold on halo mass.
 
     Returns
     -------
@@ -853,7 +875,7 @@ def plot_kl_vs_overlap(runs, nsim, kwargs, runs_to_mass):
         y1 = 1 - numpy.mean(prob_nomatch, axis=1)
         y2 = numpy.std(prob_nomatch, axis=1)
         cmin, cmax = make_binlims(run, runs_to_mass)
-        mask = (mass >= cmin) & (mass < cmax)
+        mask = (mass >= cmin) & (mass < cmax if upper_threshold else True)
         xs.append(x[mask])
         ys1.append(y1[mask])
         ys2.append(y2[mask])
@@ -868,17 +890,27 @@ def plot_kl_vs_overlap(runs, nsim, kwargs, runs_to_mass):
         plt.figure()
         plt.hexbin(xs, ys1, C=cs, gridsize=50, mincnt=0,
                    reduce_C_function=numpy.median)
+        mask = numpy.isfinite(xs) & numpy.isfinite(ys1)
+        corr = plt_utils.latex_float(*kendalltau(xs[mask], ys1[mask]))
+        plt.title(r"$\tau = {}, p = {}$".format(*corr), fontsize="small")
+
         plt.colorbar(label=r"$\log M_{\rm tot} / M_\odot$")
         plt.xlabel(r"$D_{\mathrm{KL}}$ of $r_{1\mathrm{NN}}$ distribution")
         plt.ylabel(r"$1 - \langle \eta^{\mathcal{B}}_a \rangle_{\mathcal{B}}$")
 
         plt.tight_layout()
         for ext in ["png"]:
+            nsim = str(nsim).zfill(5)
             fout = join(plt_utils.fout,
-                        f"kl_vs_overlap_mean_{str(nsim).zfill(5)}.{ext}")
+                        f"kl_vs_overlap_mean_{nsim}_{runs}.{ext}")
+            if upper_threshold:
+                fout = fout.replace(f".{ext}", f"_upper_threshold.{ext}")
             print(f"Saving to `{fout}`.")
             plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
+
+    if not plot_std:
+        return
 
     with plt.style.context(plt_utils.mplstyle):
         plt.figure()
@@ -887,12 +919,17 @@ def plot_kl_vs_overlap(runs, nsim, kwargs, runs_to_mass):
         plt.colorbar(label=r"$\log M_{\rm tot} / M_\odot$")
         plt.xlabel(r"$D_{\mathrm{KL}}$ of $r_{1\mathrm{NN}}$ distribution")
         plt.ylabel(r"Ensemble std of summed overlap")
+        mask = numpy.isfinite(xs) & numpy.isfinite(ys2)
+        corr = plt_utils.latex_float(*kendalltau(xs[mask], ys2[mask]))
+        plt.title(r"$\tau = {}, p = {}$".format(*corr), fontsize="small")
 
         plt.tight_layout()
         for ext in ["png"]:
             nsim = str(nsim).zfill(5)
             fout = join(plt_utils.fout,
                         f"kl_vs_overlap_std_{nsim}_{runs}.{ext}")
+            if upper_threshold:
+                fout = fout.replace(f".{ext}", f"_upper_threshold.{ext}")
             print(f"Saving to `{fout}`.")
             plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
@@ -928,7 +965,7 @@ if __name__ == "__main__":
             delete_disk_caches_for_function(func)
 
     # Plot 1NN distance distributions.
-    if True:
+    if False:
         for i in range(1, 10):
             run = f"mass00{i}"
             for pulled_cdf in [True, False]:
@@ -937,30 +974,35 @@ if __name__ == "__main__":
             plot_dist(run, "pdf", neighbour_kwargs, runs_to_mass)
 
     # Plot 1NN CDF differences.
-    if True:
+    if False:
         runs = [f"mass00{i}" for i in range(1, 10)]
         for pulled_cdf in [True, False]:
             plot_cdf_diff(runs, neighbour_kwargs, pulled_cdf=pulled_cdf,
                           runs_to_mass=runs_to_mass)
-    if True:
+    if False:
         runs = [f"mass00{i}" for i in range(1, 9)]
         for kind in ["kl", "ks"]:
             plot_significance("csiborg", runs, 7444, nobs=None, kind=kind,
                               kwargs=neighbour_kwargs,
                               runs_to_mass=runs_to_mass)
 
-    if True:
-        runs = [f"mass00{i}" for i in range(1, 10)]
+    if False:
+        # runs = [f"mass00{i}" for i in range(1, 10)]
+        runs = ["mass007"]
         for kind in ["kl", "ks"]:
             plot_significance_vs_mass("csiborg", runs, 7444, nobs=None,
                                       kind=kind, kwargs=neighbour_kwargs,
-                                      runs_to_mass=runs_to_mass)
+                                      runs_to_mass=runs_to_mass,
+                                      upper_threshold=True)
 
-    if True:
-        runs = [f"mass00{i}" for i in range(1, 10)]
+    if False:
+        # runs = [f"mass00{i}" for i in range(1, 10)]
+        runs = ["mass006"]
         plot_kl_vs_ks("csiborg", runs, 7444, None, kwargs=neighbour_kwargs,
-                      runs_to_mass=runs_to_mass)
+                      runs_to_mass=runs_to_mass, upper_threshold=True)
 
     if True:
-        runs = [f"mass00{i}" for i in range(1, 10)]
-        plot_kl_vs_overlap(runs, 7444, neighbour_kwargs, runs_to_mass)
+        # runs = [f"mass00{i}" for i in range(1, 10)]
+        runs = ["mass006"]
+        plot_kl_vs_overlap(runs, 7444, neighbour_kwargs, runs_to_mass,
+                           upper_threshold=True, plot_std=False)
