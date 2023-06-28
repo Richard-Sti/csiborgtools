@@ -14,14 +14,15 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 from argparse import ArgumentParser
+from gc import collect
 from os.path import join
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy
-from scipy.stats import kendalltau
 import scienceplots  # noqa
 from cache_to_disk import cache_to_disk, delete_disk_caches_for_function
+from scipy.stats import kendalltau
 from tqdm import tqdm
 
 import plt_utils
@@ -89,6 +90,7 @@ def get_overlap(nsim0):
 
     reader = csiborgtools.read.NPairsOverlap(cat0, catxs, paths)
     mass = reader.cat0("totpartmass")
+
     hindxs = reader.cat0("index")
     summed_overlap = reader.summed_overlap(True)
     prob_nomatch = reader.prob_nomatch(True)
@@ -97,7 +99,7 @@ def get_overlap(nsim0):
 
 def plot_summed_overlap_vs_mass(nsim0):
     """
-    Plot the summer overlap of probaiblity of no matching for a single
+    Plot the summed overlap of probability of no matching for a single
     reference simulations as a function of the reference halo mass, along with
     their comparison.
 
@@ -111,6 +113,8 @@ def plot_summed_overlap_vs_mass(nsim0):
     None
     """
     x, __, summed_overlap, prob_nomatch = get_overlap(nsim0)
+    del __
+    collect()
 
     mean_overlap = numpy.mean(summed_overlap, axis=1)
     std_overlap = numpy.std(summed_overlap, axis=1)
@@ -176,6 +180,63 @@ def plot_summed_overlap_vs_mass(nsim0):
                         f"overlap_vs_prob_nomatch_{nsim0}.{ext}")
             print(f"Saving to `{fout}`.")
             plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
+        plt.close()
+
+
+def plot_mass_vs_separation(nsim0, nsimx, min_overlap=0.0):
+    """
+    Plot the mass of a reference halo against the weighted separation of
+    its counterparts.
+
+    Parameters
+    ----------
+    nsim0 : int
+        Reference simulation index.
+    nsimx : int
+        Cross simulation index.
+    min_overlap : float, optional
+        Minimum overlap to consider.
+
+    Returns
+    -------
+    None
+    """
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    cat0 = open_cat(nsim0)
+    catx = open_cat(nsimx)
+
+    reader = csiborgtools.read.PairOverlap(cat0, catx, paths)
+    mass = numpy.log10(reader.cat0("totpartmass"))
+    dist = reader.dist(in_initial=False, norm_kind="r200c")
+    overlap = reader.overlap(True)
+    dist = csiborgtools.read.weighted_stats(dist, overlap,
+                                            min_weight=min_overlap)
+
+    mask = numpy.isfinite(dist[:, 0])
+    mass = mass[mask]
+    dist = dist[mask, :]
+    dist = numpy.log10(dist)
+
+    p = numpy.polyfit(mass, dist[:, 0], 1)
+    xrange = numpy.linspace(numpy.min(mass), numpy.max(mass), 1000)
+    txt = r"$m = {}$, $c = {}$".format(*plt_utils.latex_float(*p, n=3))
+
+    with plt.style.context(plt_utils.mplstyle):
+        fig, ax = plt.subplots()
+        ax.set_title(txt, fontsize="small")
+
+        cx = ax.hexbin(mass, dist[:, 0], mincnt=1, bins="log", gridsize=50)
+        ax.plot(xrange, numpy.polyval(p, xrange), color="red",
+                linestyle="--")
+        fig.colorbar(cx, label="Bin counts")
+        ax.set_xlabel(r"$\log M_{\rm tot} / M_\odot$")
+        ax.set_ylabel(r"$\log \langle \Delta R / R_{\rm 200c}\rangle$")
+
+        fig.tight_layout()
+        for ext in ["png"]:
+            fout = join(plt_utils.fout, f"mass_vs_sep_{nsim0}_{nsimx}.{ext}")
+            print(f"Saving to `{fout}`.")
+            fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
 
 
@@ -958,11 +1019,16 @@ if __name__ == "__main__":
         "mass009": (14.0, 14.4),  # There is no upper limit.
         }
 
-    cached_funcs = ["get_overlap", "read_dist", "make_kl", "make_ks"]
+    # cached_funcs = ["get_overlap", "read_dist", "make_kl", "make_ks"]
+    cached_funcs = ["get_overlap"]
     if args.clean:
         for func in cached_funcs:
             print(f"Cleaning cache for function {func}.")
             delete_disk_caches_for_function(func)
+
+    if True:
+        plot_mass_vs_separation(7444 + 24, 8956 + 24 * 3)
+
 
     # Plot 1NN distance distributions.
     if False:
@@ -1001,7 +1067,7 @@ if __name__ == "__main__":
         plot_kl_vs_ks("csiborg", runs, 7444, None, kwargs=neighbour_kwargs,
                       runs_to_mass=runs_to_mass, upper_threshold=True)
 
-    if True:
+    if False:
         # runs = [f"mass00{i}" for i in range(1, 10)]
         runs = ["mass006"]
         plot_kl_vs_overlap(runs, 7444, neighbour_kwargs, runs_to_mass,
