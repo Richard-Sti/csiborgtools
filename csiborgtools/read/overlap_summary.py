@@ -19,7 +19,7 @@ from functools import lru_cache
 from os.path import isfile
 
 import numpy
-from tqdm import tqdm
+from tqdm import tqdm, trange
 
 ###############################################################################
 #                         Overlap of two simulations                          #
@@ -293,7 +293,6 @@ class PairOverlap:
 
             if norm_kind is not None:
                 dist[i] /= norm[i]
-
         return numpy.array(dist, dtype=object)
 
     def mass_ratio(self, mass_kind="totpartmass", in_log=True, in_abs=True):
@@ -406,7 +405,7 @@ class PairOverlap:
         vals = self.cat0(par)
         out = [None] * len(self)
         for i, ind in enumerate(self["match_indxs"]):
-            out[i] = numpy.ones(ind.size) * vals[i]
+            out[i] = numpy.ones(len(ind)) * vals[i]
         return numpy.array(out, dtype=object)
 
     def cat0(self, key=None, index=None):
@@ -457,6 +456,43 @@ class PairOverlap:
 
     def __len__(self):
         return self["match_indxs"].size
+
+
+def weighted_stats(x, weights, min_weight=0, verbose=False):
+    """
+    Calculate the weighted mean and standard deviation of `x` using `weights`
+    for each array of `x`.
+
+    Parameters
+    ----------
+    x : array of arrays
+        Array of arrays of values to calculate the weighted mean and standard
+        deviation for.
+    weights : array of arrays
+        Array of arrays of weights to use for the calculation.
+    min_weight : float, optional
+        Minimum weight required for a value to be included in the calculation.
+    verbose : bool, optional
+        Verbosity flag.
+
+    Returns
+    -------
+    stat : 2-dimensional array of shape `(len(x), 2)`
+        The first column is the weighted mean and the second column is the
+        weighted standard deviation.
+    """
+    out = numpy.full((x.size, 2), numpy.nan, dtype=numpy.float32)
+
+    for i in trange(len(x)) if verbose else range(len(x)):
+        x_, w_ = numpy.asarray(x[i]), numpy.asarray(weights[i])
+        mask = w_ > min_weight
+        x_ = x_[mask]
+        w_ = w_[mask]
+        if len(w_) == 0:
+            continue
+        out[i, 0] = numpy.average(x_, weights=w_)
+        out[i, 1] = numpy.average((x_ - out[i, 0])**2, weights=w_)**0.5
+    return out
 
 
 ###############################################################################
