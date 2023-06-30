@@ -183,7 +183,7 @@ def plot_summed_overlap_vs_mass(nsim0):
         plt.close()
 
 
-def plot_mass_vs_separation(nsim0, nsimx, min_overlap=0.0):
+def plot_mass_vs_separation(nsim0, nsimx, plot_std=False, min_overlap=0.0):
     """
     Plot the mass of a reference halo against the weighted separation of
     its counterparts.
@@ -194,6 +194,8 @@ def plot_mass_vs_separation(nsim0, nsimx, min_overlap=0.0):
         Reference simulation index.
     nsimx : int
         Cross simulation index.
+    plot_std : bool, optional
+        Whether to plot thestd instead of mean.
     min_overlap : float, optional
         Minimum overlap to consider.
 
@@ -212,12 +214,16 @@ def plot_mass_vs_separation(nsim0, nsimx, min_overlap=0.0):
     dist = csiborgtools.read.weighted_stats(dist, overlap,
                                             min_weight=min_overlap)
 
-    mask = numpy.isfinite(dist[:, 0])
+    mask = numpy.isfinite(dist[:, 0]) & (dist[:, 1] > 1e-3)
     mass = mass[mask]
     dist = dist[mask, :]
     dist = numpy.log10(dist)
 
-    p = numpy.polyfit(mass, dist[:, 0], 1)
+    if not plot_std:
+        p = numpy.polyfit(mass, dist[:, 0], 1)
+    else:
+        p = numpy.polyfit(mass, dist[:, 1], 1)
+
     xrange = numpy.linspace(numpy.min(mass), numpy.max(mass), 1000)
     txt = r"$m = {}$, $c = {}$".format(*plt_utils.latex_float(*p, n=3))
 
@@ -225,7 +231,14 @@ def plot_mass_vs_separation(nsim0, nsimx, min_overlap=0.0):
         fig, ax = plt.subplots()
         ax.set_title(txt, fontsize="small")
 
-        cx = ax.hexbin(mass, dist[:, 0], mincnt=1, bins="log", gridsize=50)
+        if not plot_std:
+            cx = ax.hexbin(mass, dist[:, 0], mincnt=1, bins="log", gridsize=50)
+            ax.set_ylabel(r"$\log \langle \Delta R / R_{\rm 200c}\rangle$")
+        else:
+            cx = ax.hexbin(mass, dist[:, 1], mincnt=1, bins="log", gridsize=50)
+            ax.set_ylabel(
+                r"$\delta \log \langle \Delta R / R_{\rm 200c}\rangle$")
+
         ax.plot(xrange, numpy.polyval(p, xrange), color="red",
                 linestyle="--")
         fig.colorbar(cx, label="Bin counts")
@@ -234,7 +247,10 @@ def plot_mass_vs_separation(nsim0, nsimx, min_overlap=0.0):
 
         fig.tight_layout()
         for ext in ["png"]:
-            fout = join(plt_utils.fout, f"mass_vs_sep_{nsim0}_{nsimx}.{ext}")
+            fout = join(plt_utils.fout,
+                        f"mass_vs_sep_{nsim0}_{nsimx}_{min_overlap}.{ext}")
+            if plot_std:
+                fout = fout.replace(f".{ext}", f"_std.{ext}")
             print(f"Saving to `{fout}`.")
             fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
@@ -1123,11 +1139,11 @@ if __name__ == "__main__":
             print(f"Cleaning cache for function {func}.")
             delete_disk_caches_for_function(func)
 
-    if False:
+    if True:
         plot_mass_vs_separation(7444 + 24, 8956 + 24 * 3)
 
-    if True:
-        plot_mass_vs_expected_mass(7444, plot_std=False, max_prob_nomatch=1)
+    if False:
+        plot_mass_vs_expected_mass(7444, plot_std=False, max_prob_nomatch=0.6)
 
     # Plot 1NN distance distributions.
     if False:
