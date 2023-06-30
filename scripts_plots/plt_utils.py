@@ -13,6 +13,9 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
+import numpy
+from scipy.stats import binned_statistic
+
 dpi = 600
 fout = "../plots/"
 mplstyle = ["science"]
@@ -51,3 +54,40 @@ def latex_float(*floats, n=2):
     if len(floats) == 1:
         return latex_floats[0]
     return latex_floats
+
+
+def binned_trend(x, y, weights, bins):
+    """
+    Calculate the weighted mean and standard deviation of `y` in bins of `x`.
+
+    Parameters
+    ----------
+    x : 1-dimensional array
+        The x-coordinates of the data points.
+    y : 1-dimensional array
+        The y-coordinates of the data points.
+    weights : 1-dimensional array
+        The weights of the data points.
+    bins : 1-dimensional array
+        The bin edges.
+
+    Returns
+    -------
+    stat_x : 1-dimensional array
+        The x-coordinates of the binned data points.
+    stat_mu : 1-dimensional array
+        The weighted mean of `y` in bins of `x`.
+    stat_std : 1-dimensional array
+        The weighted standard deviation of `y` in bins of `x`.
+    """
+    stat_mu, __, __ = binned_statistic(x, y * weights, bins=bins,
+                                       statistic="sum")
+    stat_std, __, __ = binned_statistic(x, y * weights, bins=bins,
+                                        statistic=numpy.var)
+    stat_w, __, __ = binned_statistic(x, weights, bins=bins, statistic="sum")
+
+    stat_x = (bins[1:] + bins[:-1]) / 2
+    stat_mu /= stat_w
+    stat_std /= stat_w
+    stat_std = numpy.sqrt(stat_std)
+    return stat_x, stat_mu, stat_std
