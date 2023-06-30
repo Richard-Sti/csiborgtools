@@ -240,6 +240,103 @@ def plot_mass_vs_separation(nsim0, nsimx, min_overlap=0.0):
         plt.close()
 
 
+@cache_to_disk(7)
+def get_expected_mass(nsim0, min_overlap):
+    """
+    Get the expected mass of a reference halo given its overlap with halos
+    from other simulations.
+
+    Parameters
+    ----------
+    nsim0 : int
+        Reference simulation index.
+    min_overlap : float
+        Minimum overlap to consider between a pair of haloes.
+
+    Returns
+    -------
+
+
+    """
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    nsimxs = csiborgtools.read.get_cross_sims(nsim0, paths, smoothed=True)
+    nsimxs = nsimxs
+    cat0 = open_cat(nsim0)
+
+    catxs = []
+    print("Opening catalogues...", flush=True)
+    for nsimx in tqdm(nsimxs):
+        catxs.append(open_cat(nsimx))
+
+    reader = csiborgtools.read.NPairsOverlap(cat0, catxs, paths)
+    mass = reader.cat0("totpartmass")
+
+    mu, std = reader.counterpart_mass(True, overlap_threshold=min_overlap,
+                                      in_log=False, return_full=False)
+    prob_nomatch = reader.prob_nomatch(True)
+    return mass, mu, std, prob_nomatch
+
+
+def plot_mass_vs_expected_mass(nsim0, plot_std=False, min_overlap=0,
+                               max_prob_nomatch=1):
+    """
+    Plot the mass of a reference halo against the expected mass of its
+    counterparts.
+
+    Parameters
+    ----------
+    nsim0 : int
+        Reference simulation index.
+    plot_std : bool, optional
+        Whether to plot the standard deviation of the expected mass.
+    min_overlap : float, optional
+        Minimum overlap between a pair of haloes to consider.
+    max_prob_nomatch : float, optional
+        Maximum probability of no match to consider.
+    """
+    mass, mu, std, prob_nomatch = get_expected_mass(nsim0, min_overlap)
+
+    std = std / mu / numpy.log(10)
+    mass = numpy.log10(mass)
+    mu = numpy.log10(mu)
+    prob_nomatch = numpy.nanmean(prob_nomatch, axis=1)
+
+    bins = numpy.arange(numpy.min(mass), numpy.max(mass), 0.2)
+    mask = numpy.isfinite(mass) & numpy.isfinite(mu)
+    mask &= (prob_nomatch < max_prob_nomatch)
+    stat_x, stat_mu, stat_std = plt_utils.binned_trend(
+        mass[mask], mu[mask], 1 - prob_nomatch[mask], bins)
+
+    with plt.style.context(plt_utils.mplstyle):
+        fig, ax = plt.subplots()
+        if not plot_std:
+            cx = ax.scatter(mass[mask], mu[mask], c=prob_nomatch[mask], s=1,
+                            zorder=0, rasterized=True)
+            fig.colorbar(cx, label="Mean probability of no match")
+        else:
+            ax.errorbar(mass[mask], mu[mask], yerr=std[mask], fmt=" ",
+                        capsize=2, zorder=0, rasterized=True)
+
+        ax.set_xlabel(r"True $\log M_{\rm tot} / M_\odot$")
+        ax.set_ylabel(r"Expected $\log M_{\rm tot} / M_\odot$")
+        t = numpy.linspace(*numpy.percentile(mass, [0, 100]), 1000)
+        ax.plot(t, t, color="red", linestyle="--")
+        ax.plot(t, t + 0.2, color="red", linestyle="--", alpha=0.5)
+        ax.plot(t, t - 0.2, color="red", linestyle="--", alpha=0.5)
+
+        ax.plot(stat_x, stat_mu, c="black", zorder=1)
+        ax.fill_between(stat_x, stat_mu - stat_std, stat_mu + stat_std,
+                        color="black", alpha=0.25)
+
+        fig.tight_layout()
+        for ext in ["png"]:
+            fout = join(plt_utils.fout,
+                        f"mass_vs_expmass_{nsim0}_{max_prob_nomatch}.{ext}")
+            print(f"Saving to `{fout}`.")
+            fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
+        plt.close()
+
+
 ###############################################################################
 #                        Nearest neighbour plotting                           #
 ###############################################################################
@@ -1020,15 +1117,17 @@ if __name__ == "__main__":
         }
 
     # cached_funcs = ["get_overlap", "read_dist", "make_kl", "make_ks"]
-    cached_funcs = ["get_overlap"]
+    cached_funcs = ["get_expected_mass"]
     if args.clean:
         for func in cached_funcs:
             print(f"Cleaning cache for function {func}.")
             delete_disk_caches_for_function(func)
 
-    if True:
+    if False:
         plot_mass_vs_separation(7444 + 24, 8956 + 24 * 3)
 
+    if True:
+        plot_mass_vs_expected_mass(7444, plot_std=False, max_prob_nomatch=1)
 
     # Plot 1NN distance distributions.
     if False:
