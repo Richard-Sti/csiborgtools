@@ -359,7 +359,7 @@ class PairOverlap:
 
         for i, match_ind in enumerate(self["match_indxs"]):
             # Skip if no match
-            if match_ind.size == 0:
+            if len(match_ind) == 0:
                 continue
 
             massx_ = massx[match_ind]  # Again just create references
