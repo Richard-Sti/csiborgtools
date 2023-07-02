@@ -527,6 +527,36 @@ class NPairsOverlap:
 
         self._pairs = pairs
 
+    def max_overlap(self, from_smoothed, verbose=True):
+        """
+        Calculate maximum overlap of each halo in the reference simulation with
+        the cross simulations.
+
+        Parameters
+        ----------
+        from_smoothed : bool
+            Whether to use the smoothed overlap or not.
+        verbose : bool, optional
+            Verbosity flag.
+
+        Returns
+        -------
+        max_overlap : 2-dimensional array of shape `(nhalos, ncatxs)`
+        """
+        out = [None] * len(self)
+        if verbose:
+            print("Calculating maximum overlap...", flush=True)
+
+        def get_max(y_):
+            if len(y_) == 0:
+                return numpy.nan
+            return numpy.max(y_)
+
+        for i, pair in enumerate(tqdm(self.pairs) if verbose else self.pairs):
+            out[i] = numpy.asanyarray([get_max(y_)
+                                       for y_ in pair.overlap(from_smoothed)])
+        return numpy.vstack(out).T
+
     def summed_overlap(self, from_smoothed, verbose=True):
         """
         Calculate summed overlap of each halo in the reference simulation with
