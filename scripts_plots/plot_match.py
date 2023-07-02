@@ -19,11 +19,12 @@ from os.path import join
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import numpy
 import scienceplots  # noqa
 from cache_to_disk import cache_to_disk, delete_disk_caches_for_function
 from scipy.stats import kendalltau
-from tqdm import tqdm
+from tqdm import trange, tqdm
 
 import plt_utils
 
@@ -184,6 +185,61 @@ def get_overlap(nsim0):
     return mass, hindxs, max_overlap, summed_overlap, prob_nomatch
 
 
+def plot_mass_vsmedmaxoverlap(nsim0):
+    """
+    Plot the mean maximum overlap of a reference simulation haloes with all the
+    cross simulations.
+
+    Parameters
+    ----------
+    nsim0 : int
+        Reference simulation index.
+    """
+    x, __, max_overlap, __, __ = get_overlap(nsim0)
+
+    for i in trange(max_overlap.shape[0]):
+        if numpy.sum(numpy.isnan(max_overlap[i, :])) > 0:
+            max_overlap[i, :] = numpy.nan
+
+    x = numpy.log10(x)
+
+    with plt.style.context(plt_utils.mplstyle):
+        fig, axs = plt.subplots(ncols=3, figsize=(3.5 * 2, 2.625))
+        im1 = axs[0].hexbin(x, numpy.nanmean(max_overlap, axis=1), gridsize=30,
+                            mincnt=1, bins="log")
+
+        im2 = axs[1].hexbin(x, numpy.nanstd(max_overlap, axis=1), gridsize=30,
+                            mincnt=1, bins="log")
+        im3 = axs[2].hexbin(numpy.nanmean(max_overlap, axis=1),
+                            numpy.nanstd(max_overlap, axis=1), gridsize=30,
+                            C=x, reduce_C_function=numpy.nanmean)
+
+        axs[0].set_xlabel(r"$\log M_{\rm tot} / M_\odot$")
+        axs[0].set_ylabel(r"Mean max. pair overlap")
+        axs[1].set_xlabel(r"$\log M_{\rm tot} / M_\odot$")
+        axs[1].set_ylabel(r"Uncertainty of max. pair overlap")
+        axs[2].set_xlabel(r"Mean max. pair overlap")
+        axs[2].set_ylabel(r"Uncertainty of max. pair overlap")
+
+        label = ["Bin counts", "Bin counts", r"$\log M_{\rm tot} / M_\odot$"]
+        ims = [im1, im2, im3]
+        for i in range(3):
+            axins = inset_axes(axs[i], width="100%", height="5%",
+                               loc='upper center', borderpad=-0.75)
+            fig.colorbar(ims[i], cax=axins, orientation="horizontal",
+                         label=label[i])
+            axins.xaxis.tick_top()
+            axins.xaxis.set_tick_params(labeltop=True)
+            axins.xaxis.set_label_position("top")
+
+        fig.tight_layout()
+        for ext in ["png"]:
+            fout = join(plt_utils.fout, f"maxpairoverlap_{nsim0}.{ext}")
+            print(f"Saving to `{fout}`.")
+            fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
+        plt.close()
+
+
 def plot_summed_overlap_vs_mass(nsim0):
     """
     Plot the summed overlap of probability of no matching for a single
@@ -199,7 +255,7 @@ def plot_summed_overlap_vs_mass(nsim0):
     -------
     None
     """
-    x, __, summed_overlap, prob_nomatch = get_overlap(nsim0)
+    x, __, __, summed_overlap, prob_nomatch = get_overlap(nsim0)
     del __
     collect()
     x = numpy.log10(x)
@@ -1121,7 +1177,7 @@ def plot_kl_vs_overlap(runs, nsim, kwargs, runs_to_mass, plot_std=True,
     for run in runs:
         nn_data = nn_reader.read_single("csiborg", run, nsim, nobs=None)
         nn_hindxs = nn_data["ref_hindxs"]
-        mass, overlap_hindxs, summed_overlap, prob_nomatch = get_overlap(nsim)
+        mass, overlap_hindxs, __, summed_overlap, prob_nomatch = get_overlap(nsim)  # noqa
 
         # We need to match the hindxs between the two.
         hind2overlap_array = {hind: i for i, hind in enumerate(overlap_hindxs)}
@@ -1228,8 +1284,14 @@ if __name__ == "__main__":
     if False:
         plot_mass_vs_pairoverlap(7444 + 24, 8956 + 24 * 3)
 
-    if True:
+    if False:
         plot_mass_vs_maxpairoverlap(7444 + 24, 8956 + 24 * 3)
+
+    if False:
+        plot_mass_vsmedmaxoverlap(7444)
+
+    if True:
+        plot_summed_overlap_vs_mass(7444)
 
     if False:
         plot_mass_vs_separation(7444 + 24, 8956 + 24 * 3)
