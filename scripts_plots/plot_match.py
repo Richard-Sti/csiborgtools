@@ -57,6 +57,90 @@ def open_cat(nsim):
     return csiborgtools.read.HaloCatalogue(nsim, paths, bounds=bounds)
 
 
+def plot_mass_vs_pairoverlap(nsim0, nsimx):
+    """
+    Plot the pair overlap of a reference simulation with a single cross
+    simulation as a function of the reference halo mass.
+
+    Parameters
+    ----------
+    nsim0 : int
+        Reference simulation index.
+    nsimx : int
+        Cross simulation index.
+    """
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    cat0 = open_cat(nsim0)
+    catx = open_cat(nsimx)
+    reader = csiborgtools.read.PairOverlap(cat0, catx, paths)
+
+    x = reader.copy_per_match("totpartmass")
+    y = reader.overlap(True)
+
+    x = numpy.log10(numpy.concatenate(x))
+    y = numpy.concatenate(y)
+
+    with plt.style.context(plt_utils.mplstyle):
+        plt.figure()
+        plt.hexbin(x, y, mincnt=1, bins="log",
+                   gridsize=50)
+        plt.colorbar(label="Counts in bins")
+        plt.xlabel(r"$\log M_{\rm tot} / M_\odot$")
+        plt.ylabel("Pair overlap")
+        plt.ylim(0., 1.)
+
+        plt.tight_layout()
+        for ext in ["png"]:
+            fout = join(plt_utils.fout, f"mass_vs_pair_overlap{nsim0}.{ext}")
+            print(f"Saving to `{fout}`.")
+            plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
+        plt.close()
+
+
+def plot_mass_vs_maxpairoverlap(nsim0, nsimx):
+    """
+    Plot the maximum pair overlap of a reference simulation haloes with a
+    single cross simulation.
+
+    Parameters
+    ----------
+    nsim0 : int
+        Reference simulation index.
+    nsimx : int
+        Cross simulation index.
+    """
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    cat0 = open_cat(nsim0)
+    catx = open_cat(nsimx)
+    reader = csiborgtools.read.PairOverlap(cat0, catx, paths)
+
+    x = numpy.log10(cat0["totpartmass"])
+    y = reader.overlap(True)
+
+    def get_max(y_):
+        if len(y_) == 0:
+            return numpy.nan
+        return numpy.max(y_)
+
+    y = numpy.array([get_max(y_) for y_ in y])
+
+    with plt.style.context(plt_utils.mplstyle):
+        plt.figure()
+        plt.hexbin(x, y, mincnt=1, bins="log",
+                   gridsize=50)
+        plt.colorbar(label="Counts in bins")
+        plt.xlabel(r"$\log M_{\rm tot} / M_\odot$")
+        plt.ylabel("Maximum pair overlap")
+        plt.ylim(0., 1.)
+
+        plt.tight_layout()
+        for ext in ["png"]:
+            fout = join(plt_utils.fout, f"mass_vs_maxpairoverlap{nsim0}.{ext}")
+            print(f"Saving to `{fout}`.")
+            plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
+        plt.close()
+
+
 @cache_to_disk(7)
 def get_overlap(nsim0):
     """
@@ -115,10 +199,10 @@ def plot_summed_overlap_vs_mass(nsim0):
     x, __, summed_overlap, prob_nomatch = get_overlap(nsim0)
     del __
     collect()
+    x = numpy.log10(x)
 
     mean_overlap = numpy.mean(summed_overlap, axis=1)
     std_overlap = numpy.std(summed_overlap, axis=1)
-
     mean_prob_nomatch = numpy.mean(prob_nomatch, axis=1)
 
     mask = mean_overlap > 0
@@ -130,15 +214,15 @@ def plot_summed_overlap_vs_mass(nsim0):
     # Mean summed overlap
     with plt.style.context(plt_utils.mplstyle):
         plt.figure()
-        plt.hexbin(x, mean_overlap, mincnt=1, xscale="log", bins="log",
+        plt.hexbin(x, mean_overlap, mincnt=1, bins="log",
                    gridsize=50)
         plt.colorbar(label="Counts in bins")
-        plt.xlabel(r"$M_{\rm tot} / M_\odot$")
-        plt.ylabel(r"$\langle \mathcal{O}_{a}^{\mathcal{A} \mathcal{B}} \rangle_{\mathcal{B}}$")  # noqa
+        plt.xlabel(r"$\log M_{\rm tot} / M_\odot$")
+        plt.ylabel("Mean summed pair overlap")
         plt.ylim(0., 1.)
 
         plt.tight_layout()
-        for ext in ["png", "pdf"]:
+        for ext in ["png"]:
             fout = join(plt_utils.fout, f"overlap_mean_{nsim0}.{ext}")
             print(f"Saving to `{fout}`.")
             plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
@@ -147,15 +231,15 @@ def plot_summed_overlap_vs_mass(nsim0):
     # Std summed overlap
     with plt.style.context(plt_utils.mplstyle):
         plt.figure()
-        plt.hexbin(x, std_overlap, mincnt=1, xscale="log", bins="log",
+        plt.hexbin(x, std_overlap, mincnt=1, bins="log",
                    gridsize=50)
         plt.colorbar(label="Counts in bins")
-        plt.xlabel(r"$M_{\rm tot} / M_\odot$")
-        plt.ylabel(r"$\delta \left( \mathcal{O}_{a}^{\mathcal{A} \mathcal{B}} \right)_{\mathcal{B}}$")  # noqa
+        plt.xlabel(r"$\log M_{\rm tot} / M_\odot$")
+        plt.ylabel("Uncertainty of summed pair overlap")
         plt.ylim(0., 1.)
         plt.tight_layout()
 
-        for ext in ["png", "pdf"]:
+        for ext in ["png"]:
             fout = join(plt_utils.fout, f"overlap_std_{nsim0}.{ext}")
             print(f"Saving to `{fout}`.")
             plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
@@ -164,18 +248,17 @@ def plot_summed_overlap_vs_mass(nsim0):
     # 1 - mean summed overlap vs mean prob nomatch
     with plt.style.context(plt_utils.mplstyle):
         plt.figure()
-        plt.scatter(1 - mean_overlap, mean_prob_nomatch, c=numpy.log10(x), s=2,
+        plt.scatter(1 - mean_overlap, mean_prob_nomatch, c=x, s=2,
                     rasterized=True)
-        plt.colorbar(label=r"$\log_{10} M_{\rm halo} / M_\odot$")
+        plt.colorbar(label=r"$\log M_{\rm halo} / M_\odot$")
 
         t = numpy.linspace(0.3, 1, 100)
         plt.plot(t, t, color="red", linestyle="--")
-
-        plt.xlabel(r"$1 - \langle \mathcal{O}_a^{\mathcal{A} \mathcal{B}} \rangle_{\mathcal{B}}$")  # noqa
-        plt.ylabel(r"$\langle \eta_a^{\mathcal{A} \mathcal{B}} \rangle_{\mathcal{B}}$")  # noqa
+        plt.xlabel(r"$1 - $ mean summed pair overlap")
+        plt.ylabel("Mean probability of no match")
         plt.tight_layout()
 
-        for ext in ["png", "pdf"]:
+        for ext in ["png"]:
             fout = join(plt_utils.fout,
                         f"overlap_vs_prob_nomatch_{nsim0}.{ext}")
             print(f"Saving to `{fout}`.")
@@ -1139,7 +1222,13 @@ if __name__ == "__main__":
             print(f"Cleaning cache for function {func}.")
             delete_disk_caches_for_function(func)
 
+    if False:
+        plot_mass_vs_pairoverlap(7444 + 24, 8956 + 24 * 3)
+
     if True:
+        plot_mass_vs_maxpairoverlap(7444 + 24, 8956 + 24 * 3)
+
+    if False:
         plot_mass_vs_separation(7444 + 24, 8956 + 24 * 3)
 
     if False:
