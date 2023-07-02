@@ -258,11 +258,16 @@ def plot_summed_overlap_vs_mass(nsim0):
     x, __, __, summed_overlap, prob_nomatch = get_overlap(nsim0)
     del __
     collect()
+
+    for i in trange(summed_overlap.shape[0]):
+        if numpy.sum(numpy.isnan(summed_overlap[i, :])) > 0:
+            summed_overlap[i, :] = numpy.nan
+
     x = numpy.log10(x)
 
-    mean_overlap = numpy.mean(summed_overlap, axis=1)
-    std_overlap = numpy.std(summed_overlap, axis=1)
-    mean_prob_nomatch = numpy.mean(prob_nomatch, axis=1)
+    mean_overlap = numpy.nanmean(summed_overlap, axis=1)
+    std_overlap = numpy.nanstd(summed_overlap, axis=1)
+    mean_prob_nomatch = numpy.nanmean(prob_nomatch, axis=1)
 
     mask = mean_overlap > 0
     x = x[mask]
@@ -270,58 +275,41 @@ def plot_summed_overlap_vs_mass(nsim0):
     std_overlap = std_overlap[mask]
     mean_prob_nomatch = mean_prob_nomatch[mask]
 
-    # Mean summed overlap
     with plt.style.context(plt_utils.mplstyle):
-        plt.figure()
-        plt.hexbin(x, mean_overlap, mincnt=1, bins="log",
-                   gridsize=50)
-        plt.colorbar(label="Counts in bins")
-        plt.xlabel(r"$\log M_{\rm tot} / M_\odot$")
-        plt.ylabel("Mean summed pair overlap")
-        plt.ylim(0., 1.)
-
-        plt.tight_layout()
-        for ext in ["png"]:
-            fout = join(plt_utils.fout, f"overlap_mean_{nsim0}.{ext}")
-            print(f"Saving to `{fout}`.")
-            plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
-        plt.close()
-
-    # Std summed overlap
-    with plt.style.context(plt_utils.mplstyle):
-        plt.figure()
-        plt.hexbin(x, std_overlap, mincnt=1, bins="log",
-                   gridsize=50)
-        plt.colorbar(label="Counts in bins")
-        plt.xlabel(r"$\log M_{\rm tot} / M_\odot$")
-        plt.ylabel("Uncertainty of summed pair overlap")
-        plt.ylim(0., 1.)
-        plt.tight_layout()
-
-        for ext in ["png"]:
-            fout = join(plt_utils.fout, f"overlap_std_{nsim0}.{ext}")
-            print(f"Saving to `{fout}`.")
-            plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
-        plt.close()
-
-    # 1 - mean summed overlap vs mean prob nomatch
-    with plt.style.context(plt_utils.mplstyle):
-        plt.figure()
-        plt.scatter(1 - mean_overlap, mean_prob_nomatch, c=x, s=2,
-                    rasterized=True)
-        plt.colorbar(label=r"$\log M_{\rm halo} / M_\odot$")
-
+        fig, axs = plt.subplots(ncols=3, figsize=(3.5 * 2, 2.625))
+        im1 = axs[0].hexbin(x, mean_overlap, mincnt=1, bins="log",
+                            gridsize=30)
+        im2 = axs[1].hexbin(x, std_overlap, mincnt=1, bins="log",
+                            gridsize=30)
+        im3 = axs[2].scatter(1 - mean_overlap, mean_prob_nomatch, c=x, s=2,
+                             rasterized=True)
         t = numpy.linspace(0.3, 1, 100)
-        plt.plot(t, t, color="red", linestyle="--")
-        plt.xlabel(r"$1 - $ mean summed pair overlap")
-        plt.ylabel("Mean probability of no match")
-        plt.tight_layout()
+        axs[2].plot(t, t, color="red", linestyle="--")
+        axs[0].set_ylim(0.)
+        axs[1].set_ylim(0.)
+        axs[0].set_xlabel(r"$\log M_{\rm tot} / M_\odot$")
+        axs[0].set_ylabel("Mean summed overlap")
+        axs[1].set_xlabel(r"$\log M_{\rm tot} / M_\odot$")
+        axs[1].set_ylabel("Uncertainty of summed overlap")
+        axs[2].set_xlabel(r"$1 - $ mean summed overlap")
+        axs[2].set_ylabel("Mean prob. of no match")
 
+        label = ["Bin counts", "Bin counts", r"$\log M_{\rm tot} / M_\odot$"]
+        ims = [im1, im2, im3]
+        for i in range(3):
+            axins = inset_axes(axs[i], width="100%", height="5%",
+                               loc='upper center', borderpad=-0.75)
+            fig.colorbar(ims[i], cax=axins, orientation="horizontal",
+                         label=label[i])
+            axins.xaxis.tick_top()
+            axins.xaxis.set_tick_params(labeltop=True)
+            axins.xaxis.set_label_position("top")
+
+        fig.tight_layout()
         for ext in ["png"]:
-            fout = join(plt_utils.fout,
-                        f"overlap_vs_prob_nomatch_{nsim0}.{ext}")
+            fout = join(plt_utils.fout, f"overlap_stat_{nsim0}.{ext}")
             print(f"Saving to `{fout}`.")
-            plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
+            fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
 
 
@@ -1275,7 +1263,7 @@ if __name__ == "__main__":
         }
 
     # cached_funcs = ["get_overlap", "read_dist", "make_kl", "make_ks"]
-    cached_funcs = ["get_expected_mass"]
+    cached_funcs = ["get_overlap"]
     if args.clean:
         for func in cached_funcs:
             print(f"Cleaning cache for function {func}.")
