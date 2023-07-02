@@ -158,9 +158,11 @@ def get_overlap(nsim0):
         Mass of halos in the reference simulation.
     hindxs : 1-dimensional array
         Halo indices in the reference simulation.
-    summed_overlap : 1-dimensional array
+    max_overlap : 2-dimensional array
+        Maximum overlap for each halo in the reference simulation.
+    summed_overlap : 2-dimensional array
         Summed overlap for each halo in the reference simulation.
-    prob_nomatch : 1-dimensional array
+    prob_nomatch : 2-dimensional array
         Probability of no match for each halo in the reference simulation.
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
@@ -177,8 +179,9 @@ def get_overlap(nsim0):
 
     hindxs = reader.cat0("index")
     summed_overlap = reader.summed_overlap(True)
+    max_overlap = reader.max_overlap(True)
     prob_nomatch = reader.prob_nomatch(True)
-    return mass, hindxs, summed_overlap, prob_nomatch
+    return mass, hindxs, max_overlap, summed_overlap, prob_nomatch
 
 
 def plot_summed_overlap_vs_mass(nsim0):
