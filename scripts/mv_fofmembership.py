@@ -21,7 +21,7 @@ from argparse import ArgumentParser
 from datetime import datetime
 from gc import collect
 from os.path import join
-from shutil import move
+from shutil import copy
 
 import numpy
 from mpi4py import MPI
@@ -59,7 +59,7 @@ def copy_membership(nsim):
     numpy.save(fout, data)
 
 
-def move_catalogue(nsim):
+def copy_catalogue(nsim):
     """
     Move the FoF catalogue to the CSiBORG directory.
 
@@ -70,10 +70,10 @@ def move_catalogue(nsim):
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     source = join("/mnt/extraspace/jeg/greenwhale/Constrained_Sims",
-                  f"sim_{nsim}/particle_membership_{nsim}_FOF.txt")
+                  f"sim_{nsim}/halo_catalog_{nsim}_FOF.txt")
     dest = paths.fof_cat(nsim)
-    print("Moving `{}` to `{}`.".format(source, dest))
-    move(source, dest)
+    print("Copying`{}` to `{}`.".format(source, dest))
+    copy(source, dest)
 
 
 def sort_fofid(nsim, verbose=True):
@@ -141,7 +141,11 @@ if __name__ == "__main__":
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsims = get_nsims(args, paths)
     comm = MPI.COMM_WORLD
+    copy_catalogue(7444)
+
+
 
     # work_delegation(main, nsims, comm)
 
-    sort_fofid(7444, verbose=True)
+
+    # sort_fofid(7444, verbose=True)
