@@ -186,6 +186,27 @@ class Paths:
         """
         return join(self.borg_dir, "mcmc", f"mcmc_{nsim}.h5")
 
+    def fof_membership(self, nsim, sorted=False):
+        """
+        Path to the file containing the FoF particle membership.
+
+        Parameters
+        ----------
+        nsim : int
+            IC realisation index.
+        sorted : bool, optional
+            Whether to return path to the file that is sorted in the same
+            order as the PHEW output.
+        """
+        fdir = join(self.postdir, "FoF_membership", )
+        if not isdir(fdir):
+            mkdir(fdir)
+            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
+        fout = join(fdir, f"fof_membership_{nsim}.npy")
+        if sorted:
+            fout = fout.replace(".npy", "_sorted.npz")
+        return fout
+
     def mmain(self, nsnap, nsim):
         """
         Path to the `mmain` CSiBORG files of summed substructure.
