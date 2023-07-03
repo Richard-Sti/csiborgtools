@@ -122,9 +122,9 @@ class RealisationsMatcher:
 
         Parameters
         ----------
-        cat0 : :py:class:`csiborgtools.read.HaloCatalogue`
+        cat0 : :py:class:`csiborgtools.read.CSiBORGHaloCatalogue`
             Halo catalogue of the reference simulation.
-        catx : :py:class:`csiborgtools.read.HaloCatalogue`
+        catx : :py:class:`csiborgtools.read.CSiBORGHaloCatalogue`
             Halo catalogue of the cross simulation.
         particles0 : 2-dimensional array
             Array of particles in box units in the reference simulation.
@@ -354,7 +354,7 @@ class ParticleOverlap:
             corresponding to each clump.
         clid2map : dict
             Dictionary mapping clump IDs to `clump_map` array positions.
-        halo_cat: :py:class:`csiborgtools.read.HaloCatalogue`
+        halo_cat: :py:class:`csiborgtools.read.CSiBORGHaloCatalogue`
             Halo catalogue.
         delta : 3-dimensional array, optional
             Array to store the density field in. If `None` a new array is
