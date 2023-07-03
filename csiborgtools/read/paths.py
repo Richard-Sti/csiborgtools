@@ -204,8 +204,23 @@ class Paths:
             warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
         fout = join(fdir, f"fof_membership_{nsim}.npy")
         if sorted:
-            fout = fout.replace(".npy", "_sorted.npz")
+            fout = fout.replace(".npy", "_sorted.npy")
         return fout
+
+    def fof_cat(self, nsim):
+        """
+        Path to the FoF halo catalogue file.
+
+        Parameters
+        ----------
+        nsim : int
+            IC realisation index.
+        """
+        fdir = join(self.postdir, "FoF_membership", )
+        if not isdir(fdir):
+            mkdir(fdir)
+            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
+        return join(fdir, f"halo_catalog_{nsim}_FOF.txt")
 
     def mmain(self, nsnap, nsim):
         """
