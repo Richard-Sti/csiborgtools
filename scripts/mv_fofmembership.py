@@ -125,7 +125,7 @@ def sort_fofid(nsim, verbose=True):
 
 def main(nsim, verbose=False):
     copy_membership(nsim, verbose=verbose)
-    move_catalogue(nsim)
+    copy_catalogue(nsim)
     sort_fofid(nsim, verbose=verbose)
 
 
