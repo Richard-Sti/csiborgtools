@@ -375,7 +375,6 @@ class ParticleOverlap:
         else:
             assert ((delta.shape == (ncells,) * 3)
                     & (delta.dtype == numpy.float32))
-        from tqdm import tqdm
 
         clumps_cat = halo_cat.clumps_cat
         for hid in tqdm(halo_cat["index"]) if verbose else halo_cat["index"]:
