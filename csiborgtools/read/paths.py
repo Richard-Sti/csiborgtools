@@ -204,7 +204,7 @@ class Paths:
             warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
         fout = join(fdir, f"fof_membership_{nsim}.npy")
         if sorted:
-            fout = fout.replace(".npy", "_sorted.np")
+            fout = fout.replace(".npy", "_sorted.npy")
         return fout
 
     def fof_cat(self, nsim):
