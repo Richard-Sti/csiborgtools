@@ -24,6 +24,8 @@ import h5py
 import numpy
 from mpi4py import MPI
 
+from utils import get_nsims
+
 try:
     import csiborgtools
 except ModuleNotFoundError:
@@ -41,24 +43,20 @@ verbose = nproc == 1
 
 # Argument parser
 parser = ArgumentParser()
-parser.add_argument("--ics", type=int, nargs="+", default=None,
+parser.add_argument("--nsims", type=int, nargs="+", default=None,
                     help="IC realisations. If `-1` processes all simulations.")
 args = parser.parse_args()
 paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 partreader = csiborgtools.read.ParticleReader(paths)
 # NOTE: ID has to be the last column.
 pars_extract = ["x", "y", "z", "M", "ID"]
-
-if args.ics is None or args.ics[0] == -1:
-    ics = paths.get_ics("csiborg")
-else:
-    ics = args.ics
+nsims = get_nsims(args, paths)
 
 # We loop over simulations. Each simulation is then procesed with MPI, rank 0
 # loads the data and broadcasts it to other ranks.
-jobs = csiborgtools.fits.split_jobs(len(ics), nproc)[rank]
+jobs = csiborgtools.fits.split_jobs(len(nsims), nproc)[rank]
 for i in jobs:
-    nsim = ics[i]
+    nsim = nsims[i]
     nsnap = max(paths.get_snapshots(nsim))
 
     print(f"{datetime.now()}: reading and processing simulation {nsim}.",
