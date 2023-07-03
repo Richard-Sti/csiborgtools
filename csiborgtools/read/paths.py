@@ -359,7 +359,7 @@ class Paths:
         simpath = self.ic_path(nsim, tonew=tonew)
         return join(simpath, f"output_{str(nsnap).zfill(5)}")
 
-    def structfit(self, nsnap, nsim, kind):
+    def structfit(self, nsnap, nsim):
         """
         Path to the clump or halo catalogue from `fit_halos.py`. Only CSiBORG
         is supported.
@@ -370,19 +370,16 @@ class Paths:
             Snapshot index.
         nsim : int
             IC realisation index.
-        kind : str
-            Type of catalogue.  Can be either `clumps` or `halos`.
 
         Returns
         -------
         path : str
         """
-        assert kind in ["clumps", "halos"]
         fdir = join(self.postdir, "structfit")
         if not isdir(fdir):
             mkdir(fdir)
             warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
-        fname = f"{kind}_out_{str(nsim).zfill(5)}_{str(nsnap).zfill(5)}.npy"
+        fname = f"out_{str(nsim).zfill(5)}_{str(nsnap).zfill(5)}.npy"
         return join(fdir, fname)
 
     def overlap(self, nsim0, nsimx, smoothed):
