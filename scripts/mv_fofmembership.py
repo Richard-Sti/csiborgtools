@@ -109,7 +109,7 @@ def sort_fofid(nsim, verbose=True):
     pids_idx = {pid: i for i, pid in enumerate(pids)}
 
     if verbose:
-        print(f"{datetime.now()}: mapping FoF HIDs to their indices.")
+        print(f"{datetime.now()}: mapping FoF HIDs to their array indices.")
     fof_hids = numpy.zeros(pids.size, dtype=numpy.int32)
     for i in trange(fof.shape[0]) if verbose else range(fof.shape[0]):
         hid, pid = fof[i]
