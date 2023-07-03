@@ -51,11 +51,11 @@ def open_cat(nsim):
 
     Returns
     -------
-    cat : csiborgtools.read.HaloCatalogue
+    cat : csiborgtools.read.CSiBORGHaloCatalogue
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     bounds = {"totpartmass": (1e12, None)}
-    return csiborgtools.read.HaloCatalogue(nsim, paths, bounds=bounds)
+    return csiborgtools.read.CSiBORGHaloCatalogue(nsim, paths, bounds=bounds)
 
 
 def plot_mass_vs_pairoverlap(nsim0, nsimx):

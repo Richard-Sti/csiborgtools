@@ -58,7 +58,8 @@ def get_counts(nsim, bins, paths, parser_args):
     bounds = {"dist": (0, parser_args.Rmax)}
 
     if simname == "csiborg":
-        cat = csiborgtools.read.HaloCatalogue(nsim, paths, bounds=bounds)
+        cat = csiborgtools.read.CSiBORGHaloCatalogue(nsim, paths,
+                                                     bounds=bounds)
         logmass = numpy.log10(cat["totpartmass"])
         counts = csiborgtools.fits.number_counts(logmass, bins)
     elif simname == "quijote":

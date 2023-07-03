@@ -81,7 +81,7 @@ def read_single_catalogue(args, config, nsim, run, rmax, paths, nobs=None):
 
     Returns
     -------
-    cat : csiborgtools.read.HaloCatalogue or csiborgtools.read.QuijoteHaloCatalogue  # noqa
+    cat : csiborgtools.read.CSiBORGHaloCatalogue or csiborgtools.read.QuijoteHaloCatalogue  # noqa
         Halo catalogue with selection criteria applied.
     """
     selection = config.get(run, None)
@@ -89,7 +89,7 @@ def read_single_catalogue(args, config, nsim, run, rmax, paths, nobs=None):
         raise KeyError(f"No configuration for run {run}.")
     # We first read the full catalogue without applying any bounds.
     if args.simname == "csiborg":
-        cat = csiborgtools.read.HaloCatalogue(nsim, paths)
+        cat = csiborgtools.read.CSiBORGHaloCatalogue(nsim, paths)
     else:
         cat = csiborgtools.read.QuijoteHaloCatalogue(nsim, paths, nsnap=4)
         if nobs is not None:

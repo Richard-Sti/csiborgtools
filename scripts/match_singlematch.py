@@ -30,7 +30,7 @@ except ModuleNotFoundError:
 
 
 def pair_match(nsim0, nsimx, sigma, smoothen, verbose):
-    from csiborgtools.read import HaloCatalogue, read_h5
+    from csiborgtools.read import CSiBORGHaloCatalogue, read_h5
 
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     smooth_kwargs = {"sigma": sigma, "mode": "constant", "cval": 0.0}
@@ -40,10 +40,10 @@ def pair_match(nsim0, nsimx, sigma, smoothen, verbose):
     # Load the raw catalogues (i.e. no selection) including the initial CM
     # positions and the particle archives.
     bounds = {"totpartmass": (1e12, None)}
-    cat0 = HaloCatalogue(nsim0, paths, load_initial=True, bounds=bounds,
-                         with_lagpatch=True, load_clumps_cat=True)
-    catx = HaloCatalogue(nsimx, paths, load_initial=True, bounds=bounds,
-                         with_lagpatch=True, load_clumps_cat=True)
+    cat0 = CSiBORGHaloCatalogue(nsim0, paths, load_initial=True, bounds=bounds,
+                                with_lagpatch=True, load_clumps_cat=True)
+    catx = CSiBORGHaloCatalogue(nsimx, paths, load_initial=True, bounds=bounds,
+                                with_lagpatch=True, load_clumps_cat=True)
 
     clumpmap0 = read_h5(paths.particles(nsim0))["clumpmap"]
     parts0 = read_h5(paths.initmatch(nsim0, "particles"))["particles"]

@@ -46,11 +46,11 @@ def open_csiborg(nsim):
 
     Returns
     -------
-    cat : csiborgtools.read.HaloCatalogue
+    cat : csiborgtools.read.CSiBORGHaloCatalogue
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     bounds = {"totpartmass": (None, None), "dist": (0, 155/0.705)}
-    return csiborgtools.read.HaloCatalogue(nsim, paths, bounds=bounds)
+    return csiborgtools.read.CSiBORGHaloCatalogue(nsim, paths, bounds=bounds)
 
 
 def open_quijote(nsim, nobs=None):
@@ -516,7 +516,8 @@ def plot_sky_distribution(field, nsim, grid, nside, smooth_scale=None,
         if plot_halos is not None:
             bounds = {"dist": (dmin, dmax),
                       "totpartmass": (plot_halos, None)}
-            cat = csiborgtools.read.HaloCatalogue(nsim, paths, bounds=bounds)
+            cat = csiborgtools.read.CSiBORGHaloCatalogue(nsim, paths,
+                                                         bounds=bounds)
             X = cat.position(cartesian=False)
             healpy.projscatter(numpy.deg2rad(X[:, 2] + 90),
                                numpy.deg2rad(X[:, 1]),
@@ -589,4 +590,3 @@ if __name__ == "__main__":
         plt.tight_layout()
         plt.savefig("../plots/velocity_distribution.png", dpi=450,
                     bbox_inches="tight")
-
