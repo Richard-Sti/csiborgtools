@@ -38,18 +38,21 @@ class PairOverlap:
         Halo catalogue corresponding to the cross simulation.
     paths : py:class`csiborgtools.read.Paths`
         CSiBORG paths object.
+    maxdist : float, optional
+        Maximum halo distance in :math:`\mathrm{Mpc} / h` from the centre of
+        the high-resolution region. Removes overlaps of haloes outside it.
     """
     _cat0 = None
     _catx = None
     _data = None
 
-    def __init__(self, cat0, catx, paths):
+    def __init__(self, cat0, catx, paths, maxdist=None):
         self._cat0 = cat0
         self._catx = catx
-        self.load(cat0, catx, paths)
+        self.load(cat0, catx, paths, maxdist)
 
-    def load(self, cat0, catx, paths):
-        """
+    def load(self, cat0, catx, paths, maxdist=None):
+        r"""
         Load overlap calculation results. Matches the results back to the two
         catalogues in question.
 
@@ -61,6 +64,9 @@ class PairOverlap:
             Halo catalogue corresponding to the cross simulation.
         paths : py:class`csiborgtools.read.Paths`
             CSiBORG paths object.
+        maxdist : float, optional
+            Maximum halo distance in :math:`\mathrm{Mpc} / h` from the centre
+            of the high-resolution region.
 
         Returns
         -------
@@ -124,6 +130,14 @@ class PairOverlap:
         if to_invert:
             match_indxs, ngp_overlap, smoothed_overlap = self._invert_match(
                 match_indxs, ngp_overlap, smoothed_overlap, len(catx),)
+
+        if maxdist is not None:
+            dist = cat0.radial_distance(in_initial=False)
+            for i in range(len(cat0)):
+                if dist[i] > maxdist:
+                    match_indxs[i] = numpy.array([], dtype=int)
+                    ngp_overlap[i] = numpy.array([], dtype=float)
+                    smoothed_overlap[i] = numpy.array([], dtype=float)
 
         self._data = {"match_indxs": match_indxs,
                       "ngp_overlap": ngp_overlap,
