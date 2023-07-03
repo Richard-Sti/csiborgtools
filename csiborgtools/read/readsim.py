@@ -598,39 +598,10 @@ def halfwidth_mask(pos, hw):
     return numpy.all((0.5 - hw < pos) & (pos < 0.5 + hw), axis=1)
 
 
-def load_clump_particles(clid, particles, clump_map, clid2map):
+def load_halo_particles(hid, particles, halo_map, hid2map):
     """
-    Load a clump's particles from a particle array. If it is not there, i.e
-    clump has no associated particles, return `None`.
-
-    Parameters
-    ----------
-    clid : int
-        Clump ID.
-    particles : 2-dimensional array
-        Array of particles.
-    clump_map : 2-dimensional array
-        Array containing start and end indices in the particle array
-        corresponding to each clump.
-    clid2map : dict
-        Dictionary mapping clump IDs to `clump_map` array positions.
-
-    Returns
-    -------
-    clump_particles : 2-dimensional array
-        Particle array of this clump.
-    """
-    try:
-        k0, kf = clump_map[clid2map[clid], 1:]
-        return particles[k0:kf + 1, :]
-    except KeyError:
-        return None
-
-
-def load_parent_particles(hid, particles, clump_map, clid2map, clumps_cat):
-    """
-    Load a parent halo's particles from a particle array. If it is not there,
-    return `None`.
+    Load a halo's particles from a particle array. If it is not there, i.e
+    halo has no associated particles, return `None`.
 
     Parameters
     ----------
@@ -638,27 +609,19 @@ def load_parent_particles(hid, particles, clump_map, clid2map, clumps_cat):
         Halo ID.
     particles : 2-dimensional array
         Array of particles.
-    clump_map : 2-dimensional array
+    halo_map : 2-dimensional array
         Array containing start and end indices in the particle array
-        corresponding to each clump.
-    clid2map : dict
-        Dictionary mapping clump IDs to `clump_map` array positions.
-    clumps_cat : :py:class:`csiborgtools.read.ClumpsCatalogue`
-        Clumps catalogue.
+        corresponding to each halo.
+    hid2map : dict
+        Dictionary mapping halo IDs to `halo_map` array positions.
 
     Returns
     -------
-    halo : 2-dimensional array
+    halo_particles : 2-dimensional array
         Particle array of this halo.
     """
-    clids = clumps_cat["index"][clumps_cat["parent"] == hid]
-    # We first load the particles of each clump belonging to this parent
-    # and then concatenate them for further analysis.
-    clumps = []
-    for clid in clids:
-        parts = load_clump_particles(clid, particles, clump_map, clid2map)
-        if parts is not None:
-            clumps.append(parts)
-    if len(clumps) == 0:
+    try:
+        k0, kf = halo_map[hid2map[hid], 1:]
+        return particles[k0:kf + 1, :]
+    except KeyError:
         return None
-    return numpy.concatenate(clumps)
