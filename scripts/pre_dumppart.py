@@ -89,7 +89,7 @@ for i in jobs:
     # Right away we dump the halo IDs to a HDF5 file and clear up memory.
     print(f"{datetime.now()}: rank {rank} loading particles {nsim}.",
           flush=True)
-    part_hids = partreader.read_clumpid(nsnap, nsim, verbose=verbose)
+    part_hids = partreader.read_fof_hids(nsim)
     sort_indxs = numpy.argsort(part_hids).astype(numpy.int32)
     part_hids = part_hids[sort_indxs]
     with h5py.File(fname, "w") as f:
@@ -104,8 +104,9 @@ for i in jobs:
     parts, pids = partreader.read_particle(
         nsnap, nsim, pars_extract, return_structured=False, verbose=verbose)
     # Now we in two steps save the particles and particle IDs.
-    print(f"{datetime.now()}: rank {rank} dumping particles from {nsim}.",
-          flush=True)
+    if verbose:
+        print(f"{datetime.now()}: rank {rank} dumping particles from {nsim}.",
+              flush=True)
     parts = parts[sort_indxs]
     pids = pids[sort_indxs]
     del sort_indxs
