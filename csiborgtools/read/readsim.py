@@ -430,7 +430,7 @@ class ParticleReader:
         out["x"] = pos[:, 0] + 677.7 / 0.705 / 2
         out["y"] = pos[:, 1] + 677.7 / 0.705 / 2
         out["z"] = pos[:, 2] + 677.7 / 0.705 / 2
-        out["m200c"] = mass * 1e11
+        out["fof_m200c"] = mass * 1e11
         return out
 
 
