@@ -334,7 +334,6 @@ class ParticleReader:
             j = nparts[cpu]
             ff = self.open_unbinding(nsnap, nsim, cpu)
             clumpid[i:i + j] = ff.read_ints()
-
             ff.close()
 
         return clumpid
@@ -387,6 +386,51 @@ class ParticleReader:
         out = cols_to_structured(data.shape[0], dtype)
         for col in cols:
             out[col] = data[:, clump_cols[col][0]]
+        return out
+
+    def read_fof_hids(self, nsim):
+        """
+        Read in the FoF particle halo membership IDs that are sorted to match
+        the PHEW output.
+
+        Parameters
+        ----------
+        nsim : int
+            IC realisation index.
+
+        Returns
+        -------
+        hids : 1-dimensional array
+            Halo IDs of particles.
+        """
+        return numpy.load(self.paths.fof_membership(nsim, sorted=True))
+
+    def read_fof_halos(self, nsim):
+        """
+        Read in the FoF halo catalogue.
+
+        Parameters
+        ----------
+        nsim : int
+            IC realisation index.
+
+        Returns
+        -------
+        cat : structured array
+        """
+        fpath = self.paths.fof_cat(nsim)
+        hid = numpy.genfromtxt(fpath, usecols=0, dtype=numpy.int32)
+        pos = numpy.genfromtxt(fpath, usecols=(1, 2, 3), dtype=numpy.float32)
+        mass = numpy.genfromtxt(fpath, usecols=4, dtype=numpy.float32)
+
+        dtype = {"names": ["index", "x", "y", "z", "m200c"],
+                 "formats": [numpy.int32] + [numpy.float32] * 4}
+        out = numpy.full(hid.size, numpy.nan, dtype=dtype)
+        out["index"] = hid
+        out["x"] = pos[:, 0] + 677.7 / 0.705 / 2
+        out["y"] = pos[:, 1] + 677.7 / 0.705 / 2
+        out["z"] = pos[:, 2] + 677.7 / 0.705 / 2
+        out["m200c"] = mass * 1e11
         return out
 
 
