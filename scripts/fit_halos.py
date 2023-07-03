@@ -72,7 +72,7 @@ cols_collect = [
 
 def fit_clump(particles, clump_info, box):
     """
-    Fit an object. Can be eithe a clump or a parent halo.
+    Fit an object. Can be either a clump or a parent halo.
     """
     obj = csiborgtools.fits.Clump(particles, clump_info, box)
 
