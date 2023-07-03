@@ -15,7 +15,6 @@
 """
 Functions to read in the particle and clump files.
 """
-from gc import collect
 from os.path import isfile, join
 from warnings import warn
 
