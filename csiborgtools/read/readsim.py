@@ -15,6 +15,7 @@
 """
 Functions to read in the particle and clump files.
 """
+from gc import collect
 from os.path import isfile, join
 from warnings import warn
 
@@ -203,7 +204,7 @@ class ParticleReader:
         nsim : int
             IC realisation index.
         pars_extract : list of str
-            Parameters to be extacted.
+            Parameters to be extracted.
         return_structured : bool, optional
             Whether to return a structured array or a 2-dimensional array. If
             the latter, then the order of the columns is the same as the order
@@ -280,7 +281,7 @@ class ParticleReader:
 
     def open_unbinding(self, nsnap, nsim, cpu):
         """
-        Open particle files to a given CSiBORG simulation. Note that to be
+        Open particle files of a given CSiBORG simulation. Note that to be
         consistent CPU is incremented by 1.
 
         Parameters
@@ -305,7 +306,8 @@ class ParticleReader:
 
     def read_clumpid(self, nsnap, nsim, verbose=True):
         """
-        Read clump IDs of particles from unbinding files.
+        Read PHEW clump IDs of particles from unbinding files. This halo finder
+        was used when running the catalogue.
 
         Parameters
         ----------
@@ -339,7 +341,7 @@ class ParticleReader:
 
     def read_clumps(self, nsnap, nsim, cols=None):
         """
-        Read in a clump file `clump_xxXXX.dat`.
+        Read in a PHEW clump file `clump_xxXXX.dat`.
 
         Parameters
         ----------
