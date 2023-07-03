@@ -14,14 +14,19 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 Short script to move and change format of the FoF membership files calculated
-by Julien.
+by Julien. Additionally, also orders the particles in the same way as the PHEW
+halo finder output.
 """
 from argparse import ArgumentParser
+from datetime import datetime
+from gc import collect
 from os.path import join
+from shutil import move
 
 import numpy
 from mpi4py import MPI
 from taskmaster import work_delegation
+from tqdm import trange
 
 from utils import get_nsims
 
@@ -33,7 +38,16 @@ except ModuleNotFoundError:
     import csiborgtools
 
 
-def move_membership(nsim):
+def copy_membership(nsim):
+    """
+    Copy the FoF particle halo membership to the CSiBORG directory and write it
+    as a NumPy array instead of a text file.
+
+    Parameters
+    ----------
+    nsim : int
+        IC realisation index.
+    """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     fpath = join("/mnt/extraspace/jeg/greenwhale/Constrained_Sims",
                  f"sim_{nsim}/particle_membership_{nsim}_FOF.txt")
@@ -43,6 +57,76 @@ def move_membership(nsim):
     fout = paths.fof_membership(nsim)
     print(f"Saving to ... `{fout}`.")
     numpy.save(fout, data)
+
+
+def move_catalogue(nsim):
+    """
+    Move the FoF catalogue to the CSiBORG directory.
+
+    Parameters
+    ----------
+    nsim : int
+        IC realisation index.
+    """
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    source = join("/mnt/extraspace/jeg/greenwhale/Constrained_Sims",
+                  f"sim_{nsim}/particle_membership_{nsim}_FOF.txt")
+    dest = paths.fof_cat(nsim)
+    print("Moving `{}` to `{}`.".format(source, dest))
+    move(source, dest)
+
+
+def sort_fofid(nsim, verbose=True):
+    """
+    Read the FoF particle halo membership and sort the halo IDs to the ordering
+    of particles in the PHEW clump IDs.
+
+    Parameters
+    ----------
+    nsim : int
+        IC realisation index.
+    verbose : bool, optional
+        Verbosity flag.
+    """
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    nsnap = max(paths.get_snapshots(nsim))
+    fpath = paths.fof_membership(nsim)
+    if verbose:
+        print(f"{datetime.now()}: loading from ... `{fpath}`.")
+    # Columns are halo ID, particle ID.
+    fof = numpy.load(fpath)
+
+    reader = csiborgtools.read.ParticleReader(paths)
+    pars_extract = ["x"]  # Dummy variable
+    __, pids = reader.read_particle(nsnap, nsim, pars_extract,
+                                    return_structured=False, verbose=verbose)
+    del __
+    collect()
+
+    # Map the particle IDs in pids to their corresponding PHEW array index
+    if verbose:
+        print(f"{datetime.now()}: mapping particle IDs to their indices.")
+    pids_idx = {pid: i for i, pid in enumerate(pids)}
+
+    if verbose:
+        print(f"{datetime.now()}: mapping FoF HIDs to their indices.")
+    fof_hids = numpy.zeros(pids.size, dtype=numpy.int32)
+    for i in trange(fof.shape[0]) if verbose else range(fof.shape[0]):
+        hid, pid = fof[i]
+        fof_hids[pids_idx[pid]] = hid
+
+    print(fof_hids)
+
+    fout = paths.fof_membership(nsim, sorted=True)
+    if verbose:
+        print(f"Saving the sorted data to ... `{fout}`")
+    numpy.save(fout, fof_hids)
+
+
+def main(nsim, verbose=False):
+    copy_membership(nsim, verbose=verbose)
+    move_catalogue(nsim)
+    sort_fofid(nsim, verbose=verbose)
 
 
 if __name__ == "__main__":
@@ -58,4 +142,6 @@ if __name__ == "__main__":
     nsims = get_nsims(args, paths)
     comm = MPI.COMM_WORLD
 
-    work_delegation(move_membership, nsims, comm)
+    # work_delegation(main, nsims, comm)
+
+    sort_fofid(7444, verbose=True)
