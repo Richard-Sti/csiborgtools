@@ -141,11 +141,5 @@ if __name__ == "__main__":
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsims = get_nsims(args, paths)
     comm = MPI.COMM_WORLD
-    copy_catalogue(7444)
 
-
-
-    # work_delegation(main, nsims, comm)
-
-
-    # sort_fofid(7444, verbose=True)
+    work_delegation(main, nsims, comm)
