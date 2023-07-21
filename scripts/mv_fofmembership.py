@@ -110,12 +110,11 @@ def sort_fofid(nsim, verbose=True):
 
     if verbose:
         print(f"{datetime.now()}: mapping FoF HIDs to their array indices.")
+    # Unassigned particle IDs are assigned a halo ID of 0. Same as PHEW.
     fof_hids = numpy.zeros(pids.size, dtype=numpy.int32)
     for i in trange(fof.shape[0]) if verbose else range(fof.shape[0]):
         hid, pid = fof[i]
         fof_hids[pids_idx[pid]] = hid
-
-    print(fof_hids)
 
     fout = paths.fof_membership(nsim, sorted=True)
     if verbose:
