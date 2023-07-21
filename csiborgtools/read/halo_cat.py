@@ -14,8 +14,8 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 Simulation catalogues:
-    - CSiBORG: halo and clump catalogue.
-    - Quijote: halo catalogue.
+    - CSiBORG: FoF halo catalogue.
+    - Quijote: FoF halo catalogue.
 """
 from abc import ABC, abstractproperty
 from copy import deepcopy
@@ -25,7 +25,6 @@ from math import floor
 from os.path import join
 
 import numpy
-
 from readfof import FoF_catalog
 from sklearn.neighbors import NearestNeighbors
 
@@ -369,6 +368,8 @@ class BaseCatalogue(ABC):
         return self.data.dtype.names
 
     def __getitem__(self, key):
+        if isinstance(key, int):
+            return self.data[key]
         if key not in self.keys:
             raise KeyError(f"Key '{key}' not in catalogue.")
         return self.data[key]
@@ -378,110 +379,13 @@ class BaseCatalogue(ABC):
 
 
 ###############################################################################
-#                       CSiBORG  base catalogue                               #
-###############################################################################
-
-
-class BaseCSiBORG(BaseCatalogue):
-    """
-    Base CSiBORG catalogue class.
-    """
-
-    @property
-    def nsnap(self):
-        return max(self.paths.get_snapshots(self.nsim))
-
-    @property
-    def box(self):
-        """
-        CSiBORG box object handling unit conversion.
-
-        Returns
-        -------
-        box : instance of :py:class:`csiborgtools.units.BaseBox`
-        """
-        return CSiBORGBox(self.nsnap, self.nsim, self.paths)
-
-
-###############################################################################
-#                        CSiBORG clumps catalogue                             #
-###############################################################################
-
-
-class ClumpsCatalogue(BaseCSiBORG):
-    r"""
-    Clumps catalogue, defined in the final snapshot.
-
-    Parameters
-    ----------
-    sim : int
-        IC realisation index.
-    paths : py:class`csiborgtools.read.Paths`
-        Paths object.
-    bounds : dict
-        Parameter bounds to apply to the catalogue. The keys are the parameter
-        names and the items are a len-2 tuple of (min, max) values. In case of
-        no minimum or maximum, use `None`. For radial distance from the origin
-        use `dist`.
-    load_fitted : bool, optional
-        Whether to load fitted quantities.
-    rawdata : bool, optional
-        Whether to return the raw data. In this case applies no cuts and
-        transformations.
-    """
-
-    def __init__(self, nsim, paths, bounds={"dist": (0, 155.5 / 0.705)},
-                 load_fitted=True, rawdata=False):
-        self.nsim = nsim
-        self.paths = paths
-        # Read in the clumps from the final snapshot
-        partreader = ParticleReader(self.paths)
-        cols = ["index", "parent", "x", "y", "z", "mass_cl"]
-        self._data = partreader.read_clumps(self.nsnap, self.nsim, cols=cols)
-        # Overwrite the parent with the ultimate parent
-        mmain = numpy.load(self.paths.mmain(self.nsnap, self.nsim))
-        self._data["parent"] = mmain["ultimate_parent"]
-
-        if load_fitted:
-            fits = numpy.load(paths.structfit(self.nsnap, nsim, "clumps"))
-            cols = [col for col in fits.dtype.names if col != "index"]
-            X = [fits[col] for col in cols]
-            self._data = add_columns(self._data, X, cols)
-
-        # If the raw data is not required, then start applying transformations
-        # and cuts.
-        if not rawdata:
-            flip_cols(self._data, "x", "z")
-            for p in ("x", "y", "z"):
-                self._data[p] -= 0.5
-            names = ["x", "y", "z", "mass_cl", "totpartmass", "rho0", "r200c",
-                     "r500c", "m200c", "m500c", "r200m", "m200m",
-                     "vx", "vy", "vz"]
-            self._data = self.box.convert_from_box(self._data, names)
-            if bounds is not None:
-                self.apply_bounds(bounds)
-
-    @property
-    def ismain(self):
-        """
-        Whether the clump is a main halo.
-
-        Returns
-        -------
-        ismain : 1-dimensional array
-        """
-        return self["index"] == self["parent"]
-
-
-###############################################################################
 #                        CSiBORG halo catalogue                               #
 ###############################################################################
 
 
-class HaloCatalogue(BaseCSiBORG):
+class CSiBORGHaloCatalogue(BaseCatalogue):
     r"""
-    Halo catalogue, i.e. parent halos with summed substructure, defined in the
-    final snapshot.
+    CSiBORG FoF halo catalogue.
 
     Parameters
     ----------
@@ -504,22 +408,17 @@ class HaloCatalogue(BaseCSiBORG):
         Whether to return the raw data. In this case applies no cuts and
         transformations.
     """
-    _clumps_cat = None
 
     def __init__(self, nsim, paths, bounds={"dist": (0, 155.5 / 0.705)},
                  with_lagpatch=True, load_fitted=True, load_initial=True,
-                 load_clumps_cat=False, rawdata=False):
+                 rawdata=False):
         self.nsim = nsim
         self.paths = paths
-        # Read in the mmain catalogue of summed substructure
-        mmain = numpy.load(self.paths.mmain(self.nsnap, self.nsim))
-        self._data = mmain["mmain"]
-        # We will also need the clumps catalogue
-        if load_clumps_cat:
-            self._clumps_cat = ClumpsCatalogue(nsim, paths, rawdata=True,
-                                               load_fitted=False)
+        reader = ParticleReader(paths)
+        self._data = reader.read_fof_halos(self.nsim)
+
         if load_fitted:
-            fits = numpy.load(paths.structfit(self.nsnap, nsim, "halos"))
+            fits = numpy.load(paths.structfit(self.nsnap, nsim))
             cols = [col for col in fits.dtype.names if col != "index"]
             X = [fits[col] for col in cols]
             self._data = add_columns(self._data, X, cols)
@@ -538,19 +437,25 @@ class HaloCatalogue(BaseCSiBORG):
 
             self._data = add_columns(self._data, X, cols)
 
-        if not rawdata:
+        if rawdata:
+            for p in ('x', 'y', 'z'):
+                self._data[p] = self.box.mpc2box(self._data[p]) + 0.5
+        else:
             if with_lagpatch:
                 self._data = self._data[numpy.isfinite(self["lagpatch_size"])]
             # Flip positions and convert from code units to cMpc. Convert M too
             flip_cols(self._data, "x", "z")
-            for p in ("x", "y", "z"):
-                self._data[p] -= 0.5
-            names = ["x", "y", "z", "M", "totpartmass", "rho0", "r200c",
-                     "r500c", "m200c", "m500c", "r200m", "m200m",
-                     "vx", "vy", "vz"]
-            self._data = self.box.convert_from_box(self._data, names)
+            if load_fitted:
+                flip_cols(self._data, "vx", "vz")
+                names = ["totpartmass", "rho0", "r200c",
+                         "r500c", "m200c", "m500c", "r200m", "m200m",
+                         "r500m", "m500m", "vx", "vy", "vz"]
+                self._data = self.box.convert_from_box(self._data, names)
 
             if load_initial:
+                flip_cols(self._data, "x0", "z0")
+                for p in ("x0", "y0", "z0"):
+                    self._data[p] -= 0.5
                 names = ["x0", "y0", "z0", "lagpatch_size"]
                 self._data = self.box.convert_from_box(self._data, names)
 
@@ -558,17 +463,19 @@ class HaloCatalogue(BaseCSiBORG):
                 self.apply_bounds(bounds)
 
     @property
-    def clumps_cat(self):
+    def nsnap(self):
+        return max(self.paths.get_snapshots(self.nsim))
+
+    @property
+    def box(self):
         """
-        The raw clumps catalogue.
+        CSiBORG box object handling unit conversion.
 
         Returns
         -------
-        clumps_cat : :py:class:`csiborgtools.read.ClumpsCatalogue`
+        box : instance of :py:class:`csiborgtools.units.BaseBox`
         """
-        if self._clumps_cat is None:
-            raise ValueError("`clumps_cat` is not loaded.")
-        return self._clumps_cat
+        return CSiBORGBox(self.nsnap, self.nsim, self.paths)
 
 
 ###############################################################################
@@ -578,7 +485,7 @@ class HaloCatalogue(BaseCSiBORG):
 
 class QuijoteHaloCatalogue(BaseCatalogue):
     """
-    Quijote halo catalogue.
+    Quijote FoF halo catalogue.
 
     Parameters
     ----------
