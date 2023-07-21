@@ -368,7 +368,8 @@ class BaseCatalogue(ABC):
         return self.data.dtype.names
 
     def __getitem__(self, key):
-        if isinstance(key, int):
+        if isinstance(key, (int, numpy.integer)):
+            assert key > 0
             return self.data[key]
         if key not in self.keys:
             raise KeyError(f"Key '{key}' not in catalogue.")
