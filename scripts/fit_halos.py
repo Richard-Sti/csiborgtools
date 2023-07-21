@@ -21,7 +21,7 @@ from datetime import datetime
 
 import numpy
 from mpi4py import MPI
-from tqdm import tqdm
+from tqdm import trange
 
 from utils import get_nsims
 
@@ -113,7 +113,7 @@ for nsim in [nsims[i] for i in jobs]:
     # Even if we are calculating parent halo this index runs over all clumps.
     out = csiborgtools.read.cols_to_structured(len(cat), cols_collect)
     indxs = cat["index"]
-    for i in tqdm(indxs) if verbose else indxs:
+    for i in trange(len(cat)) if verbose else range(len(cat)):
         hid = cat["index"][i]
         out["index"][i] = hid
 
