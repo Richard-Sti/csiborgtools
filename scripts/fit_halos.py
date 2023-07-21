@@ -13,8 +13,8 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-A script to fit halos (concentration, ...). The particle array of each CSiBORG
-realisation must have been split in advance by `runsplit_halos`.
+A script to fit FoF halos (concentration, ...). The particle array of each
+CSiBORG realisation must have been processed in advance by `pre_dumppart.py`.
 """
 from argparse import ArgumentParser
 from datetime import datetime
@@ -22,6 +22,8 @@ from datetime import datetime
 import numpy
 from mpi4py import MPI
 from tqdm import tqdm
+
+from utils import get_nsims
 
 try:
     import csiborgtools
@@ -38,18 +40,13 @@ nproc = comm.Get_size()
 verbose = nproc == 1
 
 parser = ArgumentParser()
-parser.add_argument("--kind", type=str, choices=["halos", "clumps"])
-parser.add_argument("--ics", type=int, nargs="+", default=None,
+parser.add_argument("--nsims", type=int, nargs="+", default=None,
                     help="IC realisations. If `-1` processes all simulations.")
 args = parser.parse_args()
 paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 partreader = csiborgtools.read.ParticleReader(paths)
 nfwpost = csiborgtools.fits.NFWPosterior()
-
-if args.ics is None or args.ics[0] == -1:
-    ics = paths.get_ics("csiborg")
-else:
-    ics = args.ics
+nsims = get_nsims(args, paths)
 
 cols_collect = [
     ("index", numpy.int32),
@@ -67,13 +64,12 @@ cols_collect = [
     ("lambda200c", numpy.float32),
     ("r200m", numpy.float32),
     ("m200m", numpy.float32),
+    ("r500m", numpy.float32),
+    ("m500m", numpy.float32),
     ]
 
 
-def fit_clump(particles, clump_info, box):
-    """
-    Fit an object. Can be either a clump or a parent halo.
-    """
+def fit_halo(particles, clump_info, box):
     obj = csiborgtools.fits.Clump(particles, clump_info, box)
 
     out = {}
@@ -82,12 +78,11 @@ def fit_clump(particles, clump_info, box):
     for i, v in enumerate(["vx", "vy", "vz"]):
         out[v] = numpy.average(obj.vel[:, i], weights=obj["M"])
     # Overdensity masses
-    out["r200c"], out["m200c"] = obj.spherical_overdensity_mass(200,
-                                                                kind="crit")
-    out["r500c"], out["m500c"] = obj.spherical_overdensity_mass(500,
-                                                                kind="crit")
-    out["r200m"], out["m200m"] = obj.spherical_overdensity_mass(200,
-                                                                kind="matter")
+    for n in [200, 500]:
+        out[f"r{n}c"], out[f"m{n}c"] = obj.spherical_overdensity_mass(
+            n, kind="crit")
+        out[f"r{n}m"], out[f"m{n}m"] = obj.spherical_overdensity_mass(
+            n, kind="matter")
     # NFW fit
     if out["npart"] > 10 and numpy.isfinite(out["r200c"]):
         Rs, rho0 = nfwpost.fit(obj)
@@ -100,8 +95,8 @@ def fit_clump(particles, clump_info, box):
 
 
 # We MPI loop over all simulations.
-jobs = csiborgtools.fits.split_jobs(len(ics), nproc)[rank]
-for nsim in [ics[i] for i in jobs]:
+jobs = csiborgtools.fits.split_jobs(len(nsims), nproc)[rank]
+for nsim in [nsims[i] for i in jobs]:
     print(f"{datetime.now()}: rank {rank} calculating simulation `{nsim}`.",
           flush=True)
     nsnap = max(paths.get_snapshots(nsim))
@@ -110,49 +105,30 @@ for nsim in [ics[i] for i in jobs]:
     # Particle archive
     f = csiborgtools.read.read_h5(paths.particles(nsim))
     particles = f["particles"]
-    clump_map = f["clumpmap"]
-    clid2map = {clid: i for i, clid in enumerate(clump_map[:, 0])}
-    clumps_cat = csiborgtools.read.ClumpsCatalogue(nsim, paths, rawdata=True,
-                                                   load_fitted=False)
-    # We check whether we fit halos or clumps, will be indexing over different
-    # iterators.
-    if args.kind == "halos":
-        ismain = clumps_cat.ismain
-    else:
-        ismain = numpy.ones(len(clumps_cat), dtype=bool)
-
+    halo_map = f["halomap"]
+    hid2map = {clid: i for i, clid in enumerate(halo_map[:, 0])}
+    cat = csiborgtools.read.CSiBORGHaloCatalogue(
+        nsim, paths, with_lagpatch=False, load_initial=False, rawdata=True,
+        load_fitted=False)
     # Even if we are calculating parent halo this index runs over all clumps.
-    out = csiborgtools.read.cols_to_structured(len(clumps_cat), cols_collect)
-    indxs = clumps_cat["index"]
-    for i, clid in enumerate(tqdm(indxs)) if verbose else enumerate(indxs):
-        clid = clumps_cat["index"][i]
-        out["index"][i] = clid
-        # If we are fitting halos and this clump is not a main, then continue.
-        if args.kind == "halos" and not ismain[i]:
-            continue
+    out = csiborgtools.read.cols_to_structured(len(cat), cols_collect)
+    indxs = cat["index"]
+    for i in tqdm(indxs) if verbose else indxs:
+        hid = cat["index"][i]
+        out["index"][i] = hid
 
-        if args.kind == "halos":
-            part = csiborgtools.read.load_parent_particles(
-                clid, particles, clump_map, clid2map, clumps_cat)
-        else:
-            part = csiborgtools.read.load_clump_particles(clid, particles,
-                                                          clump_map, clid2map)
-
+        part = csiborgtools.read.load_halo_particles(hid, particles, halo_map,
+                                                     hid2map)
         # We fit the particles if there are any. If not we assign the index,
         # otherwise it would be NaN converted to integers (-2147483648) and
         # yield an error further down.
         if part is None:
             continue
 
-        _out = fit_clump(part, clumps_cat[i], box)
+        _out = fit_halo(part, cat[i], box)
         for key in _out.keys():
             out[key][i] = _out[key]
 
-    # Finally, we save the results. If we were analysing main halos, then
-    # remove array indices that do not correspond to parent halos.
-    if args.kind == "halos":
-        out = out[ismain]
-
-    fout = paths.structfit(nsnap, nsim, args.kind)
+    fout = paths.structfit(nsnap, nsim)
     print(f"Saving to `{fout}`.", flush=True)
     numpy.save(fout, out)
