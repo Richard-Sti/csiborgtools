@@ -38,7 +38,7 @@ except ModuleNotFoundError:
     import csiborgtools
 
 
-def copy_membership(nsim):
+def copy_membership(nsim, verbose=True):
     """
     Copy the FoF particle halo membership to the CSiBORG directory and write it
     as a NumPy array instead of a text file.
@@ -47,19 +47,23 @@ def copy_membership(nsim):
     ----------
     nsim : int
         IC realisation index.
+    verbose : bool, optional
+        Verbosity flag.
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     fpath = join("/mnt/extraspace/jeg/greenwhale/Constrained_Sims",
                  f"sim_{nsim}/particle_membership_{nsim}_FOF.txt")
-    print(f"Loading from ... `{fpath}`.")
+    if verbose:
+        print(f"Loading from ... `{fpath}`.")
     data = numpy.genfromtxt(fpath, dtype=int)
 
     fout = paths.fof_membership(nsim)
-    print(f"Saving to ... `{fout}`.")
+    if verbose:
+        print(f"Saving to ... `{fout}`.")
     numpy.save(fout, data)
 
 
-def copy_catalogue(nsim):
+def copy_catalogue(nsim, verbose=True):
     """
     Move the FoF catalogue to the CSiBORG directory.
 
@@ -67,12 +71,15 @@ def copy_catalogue(nsim):
     ----------
     nsim : int
         IC realisation index.
+    verbose : bool, optional
+        Verbosity flag.
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     source = join("/mnt/extraspace/jeg/greenwhale/Constrained_Sims",
                   f"sim_{nsim}/halo_catalog_{nsim}_FOF.txt")
     dest = paths.fof_cat(nsim)
-    print("Copying`{}` to `{}`.".format(source, dest))
+    if verbose:
+        print("Copying`{}` to `{}`.".format(source, dest))
     copy(source, dest)
 
 
@@ -124,7 +131,7 @@ def sort_fofid(nsim, verbose=True):
 
 def main(nsim, verbose=False):
     copy_membership(nsim, verbose=verbose)
-    copy_catalogue(nsim)
+    copy_catalogue(nsim, verbose=verbose)
     sort_fofid(nsim, verbose=verbose)
 
 
