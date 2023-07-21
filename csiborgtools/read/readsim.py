@@ -32,7 +32,7 @@ from .utils import cols_to_structured
 
 class ParticleReader:
     """
-    Shortcut to read in particle files along with their corresponding clumps.
+    Object to read in particle files along with their corresponding haloes.
 
     Parameters
     ----------
@@ -422,13 +422,13 @@ class ParticleReader:
         pos = numpy.genfromtxt(fpath, usecols=(1, 2, 3), dtype=numpy.float32)
         mass = numpy.genfromtxt(fpath, usecols=4, dtype=numpy.float32)
 
-        dtype = {"names": ["index", "x", "y", "z", "m200c"],
+        dtype = {"names": ["index", "x", "y", "z", "fof_m200c"],
                  "formats": [numpy.int32] + [numpy.float32] * 4}
         out = numpy.full(hid.size, numpy.nan, dtype=dtype)
         out["index"] = hid
-        out["x"] = pos[:, 0] + 677.7 / 0.705 / 2
-        out["y"] = pos[:, 1] + 677.7 / 0.705 / 2
-        out["z"] = pos[:, 2] + 677.7 / 0.705 / 2
+        out["x"] = pos[:, 0]
+        out["y"] = pos[:, 1]
+        out["z"] = pos[:, 2]
         out["fof_m200c"] = mass * 1e11
         return out
 
@@ -502,7 +502,7 @@ class MmainReader:
         """
         Make the summed substructure catalogue for a final snapshot. Includes
         the position of the parent, the summed mass and the fraction of mass in
-        substructure.
+        substructure. Corresponds to the PHEW Halo finder.
 
         Parameters
         ----------
