@@ -80,13 +80,13 @@ def fit_halo(particles, clump_info, box):
     # Overdensity masses
     for n in [200, 500]:
         out[f"r{n}c"], out[f"m{n}c"] = obj.spherical_overdensity_mass(
-            n, kind="crit")
+            n, kind="crit", npart_min=10)
         out[f"r{n}m"], out[f"m{n}m"] = obj.spherical_overdensity_mass(
-            n, kind="matter")
+            n, kind="matter", npart_min=10)
     # NFW fit
     if out["npart"] > 10 and numpy.isfinite(out["r200c"]):
         Rs, rho0 = nfwpost.fit(obj)
-        out["conc"] = Rs / out["r200c"]
+        out["conc"] = out["r200c"] / Rs
         out["rho0"] = rho0
     # Spin within R200c
     if numpy.isfinite(out["r200c"]):
