@@ -124,7 +124,7 @@ for i in jobs:
     del parts
     collect()
 
-    print(f"{datetime.now()}: rank {rank} creating clump mapping for {nsim}.",
+    print(f"{datetime.now()}: rank {rank} creating halo mapping for {nsim}.",
           flush=True)
     # Load clump IDs back to memory
     with h5py.File(fname, "r") as f:
