@@ -24,6 +24,8 @@ import numpy
 from mpi4py import MPI
 from tqdm import tqdm
 
+from utils import get_nsims
+
 try:
     import csiborgtools
 except ModuleNotFoundError:
@@ -41,16 +43,13 @@ verbose = nproc == 1
 
 # Argument parser
 parser = ArgumentParser()
-parser.add_argument("--ics", type=int, nargs="+", default=None,
+parser.add_argument("--nsims", type=int, nargs="+", default=None,
                     help="IC realisations. If `-1` processes all simulations.")
 args = parser.parse_args()
 paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 partreader = csiborgtools.read.ParticleReader(paths)
 
-if args.ics is None or args.ics[0] == -1:
-    ics = paths.get_ics("csiborg")
-else:
-    ics = args.ics
+nsims = get_nsims(args, paths)
 
 cols_collect = [("index", numpy.int32),
                 ("x", numpy.float32),
@@ -61,8 +60,8 @@ cols_collect = [("index", numpy.int32),
 
 
 # MPI loop over simulations
-jobs = csiborgtools.fits.split_jobs(len(ics), nproc)[rank]
-for nsim in [ics[i] for i in jobs]:
+jobs = csiborgtools.fits.split_jobs(len(nsims), nproc)[rank]
+for nsim in [nsims[i] for i in jobs]:
     nsnap = max(paths.get_snapshots(nsim))
     overlapper = csiborgtools.match.ParticleOverlap()
     print(f"{datetime.now()}: rank {rank} calculating simulation `{nsim}`.",
