@@ -118,7 +118,7 @@ def plot_mass_vs_ncells(nsim, pdf=False):
 
 def plot_hmf(pdf=False):
     """
-    Plot the (ultimate paretn) halo mass function of CSiBORG and Quijote.
+    Plot the FoF halo mass function of CSiBORG and Quijote.
 
     Parameters
     ----------
@@ -132,7 +132,8 @@ def plot_hmf(pdf=False):
     print("Plotting the HMF...", flush=True)
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 
-    csiborg_nsims = paths.get_ics("csiborg")
+    # csiborg_nsims = paths.get_ics("csiborg")
+    csiborg_nsims = [7444]
     print("Loading CSiBORG halo counts.", flush=True)
     for i, nsim in enumerate(tqdm(csiborg_nsims)):
         data = numpy.load(paths.halo_counts("csiborg", nsim))
@@ -141,6 +142,8 @@ def plot_hmf(pdf=False):
             csiborg_counts = numpy.full((len(csiborg_nsims), len(bins) - 1),
                                         numpy.nan, dtype=numpy.float32)
         csiborg_counts[i, :] = data["counts"]
+    print(data["counts"])
+    print(csiborg_counts)
     csiborg_counts /= numpy.diff(bins).reshape(1, -1)
 
     print("Loading Quijote halo counts.", flush=True)
@@ -206,6 +209,76 @@ def plot_hmf(pdf=False):
         fig.tight_layout(h_pad=0, w_pad=0)
         for ext in ["png"] if pdf is False else ["png", "pdf"]:
             fout = join(plt_utils.fout, f"hmf_comparison.{ext}")
+            print(f"Saving to `{fout}`.")
+            fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
+        plt.close()
+
+
+def plot_hmf_quijote_full(pdf=False):
+    """
+    Plot the FoF halo mass function of Quijote full run.
+
+    Parameters
+    ----------
+    pdf : bool, optional
+        Whether to save the figure as a PDF file.
+
+    Returns
+    -------
+    None
+    """
+    print("Plotting the HMF...", flush=True)
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+
+    print("Loading Quijote halo counts.", flush=True)
+    quijote_nsims = paths.get_ics("quijote")
+    for i, nsim in enumerate(tqdm(quijote_nsims)):
+        data = numpy.load(paths.halo_counts("quijote_full", nsim))
+        if i == 0:
+            bins = data["bins"]
+            counts = numpy.full((len(quijote_nsims), len(bins) - 1), numpy.nan,
+                                dtype=numpy.float32)
+        counts[i, :] = data["counts"]
+    counts /= numpy.diff(bins).reshape(1, -1)
+    counts /= 1000**3
+
+    x = 10**(0.5 * (bins[1:] + bins[:-1]))
+    # Edit lower and upper limits
+    counts[:, x < 10**(12.4)] = numpy.nan
+    counts[:, x > 4e15] = numpy.nan
+
+    with plt.style.context(plt_utils.mplstyle):
+        cols = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+        fig, ax = plt.subplots(nrows=2, sharex=True,
+                               figsize=(3.5, 2.625 * 1.25),
+                               gridspec_kw={"height_ratios": [1, 0.65]})
+        fig.subplots_adjust(hspace=0, wspace=0)
+
+        # Upper panel data
+        mean = numpy.mean(counts, axis=0)
+        std = numpy.std(counts, axis=0)
+        ax[0].plot(x, mean)
+        ax[0].fill_between(x, mean - std, mean + std, alpha=0.5)
+        # Lower panel data
+        for i in range(counts.shape[0]):
+            ax[1].plot(x, counts[i, :] / mean, c=cols[0])
+
+        # Labels and accesories
+        ax[1].axhline(1, color="k", ls=plt.rcParams["lines.linestyle"],
+                      lw=0.5 * plt.rcParams["lines.linewidth"], zorder=0)
+        ax[0].set_ylabel(r"$\frac{\mathrm{d}^2 n}{\mathrm{d}\log M_{\rm h} \mathrm{d} V}~[\mathrm{dex}^{-1} (\mathrm{Mpc / h})^{-3}]$",  # noqa
+                         fontsize="small")
+        ax[1].set_xlabel(r"$M_{\rm h}$ [$M_\odot$]")
+        ax[1].set_ylabel(r"$\mathrm{HMF} / \langle \mathrm{HMF} \rangle$",
+                         fontsize="small")
+
+        ax[0].set_xscale("log")
+        ax[0].set_yscale("log")
+        ax[0].legend()
+
+        fig.tight_layout(h_pad=0, w_pad=0)
+        for ext in ["png"] if pdf is False else ["png", "pdf"]:
+            fout = join(plt_utils.fout, f"hmf_quijote_full.{ext}")
             print(f"Saving to `{fout}`.")
             fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
@@ -561,6 +634,9 @@ if __name__ == "__main__":
     if False:
         plot_hmf(pdf=False)
 
+    if True:
+        plot_hmf_quijote_full(pdf=False)
+
     if False:
         kind = "overdensity"
         grid = 1024
@@ -568,7 +644,7 @@ if __name__ == "__main__":
                               plot_groups=False, dmin=45, dmax=60,
                               plot_halos=5e13, volume_weight=True)
 
-    if True:
+    if False:
         kind = "overdensity"
         grid = 256
         smooth_scale = 0
