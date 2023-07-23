@@ -70,22 +70,18 @@ for nsim in [ics[i] for i in jobs]:
 
     parts = csiborgtools.read.read_h5(paths.initmatch(nsim, "particles"))
     parts = parts['particles']
-    clump_map = csiborgtools.read.read_h5(paths.particles(nsim))
-    clump_map = clump_map["clumpmap"]
-    clumps_cat = csiborgtools.read.ClumpsCatalogue(nsim, paths, rawdata=True,
-                                                   load_fitted=False)
-    clid2map = {clid: i for i, clid in enumerate(clump_map[:, 0])}
-    ismain = clumps_cat.ismain
+    halo_map = csiborgtools.read.read_h5(paths.particles(nsim))
+    halo_map = halo_map["halomap"]
+    cat = csiborgtools.read.CSiBORGHaloCatalogue(
+        nsim, paths, rawdata=True, load_fitted=False, load_initial=False)
+    hid2map = {hid: i for i, hid in enumerate(halo_map[:, 0])}
 
-    out = csiborgtools.read.cols_to_structured(len(clumps_cat), cols_collect)
-    indxs = clumps_cat["index"]
-    for i, hid in enumerate(tqdm(indxs) if verbose else indxs):
+    out = csiborgtools.read.cols_to_structured(len(cat), cols_collect)
+    for i, hid in enumerate(tqdm(cat["index"]) if verbose else cat["index"]):
         out["index"][i] = hid
-        if not ismain[i]:
-            continue
+        part = csiborgtools.read.load_halo_particles(hid, parts, halo_map,
+                                                     hid2map)
 
-        part = csiborgtools.read.load_parent_particles(hid, parts, clump_map,
-                                                       clid2map, clumps_cat)
         # Skip if the halo is too small.
         if part is None or part.size < 100:
             continue
@@ -101,7 +97,6 @@ for nsim in [ics[i] for i in jobs]:
         delta = overlapper.make_delta(part[:, :3], part[:, 3], subbox=True)
         out["lagpatch_ncells"][i] = csiborgtools.fits.delta2ncells(delta)
 
-    out = out[ismain]
     # Now save it
     fout = paths.initmatch(nsim, "fit")
     print(f"{datetime.now()}: dumping fits to .. `{fout}`.",
