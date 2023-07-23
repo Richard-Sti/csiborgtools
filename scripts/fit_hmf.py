@@ -58,8 +58,9 @@ def get_counts(nsim, bins, paths, parser_args):
     bounds = {"dist": (0, parser_args.Rmax)}
 
     if simname == "csiborg":
-        cat = csiborgtools.read.CSiBORGHaloCatalogue(nsim, paths,
-                                                     bounds=bounds)
+        cat = csiborgtools.read.CSiBORGHaloCatalogue(
+            nsim, paths, bounds=bounds, with_lagpatch=False,
+            load_initial=False)
         logmass = numpy.log10(cat["totpartmass"])
         counts = csiborgtools.fits.number_counts(logmass, bins)
     elif simname == "quijote":
@@ -72,6 +73,12 @@ def get_counts(nsim, bins, paths, parser_args):
             cat = cat0.pick_fiducial_observer(nobs, rmax=parser_args.Rmax)
             logmass = numpy.log10(cat["group_mass"])
             counts[nobs, :] = csiborgtools.fits.number_counts(logmass, bins)
+    elif simname == "quijote_full":
+        cat = csiborgtools.read.QuijoteHaloCatalogue(nsim, paths, nsnap=4)
+        logmass = numpy.log10(cat["group_mass"])
+        counts = csiborgtools.fits.number_counts(logmass, bins)
+    else:
+        raise ValueError(f"Unknown simulation name `{simname}`.")
 
     fout = paths.halo_counts(simname, nsim)
     if parser_args.verbose:
@@ -81,12 +88,15 @@ def get_counts(nsim, bins, paths, parser_args):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--simname", type=str, choices=["csiborg", "quijote"],
+    parser.add_argument("--simname", type=str,
+                        choices=["csiborg", "quijote", "quijote_full"],
                         help="Simulation name")
     parser.add_argument("--nsims", type=int, nargs="+", default=None,
                         help="Indices of simulations to cross. If `-1` processes all simulations.")  # noqa
     parser.add_argument("--Rmax", type=float, default=155/0.705,
                         help="High-resolution region radius")
+    parser.add_argument("--bw", type=float, default=0.2,
+                        help="Bin width in dex")
     parser.add_argument("--verbose", type=lambda x: bool(strtobool(x)),
                         default=False)
 
@@ -97,7 +107,7 @@ if __name__ == "__main__":
     verbose = nproc == 1
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsims = get_nsims(parser_args, paths)
-    bins = numpy.arange(11., 16., 0.2, dtype=numpy.float32)
+    bins = numpy.arange(11., 16., parser_args.bw, dtype=numpy.float32)
 
     def do_work(nsim):
         get_counts(nsim, bins, paths, parser_args)
