@@ -282,7 +282,7 @@ class Paths:
         -------
         ids : 1-dimensional array
         """
-        assert simname in ["csiborg", "quijote"]
+        assert simname in ["csiborg", "quijote", "quijote_full"]
         if simname == "csiborg":
             files = glob(join(self.srcdir, "ramses_out*"))
             files = [f.split("/")[-1] for f in files]      # Only file names
@@ -296,6 +296,7 @@ class Paths:
                 pass
             return numpy.sort(ids)
         else:
+            # TODO here later read this from the catalogues instead.
             return numpy.arange(100, dtype=int)
 
     def ic_path(self, nsim, tonew=False):
@@ -474,7 +475,7 @@ class Paths:
         Parameters
         ----------
         simname : str
-            Simulation name. Must be `csiborg` or `quijote`.
+            Simulation name. Must be `csiborg`, `quijote` or `quijote_full`.
         nsim : int
             IC realisation index.
 
