@@ -146,6 +146,4 @@ if __name__ == "__main__":
 
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsims = get_nsims(args, paths)
-    comm = MPI.COMM_WORLD
-
-    work_delegation(main, nsims, comm)
+    work_delegation(main, nsims, MPI.COMM_WORLD)
