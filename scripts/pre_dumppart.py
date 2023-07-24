@@ -25,6 +25,7 @@ import h5py
 import numba
 import numpy
 from mpi4py import MPI
+from taskmaster import work_delegation
 from tqdm import trange
 
 from utils import get_nsims
@@ -36,28 +37,6 @@ except ModuleNotFoundError:
 
     sys.path.append("../")
     import csiborgtools
-
-
-# We set up the MPI
-comm = MPI.COMM_WORLD
-rank = comm.Get_rank()
-nproc = comm.Get_size()
-
-# And next parse all the arguments and set up CSiBORG objects
-parser = ArgumentParser()
-parser.add_argument("--simname", type=str, default="csiborg",
-                    choices=["csiborg", "quijote"],
-                    help="Simulation name")
-parser.add_argument("--nsims", type=int, nargs="+", default=None,
-                    help="IC realisations. If `-1` processes all simulations.")
-args = parser.parse_args()
-
-verbose = nproc == 1
-paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-partreader = csiborgtools.read.ParticleReader(paths)
-# Keep "ID" as the last column!
-pars_extract = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'M', "ID"]
-nsims = get_nsims(args, paths)
 
 
 @numba.jit(nopython=True)
@@ -81,17 +60,40 @@ def minmax_clump(clid, clump_ids, start_loop=0):
     return start, end
 
 
-# MPI loop over individual simulations. We read in the particles from RAMSES
-# files and dump them to a HDF5 file.
-jobs = csiborgtools.fits.split_jobs(len(nsims), nproc)[rank]
-for i in jobs:
-    nsim = nsims[i]
+def main(nsim, simname, verbose):
+    """
+    Read in the snapshot particles, sort them by their FoF halo ID and dump
+    into a HDF5 file. Stores the first and last index of each halo in the
+    particle array for fast slicing of the array to acces particles of a single
+    halo.
+
+    Parameters
+    ----------
+    nsim : int
+        IC realisation index.
+    simname : str
+        Simulation name.
+    verbose : bool
+        Verbosity flag.
+
+    Returns
+    -------
+    None
+    """
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    partreader = csiborgtools.read.ParticleReader(paths)
+
+    if simname == "quijote":
+        raise NotImplementedError("Not implemented for Quijote yet.")
+
+    # Keep "ID" as the last column!
+    pars_extract = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'M', "ID"]
     nsnap = max(paths.get_snapshots(nsim))
     fname = paths.particles(nsim)
     # We first read in the halo IDs of the particles and infer the sorting.
     # Right away we dump the halo IDs to a HDF5 file and clear up memory.
-    print(f"{datetime.now()}: rank {rank} loading particles {nsim}.",
-          flush=True)
+    if verbose:
+        print(f"{datetime.now()}: loading particles {nsim}.", flush=True)
     part_hids = partreader.read_fof_hids(nsim)
     sort_indxs = numpy.argsort(part_hids).astype(numpy.int32)
     part_hids = part_hids[sort_indxs]
@@ -108,8 +110,7 @@ for i in jobs:
         nsnap, nsim, pars_extract, return_structured=False, verbose=verbose)
     # Now we in two steps save the particles and particle IDs.
     if verbose:
-        print(f"{datetime.now()}: rank {rank} dumping particles from {nsim}.",
-              flush=True)
+        print(f"{datetime.now()}: dumping particles from {nsim}.", flush=True)
     parts = parts[sort_indxs]
     pids = pids[sort_indxs]
     del sort_indxs
@@ -127,8 +128,8 @@ for i in jobs:
     del parts
     collect()
 
-    print(f"{datetime.now()}: rank {rank} creating halo mapping for {nsim}.",
-          flush=True)
+    if verbose:
+        print(f"{datetime.now()}: creating halo map for {nsim}.", flush=True)
     # Load clump IDs back to memory
     with h5py.File(fname, "r") as f:
         part_hids = f["halo_ids"][:]
@@ -156,4 +157,19 @@ for i in jobs:
 
 
 if __name__ == "__main__":
-    pass
+    # And next parse all the arguments and set up CSiBORG objects
+    parser = ArgumentParser()
+    parser.add_argument("--simname", type=str, default="csiborg",
+                        choices=["csiborg", "quijote"],
+                        help="Simulation name")
+    parser.add_argument("--nsims", type=int, nargs="+", default=None,
+                        help="IC realisations. If `-1` processes all .")
+    args = parser.parse_args()
+
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    nsims = get_nsims(args, paths)
+
+    def _main(nsim, verbose=MPI.COMM_WORLD.nproc == 1):
+        main(nsim, args.simname, verbose=verbose)
+
+    work_delegation(_main, nsims, MPI.COMM_WORLD)
