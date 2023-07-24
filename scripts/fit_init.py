@@ -80,16 +80,16 @@ def _main(nsim, simname, verbose):
         if part is None or part.size < 100:
             continue
 
+        pos, mass = part[:, :3], part[:, 3]
         # Calculate the centre of mass and the Lagrangian patch size.
-        cm = csiborgtools.fits.center_of_mass(part, boxsize=1.0)
-        distances = csiborgtools.fits.periodic_distance(part[:, :3], cm,
-                                                        boxsize=1.0)
+        cm = csiborgtools.fits.center_of_mass(pos, mass, boxsize=1.0)
+        distances = csiborgtools.fits.periodic_distance(pos, cm, boxsize=1.0)
         out["x"][i], out["y"][i], out["z"][i] = cm
         out["lagpatch_size"][i] = numpy.percentile(distances, 99)
 
         # Calculate the number of cells with > 0 density.
         overlapper = csiborgtools.match.ParticleOverlap()
-        delta = overlapper.make_delta(part[:, :3], part[:, 3], subbox=True)
+        delta = overlapper.make_delta(pos, mass, subbox=True)
         out["lagpatch_ncells"][i] = csiborgtools.fits.delta2ncells(delta)
 
     # Now save it
