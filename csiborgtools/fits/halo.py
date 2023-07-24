@@ -315,28 +315,78 @@ class Halo(BaseStructure):
 #                       Other, supplementary functions                        #
 ###############################################################################
 
-@jit(nopython=True)
-def dist_centmass(clump):
+
+def center_of_mass(parts, boxsize):
     """
-    Calculate the clump (or halo) particles' distance from the centre of mass.
+    Calculate the center of mass of a halo, while assuming for periodic
+    boundary conditions of a cubical box. Assuming that particle positions are
+    in `[0, boxsize)` range.
 
     Parameters
     ----------
-    clump : 2-dimensional array of shape (n_particles, 7)
+    parts: 2-dimensional array of shape (n_particles, N)
         Particle array. The first four columns must be `x`, `y`, `z` and `M`.
+    boxsize: float
+        Box size in the same units as `parts` coordinates.
 
     Returns
     -------
-    dist : 1-dimensional array of shape `(n_particles, )`
-        Particle distance from the centre of mass.
-    cm : len-3 list
-        Center of mass coordinates.
+    cm : 1-dimensional array of shape `(3, )`
     """
-    mass = clump[:, 3]
-    x, y, z = clump[:, 0], clump[:, 1], clump[:, 2]
-    cmx, cmy, cmz = [numpy.average(xi, weights=mass) for xi in (x, y, z)]
-    dist = ((x - cmx)**2 + (y - cmy)**2 + (z - cmz)**2)**0.5
-    return dist, [cmx, cmy, cmz]
+    pos = parts[:, :3]
+    mass = parts[:, 3]
+    # Convert positions to unit circle coordinates in the complex plane
+    pos = numpy.exp(2j * numpy.pi * pos / boxsize)
+    # Compute weighted average of these coordinates, convert it back to
+    # box coordinates and fix any negative positions due to angle calculations.
+    cm = numpy.angle(numpy.average(pos, axis=0, weights=mass))
+    cm *= boxsize / (2 * numpy.pi)
+    cm[cm < 0] += boxsize
+    return cm
+
+
+def periodic_distance(points, reference, boxsize):
+    """
+    Compute the periodic distance between multiple points and a reference
+    point.
+
+    Parameters
+    ----------
+    points : 2-dimensional array of shape `(n_points, 3)`
+        Points to calculate the distance from the reference point.
+    reference : 1-dimensional array of shape `(3, )`
+        Reference point.
+    boxsize : float
+        Box size.
+
+    Returns
+    -------
+    dist : 1-dimensional array of shape `(n_points, )`
+    """
+    delta = numpy.abs(points - reference)
+    delta = numpy.where(delta > boxsize / 2, boxsize - delta, delta)
+    return numpy.linalg.norm(delta, axis=1)
+
+
+def shift_to_center_of_box(points, cm, boxsize):
+    """
+    Shift the positions such that the CM is at the center of the box, while
+    accounting for periodic boundary conditions.
+
+    Parameters
+    ----------
+    points : 2-dimensional array of shape `(n_points, 3)`
+        Points to shift.
+    cm : 1-dimensional array of shape `(3, )`
+        Center of mass.
+    boxsize : float
+        Box size.
+
+    Returns
+    -------
+    shifted_positions : 2-dimensional array of shape `(n_points, 3)`
+    """
+    return (points + (boxsize / 2 - cm)) % boxsize
 
 
 @jit(nopython=True)

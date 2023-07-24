@@ -12,7 +12,7 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-from .halo import (Clump, Halo, delta2ncells, dist_centmass,  # noqa
-                   number_counts)
+from .halo import (Clump, Halo, delta2ncells, center_of_mass,  # noqa
+                   periodic_distance, shift_to_center_of_box, number_counts)  # noqa
 from .haloprofile import NFWPosterior, NFWProfile  # noqa
 from .utils import split_jobs  # noqa
