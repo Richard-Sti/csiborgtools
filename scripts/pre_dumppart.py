@@ -45,6 +45,9 @@ nproc = comm.Get_size()
 
 # And next parse all the arguments and set up CSiBORG objects
 parser = ArgumentParser()
+parser.add_argument("--simname", type=str, default="csiborg",
+                    choices=["csiborg", "quijote"],
+                    help="Simulation name")
 parser.add_argument("--nsims", type=int, nargs="+", default=None,
                     help="IC realisations. If `-1` processes all simulations.")
 args = parser.parse_args()
@@ -150,3 +153,7 @@ for i in jobs:
 
     del part_hids
     collect()
+
+
+if __name__ == "__main__":
+    pass
