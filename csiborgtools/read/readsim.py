@@ -420,16 +420,19 @@ class ParticleReader:
         fpath = self.paths.fof_cat(nsim)
         hid = numpy.genfromtxt(fpath, usecols=0, dtype=numpy.int32)
         pos = numpy.genfromtxt(fpath, usecols=(1, 2, 3), dtype=numpy.float32)
-        mass = numpy.genfromtxt(fpath, usecols=4, dtype=numpy.float32)
+        totmass = numpy.genfromtxt(fpath, usecols=4, dtype=numpy.float32)
+        m200c = numpy.genfromtxt(fpath, usecols=5, dtype=numpy.float32)
 
-        dtype = {"names": ["index", "x", "y", "z", "fof_m200c"],
-                 "formats": [numpy.int32] + [numpy.float32] * 4}
+        dtype = {"names": ["index", "x", "y", "z", "fof_totpartmass",
+                           "fof_m200c"],
+                 "formats": [numpy.int32] + [numpy.float32] * 5}
         out = numpy.full(hid.size, numpy.nan, dtype=dtype)
         out["index"] = hid
         out["x"] = pos[:, 0]
         out["y"] = pos[:, 1]
         out["z"] = pos[:, 2]
-        out["fof_m200c"] = mass * 1e11
+        out["fof_totpartmass"] = totmass * 1e11
+        out["fof_m200c"] = m200c * 1e11
         return out
 
 
