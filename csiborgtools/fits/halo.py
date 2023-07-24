@@ -86,7 +86,7 @@ class BaseStructure(ABC):
         return numpy.vstack([self[p] for p in ("vx", "vy", "vz")]).T
 
     def spherical_overdensity_mass(self, delta_mult, kind="crit", tol=1e-8,
-                                   maxiter=20):
+                                   maxiter=20, npart_min=10):
         r"""
         Calculate spherical overdensity mass and radius via the iterative
         shrinking sphere method.
@@ -102,8 +102,7 @@ class BaseStructure(ABC):
         maxiter : int, optional
             Maximum number of iterations.
         npart_min : int, optional
-            Minimum number of enclosed particles for a radius to be
-            considered trustworthy.
+            Minimum number of enclosed particles to reset the iterator.
 
         Returns
         -------
@@ -124,13 +123,19 @@ class BaseStructure(ABC):
 
         # First assign the initial guesses
         cm = center_of_mass(pos, mass, boxsize=1)
-        rad = mass_to_radius(numpy.sum(mass), rho)
+        rad = mass_to_radius(numpy.sum(mass), rho) * 2
+        rad0 = rad
 
         success = False
-        for i in range(maxiter):
+        for __ in range(maxiter):
             # Calculate the distance of each particle from the current guess.
             dist = periodic_distance(pos, cm, boxsize=1)
             within_rad = dist <= rad
+            # Heuristic reset of the radius if there are too few particles.
+            if numpy.sum(within_rad) < npart_min:
+                rad = (0.5 + numpy.random.rand()) * rad0
+                within_rad = dist <= rad
+
             # Calculate the enclosed mass for the current CM and radius.
             enclosed_mass = numpy.sum(mass[within_rad])
 
@@ -151,11 +156,11 @@ class BaseStructure(ABC):
                 break
 
         if not success:
-            return numpy.nan, numpy.nan
+            return numpy.nan, numpy.nan, numpy.full(3, numpy.nan)
 
         return enclosed_mass, rad, cm
 
-    def angular_momentum(self, ref, rad):
+    def angular_momentum(self, ref, rad, npart_min=10):
         """
         Calculate angular momentum around a reference point using all particles
         within a radius. The angular momentum is returned in box units.
@@ -166,6 +171,9 @@ class BaseStructure(ABC):
             Reference point.
         rad : float
             Radius around the reference point.
+        npart_min : int, optional
+            Minimum number of enclosed particles for a radius to be
+            considered trustworthy.
 
         Returns
         -------
@@ -173,6 +181,8 @@ class BaseStructure(ABC):
         """
         pos = self.pos
         mask = periodic_distance(pos, ref, boxsize=1) < rad
+        if numpy.sum(mask) < npart_min:
+            return numpy.full(3, numpy.nan)
 
         mass = self["M"][mask]
         pos = pos[mask]
@@ -232,7 +242,8 @@ class BaseStructure(ABC):
         mask = dist < rad
 
         dist = dist[mask]
-        weight = self["M"][mask] / numpy.mean(self["M"][mask])
+        weight = self["M"][mask]
+        weight /= numpy.mean(weight)
 
         def negll_nfw_concentration(c, xs, weight):
             ll = xs / (1 + c * xs)**2 * c**2
