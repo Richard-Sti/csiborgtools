@@ -253,7 +253,7 @@ class BaseStructure(ABC):
 
         res = minimize(negll_nfw_concentration, x0=5,
                        args=(dist / rad, weight, ), method='Nelder-Mead',
-                       bounds=[(0, 100)])
+                       bounds=[(1e-5, 100)])
 
         if not res.success:
             return numpy.nan
@@ -390,8 +390,6 @@ def mass_to_radius(mass, rho):
         Radius of the sphere.
     """
     return ((3 * mass) / (4 * numpy.pi * rho))**(1./3)
-
-
 
 
 @jit(nopython=True)
