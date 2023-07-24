@@ -13,9 +13,9 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-Short script to move and change format of the FoF membership files calculated
-by Julien. Additionally, also orders the particles in the same way as the PHEW
-halo finder output.
+Short script to move and change format of the CSiBORG FoF membership files
+calculated by Julien. Additionally, also orders the particles in the same way
+as the PHEW halo finder output.
 """
 from argparse import ArgumentParser
 from datetime import datetime
@@ -129,7 +129,7 @@ def sort_fofid(nsim, verbose=True):
     numpy.save(fout, fof_hids)
 
 
-def main(nsim, verbose=False):
+def main(nsim, verbose=True):
     copy_membership(nsim, verbose=verbose)
     copy_catalogue(nsim, verbose=verbose)
     sort_fofid(nsim, verbose=verbose)
