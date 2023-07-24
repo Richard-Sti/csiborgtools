@@ -40,22 +40,22 @@ except ModuleNotFoundError:
 
 
 @numba.jit(nopython=True)
-def minmax_clump(clid, clump_ids, start_loop=0):
+def minmax_halo(hid, halo_ids, start_loop=0):
     """
-    Find the start and end index of a clump in a sorted array of clump IDs.
+    Find the start and end index of a halo in a sorted array of halo IDs.
     This is much faster than using `numpy.where` and then `numpy.min` and
     `numpy.max`.
     """
     start = None
     end = None
 
-    for i in range(start_loop, clump_ids.size):
-        n = clump_ids[i]
-        if n == clid:
+    for i in range(start_loop, halo_ids.size):
+        n = halo_ids[i]
+        if n == hid:
             if start is None:
                 start = i
             end = i
-        elif n > clid:
+        elif n > hid:
             break
     return start, end
 
@@ -140,9 +140,9 @@ def main(nsim, simname, verbose):
     start_loop = 0
     niters = unique_halo_ids.size
     for i in trange(niters) if verbose else range(niters):
-        clid = unique_halo_ids[i]
-        k0, kf = minmax_clump(clid, part_hids, start_loop=start_loop)
-        halo_map[i, 0] = clid
+        hid = unique_halo_ids[i]
+        k0, kf = minmax_halo(hid, part_hids, start_loop=start_loop)
+        halo_map[i, 0] = hid
         halo_map[i, 1] = k0
         halo_map[i, 2] = kf
         start_loop = kf
