@@ -14,7 +14,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 Script to sort the initial snapshot particles according to their final
-snapshot ordering, which is sorted by the clump IDs.
+snapshot ordering, which is sorted by the halo IDs.
 """
 from argparse import ArgumentParser
 from datetime import datetime
@@ -23,6 +23,7 @@ from gc import collect
 import h5py
 import numpy
 from mpi4py import MPI
+from taskmaster import work_delegation
 
 from utils import get_nsims
 
@@ -35,38 +36,37 @@ except ModuleNotFoundError:
     import csiborgtools
 
 
-# Get MPI things
-comm = MPI.COMM_WORLD
-rank = comm.Get_rank()
-nproc = comm.Get_size()
-verbose = nproc == 1
+def _main(nsim, simname, verbose):
+    """
+    Sort the initial snapshot particles according to their final snapshot
+    ordering and dump them into a HDF5 file.
 
-# Argument parser
-parser = ArgumentParser()
-parser.add_argument("--nsims", type=int, nargs="+", default=None,
-                    help="IC realisations. If `-1` processes all simulations.")
-args = parser.parse_args()
-paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-partreader = csiborgtools.read.ParticleReader(paths)
-# NOTE: ID has to be the last column.
-pars_extract = ["x", "y", "z", "M", "ID"]
-nsims = get_nsims(args, paths)
+    Parameters
+    ----------
+    nsim : int
+        IC realisation index.
+    simname : str
+        Simulation name.
+    verbose : bool
+        Verbosity flag.
+    """
+    if simname == "quijote":
+        raise NotImplementedError("Quijote not implemented yet.")
 
-# We loop over simulations. Each simulation is then procesed with MPI, rank 0
-# loads the data and broadcasts it to other ranks.
-jobs = csiborgtools.fits.split_jobs(len(nsims), nproc)[rank]
-for i in jobs:
-    nsim = nsims[i]
-    nsnap = max(paths.get_snapshots(nsim))
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    partreader = csiborgtools.read.ParticleReader(paths)
 
-    print(f"{datetime.now()}: reading and processing simulation {nsim}.",
-          flush=True)
+    if verbose:
+        print(f"{datetime.now()}: reading and processing simulation {nsim}.",
+              flush=True)
     # We first load the particle IDs in the final snapshot.
     pidf = csiborgtools.read.read_h5(paths.particles(nsim))
     pidf = pidf["particle_ids"]
     # Then we load the particles in the initil snapshot and make sure that
-    # their particle IDs are sorted as in the final snapshot.
-    # Again, because of precision this must be read as structured.
+    # their particle IDs are sorted as in the final snapshot. Again, because of
+    # precision this must be read as structured.
+    # NOTE: ID has to be the last column.
+    pars_extract = ["x", "y", "z", "M", "ID"]
     part0, pid0 = partreader.read_particle(
         1, nsim, pars_extract, return_structured=False, verbose=verbose)
     # First enforce them to already be sorted and then apply reverse
@@ -75,6 +75,26 @@ for i in jobs:
     del pid0
     collect()
     part0 = part0[numpy.argsort(numpy.argsort(pidf))]
-    print(f"{datetime.now()}: dumping particles for {nsim}.", flush=True)
+    if verbose:
+        print(f"{datetime.now()}: dumping particles for {nsim}.", flush=True)
     with h5py.File(paths.initmatch(nsim, "particles"), "w") as f:
         f.create_dataset("particles", data=part0)
+
+
+if __name__ == "__main__":
+    # Argument parser
+    parser = ArgumentParser()
+    parser.add_argument("--simname", type=str, default="csiborg",
+                        choices=["csiborg", "quijote"],
+                        help="Simulation name")
+    parser.add_argument("--nsims", type=int, nargs="+", default=None,
+                        help="IC realisations. If `-1` processes all.")
+    args = parser.parse_args()
+
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    nsims = get_nsims(args, paths)
+
+    def main(nsim):
+        _main(nsim, args.simname, MPI.COMM_WORLD.size == 1)
+
+    work_delegation(main, nsims, MPI.COMM_WORLD)
