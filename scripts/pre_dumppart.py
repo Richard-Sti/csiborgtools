@@ -170,6 +170,6 @@ if __name__ == "__main__":
     nsims = get_nsims(args, paths)
 
     def _main(nsim):
-        main(nsim, args.simname, verbose=MPI.COMM_WORLD.comm.Get_size() == 1)
+        main(nsim, args.simname, verbose=MPI.COMM_WORLD.Get_size() == 1)
 
     work_delegation(_main, nsims, MPI.COMM_WORLD)
