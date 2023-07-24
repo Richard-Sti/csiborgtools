@@ -63,7 +63,7 @@ def fit_halo(particles, box):
                                                        maxiter=50)
     out["m200c"] = m200c
     out["r200c"] = r200c
-    out["lambda200c"] = halo.lambda_bullock(cm, r200c)
+    # out["lambda200c"] = halo.lambda_bullock(cm, r200c)
     out["conc"] = halo.nfw_concentration(cm, r200c)
     return out
 
@@ -109,7 +109,6 @@ def _main(nsim, simname, verbose):
 
     out = csiborgtools.read.cols_to_structured(len(cat), cols)
     for i in trange(len(cat)) if verbose else range(len(cat)):
-        print(i)
         hid = cat["index"][i]
         out["index"][i] = hid
         part = csiborgtools.read.load_halo_particles(hid, particles, halo_map,
