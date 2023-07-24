@@ -232,7 +232,7 @@ class BaseStructure(ABC):
         mask = dist < rad
 
         dist = dist[mask]
-        weight = numpy.mean(self["M"][mask]) / self["M"][mask]
+        weight = self["M"][mask] / numpy.mean(self["M"][mask])
 
         def negll_nfw_concentration(c, xs, weight):
             ll = xs / (1 + c * xs)**2 * c**2
