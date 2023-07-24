@@ -43,6 +43,9 @@ verbose = nproc == 1
 
 # Argument parser
 parser = ArgumentParser()
+parser.add_argument("--simname", type=str, default="csiborg",
+                    choices=["csiborg", "quijote"],
+                    help="Simulation name")
 parser.add_argument("--nsims", type=int, nargs="+", default=None,
                     help="IC realisations. If `-1` processes all simulations.")
 args = parser.parse_args()
