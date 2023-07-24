@@ -129,7 +129,7 @@ def _main(nsim, simname, verbose):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--simname", type=str,
+    parser.add_argument("--simname", type=str, default="csiborg",
                         choices=["csiborg", "quijote", "quijote_full"],
                         help="Simulation name")
     parser.add_argument("--nsims", type=int, nargs="+", default=None,
