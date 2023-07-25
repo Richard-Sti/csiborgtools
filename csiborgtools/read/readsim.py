@@ -116,7 +116,7 @@ class CSiBORGReader:
             Dictionary of information paramaters. Note that both keys and
             values are strings.
         """
-        snappath = self.paths.snapshot(nsnap, nsim)
+        snappath = self.paths.snapshot(nsnap, nsim, "csiborg")
         filename = join(snappath, "info_{}.txt".format(str(nsnap).zfill(5)))
         with open(filename, "r") as f:
             info = f.read().split()
@@ -149,7 +149,7 @@ class CSiBORGReader:
         partfiles : list of `scipy.io.FortranFile`
             Opened part files.
         """
-        snappath = self.paths.snapshot(nsnap, nsim)
+        snappath = self.paths.snapshot(nsnap, nsim, "csiborg")
         ncpu = int(self.read_info(nsnap, nsim)["ncpu"])
         nsnap = str(nsnap).zfill(5)
         if verbose:
@@ -312,7 +312,7 @@ class CSiBORGReader:
         """
         nsnap = str(nsnap).zfill(5)
         cpu = str(cpu + 1).zfill(5)
-        fpath = join(self.paths.snapshots(nsim, tonew=False),
+        fpath = join(self.paths.snapshots(nsim, "csiborg", tonew=False),
                      f"output_{nsnap}", f"unbinding_{nsnap}.out{cpu}")
         return FortranFile(fpath)
 
@@ -369,7 +369,7 @@ class CSiBORGReader:
         out : structured array
         """
         nsnap = str(nsnap).zfill(5)
-        fname = join(self.paths.snapshots(nsim, tonew=False),
+        fname = join(self.paths.snapshots(nsim, "csiborg", tonew=False),
                      "output_{}".format(nsnap),
                      "clump_{}.dat".format(nsnap))
         if not isfile(fname):
@@ -535,7 +535,7 @@ class MmainReader:
             The ultimate parent halo index for every clump, i.e. referring to
             its ultimate parent clump.
         """
-        nsnap = max(self.paths.get_snapshots(nsim))
+        nsnap = max(self.paths.get_snapshots(nsim, "csiborg"))
         partreader = CSiBORGReader(self.paths)
         cols = ["index", "parent", "mass_cl", 'x', 'y', 'z']
         clumparr = partreader.read_phew_clups(nsnap, nsim, cols)

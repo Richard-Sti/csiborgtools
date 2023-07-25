@@ -465,7 +465,7 @@ class CSiBORGHaloCatalogue(BaseCatalogue):
 
     @property
     def nsnap(self):
-        return max(self.paths.get_snapshots(self.nsim))
+        return max(self.paths.get_snapshots(self.nsim, "csiborg"))
 
     @property
     def box(self):

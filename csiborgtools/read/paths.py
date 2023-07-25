@@ -276,7 +276,7 @@ class Paths:
         Parameters
         ----------
         simname : str
-            Simulation name. Must be one of `["csiborg", "quijote"]`.
+            Simulation name. Must be `csiborg` or `quijote`.
 
         Returns
         -------
@@ -295,55 +295,66 @@ class Paths:
             except ValueError:
                 pass
             return numpy.sort(ids)
-        else:
-            # TODO here later read this from the catalogues instead.
-            return numpy.arange(100, dtype=int)
 
-    def ic_path(self, nsim, tonew=False):
+        files = glob("/mnt/extraspace/rstiskalek/Quijote/Snapshots_fiducial/*")
+        files = [int(f.split("/")[-1][1:]) for f in files]
+        return numpy.sort(files)
+
+    def snapshots(self, nsim, simname, tonew=False):
         """
-        Path to a CSiBORG IC realisation folder.
+        Path to an IC snapshots folder.
 
         Parameters
         ----------
         nsim : int
             IC realisation index.
+        simname : str
+            Simulation name. Must be one of `csiborg` or `quijote`.
         tonew : bool, optional
-            Whether to return the path to the '_new' IC realisation.
+            Whether to return the path to the '_new' IC realisation of
+            CSiBORG. Ignored for Quijote.
 
         Returns
         -------
         path : str
         """
-        fname = "ramses_out_{}"
-        if tonew:
-            fname += "_new"
-            return join(self.postdir, "output", fname.format(nsim))
+        assert simname in ["csiborg", "quijote"]
+        if simname == "csiborg":
+            fname = "ramses_out_{}"
+            if tonew:
+                fname += "_new"
+                return join(self.postdir, "output", fname.format(nsim))
+            return join(self.srcdir, fname.format(nsim))
 
-        return join(self.srcdir, fname.format(nsim))
+        return join(self.quijote_dir, "Snapshots_fiducial",
+                    "1" + str(nsim).zfill(4))
 
-    def get_snapshots(self, nsim):
+    def get_snapshots(self, nsim, simname):
+        # TODO edit file names
         """
-        List of available snapshots of a CSiBORG IC realisation.
+        List of available snapshots of simulation.
 
         Parameters
         ----------
         nsim : int
             IC realisation index.
+        simname : str
+            Simulation name. Must be one of `csiborg` or `quijote`.
 
         Returns
         -------
         snapshots : 1-dimensional array
         """
-        simpath = self.ic_path(nsim, tonew=False)
+        simpath = self.snapshots(nsim, simname, tonew=False)
         # Get all files in simpath that start with output_
         snaps = glob(join(simpath, "output_*"))
         # Take just the last _00XXXX from each file  and strip zeros
         snaps = [int(snap.split("_")[-1].lstrip("0")) for snap in snaps]
         return numpy.sort(snaps)
 
-    def snapshot(self, nsnap, nsim):
+    def snapshot(self, nsnap, nsim, simname):
         """
-        Path to a CSiBORG IC realisation snapshot.
+        Path to an IC realisation snapshot.
 
         Parameters
         ----------
@@ -351,14 +362,19 @@ class Paths:
             Snapshot index.
         nsim : int
             IC realisation index.
+        simname : str
+            Simulation name. Must be one of `csiborg` or `quijote`.
 
         Returns
         -------
         snappath : str
         """
-        tonew = nsnap == 1
-        simpath = self.ic_path(nsim, tonew=tonew)
-        return join(simpath, f"output_{str(nsnap).zfill(5)}")
+        simpath = self.snapshots(nsim, simname, tonew=nsnap == 1)
+        if simname == "csiborg":
+            return join(simpath, f"output_{str(nsnap).zfill(5)}")
+        else:
+            nsnap = str(nsnap).zfill(3)
+            return join(simpath, f"snapdir_{nsnap}", f"snap_{nsnap}")
 
     def structfit(self, nsnap, nsim):
         """
