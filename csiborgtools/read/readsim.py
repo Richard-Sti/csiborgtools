@@ -32,7 +32,8 @@ from .utils import cols_to_structured
 
 class ParticleReader:
     """
-    Object to read in particle files along with their corresponding haloes.
+    Object to read in snapshot and halo catalogues of CSiBORG and Quijote
+    simulations.
 
     Parameters
     ----------
@@ -303,7 +304,7 @@ class ParticleReader:
                      f"unbinding_{nsnap}.out{cpu}")
         return FortranFile(fpath)
 
-    def read_clumpid(self, nsnap, nsim, verbose=True):
+    def read_phew_clumpid(self, nsnap, nsim, verbose=True):
         """
         Read PHEW clump IDs of particles from unbinding files. This halo finder
         was used when running the catalogue.
@@ -337,7 +338,7 @@ class ParticleReader:
 
         return clumpid
 
-    def read_clumps(self, nsnap, nsim, cols=None):
+    def read_phew_clups(self, nsnap, nsim, cols=None):
         """
         Read in a PHEW clump file `clump_xxXXX.dat`.
 
@@ -467,8 +468,8 @@ class MmainReader:
         Parameters
         ----------
         clumparr : structured array
-            Clump array. Read from `ParticleReader.read_clumps`. Must contain
-            `index` and `parent` columns.
+            Clump array. Read from `ParticleReader.read_phew_clups`. Must
+            contain `index` and `parent` columns.
         verbose : bool, optional
             Verbosity flag.
 
@@ -525,7 +526,7 @@ class MmainReader:
         nsnap = max(self.paths.get_snapshots(nsim))
         partreader = ParticleReader(self.paths)
         cols = ["index", "parent", "mass_cl", 'x', 'y', 'z']
-        clumparr = partreader.read_clumps(nsnap, nsim, cols)
+        clumparr = partreader.read_phew_clups(nsnap, nsim, cols)
 
         ultimate_parent = self.find_parents(clumparr, verbose=verbose)
         mask_main = clumparr["index"] == clumparr["parent"]
