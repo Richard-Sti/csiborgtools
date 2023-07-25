@@ -60,10 +60,10 @@ def fit_halo(particles, box):
         out[v] = numpy.average(halo.vel[:, i], weights=halo["M"])
 
     m200c, r200c, cm = halo.spherical_overdensity_mass(200, kind="crit",
-                                                       maxiter=50)
+                                                       maxiter=100)
     out["m200c"] = m200c
     out["r200c"] = r200c
-    # out["lambda200c"] = halo.lambda_bullock(cm, r200c)
+    out["lambda200c"] = halo.lambda_bullock(cm, r200c)
     out["conc"] = halo.nfw_concentration(cm, r200c)
     return out
 
