@@ -162,7 +162,7 @@ class CSiBORGBox(BaseBox):
         pars = ["boxlen", "time", "aexp", "H0", "omega_m", "omega_l",
                 "omega_k", "omega_b", "unit_l", "unit_d", "unit_t"]
         for par in pars:
-            setattr(self, "_" + par, float(info[par]))
+            setattr(self, "_" + par, info[par])
 
         self._cosmo = LambdaCDM(H0=self._H0, Om0=self._omega_m,
                                 Ode0=self._omega_l, Tcmb0=2.725 * units.K,
