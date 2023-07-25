@@ -226,7 +226,7 @@ class BaseStructure(ABC):
         angmom_norm = numpy.linalg.norm(self.angular_momentum(ref, rad))
         return angmom_norm / (numpy.sqrt(2) * mass * circvel * rad)
 
-    def nfw_concentration(self, ref, rad, npart_min=10):
+    def nfw_concentration(self, ref, rad, conc_min=1e-3, npart_min=10):
         """
         Calculate the NFW concentration parameter in a given radius around a
         reference point.
@@ -237,6 +237,8 @@ class BaseStructure(ABC):
             Reference point.
         rad : float
             Radius around the reference point.
+        conc_min : float
+            Minimum concentration limit.
         npart_min : int, optional
             Minimum number of enclosed particles to calculate the
             concentration.
@@ -264,12 +266,17 @@ class BaseStructure(ABC):
             return -ll
 
         res = minimize(negll_nfw_concentration, x0=1.5,
-                       args=(dist / rad, weight, ), method='Nelder-Mead')
+                       args=(dist / rad, weight, ), method='Nelder-Mead',
+                       bounds=((numpy.log10(conc_min), 5),))
 
         if not res.success:
             return numpy.nan
 
-        return 10**res["x"][0]
+        res = 10**res["x"][0]
+        if res < conc_min or numpy.isclose(res, conc_min):
+            return numpy.nan
+
+        return res
 
     def __getitem__(self, key):
         keys = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'M']
