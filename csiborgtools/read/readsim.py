@@ -32,8 +32,7 @@ from .utils import cols_to_structured
 
 class ParticleReader:
     """
-    Object to read in snapshot and halo catalogues of CSiBORG and Quijote
-    simulations.
+    Object to read in CSiBORG snapshots and halo catalogues.
 
     Parameters
     ----------
