@@ -15,7 +15,7 @@
 """
 Simulation box unit transformations.
 """
-from abc import ABC, abstractproperty
+from abc import ABC, abstractmethod, abstractproperty
 
 import numpy
 from astropy import constants, units
@@ -24,7 +24,7 @@ from astropy.cosmology import LambdaCDM
 from .readsim import ParticleReader
 
 # Map of CSiBORG unit conversions
-CONV_NAME = {
+CSIBORG_CONV_NAME = {
     "length": ["x", "y", "z", "peak_x", "peak_y", "peak_z", "Rs", "rmin",
                "rmax", "r200c", "r500c", "r200m", "r500m", "x0", "y0", "z0",
                "lagpatch_size"],
@@ -101,6 +101,35 @@ class BaseBox(ABC):
         Returns
         -------
         boxsize : float
+        """
+        pass
+
+    @abstractmethod
+    def convert_from_box(self, data, names):
+        r"""
+        Convert columns named `names` in array `data` from box units to
+        physical units, such that
+            - length -> :math:`Mpc`,
+            - mass -> :math:`M_\odot`,
+            - velocity -> :math:`\mathrm{km} / \mathrm{s}`,
+            - density -> :math:`M_\odot / \mathrm{Mpc}^3`.
+
+        Any other conversions are currently not implemented. Note that the
+        array is passed by reference and directly modified, even though it is
+        also explicitly returned. Additionally centres the box coordinates on
+        the observer, if they are being transformed.
+
+        Parameters
+        ----------
+        data : structured array
+            Input array.
+        names : list of str
+            Columns to be converted.
+
+        Returns
+        -------
+        data : structured array
+            Input array with converted columns.
         """
         pass
 
@@ -340,31 +369,6 @@ class CSiBORGBox(BaseBox):
                 / (units.Mpc.to(units.cm)) ** 3)
 
     def convert_from_box(self, data, names):
-        r"""
-        Convert columns named `names` in array `data` from box units to
-        physical units, such that
-            - length -> :math:`Mpc`,
-            - mass -> :math:`M_\odot`,
-            - velocity -> :math:`\mathrm{km} / \mathrm{s}`,
-            - density -> :math:`M_\odot / \mathrm{Mpc}^3`.
-
-        Any other conversions are currently not implemented. Note that the
-        array is passed by reference and directly modified, even though it is
-        also explicitly returned. Additionally centres the box coordinates on
-        the observer, if they are being transformed.
-
-        Parameters
-        ----------
-        data : structured array
-            Input array.
-        names : list of str
-            Columns to be converted.
-
-        Returns
-        -------
-        data : structured array
-            Input array with converted columns.
-        """
         names = [names] if isinstance(names, str) else names
         transforms = {"length": self.box2mpc,
                       "mass": self.box2solarmass,
@@ -372,13 +376,12 @@ class CSiBORGBox(BaseBox):
                       "density": self.box2dens}
 
         for name in names:
-            # Check that the name is even in the array
             if name not in data.dtype.names:
-                raise ValueError(f"Name `{name}` not in `data` array.")
+                continue
 
             # Convert
             found = False
-            for unittype, suppnames in CONV_NAME.items():
+            for unittype, suppnames in CSIBORG_CONV_NAME.items():
                 if name in suppnames:
                     data[name] = transforms[unittype](data[name])
                     found = True
@@ -389,7 +392,7 @@ class CSiBORGBox(BaseBox):
                     f"Conversion of `{name}` is not defined.")
 
             # Center at the observer
-            if name in ["peak_x", "peak_y", "peak_z", "x0", "y0", "z0"]:
+            if name in ["x0", "y0", "z0"]:
                 data[name] -= transforms["length"](0.5)
 
         return data
@@ -427,3 +430,6 @@ class QuijoteBox(BaseBox):
     @property
     def boxsize(self):
         return 1000. / (self._cosmo.H0.value / 100)
+
+    def convert_from_box(self, data, names):
+        raise NotImplementedError("Conversion not implemented for Quijote.")
