@@ -330,7 +330,6 @@ class Paths:
                     "1" + str(nsim).zfill(4))
 
     def get_snapshots(self, nsim, simname):
-        # TODO edit file names
         """
         List of available snapshots of simulation.
 
@@ -346,10 +345,15 @@ class Paths:
         snapshots : 1-dimensional array
         """
         simpath = self.snapshots(nsim, simname, tonew=False)
-        # Get all files in simpath that start with output_
-        snaps = glob(join(simpath, "output_*"))
-        # Take just the last _00XXXX from each file  and strip zeros
-        snaps = [int(snap.split("_")[-1].lstrip("0")) for snap in snaps]
+        if simname == "csiborg":
+            # Get all files in simpath that start with output_
+            snaps = glob(join(simpath, "output_*"))
+            # Take just the last _00XXXX from each file  and strip zeros
+            snaps = [int(snap.split("_")[-1].lstrip("0")) for snap in snaps]
+        else:
+            snaps = glob(join(simpath, "snapdir_*"))
+            snaps = [int(snap.split("/")[-1].split("snapdir_")[-1])
+                     for snap in snaps]
         return numpy.sort(snaps)
 
     def snapshot(self, nsnap, nsim, simname):
