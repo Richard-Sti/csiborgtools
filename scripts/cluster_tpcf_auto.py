@@ -79,8 +79,4 @@ if __name__ == "__main__":
         return do_auto(args, config, cats, nsim, paths)
 
     nsims = list(cats.keys())
-    work_delegation(do_work, nsims, comm, master_verbose=args.verbose)
-
-    comm.Barrier()
-    if comm.Get_rank() == 0:
-        print(f"{datetime.now()}: all finished. Quitting.")
+    work_delegation(do_work, nsims, comm)
