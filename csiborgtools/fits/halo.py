@@ -255,20 +255,22 @@ class BaseStructure(ABC):
         weight = self["M"][mask]
         weight /= numpy.mean(weight)
 
-        def negll_nfw_concentration(c, xs, weight):
+        # We do the minimization in log space
+        def negll_nfw_concentration(log_c, xs, weight):
+            c = 10**log_c
             ll = xs / (1 + c * xs)**2 * c**2
             ll *= (1 + c) / ((1 + c) * numpy.log(1 + c) - c)
             ll = numpy.sum(numpy.log(weight * ll))
             return -ll
 
-        res = minimize(negll_nfw_concentration, x0=5,
-                       args=(dist / rad, weight, ), method='Nelder-Mead',
-                       bounds=[(1e-5, 100)])
+        res = minimize(negll_nfw_concentration, x0=1.5,
+                       args=(dist / rad, weight, ), method='Nelder-Mead')
+        print(res)
 
         if not res.success:
             return numpy.nan
 
-        return res["x"][0]
+        return 10**res["x"][0]
 
     def __getitem__(self, key):
         keys = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'M']
