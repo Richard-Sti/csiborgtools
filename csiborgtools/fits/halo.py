@@ -265,7 +265,6 @@ class BaseStructure(ABC):
 
         res = minimize(negll_nfw_concentration, x0=1.5,
                        args=(dist / rad, weight, ), method='Nelder-Mead')
-        print(res)
 
         if not res.success:
             return numpy.nan
