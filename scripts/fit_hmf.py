@@ -94,11 +94,11 @@ if __name__ == "__main__":
     parser.add_argument("--nsims", type=int, nargs="+", default=None,
                         help="Indices of simulations to cross. If `-1` processes all simulations.")  # noqa
     parser.add_argument("--Rmax", type=float, default=155/0.705,
-                        help="High-resolution region radius")
+                        help="High-resolution region radius. Ignored for `quijote_full`.")  # noqa
     parser.add_argument("--bw", type=float, default=0.2,
-                        help="Bin width in dex")
+                        help="Bin width in dex.")
     parser.add_argument("--verbose", type=lambda x: bool(strtobool(x)),
-                        default=False)
+                        default=False, help="Verbosity flag.")
     parser_args = parser.parse_args()
 
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
