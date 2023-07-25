@@ -86,7 +86,7 @@ class BaseStructure(ABC):
         return numpy.vstack([self[p] for p in ("vx", "vy", "vz")]).T
 
     def spherical_overdensity_mass(self, delta_mult, kind="crit", tol=1e-8,
-                                   maxiter=20, npart_min=10):
+                                   maxiter=100, npart_min=10):
         r"""
         Calculate spherical overdensity mass and radius via the iterative
         shrinking sphere method.
@@ -121,19 +121,24 @@ class BaseStructure(ABC):
         pos = self.pos
         mass = self["M"]
 
-        # First assign the initial guesses
-        cm = center_of_mass(pos, mass, boxsize=1)
-        rad = mass_to_radius(numpy.sum(mass), rho) * 2
-        rad0 = rad
+        # Initial guesses
+        init_cm = center_of_mass(pos, mass, boxsize=1)
+        init_rad = mass_to_radius(numpy.sum(mass), rho) * 1.5
+
+        rad = init_rad
+        cm = numpy.copy(init_cm)
 
         success = False
         for __ in range(maxiter):
             # Calculate the distance of each particle from the current guess.
             dist = periodic_distance(pos, cm, boxsize=1)
             within_rad = dist <= rad
-            # Heuristic reset of the radius if there are too few particles.
+            # Heuristic reset if there are too few enclosed particles.
             if numpy.sum(within_rad) < npart_min:
-                rad = (0.5 + numpy.random.rand()) * rad0
+                js = numpy.random.choice(len(self), len(self), replace=True)
+                cm = center_of_mass(pos[js], mass[js], boxsize=1)
+                rad = init_rad * (0.75 + numpy.random.rand())
+                dist = periodic_distance(pos, cm, boxsize=1)
                 within_rad = dist <= rad
 
             # Calculate the enclosed mass for the current CM and radius.
@@ -221,7 +226,7 @@ class BaseStructure(ABC):
         angmom_norm = numpy.linalg.norm(self.angular_momentum(ref, rad))
         return angmom_norm / (numpy.sqrt(2) * mass * circvel * rad)
 
-    def nfw_concentration(self, ref, rad):
+    def nfw_concentration(self, ref, rad, npart_min=10):
         """
         Calculate the NFW concentration parameter in a given radius around a
         reference point.
@@ -232,6 +237,9 @@ class BaseStructure(ABC):
             Reference point.
         rad : float
             Radius around the reference point.
+        npart_min : int, optional
+            Minimum number of enclosed particles to calculate the
+            concentration.
 
         Returns
         -------
@@ -240,6 +248,8 @@ class BaseStructure(ABC):
         pos = self.pos
         dist = periodic_distance(pos, ref, boxsize=1)
         mask = dist < rad
+        if numpy.sum(mask) < npart_min:
+            return numpy.nan
 
         dist = dist[mask]
         weight = self["M"][mask]
