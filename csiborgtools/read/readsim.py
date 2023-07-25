@@ -15,6 +15,7 @@
 """
 Functions to read in the particle and clump files.
 """
+from abc import ABC, abstractmethod
 from os.path import isfile, join
 
 import numpy
@@ -24,23 +25,12 @@ from tqdm import tqdm, trange
 from .paths import Paths
 from .utils import cols_to_structured
 
-###############################################################################
-#                       CSiBORG particle reader                               #
-###############################################################################
 
-
-class CSiBORGReader:
+class BaseReader(ABC):
     """
-    Object to read in CSiBORG snapshots and halo catalogues.
-
-    Parameters
-    ----------
-    paths : py:class`csiborgtools.read.Paths`
+    Base class for all readers.
     """
     _paths = None
-
-    def __init__(self, paths):
-        self.paths = paths
 
     @property
     def paths(self):
@@ -57,6 +47,57 @@ class CSiBORGReader:
     def paths(self, paths):
         assert isinstance(paths, Paths)
         self._paths = paths
+
+    @abstractmethod
+    def read_particle(self, nsnap, nsim, pars_extract, return_structured=True,
+                      verbose=True):
+        """
+        Read particle files of a simulation at a given snapshot and return
+        values of `pars_extract`.
+
+        Parameters
+        ----------
+        nsnap : int
+            Snapshot index.
+        nsim : int
+            IC realisation index.
+        pars_extract : list of str
+            Parameters to be extracted.
+        return_structured : bool, optional
+            Whether to return a structured array or a 2-dimensional array. If
+            the latter, then the order of the columns is the same as the order
+            of `pars_extract`. However, enforces single-precision floating
+            point format for all columns.
+        verbose : bool, optional
+            Verbosity flag while for reading in the files.
+
+        Returns
+        -------
+        out : structured array or 2-dimensional array
+            Particle information.
+        pids : 1-dimensional array
+            Particle IDs.
+        """
+        pass
+
+
+###############################################################################
+#                       CSiBORG particle reader                               #
+###############################################################################
+
+
+class CSiBORGReader:
+    """
+    Object to read in CSiBORG snapshots from the binary files and halo
+    catalogues.
+
+    Parameters
+    ----------
+    paths : py:class`csiborgtools.read.Paths`
+    """
+
+    def __init__(self, paths):
+        self.paths = paths
 
     def read_info(self, nsnap, nsim):
         """
@@ -191,33 +232,6 @@ class CSiBORGReader:
 
     def read_particle(self, nsnap, nsim, pars_extract, return_structured=True,
                       verbose=True):
-        """
-        Read particle files of a simulation at a given snapshot and return
-        values of `pars_extract`.
-
-        Parameters
-        ----------
-        nsnap : int
-            Snapshot index.
-        nsim : int
-            IC realisation index.
-        pars_extract : list of str
-            Parameters to be extracted.
-        return_structured : bool, optional
-            Whether to return a structured array or a 2-dimensional array. If
-            the latter, then the order of the columns is the same as the order
-            of `pars_extract`. However, enforces single-precision floating
-            point format for all columns.
-        verbose : bool, optional
-            Verbosity flag while for reading the CPU outputs.
-
-        Returns
-        -------
-        out : structured array or 2-dimensional array
-            Particle information.
-        pids : 1-dimensional array
-            Particle IDs.
-        """
         # Open the particle files
         nparts, partfiles = self.open_particle(nsnap, nsim, verbose=verbose)
         if verbose:
@@ -298,8 +312,8 @@ class CSiBORGReader:
         """
         nsnap = str(nsnap).zfill(5)
         cpu = str(cpu + 1).zfill(5)
-        fpath = join(self.paths.ic_path(nsim, tonew=False), f"output_{nsnap}",
-                     f"unbinding_{nsnap}.out{cpu}")
+        fpath = join(self.paths.snapshots(nsim, tonew=False),
+                     f"output_{nsnap}", f"unbinding_{nsnap}.out{cpu}")
         return FortranFile(fpath)
 
     def read_phew_clumpid(self, nsnap, nsim, verbose=True):
@@ -355,7 +369,7 @@ class CSiBORGReader:
         out : structured array
         """
         nsnap = str(nsnap).zfill(5)
-        fname = join(self.paths.ic_path(nsim, tonew=False),
+        fname = join(self.paths.snapshots(nsim, tonew=False),
                      "output_{}".format(nsnap),
                      "clump_{}.dat".format(nsnap))
         if not isfile(fname):
@@ -546,6 +560,46 @@ class MmainReader:
 
         out["subfrac"] = 1 - clumparr["mass_cl"][mask_main] / out["M"]
         return out, ultimate_parent
+
+
+###############################################################################
+#                         Quijote particle reader                             #
+###############################################################################
+
+class QuijoteReader:
+    """
+    Object to read in Quijote snapshots from the binary files.
+
+    Parameters
+    ----------
+    paths : py:class`csiborgtools.read.Paths`
+    """
+
+    def __init__(self, paths):
+        self.paths = paths
+
+    def read_particle(self, nsnap, nsim, pars_extract, return_structured=True,
+                      verbose=True):
+        pass
+        # snapshot = "/mnt/extraspace/rstiskalek/Quijote/Snapshots_fiducial/10000/snapdir_004/snap_004"
+        # ptype    = [1] #[1](CDM), [2](neutrinos) or [1,2](CDM+neutrinos)
+
+        # # read header
+        # header   = readgadget.header(snapshot)
+        # BoxSize  = header.boxsize/1e3  #Mpc/h
+        # Nall     = header.nall         #Total number of particles
+        # Masses   = header.massarr*1e10 #Masses of the particles in Msun/h
+        # Omega_m  = header.omega_m      #value of Omega_m
+        # Omega_l  = header.omega_l      #value of Omega_l
+        # h        = header.hubble       #value of h
+        # redshift = header.redshift     #redshift of the snapshot
+        # Hubble   = 100.0*np.sqrt(Omega_m*(1.0+redshift)**3+Omega_l)#Value of H(z) in km/s/(Mpc/h)
+
+        # print(Omega_m, Omega_l)
+        # # # read positions, velocities and IDs of the particles
+        # pos = readgadget.read_block(snapshot, "POS ", ptype)/1e3 #positions in Mpc/h
+        # # vel = readgadget.read_block(snapshot, "VEL ", ptype)     #peculiar velocities in km/s
+        # ids = readgadget.read_block(snapshot, "ID  ", ptype)-1   #IDs starting from 0
 
 
 ###############################################################################
