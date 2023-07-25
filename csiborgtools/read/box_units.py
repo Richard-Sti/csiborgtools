@@ -21,7 +21,7 @@ import numpy
 from astropy import constants, units
 from astropy.cosmology import LambdaCDM
 
-from .readsim import ParticleReader
+from .readsim import CSiBORGReader
 
 # Map of CSiBORG unit conversions
 CSIBORG_CONV_NAME = {
@@ -157,7 +157,7 @@ class CSiBORGBox(BaseBox):
         """
         Read in the snapshot info file and set the units from it.
         """
-        partreader = ParticleReader(paths)
+        partreader = CSiBORGReader(paths)
         info = partreader.read_info(nsnap, nsim)
         pars = ["boxlen", "time", "aexp", "H0", "omega_m", "omega_l",
                 "omega_k", "omega_b", "unit_l", "unit_d", "unit_t"]

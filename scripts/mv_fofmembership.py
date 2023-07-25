@@ -103,7 +103,7 @@ def sort_fofid(nsim, verbose=True):
     # Columns are halo ID, particle ID.
     fof = numpy.load(fpath)
 
-    reader = csiborgtools.read.ParticleReader(paths)
+    reader = csiborgtools.read.CSiBORGReader(paths)
     pars_extract = ["x"]  # Dummy variable
     __, pids = reader.read_particle(nsnap, nsim, pars_extract,
                                     return_structured=False, verbose=verbose)

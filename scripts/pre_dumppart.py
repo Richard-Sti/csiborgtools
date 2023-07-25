@@ -81,7 +81,7 @@ def main(nsim, simname, verbose):
     None
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    partreader = csiborgtools.read.ParticleReader(paths)
+    partreader = csiborgtools.read.CSiBORGReader(paths)
 
     if simname == "quijote":
         raise NotImplementedError("Not implemented for Quijote yet.")

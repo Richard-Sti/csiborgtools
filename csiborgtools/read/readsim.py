@@ -16,7 +16,6 @@
 Functions to read in the particle and clump files.
 """
 from os.path import isfile, join
-from warnings import warn
 
 import numpy
 from scipy.io import FortranFile
@@ -26,11 +25,11 @@ from .paths import Paths
 from .utils import cols_to_structured
 
 ###############################################################################
-#                       Fortran particle reader                               #
+#                       CSiBORG particle reader                               #
 ###############################################################################
 
 
-class ParticleReader:
+class CSiBORGReader:
     """
     Object to read in CSiBORG snapshots and halo catalogues.
 
@@ -437,7 +436,7 @@ class ParticleReader:
 
 
 ###############################################################################
-#                    Summed substructure PHEW catalogue                       #
+#                 Summed substructure PHEW catalogue for CSiBORG              #
 ###############################################################################
 
 
@@ -467,7 +466,7 @@ class MmainReader:
         Parameters
         ----------
         clumparr : structured array
-            Clump array. Read from `ParticleReader.read_phew_clups`. Must
+            Clump array. Read from `CSiBORGReader.read_phew_clups`. Must
             contain `index` and `parent` columns.
         verbose : bool, optional
             Verbosity flag.
@@ -523,7 +522,7 @@ class MmainReader:
             its ultimate parent clump.
         """
         nsnap = max(self.paths.get_snapshots(nsim))
-        partreader = ParticleReader(self.paths)
+        partreader = CSiBORGReader(self.paths)
         cols = ["index", "parent", "mass_cl", 'x', 'y', 'z']
         clumparr = partreader.read_phew_clups(nsnap, nsim, cols)
 

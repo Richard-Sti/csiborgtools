@@ -54,7 +54,7 @@ def _main(nsim, simname, verbose):
         raise NotImplementedError("Quijote not implemented yet.")
 
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    partreader = csiborgtools.read.ParticleReader(paths)
+    partreader = csiborgtools.read.CSiBORGReader(paths)
 
     if verbose:
         print(f"{datetime.now()}: reading and processing simulation {nsim}.",

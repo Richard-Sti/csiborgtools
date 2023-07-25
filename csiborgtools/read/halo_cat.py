@@ -30,7 +30,7 @@ from sklearn.neighbors import NearestNeighbors
 
 from .box_units import CSiBORGBox, QuijoteBox
 from .paths import Paths
-from .readsim import ParticleReader
+from .readsim import CSiBORGReader
 from .utils import (add_columns, cartesian_to_radec, cols_to_structured,
                     flip_cols, radec_to_cartesian, real2redshift)
 
@@ -415,7 +415,7 @@ class CSiBORGHaloCatalogue(BaseCatalogue):
                  rawdata=False):
         self.nsim = nsim
         self.paths = paths
-        reader = ParticleReader(paths)
+        reader = CSiBORGReader(paths)
         self._data = reader.read_fof_halos(self.nsim)
 
         if load_fitted:
