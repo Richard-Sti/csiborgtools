@@ -57,7 +57,7 @@ def copy_membership(nsim, verbose=True):
         print(f"Loading from ... `{fpath}`.")
     data = numpy.genfromtxt(fpath, dtype=int)
 
-    fout = paths.fof_membership(nsim)
+    fout = paths.fof_membership(nsim, "csiborg")
     if verbose:
         print(f"Saving to ... `{fout}`.")
     numpy.save(fout, data)
@@ -77,7 +77,7 @@ def copy_catalogue(nsim, verbose=True):
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     source = join("/mnt/extraspace/jeg/greenwhale/Constrained_Sims",
                   f"sim_{nsim}/halo_catalog_{nsim}_FOF.txt")
-    dest = paths.fof_cat(nsim)
+    dest = paths.fof_cat(nsim, "csiborg")
     if verbose:
         print("Copying`{}` to `{}`.".format(source, dest))
     copy(source, dest)
@@ -97,7 +97,7 @@ def sort_fofid(nsim, verbose=True):
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsnap = max(paths.get_snapshots(nsim, "csiborg"))
-    fpath = paths.fof_membership(nsim)
+    fpath = paths.fof_membership(nsim, "csiborg")
     if verbose:
         print(f"{datetime.now()}: loading from ... `{fpath}`.")
     # Columns are halo ID, particle ID.
@@ -123,7 +123,7 @@ def sort_fofid(nsim, verbose=True):
         hid, pid = fof[i]
         fof_hids[pids_idx[pid]] = hid
 
-    fout = paths.fof_membership(nsim, sorted=True)
+    fout = paths.fof_membership(nsim, "csiborg", sorted=True)
     if verbose:
         print(f"Saving the sorted data to ... `{fout}`")
     numpy.save(fout, fof_hids)

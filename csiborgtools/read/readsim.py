@@ -415,7 +415,8 @@ class CSiBORGReader:
         hids : 1-dimensional array
             Halo IDs of particles.
         """
-        return numpy.load(self.paths.fof_membership(nsim, sorted=True))
+        return numpy.load(self.paths.fof_membership(nsim, "csiborg",
+                                                    sorted=True))
 
     def read_fof_halos(self, nsim):
         """
@@ -430,7 +431,7 @@ class CSiBORGReader:
         -------
         cat : structured array
         """
-        fpath = self.paths.fof_cat(nsim)
+        fpath = self.paths.fof_cat(nsim, "csiborg")
         hid = numpy.genfromtxt(fpath, usecols=0, dtype=numpy.int32)
         pos = numpy.genfromtxt(fpath, usecols=(1, 2, 3), dtype=numpy.float32)
         totmass = numpy.genfromtxt(fpath, usecols=4, dtype=numpy.float32)

@@ -186,7 +186,7 @@ class Paths:
         """
         return join(self.borg_dir, "mcmc", f"mcmc_{nsim}.h5")
 
-    def fof_membership(self, nsim, sorted=False):
+    def fof_membership(self, nsim, simname, sorted=False):
         """
         Path to the file containing the FoF particle membership.
 
@@ -194,10 +194,15 @@ class Paths:
         ----------
         nsim : int
             IC realisation index.
+        simname : str
+            Simulation name. Must be one of `csiborg` or `quijote`.
         sorted : bool, optional
             Whether to return path to the file that is sorted in the same
             order as the PHEW output.
         """
+        assert simname in ["csiborg", "quijote"]
+        if simname == "quijote":
+            raise RuntimeError("Quijote FoF membership is in the FoF cats..")
         fdir = join(self.postdir, "FoF_membership", )
         if not isdir(fdir):
             mkdir(fdir)
@@ -207,20 +212,25 @@ class Paths:
             fout = fout.replace(".npy", "_sorted.npy")
         return fout
 
-    def fof_cat(self, nsim):
-        """
-        Path to the FoF halo catalogue file.
+    def fof_cat(self, nsim, simname):
+        r"""
+        Path to the :math:`z = 0` FoF halo catalogue.
 
         Parameters
         ----------
         nsim : int
             IC realisation index.
+        simname : str
+            Simulation name. Must be one of `csiborg` or `quijote`.
         """
-        fdir = join(self.postdir, "FoF_membership", )
-        if not isdir(fdir):
-            mkdir(fdir)
-            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
-        return join(fdir, f"halo_catalog_{nsim}_FOF.txt")
+        assert simname in ["csiborg", "quijote"]
+        if simname == "csiborg":
+            fdir = join(self.postdir, "FoF_membership", )
+            if not isdir(fdir):
+                mkdir(fdir)
+                warn(f"Created directory `{fdir}`.", UserWarning)
+            return join(fdir, f"halo_catalog_{nsim}_FOF.txt")
+        return join(self.quijote_dir, "Halos_fiducial", str(nsim))
 
     def mmain(self, nsnap, nsim):
         """
