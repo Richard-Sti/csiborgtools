@@ -437,7 +437,7 @@ class ParticleReader:
 
 
 ###############################################################################
-#                    Summed substructure catalogue                            #
+#                    Summed substructure PHEW catalogue                       #
 ###############################################################################
 
 
@@ -547,6 +547,7 @@ class MmainReader:
 
         out["subfrac"] = 1 - clumparr["mass_cl"][mask_main] / out["M"]
         return out, ultimate_parent
+
 
 ###############################################################################
 #                       Supplementary reading functions                       #
