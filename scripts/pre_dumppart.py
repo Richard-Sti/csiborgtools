@@ -88,7 +88,7 @@ def main(nsim, simname, verbose):
 
     # Keep "ID" as the last column!
     pars_extract = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'M', "ID"]
-    nsnap = max(paths.get_snapshots(nsim))
+    nsnap = max(paths.get_snapshots(nsim, simname))
     fname = paths.particles(nsim)
     # We first read in the halo IDs of the particles and infer the sorting.
     # Right away we dump the halo IDs to a HDF5 file and clear up memory.

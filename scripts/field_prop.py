@@ -58,7 +58,7 @@ def density_field(nsim, parser_args, to_save=True):
     field : 3-dimensional array
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    nsnap = max(paths.get_snapshots(nsim))
+    nsnap = max(paths.get_snapshots(nsim, "csiborg"))
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
     parts = csiborgtools.read.read_h5(paths.particles(nsim))["particles"]
     gen = csiborgtools.field.DensityField(box, parser_args.MAS)
@@ -114,7 +114,7 @@ def velocity_field(nsim, parser_args, to_save=True):
             "Smoothed velocity field is not implemented.")
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     mpart = 1.1641532e-10  # Particle mass in CSiBORG simulations.
-    nsnap = max(paths.get_snapshots(nsim))
+    nsnap = max(paths.get_snapshots(nsim, "csiborg"))
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
     parts = csiborgtools.read.read_h5(paths.particles(nsim))["particles"]
 
@@ -152,7 +152,7 @@ def potential_field(nsim, parser_args, to_save=True):
     potential : 3-dimensional array
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    nsnap = max(paths.get_snapshots(nsim))
+    nsnap = max(paths.get_snapshots(nsim, "csiborg"))
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
 
     # Load the real space overdensity field
@@ -207,7 +207,7 @@ def radvel_field(nsim, parser_args, to_save=True):
         raise NotImplementedError(
             "Smoothed radial vel. field not implemented.")
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    nsnap = max(paths.get_snapshots(nsim))
+    nsnap = max(paths.get_snapshots(nsim, "csiborg"))
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
 
     vel = numpy.load(paths.field("velocity", parser_args.MAS, parser_args.grid,
@@ -245,7 +245,7 @@ def environment_field(nsim, parser_args, to_save=True):
     env : 3-dimensional array
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    nsnap = max(paths.get_snapshots(nsim))
+    nsnap = max(paths.get_snapshots(nsim, "csiborg"))
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
     density_gen = csiborgtools.field.DensityField(box, parser_args.MAS)
     gen = csiborgtools.field.TidalTensorField(box, parser_args.MAS)

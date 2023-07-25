@@ -352,7 +352,7 @@ def plot_projected_field(kind, nsim, grid, in_rsp, smooth_scale, MAS="PCS",
     """
     print(f"Plotting projected field `{kind}`. ", flush=True)
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    nsnap = max(paths.get_snapshots(nsim))
+    nsnap = max(paths.get_snapshots(nsim, "csiborg"))
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
 
     if kind == "overdensity":
@@ -563,10 +563,10 @@ def plot_sky_distribution(field, nsim, grid, nside, smooth_scale=None,
         Whether to save the figure as a pdf.
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    nsnap = max(paths.get_snapshots(nsim))
+    nsnap = max(paths.get_snapshots(nsim, "csiborg"))
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
 
-    if kind == "overdensity":
+    if field== "overdensity":
         field = load_field("density", nsim, grid, MAS=MAS, in_rsp=False,
                            smooth_scale=smooth_scale)
         density_gen = csiborgtools.field.DensityField(box, MAS)

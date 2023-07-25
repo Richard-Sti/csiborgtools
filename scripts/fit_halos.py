@@ -95,7 +95,7 @@ def _main(nsim, simname, verbose):
             ("m200c", numpy.float32),
             ("lambda200c", numpy.float32),]
 
-    nsnap = max(paths.get_snapshots(nsim))
+    nsnap = max(paths.get_snapshots(nsim, simname))
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
 
     # Particle archive

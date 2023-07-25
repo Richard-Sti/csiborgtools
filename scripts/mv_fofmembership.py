@@ -96,7 +96,7 @@ def sort_fofid(nsim, verbose=True):
         Verbosity flag.
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    nsnap = max(paths.get_snapshots(nsim))
+    nsnap = max(paths.get_snapshots(nsim, "csiborg"))
     fpath = paths.fof_membership(nsim)
     if verbose:
         print(f"{datetime.now()}: loading from ... `{fpath}`.")
