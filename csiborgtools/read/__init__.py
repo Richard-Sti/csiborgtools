@@ -24,7 +24,7 @@ from .overlap_summary import (NPairsOverlap, PairOverlap,  # noqa
 from .paths import Paths  # noqa
 from .pk_summary import PKReader  # noqa
 from .readsim import (MmainReader, ParticleReader, halfwidth_mask,  # noqa
-                      load_halo_particles, read_initcm)  # noqa
+                      load_halo_particles)  # noqa
 from .tpcf_summary import TPCFReader  # noqa
 from .utils import (M200_to_R200, cartesian_to_radec,  # noqa
                     cols_to_structured, radec_to_cartesian, read_h5,

@@ -553,34 +553,6 @@ class MmainReader:
 ###############################################################################
 
 
-def read_initcm(nsim, srcdir, fname="clump_{}_cm.npy"):
-    """
-    Read `clump_cm`, i.e. the center of mass of a clump at redshift z = 70.
-    If the file does not exist returns `None`.
-
-    Parameters
-    ----------
-    nsim : int
-        IC realisation index.
-    srcdir : str
-        Path to the folder containing the files.
-    fname : str, optional
-        File name convention.  By default `clump_cm_{}.npy`, where the
-        substituted value is `nsim`.
-
-    Returns
-    -------
-    out : structured array
-    """
-    fpath = join(srcdir, fname.format(nsim))
-    try:
-        return numpy.load(fpath)
-    except FileNotFoundError:
-        warn("File {} does not exist.".format(fpath), UserWarning,
-             stacklevel=1)
-        return None
-
-
 def halfwidth_mask(pos, hw):
     """
     Mask of particles in a region of width `2 hw, centered at the origin.
