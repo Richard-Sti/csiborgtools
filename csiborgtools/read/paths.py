@@ -389,6 +389,27 @@ class Paths:
             nsnap = str(nsnap).zfill(3)
             return join(simpath, f"snapdir_{nsnap}", f"snap_{nsnap}")
 
+    def particles(self, nsim):
+        """
+        Path to the files containing all particles of a CSiBORG realisation at
+        :math:`z = 0`.
+
+        Parameters
+        ----------
+        nsim : int
+            IC realisation index.
+
+        Returns
+        -------
+        path : str
+        """
+        fdir = join(self.postdir, "particles")
+        if not isdir(fdir):
+            makedirs(fdir)
+            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
+        fname = f"parts_{str(nsim).zfill(5)}.h5"
+        return join(fdir, fname)
+
     def structfit(self, nsnap, nsim):
         """
         Path to the clump or halo catalogue from `fit_halos.py`. Only CSiBORG
@@ -436,27 +457,6 @@ class Paths:
         fname = f"overlap_{str(nsim0).zfill(5)}_{str(nsimx).zfill(5)}.npz"
         if smoothed:
             fname = fname.replace("overlap", "overlap_smoothed")
-        return join(fdir, fname)
-
-    def particles(self, nsim):
-        """
-        Path to the files containing all particles of a CSiBORG realisation at
-        :math:`z = 0`.
-
-        Parameters
-        ----------
-        nsim : int
-            IC realisation index.
-
-        Returns
-        -------
-        path : str
-        """
-        fdir = join(self.postdir, "particles")
-        if not isdir(fdir):
-            makedirs(fdir)
-            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
-        fname = f"parts_{str(nsim).zfill(5)}.h5"
         return join(fdir, fname)
 
     def field(self, kind, MAS, grid, nsim, in_rsp, smooth_scale=None):
