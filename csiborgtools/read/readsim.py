@@ -605,16 +605,14 @@ class QuijoteReader:
 
     def read_particle(self, nsnap, nsim, pars_extract=None,
                       return_structured=True, verbose=True):
-        # NOTE work in progres
         assert pars_extract in [None, "pids"]
         snapshot = self.paths.snapshot(nsnap, nsim, "quijote")
         info = self.read_info(nsnap, nsim)
         ptype = [1]  # DM in Gadget speech
 
-        # NOTE check about this - 1
         if verbose:
             print(f"{datetime.now()}: reading particle IDs.")
-        pids = readgadget.read_block(snapshot, "ID  ", ptype)  # - 1 ?
+        pids = readgadget.read_block(snapshot, "ID  ", ptype)
 
         if pars_extract == "pids":
             return None, pids
@@ -662,18 +660,65 @@ class QuijoteReader:
 
         return out, pids
 
-    def read_fof_hids(self, nsnap, nsim):
-        # NOTE work in progress.
-        # TODO later change this.
+    def read_fof_hids(self, nsnap, nsim, verbose=True):
+        """
+        Read the FoF group membership of particles. Unassigned particles have
+        FoF group ID 0.
+
+        Parameters
+        ----------
+        nsnap : int
+            Snapshot index.
+        nsim : int
+            IC realisation index.
+        verbose : bool, optional
+            Verbosity flag.
+
+        Returns
+        -------
+        out : 2-dimensional array of shape `(nparticles, 2)`
+            The first column is the group index and the second is the
+            particle ID.
+        """
         redshift = {4: 0.0, 3: 0.5, 2: 1.0, 1: 2.0, 0: 3.0}.get(nsnap, None)
         if redshift is None:
             raise ValueError(f"Redshift of snapshot {nsnap} is not known.")
         path = self.paths.fof_cat(nsim, "quijote")
         cat = readfof.FoF_catalog(path, nsnap)
-        pos = cat.GroupPos / 1e6
-        mass = cat.GroupMass * 1e10
-        # len_h = FoF.GroupLen                #Number of particles in each halo
-        return cat.GroupIDs, cat.GroupLen, pos, mass
+
+        # Read the particle IDs of the snapshot
+        __, pids = self.read_particle(nsnap, nsim, pars_extract="pids",
+                                      verbose=verbose)
+
+        # Read the FoF particle membership. These are only assigned particles.
+        if verbose:
+            print(f"{datetime.now()}: reading the FoF particle membership.",
+                  flush=True)
+        group_pids = cat.GroupIDs
+        group_len = cat.GroupLen
+
+        # Create a mapping from particle ID to FoF group ID.
+        if verbose:
+            print(f"{datetime.now()}: creating the particle to FoF ID to map.",
+                  flush=True)
+        ks = numpy.insert(numpy.cumsum(group_len), 0, 0)
+        pid2hid = numpy.full((group_pids.size, 2), numpy.nan,
+                             dtype=numpy.uint32)
+        for i, (k0, kf) in enumerate(zip(ks[:-1], ks[1:])):
+            pid2hid[k0:kf, 0] = i + 1
+            pid2hid[k0:kf, 1] = group_pids[k0:kf]
+        pid2hid = {pid: hid for hid, pid in pid2hid}
+
+        # Create the final array of hids matchign the snapshot array.
+        # Unassigned particles have hid 0.
+        if verbose:
+            print(f"{datetime.now()}: creating the final hid array.",
+                  flush=True)
+        hids = numpy.full(pids.size, 0, dtype=numpy.uint32)
+        for i in trange(pids.size) if verbose else range(pids.size):
+            hids[i] = pid2hid.get(pids[i], 0)
+
+        return numpy.vstack([hids, pids]).T
 
 
 ###############################################################################
