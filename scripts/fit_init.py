@@ -63,7 +63,7 @@ def _main(nsim, simname, verbose):
 
     parts = csiborgtools.read.read_h5(paths.initmatch(nsim, "particles"))
     parts = parts['particles']
-    halo_map = csiborgtools.read.read_h5(paths.particles(nsim))
+    halo_map = csiborgtools.read.read_h5(paths.particles(nsim, simname))
     halo_map = halo_map["halomap"]
 
     cat = csiborgtools.read.CSiBORGHaloCatalogue(

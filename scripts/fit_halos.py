@@ -99,7 +99,7 @@ def _main(nsim, simname, verbose):
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
 
     # Particle archive
-    f = csiborgtools.read.read_h5(paths.particles(nsim))
+    f = csiborgtools.read.read_h5(paths.particles(nsim, simname))
     particles = f["particles"]
     halo_map = f["halomap"]
     hid2map = {hid: i for i, hid in enumerate(halo_map[:, 0])}
