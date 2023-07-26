@@ -408,7 +408,7 @@ class CSiBORGReader:
             out[col] = data[:, clump_cols[col][0]]
         return out
 
-    def read_fof_hids(self, nsim):
+    def read_fof_hids(self, nsim, **kwargs):
         """
         Read in the FoF particle halo membership IDs that are sorted to match
         the PHEW output.
@@ -417,6 +417,8 @@ class CSiBORGReader:
         ----------
         nsim : int
             IC realisation index.
+        **kwargs : dict
+            Keyword arguments for backward compatibility.
 
         Returns
         -------
@@ -660,7 +662,7 @@ class QuijoteReader:
 
         return out, pids
 
-    def read_fof_hids(self, nsnap, nsim, verbose=True):
+    def read_fof_hids(self, nsnap, nsim, verbose=True, **kwargs):
         """
         Read the FoF group membership of particles. Unassigned particles have
         FoF group ID 0.
@@ -673,6 +675,8 @@ class QuijoteReader:
             IC realisation index.
         verbose : bool, optional
             Verbosity flag.
+        **kwargs : dict
+            Keyword arguments for backward compatibility.
 
         Returns
         -------
