@@ -307,7 +307,7 @@ class Paths:
             return numpy.sort(ids)
 
         files = glob("/mnt/extraspace/rstiskalek/Quijote/Snapshots_fiducial/*")
-        files = [int(f.split("/")[-1][1:]) for f in files]
+        files = [int(f.split("/")[-1]) for f in files]
         return numpy.sort(files)
 
     def snapshots(self, nsim, simname, tonew=False):
@@ -336,8 +336,7 @@ class Paths:
                 return join(self.postdir, "output", fname.format(nsim))
             return join(self.srcdir, fname.format(nsim))
 
-        return join(self.quijote_dir, "Snapshots_fiducial",
-                    "1" + str(nsim).zfill(4))
+        return join(self.quijote_dir, "Snapshots_fiducial", str(nsim))
 
     def get_snapshots(self, nsim, simname):
         """
