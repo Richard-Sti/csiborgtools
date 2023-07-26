@@ -60,7 +60,7 @@ def _main(nsim, simname, verbose):
         print(f"{datetime.now()}: reading and processing simulation {nsim}.",
               flush=True)
     # We first load the particle IDs in the final snapshot.
-    pidf = csiborgtools.read.read_h5(paths.particles(nsim))
+    pidf = csiborgtools.read.read_h5(paths.particles(nsim, simname))
     pidf = pidf["particle_ids"]
     # Then we load the particles in the initil snapshot and make sure that
     # their particle IDs are sorted as in the final snapshot. Again, because of

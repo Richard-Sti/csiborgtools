@@ -658,7 +658,8 @@ if __name__ == "__main__":
     if False:
         paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 
-        d = csiborgtools.read.read_h5(paths.particles(7444))["particles"]
+        d = csiborgtools.read.read_h5(paths.particles(7444, "csiborg"))
+        d = d["particles"]
 
         plt.figure()
         plt.hist(d[:100000, 4], bins="auto")

@@ -30,6 +30,8 @@ except ModuleNotFoundError:
 
 
 def pair_match(nsim0, nsimx, sigma, smoothen, verbose):
+    # TODO fix this.
+    simname = "csiborg"
     from csiborgtools.read import CSiBORGHaloCatalogue, read_h5
 
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
@@ -45,11 +47,11 @@ def pair_match(nsim0, nsimx, sigma, smoothen, verbose):
     catx = CSiBORGHaloCatalogue(nsimx, paths, load_initial=True, bounds=bounds,
                                 with_lagpatch=True, load_clumps_cat=True)
 
-    clumpmap0 = read_h5(paths.particles(nsim0))["clumpmap"]
+    clumpmap0 = read_h5(paths.particles(nsim0, simname))["clumpmap"]
     parts0 = read_h5(paths.initmatch(nsim0, "particles"))["particles"]
     clid2map0 = {clid: i for i, clid in enumerate(clumpmap0[:, 0])}
 
-    clumpmapx = read_h5(paths.particles(nsimx))["clumpmap"]
+    clumpmapx = read_h5(paths.particles(nsimx, simname))["clumpmap"]
     partsx = read_h5(paths.initmatch(nsimx, "particles"))["particles"]
     clid2mapx = {clid: i for i, clid in enumerate(clumpmapx[:, 0])}
 

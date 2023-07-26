@@ -61,7 +61,7 @@ for i, nsim in enumerate(nsims):
     nsnap = max(paths.get_snapshots(nsim, "csiborg"))
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
 
-    f = csiborgtools.read.read_h5(paths.particles(nsim))
+    f = csiborgtools.read.read_h5(paths.particles(nsim, "csiborg"))
     particles = f["particles"]
     clump_map = f["clumpmap"]
     clid2map = {clid: i for i, clid in enumerate(clump_map[:, 0])}

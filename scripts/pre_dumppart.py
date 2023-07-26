@@ -60,10 +60,15 @@ def minmax_halo(hid, halo_ids, start_loop=0):
     return start, end
 
 
+###############################################################################
+#                       CSiBORG sorting and dumping                           #
+###############################################################################
+
+
 def main_csiborg(nsim, verbose):
     """
-    Read in the snapshot particles, sort them by their FoF halo ID and dump
-    into a HDF5 file. Stores the first and last index of each halo in the
+    Read in the CSiBORG snapshot particles, sort them by their FoF halo ID and
+    dump into a HDF5 file. Stores the first and last index of each halo in the
     particle array for fast slicing of the array to acces particles of a single
     halo.
 
@@ -86,7 +91,7 @@ def main_csiborg(nsim, verbose):
     # Keep "ID" as the last column!
     pars_extract = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'M', "ID"]
     nsnap = max(paths.get_snapshots(nsim, "csiborg"))
-    fname = paths.particles(nsim)
+    fname = paths.particles(nsim, "csiborg")
     # We first read in the halo IDs of the particles and infer the sorting.
     # Right away we dump the halo IDs to a HDF5 file and clear up memory.
     if verbose:
@@ -145,13 +150,109 @@ def main_csiborg(nsim, verbose):
         start_loop = kf
 
     # We save the mapping to a HDF5 file
-    with h5py.File(paths.particles(nsim), "r+") as f:
+    with h5py.File(fname, "r+") as f:
         f.create_dataset("halomap", data=halo_map)
         f.close()
 
     del part_hids
     collect()
 
+
+###############################################################################
+#                       Quijote sorting and dumping                           #
+###############################################################################
+
+
+def main_quijote(nsim, verbose):
+    """
+    Read in the Quijote snapshot particles, sort them by their FoF halo ID and
+    dump into a HDF5 file. Stores the first and last index of each halo in the
+    particle array for fast slicing of the array to acces particles of a single
+    halo.
+
+    Parameters
+    ----------
+    nsim : int
+        IC realisation index.
+    simname : str
+        Simulation name.
+    verbose : bool
+        Verbosity flag.
+
+    Returns
+    -------
+    None
+    """
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    partreader = csiborgtools.read.QuijoteReader(paths)
+
+    # Keep "ID" as the last column!
+    nsnap = max(paths.get_snapshots(nsim, "csiborg"))
+    fname = paths.particles(nsim, "quijote")
+    # We first read in the halo IDs of the particles and infer the sorting.
+    # Right away we dump the halo IDs to a HDF5 file and clear up memory.
+    if verbose:
+        print(f"{datetime.now()}: loading particles {nsim}.", flush=True)
+    part_hids = partreader.read_fof_hids(nsim)
+    sort_indxs = numpy.argsort(part_hids).astype(numpy.int32)
+    part_hids = part_hids[sort_indxs]
+    with h5py.File(fname, "w") as f:
+        f.create_dataset("halo_ids", data=part_hids)
+        f.close()
+    del part_hids
+    collect()
+
+    # Next we read in the particles and sort them by their halo ID.
+    # We cannot directly read this as an unstructured array because the float32
+    # precision is insufficient to capture the halo IDs.
+    parts, pids = partreader.read_particle(
+        nsnap, nsim, pars_extract, return_structured=False, verbose=verbose)
+    # Now we in two steps save the particles and particle IDs.
+    if verbose:
+        print(f"{datetime.now()}: dumping particles from {nsim}.", flush=True)
+    parts = parts[sort_indxs]
+    pids = pids[sort_indxs]
+    del sort_indxs
+    collect()
+
+    with h5py.File(fname, "r+") as f:
+        f.create_dataset("particle_ids", data=pids)
+        f.close()
+    del pids
+    collect()
+
+    with h5py.File(fname, "r+") as f:
+        f.create_dataset("particles", data=parts)
+        f.close()
+    del parts
+    collect()
+
+    if verbose:
+        print(f"{datetime.now()}: creating halo map for {nsim}.", flush=True)
+    # Load clump IDs back to memory
+    with h5py.File(fname, "r") as f:
+        part_hids = f["halo_ids"][:]
+    # We loop over the unique halo IDs.
+    unique_halo_ids = numpy.unique(part_hids)
+    halo_map = numpy.full((unique_halo_ids.size, 3), numpy.nan,
+                          dtype=numpy.int32)
+    start_loop = 0
+    niters = unique_halo_ids.size
+    for i in trange(niters) if verbose else range(niters):
+        hid = unique_halo_ids[i]
+        k0, kf = minmax_halo(hid, part_hids, start_loop=start_loop)
+        halo_map[i, 0] = hid
+        halo_map[i, 1] = k0
+        halo_map[i, 2] = kf
+        start_loop = kf
+
+    # We save the mapping to a HDF5 file
+    with h5py.File(fname, "r+") as f:
+        f.create_dataset("halomap", data=halo_map)
+        f.close()
+
+    del part_hids
+    collect()
 
 if __name__ == "__main__":
     # And next parse all the arguments and set up CSiBORG objects

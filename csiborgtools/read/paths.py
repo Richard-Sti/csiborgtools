@@ -389,7 +389,7 @@ class Paths:
             nsnap = str(nsnap).zfill(3)
             return join(simpath, f"snapdir_{nsnap}", f"snap_{nsnap}")
 
-    def particles(self, nsim):
+    def particles(self, nsim, simname):
         """
         Path to the files containing all particles of a CSiBORG realisation at
         :math:`z = 0`.
@@ -398,15 +398,26 @@ class Paths:
         ----------
         nsim : int
             IC realisation index.
+        simname : str
+            Simulation name. Must be one of `csiborg` or `quijote`.
 
         Returns
         -------
         path : str
         """
-        fdir = join(self.postdir, "particles")
+        assert simname in ["csiborg", "quijote"]
+        if simname == "csiborg":
+            fdir = join(self.postdir, "particles")
+            if not isdir(fdir):
+                makedirs(fdir)
+                warn(f"Created directory `{fdir}`.", UserWarning)
+            fname = f"parts_{str(nsim).zfill(5)}.h5"
+            return join(fdir, fname)
+
+        fdir = join(self.quijote_dir, "Particles_fiducial")
         if not isdir(fdir):
             makedirs(fdir)
-            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
+            warn(f"Created directory `{fdir}`.", UserWarning)
         fname = f"parts_{str(nsim).zfill(5)}.h5"
         return join(fdir, fname)
 
