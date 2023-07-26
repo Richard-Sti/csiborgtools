@@ -16,9 +16,14 @@
 Functions to read in the particle and clump files.
 """
 from abc import ABC, abstractmethod
+from datetime import datetime
+from gc import collect
 from os.path import isfile, join
+from warnings import warn
 
 import numpy
+import readfof
+import readgadget
 from scipy.io import FortranFile
 from tqdm import tqdm, trange
 
@@ -47,6 +52,25 @@ class BaseReader(ABC):
     def paths(self, paths):
         assert isinstance(paths, Paths)
         self._paths = paths
+
+    @abstractmethod
+    def read_info(self, nsnap, nsim):
+        """
+        Read simulation snapshot info.
+
+        Parameters
+        ----------
+        nsnap : int
+            Snapshot index.
+        nsim : int
+            IC realisation index.
+
+        Returns
+        -------
+        info : dict
+            Dictionary of information paramaters.
+        """
+        pass
 
     @abstractmethod
     def read_particle(self, nsnap, nsim, pars_extract, return_structured=True,
@@ -100,22 +124,6 @@ class CSiBORGReader:
         self.paths = paths
 
     def read_info(self, nsnap, nsim):
-        """
-        Read CSiBORG simulation snapshot info.
-
-        Parameters
-        ----------
-        nsnap : int
-            Snapshot index.
-        nsim : int
-            IC realisation index.
-
-        Returns
-        -------
-        info : dict
-            Dictionary of information paramaters. Note that both keys and
-            values are strings.
-        """
         snappath = self.paths.snapshot(nsnap, nsim, "csiborg")
         filename = join(snappath, "info_{}.txt".format(str(nsnap).zfill(5)))
         with open(filename, "r") as f:
@@ -127,7 +135,7 @@ class CSiBORGReader:
 
         keys = info[eqs - 1]
         vals = info[eqs + 1]
-        return {key: val for key, val in zip(keys, vals)}
+        return {key: convert_str_to_num(val) for key, val in zip(keys, vals)}
 
     def open_particle(self, nsnap, nsim, verbose=True):
         """
@@ -579,28 +587,92 @@ class QuijoteReader:
     def __init__(self, paths):
         self.paths = paths
 
-    def read_particle(self, nsnap, nsim, pars_extract, return_structured=True,
-                      verbose=True):
-        pass
-        # snapshot = "/mnt/extraspace/rstiskalek/Quijote/Snapshots_fiducial/10000/snapdir_004/snap_004"
-        # ptype    = [1] #[1](CDM), [2](neutrinos) or [1,2](CDM+neutrinos)
+    def read_info(self, nsnap, nsim):
+        snapshot = self.paths.snapshot(nsnap, nsim, "quijote")
+        header = readgadget.header(snapshot)
+        out = {"BoxSize": header.boxsize / 1e3,       # Mpc/h
+               "Nall": header.nall[1],                # Tot num of particles
+               "PartMass": header.massarr[1] * 1e10,  # Part mass in Msun/h
+               "Omega_m": header.omega_m,
+               "Omega_l": header.omega_l,
+               "h": header.hubble,
+               "redshift": header.redshift,
+               }
+        out["Hubble"] = (100.0 * numpy.sqrt(
+            header.omega_m * (1.0 + header.redshift)**3 + header.omega_l))
+        return out
 
-        # # read header
-        # header   = readgadget.header(snapshot)
-        # BoxSize  = header.boxsize/1e3  #Mpc/h
-        # Nall     = header.nall         #Total number of particles
-        # Masses   = header.massarr*1e10 #Masses of the particles in Msun/h
-        # Omega_m  = header.omega_m      #value of Omega_m
-        # Omega_l  = header.omega_l      #value of Omega_l
-        # h        = header.hubble       #value of h
-        # redshift = header.redshift     #redshift of the snapshot
-        # Hubble   = 100.0*np.sqrt(Omega_m*(1.0+redshift)**3+Omega_l)#Value of H(z) in km/s/(Mpc/h)
+    def read_particle(self, nsnap, nsim, pars_extract=None,
+                      return_structured=True, verbose=True):
+        # NOTE work in progres
+        assert pars_extract in [None, "pids"]
+        snapshot = self.paths.snapshot(nsnap, nsim, "quijote")
+        info = self.read_info(nsnap, nsim)
+        ptype = [1]  # DM in Gadget speech
 
-        # print(Omega_m, Omega_l)
-        # # # read positions, velocities and IDs of the particles
-        # pos = readgadget.read_block(snapshot, "POS ", ptype)/1e3 #positions in Mpc/h
-        # # vel = readgadget.read_block(snapshot, "VEL ", ptype)     #peculiar velocities in km/s
-        # ids = readgadget.read_block(snapshot, "ID  ", ptype)-1   #IDs starting from 0
+        # NOTE check about this - 1
+        if verbose:
+            print(f"{datetime.now()}: reading particle IDs.")
+        pids = readgadget.read_block(snapshot, "ID  ", ptype)  # - 1 ?
+
+        if pars_extract == "pids":
+            return None, pids
+
+        if return_structured:
+            dtype = {"names": ['x', 'y', 'z', 'vx', 'vy', 'vz', 'M'],
+                     "formats": [numpy.float32] * 7}
+            out = numpy.full(info["Nall"], numpy.nan, dtype=dtype)
+        else:
+            out = numpy.full((info["Nall"], 7), numpy.nan, dtype=numpy.float32)
+
+        if verbose:
+            print(f"{datetime.now()}: reading particle positions.")
+        pos = readgadget.read_block(snapshot, "POS ", ptype) / 1e3  # Mpc/h
+        pos /= info["BoxSize"]  # Box units
+
+        for i, p in enumerate(['x', 'y', 'z']):
+            if return_structured:
+                out[p] = pos[:, i]
+            else:
+                out[:, i] = pos[:, i]
+        del pos
+        collect()
+
+        if verbose:
+            print(f"{datetime.now()}: reading particle velocities.")
+        # NOTE convert to box units.
+        vel = readgadget.read_block(snapshot, "VEL ", ptype)  # km/s
+        vel *= (1 + info["redshift"])
+
+        for i, v in enumerate(['vx', 'vy', 'vz']):
+            if return_structured:
+                out[v] = vel[:, i]
+            else:
+                out[:, i + 3] = vel[:, i]
+        del vel
+        collect()
+
+        if verbose:
+            print(f"{datetime.now()}: reading particle masses.")
+        if return_structured:
+            out["M"] = info["PartMass"]
+        else:
+            out[:, 6] = info["PartMass"]
+
+        return out, pids
+
+    def read_fof_hids(self, nsnap, nsim):
+        # NOTE work in progress.
+        # TODO later change this.
+        redshift = {4: 0.0, 3: 0.5, 2: 1.0, 1: 2.0, 0: 3.0}.get(nsnap, None)
+        if redshift is None:
+            raise ValueError(f"Redshift of snapshot {nsnap} is not known.")
+        path = self.paths.fof_cat(nsim, "quijote")
+        cat = readfof.FoF_catalog(path, nsnap)
+        pos = cat.GroupPos / 1e6
+        mass = cat.GroupMass * 1e10
+        # len_h = FoF.GroupLen                #Number of particles in each halo
+        return cat.GroupIDs, cat.GroupLen, pos, mass
 
 
 ###############################################################################
@@ -654,3 +726,27 @@ def load_halo_particles(hid, particles, halo_map, hid2map):
         return particles[k0:kf + 1, :]
     except KeyError:
         return None
+
+
+def convert_str_to_num(s):
+    """
+    Convert a string representation of a number to its appropriate numeric type
+    (int or float).
+
+    Parameters
+    ----------
+    s : str
+        The string representation of the number.
+
+    Returns
+    -------
+    num : int or float
+    """
+    try:
+        return int(s)
+    except ValueError:
+        try:
+            return float(s)
+        except ValueError:
+            warn(f"Cannot convert string '{s}' to number", UserWarning)
+            return s
