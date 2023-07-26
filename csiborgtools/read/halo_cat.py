@@ -518,7 +518,7 @@ class QuijoteHaloCatalogue(BaseCatalogue):
         self.origin = origin
         self._boxwidth = 1000 / 0.6711
 
-        fpath = join(self.paths.quijote_dir, "halos", str(nsim))
+        fpath = self.paths.fof_cat(nsim, "quijote")
         fof = FoF_catalog(fpath, self.nsnap, long_ids=False, swap=False,
                           SFR=False, read_IDs=False)
 
@@ -536,7 +536,9 @@ class QuijoteHaloCatalogue(BaseCatalogue):
             data["v" + p] = vel[:, i]
         data["group_mass"] = fof.GroupMass * 1e10 / self.box.h
         data["npart"] = fof.GroupLen
-        data["index"] = numpy.arange(data.size, dtype=numpy.int32)
+        # We want to start indexing from 1. Index 0 is reserved for
+        # particles unassigned to any FoF group.
+        data["index"] = 1 + numpy.arange(data.size, dtype=numpy.int32)
 
         self._data = data
         if bounds is not None:
@@ -628,6 +630,7 @@ class QuijoteHaloCatalogue(BaseCatalogue):
 
         cat.apply_bounds({"dist": (0, rmax)})
         return cat
+
 
 ###############################################################################
 #                     Utility functions for halo catalogues                   #
