@@ -60,7 +60,7 @@ def minmax_halo(hid, halo_ids, start_loop=0):
     return start, end
 
 
-def main(nsim, simname, verbose):
+def main_csiborg(nsim, verbose):
     """
     Read in the snapshot particles, sort them by their FoF halo ID and dump
     into a HDF5 file. Stores the first and last index of each halo in the
@@ -83,12 +83,9 @@ def main(nsim, simname, verbose):
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     partreader = csiborgtools.read.CSiBORGReader(paths)
 
-    if simname == "quijote":
-        raise NotImplementedError("Not implemented for Quijote yet.")
-
     # Keep "ID" as the last column!
     pars_extract = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'M', "ID"]
-    nsnap = max(paths.get_snapshots(nsim, simname))
+    nsnap = max(paths.get_snapshots(nsim, "csiborg"))
     fname = paths.particles(nsim)
     # We first read in the halo IDs of the particles and infer the sorting.
     # Right away we dump the halo IDs to a HDF5 file and clear up memory.
@@ -133,7 +130,7 @@ def main(nsim, simname, verbose):
     # Load clump IDs back to memory
     with h5py.File(fname, "r") as f:
         part_hids = f["halo_ids"][:]
-    # We loop over the unique clump IDs.
+    # We loop over the unique halo IDs.
     unique_halo_ids = numpy.unique(part_hids)
     halo_map = numpy.full((unique_halo_ids.size, 3), numpy.nan,
                           dtype=numpy.int32)
@@ -170,6 +167,10 @@ if __name__ == "__main__":
     nsims = get_nsims(args, paths)
 
     def _main(nsim):
-        main(nsim, args.simname, verbose=MPI.COMM_WORLD.Get_size() == 1)
+        if args.simname == "csiborg":
+            main_csiborg(nsim, args.simname,
+                         verbose=MPI.COMM_WORLD.Get_size() == 1)
+        else:
+            raise NotImplementedError("Only CSiBORG ICs are supported.")
 
     work_delegation(_main, nsims, MPI.COMM_WORLD)
