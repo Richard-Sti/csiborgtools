@@ -575,6 +575,7 @@ class MmainReader:
 #                         Quijote particle reader                             #
 ###############################################################################
 
+
 class QuijoteReader:
     """
     Object to read in Quijote snapshots from the binary files.
