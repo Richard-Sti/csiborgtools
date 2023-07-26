@@ -680,9 +680,8 @@ class QuijoteReader:
 
         Returns
         -------
-        out : 2-dimensional array of shape `(nparticles, 2)`
-            The first column is the group index and the second is the
-            particle ID.
+        out : 1-dimensional array of shape `(nparticles, )`
+            Group membership of particles.
         """
         redshift = {4: 0.0, 3: 0.5, 2: 1.0, 1: 2.0, 0: 3.0}.get(nsnap, None)
         if redshift is None:
@@ -722,7 +721,8 @@ class QuijoteReader:
         for i in trange(pids.size) if verbose else range(pids.size):
             hids[i] = pid2hid.get(pids[i], 0)
 
-        return numpy.vstack([hids, pids]).T
+        return hids
+
 
 
 ###############################################################################
