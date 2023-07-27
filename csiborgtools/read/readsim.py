@@ -657,9 +657,9 @@ class QuijoteReader:
         if verbose:
             print(f"{datetime.now()}: reading particle masses.")
         if return_structured:
-            out["M"] = info["PartMass"] / info["ToTMass"]
+            out["M"] = info["PartMass"] / info["TotMass"]
         else:
-            out[:, 6] = info["PartMass"] / info["ToTMass"]
+            out[:, 6] = info["PartMass"] / info["TotMass"]
 
         return out, pids
 
