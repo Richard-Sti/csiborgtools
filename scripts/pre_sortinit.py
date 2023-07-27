@@ -79,6 +79,14 @@ def _main(nsim, simname, verbose):
     # don't need those.
     if simname == "quijote":
         part0 = part0[:, [0, 1, 2, 6]]
+        # In Quijote some particles are position precisely at the edge of the
+        # box. Move them to be just inside.
+        pos = part0[:, :3]
+        mask = pos >= 1
+        if numpy.any(mask):
+            spacing = numpy.spacing(pos[mask])
+            assert numpy.max(spacing) <= 1e-5
+            pos[mask] -= spacing
 
     # First enforce them to already be sorted and then apply reverse
     # sorting from the final snapshot.
