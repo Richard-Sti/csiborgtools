@@ -15,6 +15,7 @@
 """
 Support for matching halos between CSiBORG IC realisations.
 """
+from abc import ABC
 from datetime import datetime
 from functools import lru_cache
 from math import ceil
@@ -26,20 +27,72 @@ from tqdm import tqdm, trange
 
 from ..read import load_halo_particles
 
-BCKG_HALFSIZE = 475
-BOX_SIZE = 2048
+
+class BaseMatcher(ABC):
+    """
+    Base class for `RealisationsMatcher` and `ParticleOverlap`.
+    """
+    _box_size = None
+    _bckg_halfsize = None
+
+    @property
+    def box_size(self):
+        """
+        Number of cells in the box.
+
+        Returns
+        -------
+        box_size : int
+        """
+        if self._box_size is None:
+            raise RuntimeError("`box_size` is not set.")
+        return self._box_size
+
+    @box_size.setter
+    def box_size(self, value):
+        assert isinstance(value, int)
+        assert value > 0
+        self._box_size = value
+
+    @property
+    def bckg_halfsize(self):
+        """
+        Number of to each side of the centre of the box to calculate the
+        density field. This is because in CSiBORG we are only interested in the
+        high-resolution region.
+
+        Returns
+        -------
+        bckg_halfsize : int
+        """
+        if self._bckg_halfsize is None:
+            raise RuntimeError("`bckg_halfsize` is not set.")
+        return self._bckg_halfsize
+
+    @bckg_halfsize.setter
+    def bckg_halfsize(self, value):
+        assert isinstance(value, int)
+        assert value > 0
+        self._bckg_halfsize = value
+
 
 ###############################################################################
 #                  Realisations matcher for calculating overlaps              #
 ###############################################################################
 
 
-class RealisationsMatcher:
+class RealisationsMatcher(BaseMatcher):
     """
     A tool to match haloes between IC realisations.
 
     Parameters
     ----------
+    box_size : int
+        Number of cells in the box.
+    bckg_halfsize : int
+        Number of to each side of the centre of the box to calculate the
+        density field. This is because in CSiBORG we are only interested in the
+        high-resolution region.
     nmult : float or int, optional
         Multiple of the sum of pair initial Lagrangian patch sizes
         within which to return neighbours. By default 1.
@@ -51,20 +104,22 @@ class RealisationsMatcher:
         catalogue key. By default `totpartmass`, i.e. the total particle
         mass associated with a halo.
     """
-
     _nmult = None
     _dlogmass = None
     _mass_kind = None
     _overlapper = None
 
-    def __init__(self, nmult=1.0, dlogmass=2.0, mass_kind="totpartmass"):
+    def __init__(self, box_size, bckg_halfsize, nmult=1.0, dlogmass=2.0,
+                 mass_kind="totpartmass"):
         assert nmult > 0
         assert dlogmass > 0
         assert isinstance(mass_kind, str)
+        self.box_size = box_size
+        self.halfsize = bckg_halfsize
         self._nmult = nmult
         self._dlogmass = dlogmass
         self._mass_kind = mass_kind
-        self._overlapper = ParticleOverlap()
+        self._overlapper = ParticleOverlap(box_size, bckg_halfsize)
 
     @property
     def nmult(self):
@@ -181,7 +236,7 @@ class RealisationsMatcher:
         @lru_cache(maxsize=cache_size)
         def load_cached_halox(hid):
             return load_processed_halo(hid, particlesx, halo_mapx, hid2mapx,
-                                       nshift=0, ncells=BOX_SIZE)
+                                       nshift=0, ncells=self.box_size)
 
         if verbose:
             print(f"{datetime.now()}: calculating overlaps.", flush=True)
@@ -195,7 +250,8 @@ class RealisationsMatcher:
             # Next, we find this halo's particles, total mass, minimum and
             # maximum cells and convert positions to cells.
             pos0, mass0, totmass0, mins0, maxs0 = load_processed_halo(
-                k0, particles0, halo_map0, hid2map0, nshift=0, ncells=BOX_SIZE)
+                k0, particles0, halo_map0, hid2map0, nshift=0,
+                ncells=self.box_size)
 
             # We now loop over matches of this halo and calculate their
             # overlap, storing them in `_cross`.
@@ -267,7 +323,7 @@ class RealisationsMatcher:
         @lru_cache(maxsize=cache_size)
         def load_cached_halox(hid):
             return load_processed_halo(hid, particlesx, halo_mapx, hid2mapx,
-                                       nshift=nshift, ncells=BOX_SIZE)
+                                       nshift=nshift, ncells=self.box_size)
 
         if verbose:
             print(f"{datetime.now()}: calculating smoothed overlaps.",
@@ -277,7 +333,7 @@ class RealisationsMatcher:
         for i, k0 in enumerate(tqdm(indxs) if verbose else indxs):
             pos0, mass0, __, mins0, maxs0 = load_processed_halo(
                 k0, particles0, halo_map0, hid2map0, nshift=nshift,
-                ncells=BOX_SIZE)
+                ncells=self.box_size)
 
             # Now loop over the matches and calculate the smoothed overlap.
             _cross = numpy.full(match_indxs[i].size, numpy.nan, numpy.float32)
@@ -327,12 +383,25 @@ def cosine_similarity(x, y):
     return out
 
 
-class ParticleOverlap:
+class ParticleOverlap(BaseMatcher):
     r"""
-    Class to calculate halo overlaps. The density field calculation is based on
-    the nearest grid position particle assignment scheme, with optional
-    Gaussian smoothing.
+    Halo overlaps calculator. The density field calculation is based on the
+    nearest grid position particle assignment scheme, with optional Gaussian
+    smoothing.
+
+    Parameters
+    ----------
+    box_size : int
+        Number of cells in the box.
+    bckg_halfsize : int
+        Number of to each side of the centre of the box to calculate the
+        density field. This is because in CSiBORG we are only interested in the
+        high-resolution region.
     """
+
+    def __init__(self, box_size, bckg_halfsize):
+        self.box_size = box_size
+        self.bckg_halfsize = bckg_halfsize
 
     def make_bckg_delta(self, particles, halo_map, hid2map, halo_cat,
                         delta=None, verbose=False):
@@ -363,8 +432,8 @@ class ParticleOverlap:
         -------
         delta : 3-dimensional array
         """
-        cellmin = BOX_SIZE // 2 - BCKG_HALFSIZE
-        cellmax = BOX_SIZE // 2 + BCKG_HALFSIZE
+        cellmin = self.box_size // 2 - self.bckg_halfsize
+        cellmax = self.box_size // 2 + self.bckg_halfsize
         ncells = cellmax - cellmin
         # We then pre-allocate the density field/check it is of the right shape
         if delta is None:
@@ -379,7 +448,7 @@ class ParticleOverlap:
                 continue
 
             pos, mass = pos[:, :3], pos[:, 3]
-            pos = pos2cell(pos, BOX_SIZE)
+            pos = pos2cell(pos, self.box_size)
             # We mask out particles outside the cubical high-resolution region
             mask = numpy.all((cellmin <= pos) & (pos < cellmax), axis=1)
             pos = pos[mask]
@@ -413,7 +482,7 @@ class ParticleOverlap:
         delta : 3-dimensional array
         """
         nshift = read_nshift(smooth_kwargs)
-        cells = pos2cell(pos, BOX_SIZE)
+        cells = pos2cell(pos, self.box_size)
         # Check that minima and maxima are integers
         if not (mins is None and maxs is None):
             assert mins.dtype.char in numpy.typecodes["AllInteger"]
@@ -421,12 +490,12 @@ class ParticleOverlap:
 
         if subbox:
             if mins is None or maxs is None:
-                mins, maxs = get_halolims(cells, BOX_SIZE, nshift)
+                mins, maxs = get_halolims(cells, self.box_size, nshift)
 
             ncells = maxs - mins + 1  # To get the number of cells
         else:
             mins = [0, 0, 0]
-            ncells = (BOX_SIZE, ) * 3
+            ncells = (self.box_size, ) * 3
 
         # Preallocate and fill the array
         delta = numpy.zeros(ncells, dtype=numpy.float32)
@@ -472,8 +541,8 @@ class ParticleOverlap:
             Calculated only if no smoothing is applied, otherwise `None`.
         """
         nshift = read_nshift(smooth_kwargs)
-        pos1 = pos2cell(pos1, BOX_SIZE)
-        pos2 = pos2cell(pos2, BOX_SIZE)
+        pos1 = pos2cell(pos1, self.box_size)
+        pos2 = pos2cell(pos2, self.box_size)
         xc1, yc1, zc1 = [pos1[:, i] for i in range(3)]
         xc2, yc2, zc2 = [pos2[:, i] for i in range(3)]
 
@@ -490,7 +559,7 @@ class ParticleOverlap:
             ymax = max(numpy.max(yc1), numpy.max(yc2)) + nshift
             zmax = max(numpy.max(zc1), numpy.max(zc2)) + nshift
             # Make sure shifting does not go beyond boundaries
-            xmax, ymax, zmax = [min(px, BOX_SIZE - 1)
+            xmax, ymax, zmax = [min(px, self.box_size - 1)
                                 for px in (xmax, ymax, zmax)]
         else:
             xmin, ymin, zmin = [min(mins1[i], mins2[i]) for i in range(3)]
@@ -573,12 +642,14 @@ class ParticleOverlap:
             smooth_kwargs=smooth_kwargs)
 
         if smooth_kwargs is not None:
-            return calculate_overlap(delta1, delta2, cellmins, delta_bckg)
+            return calculate_overlap(delta1, delta2, cellmins, delta_bckg,
+                                     self.box_size, self.bckg_halfsize)
         # Calculate masses not given
         totmass1 = numpy.sum(mass1) if totmass1 is None else totmass1
         totmass2 = numpy.sum(mass2) if totmass2 is None else totmass2
-        return calculate_overlap_indxs(
-            delta1, delta2, cellmins, delta_bckg, nonzero, totmass1, totmass2)
+        return calculate_overlap_indxs(delta1, delta2, cellmins, delta_bckg,
+                                       nonzero, totmass1, totmass2,
+                                       self.box_size, self.bckg_halfsize)
 
 
 ###############################################################################
@@ -725,7 +796,8 @@ def get_halolims(pos, ncells, nshift=None):
 
 
 @jit(nopython=True)
-def calculate_overlap(delta1, delta2, cellmins, delta_bckg):
+def calculate_overlap(delta1, delta2, cellmins, delta_bckg, box_size,
+                      bckg_halfsize):
     r"""
     Overlap between two halos whose density fields are evaluated on the
     same grid. This is a JIT implementation, hence it is outside of the main
@@ -743,6 +815,12 @@ def calculate_overlap(delta1, delta2, cellmins, delta_bckg):
         Summed background density field of the reference and cross simulations
         calculated with particles assigned to halos at the final snapshot.
         Assumed to only be sampled in cells :math:`[512, 1536)^3`.
+    box_size : int
+        Number of cells in the box.
+    bckg_halfsize : int
+        Number of to each side of the centre of the box to calculate the
+        density field. This is because in CSiBORG we are only interested in the
+        high-resolution region.
 
     Returns
     -------
@@ -751,8 +829,8 @@ def calculate_overlap(delta1, delta2, cellmins, delta_bckg):
     totmass = 0.0  # Total mass of halo 1 and halo 2
     intersect = 0.0  # Weighted intersecting mass
     i0, j0, k0 = cellmins  # Unpack things
-    bckg_size = 2 * BCKG_HALFSIZE
-    bckg_offset = BOX_SIZE // 2 - BCKG_HALFSIZE
+    bckg_size = 2 * bckg_halfsize
+    bckg_offset = box_size // 2 - bckg_halfsize
     imax, jmax, kmax = delta1.shape
 
     for i in range(imax):
@@ -777,7 +855,7 @@ def calculate_overlap(delta1, delta2, cellmins, delta_bckg):
 
 @jit(nopython=True)
 def calculate_overlap_indxs(delta1, delta2, cellmins, delta_bckg, nonzero,
-                            mass1, mass2):
+                            mass1, mass2, box_size, bckg_halfsize):
     r"""
     Overlap between two haloes whose density fields are evaluated on the
     same grid and `nonzero1` enumerates the non-zero cells of `delta1.  This is
@@ -801,6 +879,12 @@ def calculate_overlap_indxs(delta1, delta2, cellmins, delta_bckg, nonzero,
     mass1, mass2 : floats, optional
         Total masses of the two haloes, respectively. Optional. If not provided
         calculcated directly from the density field.
+    box_size : int
+        Number of cells in the box.
+    bckg_halfsize : int
+        Number of to each side of the centre of the box to calculate the
+        density field. This is because in CSiBORG we are only interested in the
+        high-resolution region.
 
     Returns
     -------
@@ -808,8 +892,8 @@ def calculate_overlap_indxs(delta1, delta2, cellmins, delta_bckg, nonzero,
     """
     intersect = 0.0  # Weighted intersecting mass
     i0, j0, k0 = cellmins  # Unpack cell minimas
-    bckg_size = 2 * BCKG_HALFSIZE
-    bckg_offset = BOX_SIZE // 2 - BCKG_HALFSIZE
+    bckg_size = 2 * bckg_halfsize
+    bckg_offset = box_size // 2 - bckg_halfsize
 
     for n in range(nonzero.shape[0]):
         i, j, k = nonzero[n, :]
