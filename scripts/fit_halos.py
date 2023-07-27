@@ -81,8 +81,8 @@ def _main(nsim, simname, verbose):
     verbose : bool
         Verbosity flag.
     """
-    if simname == "quijote":
-        raise NotImplementedError("Quijote not implemented yet.")
+    # if simname == "quijote":
+    #     raise NotImplementedError("Quijote not implemented yet.")
 
     cols = [("index", numpy.int32),
             ("npart", numpy.int32),
@@ -96,16 +96,21 @@ def _main(nsim, simname, verbose):
             ("lambda200c", numpy.float32),]
 
     nsnap = max(paths.get_snapshots(nsim, simname))
-    box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
+    if simname == "csiborg":
+        box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
+        cat = csiborgtools.read.CSiBORGHaloCatalogue(
+            nsim, paths, with_lagpatch=False, load_initial=False, rawdata=True,
+            load_fitted=False)
+    else:
+        box = csiborgtools.read.QuijoteBox(nsnap, nsim, paths)
+        cat = csiborgtools.read.QuijoteHaloCatalogue(
+            nsim, paths, nsnap, load_initial=False, rawdata=True)
 
     # Particle archive
     f = csiborgtools.read.read_h5(paths.particles(nsim, simname))
     particles = f["particles"]
     halo_map = f["halomap"]
     hid2map = {hid: i for i, hid in enumerate(halo_map[:, 0])}
-    cat = csiborgtools.read.CSiBORGHaloCatalogue(
-        nsim, paths, with_lagpatch=False, load_initial=False, rawdata=True,
-        load_fitted=False)
 
     out = csiborgtools.read.cols_to_structured(len(cat), cols)
     for i in trange(len(cat)) if verbose else range(len(cat)):
@@ -121,7 +126,7 @@ def _main(nsim, simname, verbose):
         for key in _out.keys():
             out[key][i] = _out[key]
 
-    fout = paths.structfit(nsnap, nsim)
+    fout = paths.structfit(nsnap, nsim, simname)
     if verbose:
         print(f"Saving to `{fout}`.", flush=True)
     numpy.save(fout, out)
