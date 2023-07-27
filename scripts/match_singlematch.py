@@ -32,7 +32,7 @@ except ModuleNotFoundError:
 def pair_match(nsim0, nsimx, sigma, smoothen, verbose):
     # TODO fix this.
     simname = "csiborg"
-    overlapper_kwargs = {"box_size": 512, "box_halfsize": 475}
+    overlapper_kwargs = {"box_size": 512, "bckg_halfsize": 475}
     from csiborgtools.read import CSiBORGHaloCatalogue, read_h5
 
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
