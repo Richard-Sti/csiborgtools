@@ -81,9 +81,11 @@ def _main(nsim, simname, verbose):
     del pid0
     collect()
     part0 = part0[numpy.argsort(numpy.argsort(pidf))]
+    fout = paths.initmatch(nsim, simname, "particles")
     if verbose:
-        print(f"{datetime.now()}: dumping particles for `{nsim}`.", flush=True)
-    with h5py.File(paths.initmatch(nsim, "particles"), "w") as f:
+        print(f"{datetime.now()}: dumping particles for `{nsim}` to `{fout}`",
+              flush=True)
+    with h5py.File(fout, "w") as f:
         f.create_dataset("particles", data=part0)
 
 

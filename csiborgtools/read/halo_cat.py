@@ -425,7 +425,7 @@ class CSiBORGHaloCatalogue(BaseCatalogue):
             self._data = add_columns(self._data, X, cols)
 
         if load_initial:
-            fits = numpy.load(paths.initmatch(nsim, "fit"))
+            fits = numpy.load(paths.initmatch(nsim, "csiborg", "fit"))
             X, cols = [], []
             for col in fits.dtype.names:
                 if col == "index":

@@ -254,7 +254,7 @@ class Paths:
         return join(fdir,
                     f"mmain_{str(nsim).zfill(5)}_{str(nsnap).zfill(5)}.npz")
 
-    def initmatch(self, nsim, kind):
+    def initmatch(self, nsim, simname, kind):
         """
         Path to the `initmatch` files where the halo match between the
         initial and final snapshot of a CSiBORG realisaiton is stored.
@@ -263,19 +263,30 @@ class Paths:
         ----------
         nsim : int
             IC realisation index.
+        simname : str
+            Simulation name. Must be one of `csiborg` or `quijote`.
         kind : str
-            Type of match. Must be one of `["particles", "fit", "halomap"]`.
+            Type of match. Must be one of `particles` or `fit`.
 
         Returns
         -------
         path : str
         """
-        assert kind in ["particles", "fit", "halomap"]
+        assert simname in ["csiborg", "quijote"]
+        assert kind in ["particles", "fit"]
         ftype = "npy" if kind == "fit" else "h5"
-        fdir = join(self.postdir, "initmatch")
+
+        if simname == "csiborg":
+            fdir = join(self.postdir, "initmatch")
+            if not isdir(fdir):
+                mkdir(fdir)
+                warn(f"Created directory `{fdir}`.", UserWarning)
+            return join(fdir, f"{kind}_{str(nsim).zfill(5)}.{ftype}")
+
+        fdir = join(self.quijote_dir, "initmatch")
         if not isdir(fdir):
             mkdir(fdir)
-            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
+            warn(f"Created directory `{fdir}`.", UserWarning)
         return join(fdir, f"{kind}_{str(nsim).zfill(5)}.{ftype}")
 
     def get_ics(self, simname):

@@ -61,7 +61,8 @@ def _main(nsim, simname, verbose):
             ("lagpatch_size", numpy.float32),
             ("lagpatch_ncells", numpy.int32),]
 
-    parts = csiborgtools.read.read_h5(paths.initmatch(nsim, "particles"))
+    fname = paths.initmatch(nsim, simname, "particles")
+    parts = csiborgtools.read.read_h5(fname)
     parts = parts['particles']
     halo_map = csiborgtools.read.read_h5(paths.particles(nsim, simname))
     halo_map = halo_map["halomap"]
@@ -93,7 +94,7 @@ def _main(nsim, simname, verbose):
         out["lagpatch_ncells"][i] = csiborgtools.fits.delta2ncells(delta)
 
     # Now save it
-    fout = paths.initmatch(nsim, "fit")
+    fout = paths.initmatch(nsim, simname, "fit")
     if verbose:
         print(f"{datetime.now()}: dumping fits to .. `{fout}`.", flush=True)
     with open(fout, "wb") as f:

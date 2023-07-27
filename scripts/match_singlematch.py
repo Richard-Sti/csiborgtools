@@ -48,11 +48,11 @@ def pair_match(nsim0, nsimx, sigma, smoothen, verbose):
                                 with_lagpatch=True, load_clumps_cat=True)
 
     clumpmap0 = read_h5(paths.particles(nsim0, simname))["clumpmap"]
-    parts0 = read_h5(paths.initmatch(nsim0, "particles"))["particles"]
+    parts0 = read_h5(paths.initmatch(nsim0, simname, "particles"))["particles"]
     clid2map0 = {clid: i for i, clid in enumerate(clumpmap0[:, 0])}
 
     clumpmapx = read_h5(paths.particles(nsimx, simname))["clumpmap"]
-    partsx = read_h5(paths.initmatch(nsimx, "particles"))["particles"]
+    partsx = read_h5(paths.initmatch(nsimx, simname, "particles"))["particles"]
     clid2mapx = {clid: i for i, clid in enumerate(clumpmapx[:, 0])}
 
     # We generate the background density fields. Loads halos's particles one by
