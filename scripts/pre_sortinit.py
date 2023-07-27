@@ -50,14 +50,14 @@ def _main(nsim, simname, verbose):
     verbose : bool
         Verbosity flag.
     """
-    if simname == "quijote":
-        raise NotImplementedError("Quijote not implemented yet.")
-
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    partreader = csiborgtools.read.CSiBORGReader(paths)
+    if simname == "csiborg":
+        partreader = csiborgtools.read.CSiBORGReader(paths)
+    else:
+        partreader = csiborgtools.read.QuijoteReader(paths)
 
     if verbose:
-        print(f"{datetime.now()}: reading and processing simulation {nsim}.",
+        print(f"{datetime.now()}: reading and processing simulation `{nsim}`.",
               flush=True)
     # We first load the particle IDs in the final snapshot.
     pidf = csiborgtools.read.read_h5(paths.particles(nsim, simname))
@@ -65,10 +65,16 @@ def _main(nsim, simname, verbose):
     # Then we load the particles in the initil snapshot and make sure that
     # their particle IDs are sorted as in the final snapshot. Again, because of
     # precision this must be read as structured.
-    # NOTE: ID has to be the last column.
-    pars_extract = ["x", "y", "z", "M", "ID"]
+    if simname == "csiborg":
+        pars_extract = ["x", "y", "z", "M", "ID"]
+        # CSiBORG's initial snapshot ID
+        nsnap = 1
+    else:
+        pars_extract = None
+        # Use this to point the reader to the ICs snapshot
+        nsnap = -1
     part0, pid0 = partreader.read_particle(
-        1, nsim, pars_extract, return_structured=False, verbose=verbose)
+        nsnap, nsim, pars_extract, return_structured=False, verbose=verbose)
     # First enforce them to already be sorted and then apply reverse
     # sorting from the final snapshot.
     part0 = part0[numpy.argsort(pid0)]
@@ -76,7 +82,7 @@ def _main(nsim, simname, verbose):
     collect()
     part0 = part0[numpy.argsort(numpy.argsort(pidf))]
     if verbose:
-        print(f"{datetime.now()}: dumping particles for {nsim}.", flush=True)
+        print(f"{datetime.now()}: dumping particles for `{nsim}`.", flush=True)
     with h5py.File(paths.initmatch(nsim, "particles"), "w") as f:
         f.create_dataset("particles", data=part0)
 
