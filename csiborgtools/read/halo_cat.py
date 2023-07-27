@@ -57,6 +57,7 @@ class BaseCatalogue(ABC):
 
     @nsim.setter
     def nsim(self, nsim):
+        assert isinstance(nsim, int)
         self._nsim = nsim
 
     @abstractproperty
@@ -98,10 +99,77 @@ class BaseCatalogue(ABC):
         data : structured array
         """
         if self._data is None:
-            raise RuntimeError("Catalogue data not loaded!")
+            raise RuntimeError("`data` is not set!")
         return self._data
 
+    def load_initial(self, data, paths, simname):
+        """
+        Load initial snapshot fits from the script `fit_init.py`.
+
+        Parameters
+        ----------
+        data : structured array
+            The catalogue to which append the new data.
+        paths : :py:class:`csiborgtools.read.Paths`
+            Paths manager.
+        simname : str
+            Simulation name.
+
+        Returns
+        -------
+        data : structured array
+        """
+        fits = numpy.load(paths.initmatch(self.nsim, simname, "fit"))
+        X, cols = [], []
+
+        for col in fits.dtype.names:
+            if col == "index":
+                continue
+            cols.append(col + "0" if col in ['x', 'y', 'z'] else col)
+            X.append(fits[col])
+
+        data = add_columns(data, X, cols)
+        for p in ('x0', 'y0', 'z0', 'lagpatch_size'):
+            data[p] = self.box.box2mpc(data[p])
+
+        return data
+
+    def load_fitted(self, data, paths, simname):
+        """
+        Load halo fits from the script `fit_halos.py`.
+
+        Parameters
+        ----------
+        data : structured array
+            The catalogue to which append the new data.
+        paths : :py:class:`csiborgtools.read.Paths`
+            Paths manager.
+        simname : str
+            Simulation name.
+
+        Returns
+        -------
+        data : structured array
+        """
+        fits = numpy.load(paths.structfit(self.nsnap, self.nsim, simname))
+
+        cols = [col for col in fits.dtype.names if col != "index"]
+        X = [fits[col] for col in cols]
+        data = add_columns(data, X, cols)
+        box = self.box
+
+        for p in ("totpartmass", "m200c"):
+            data[p] = box.box2solarmass(data[p])
+
+        data["r200c"] = box.box2mpc(data["r200c"])
+
+        return data
+
     def apply_bounds(self, bounds):
+        """
+        TODO: docs and fix this.
+
+        """
         for key, (xmin, xmax) in bounds.items():
             xmin = -numpy.inf if xmin is None else xmin
             xmax = numpy.inf if xmax is None else xmax
@@ -382,7 +450,10 @@ class BaseCatalogue(ABC):
 
 class CSiBORGHaloCatalogue(BaseCatalogue):
     r"""
-    CSiBORG FoF halo catalogue.
+    CSiBORG FoF halo catalogue. The following unit convention is assumed:
+        - Length is in :math:`cMpc / h`.
+        - Velocity is in :math:`km / s` TODO: this is currently not the case!!
+        - Mass is in :math:`M_\odot / h`.
 
     Parameters
     ----------
@@ -401,63 +472,38 @@ class CSiBORGHaloCatalogue(BaseCatalogue):
         Whether to load initial positions.
     with_lagpatch : bool, optional
         Whether to only load halos with a resolved Lagrangian patch.
-    rawdata : bool, optional
-        Whether to return the raw data. In this case applies no cuts and
-        transformations.
     """
 
-    def __init__(self, nsim, paths, bounds={"dist": (0, 155.5 / 0.705)},
-                 load_fitted=True, load_initial=True, with_lagpatch=True,
-                 rawdata=False):
+    def __init__(self, nsim, paths, bounds={"dist": (0, 155.5)},
+                 load_fitted=True, load_initial=True, with_lagpatch=True):
         self.nsim = nsim
         self.paths = paths
         reader = CSiBORGReader(paths)
-        self._data = reader.read_fof_halos(self.nsim)
+        data = reader.read_fof_halos(self.nsim)
+        box = self.box
 
-        if load_fitted:
-            fits = numpy.load(paths.structfit(self.nsnap, nsim, "csiborg"))
-            cols = [col for col in fits.dtype.names if col != "index"]
-            X = [fits[col] for col in cols]
-            self._data = add_columns(self._data, X, cols)
+        # We want coordinates to be [0, 677.7] in Mpc / h
+        for p in ('x', 'y', 'z'):
+            data[p] = data[p] * box.h + box.box2mpc(1) / 2
+        # Similarly mass in units of Msun / h
+        data["fof_totpartmass"] *= box.h
+        data["fof_m200c"] *= box.h
+        flip_cols(data, 'x', 'z')
 
         if load_initial:
-            fits = numpy.load(paths.initmatch(nsim, "csiborg", "fit"))
-            X, cols = [], []
-            for col in fits.dtype.names:
-                if col == "index":
-                    continue
-                if col in ['x', 'y', 'z']:
-                    cols.append(col + "0")
-                else:
-                    cols.append(col)
-                X.append(fits[col])
+            data = self.load_initial(data, paths, "csiborg")
+            flip_cols(data, "x0", "z0")
+        if load_fitted:
+            data = self.load_fitted(data, paths, "csiborg")
+            flip_cols(data, "vx", "vz")
 
-            self._data = add_columns(self._data, X, cols)
+        if load_initial and with_lagpatch:
+            data = data[numpy.isfinite(data["lagpatch_size"])]
 
-        if rawdata:
-            for p in ('x', 'y', 'z'):
-                self._data[p] = self.box.mpc2box(self._data[p]) + 0.5
-        else:
-            if with_lagpatch:
-                self._data = self._data[numpy.isfinite(self["lagpatch_size"])]
-            # Flip positions and convert from code units to cMpc. Convert M too
-            flip_cols(self._data, "x", "z")
-            if load_fitted:
-                flip_cols(self._data, "vx", "vz")
-                names = ["totpartmass", "rho0", "r200c",
-                         "r500c", "m200c", "m500c", "r200m", "m200m",
-                         "r500m", "m500m", "vx", "vy", "vz"]
-                self._data = self.box.convert_from_box(self._data, names)
-
-            if load_initial:
-                flip_cols(self._data, "x0", "z0")
-                for p in ("x0", "y0", "z0"):
-                    self._data[p] -= 0.5
-                names = ["x0", "y0", "z0", "lagpatch_size"]
-                self._data = self.box.convert_from_box(self._data, names)
-
-            if bounds is not None:
-                self.apply_bounds(bounds)
+        self._data = data
+        # TODO fix this.
+        # if bounds is not None:
+        #     self.apply_bounds(bounds)
 
     @property
     def nsnap(self):
@@ -512,8 +558,9 @@ class QuijoteHaloCatalogue(BaseCatalogue):
     _nsnap = None
     _origin = None
 
-    def __init__(self, nsim, paths, nsnap, origin=[0., 0., 0.],
-                 bounds=None, load_initial=True, with_lagpatch=True, **kwargs):
+    def __init__(self, nsim, paths, nsnap, origin=[500., 500., 500.],
+                 bounds=None, load_fitted=True, load_initial=True,
+                 with_lagpatch=True, **kwargs):
         self.paths = paths
         self.nsnap = nsnap
         self.origin = origin
@@ -543,22 +590,12 @@ class QuijoteHaloCatalogue(BaseCatalogue):
         data["index"] = 1 + numpy.arange(data.size, dtype=numpy.int32)
 
         if load_initial:
-            fits = numpy.load(paths.initmatch(nsim, "quijote", "fit"))
-            X, cols = [], []
-            for col in fits.dtype.names:
-                if col == "index":
-                    continue
-                if col in ['x', 'y', 'z']:
-                    cols.append(col + "0")
-                else:
-                    cols.append(col)
-                X.append(fits[col])
-            data = add_columns(data, X, cols)
-            data = self.box.convert_from_box(
-                data, ["x0", "y0", "z0", "lagpatch_size"])
+            data = self.load_initial(data, paths, "quijote")
+        if load_fitted:
+            assert nsnap == 4
 
-            if with_lagpatch:
-                data = data[numpy.isfinite(data["lagpatch_size"])]
+        if load_initial and with_lagpatch:
+            data = data[numpy.isfinite(data["lagpatch_size"])]
 
         self._data = data
         if bounds is not None:
@@ -633,7 +670,7 @@ class QuijoteHaloCatalogue(BaseCatalogue):
         n : int
             Fiducial observer index.
         rmax : float
-            Maximum distance from the fiducial observer in :math:`cMpc`.
+            Max. distance from the fiducial obs. in :math:`\mathrm{cMpc} / h`.
 
         Returns
         -------
