@@ -80,7 +80,7 @@ class BaseBox(ABC):
     @property
     def h(self):
         r"""
-        The little 'h` parameter at the time of the snapshot.
+        The little 'h' parameter at the time of the snapshot.
 
         Returns
         -------
