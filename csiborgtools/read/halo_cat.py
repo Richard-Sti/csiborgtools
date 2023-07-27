@@ -22,7 +22,6 @@ from copy import deepcopy
 from functools import lru_cache
 from itertools import product
 from math import floor
-from os.path import join
 
 import numpy
 from readfof import FoF_catalog
