@@ -481,8 +481,11 @@ class CSiBORGHaloCatalogue(BaseCatalogue):
 
 
 class QuijoteHaloCatalogue(BaseCatalogue):
-    """
-    Quijote FoF halo catalogue.
+    r"""
+    Quijote FoF halo catalogue. The following unit convention is assumed:
+        - Length is in :math:`cMpc / h`.
+        - Velocity is in :math:`km / s`.
+        - Mass is in :math:`M_\odot / h`.
 
     Parameters
     ----------
@@ -503,9 +506,6 @@ class QuijoteHaloCatalogue(BaseCatalogue):
         Whether to load initial positions.
     with_lagpatch : bool, optional
         Whether to only load halos with a resolved Lagrangian patch.
-    rawdata : bool, optional
-        Whether to return the raw data. In this case applies no cuts and
-        transformations.
     **kwargs : dict
         Keyword arguments for backward compatibility.
     """
@@ -513,8 +513,7 @@ class QuijoteHaloCatalogue(BaseCatalogue):
     _origin = None
 
     def __init__(self, nsim, paths, nsnap, origin=[0., 0., 0.],
-                 bounds=None, load_initial=True, with_lagpatch=True,
-                 rawdata=False, **kwargs):
+                 bounds=None, load_initial=True, with_lagpatch=True, **kwargs):
         self.paths = paths
         self.nsnap = nsnap
         self.origin = origin
@@ -532,12 +531,12 @@ class QuijoteHaloCatalogue(BaseCatalogue):
                 ("index", numpy.int32)]
         data = cols_to_structured(fof.GroupLen.size, cols)
 
-        pos = self.box.mpc2box(fof.GroupPos / 1e3)
+        pos = fof.GroupPos / 1e3
         vel = fof.GroupVel * (1 + self.redshift)
         for i, p in enumerate(["x", "y", "z"]):
             data[p] = pos[:, i] - self.origin[i]
             data["v" + p] = vel[:, i]
-        data["group_mass"] = self.box.solarmass2box(fof.GroupMass * 1e10)
+        data["group_mass"] = fof.GroupMass * 1e10
         data["npart"] = fof.GroupLen
         # We want to start indexing from 1. Index 0 is reserved for
         # particles unassigned to any FoF group.
@@ -555,21 +554,15 @@ class QuijoteHaloCatalogue(BaseCatalogue):
                     cols.append(col)
                 X.append(fits[col])
             data = add_columns(data, X, cols)
+            data = self.box.convert_from_box(
+                data, ["x0", "y0", "z0", "lagpatch_size"])
+
+            if with_lagpatch:
+                data = data[numpy.isfinite(data["lagpatch_size"])]
 
         self._data = data
-        if not rawdata:
-            if with_lagpatch:
-                mask = numpy.isfinite(self._data["lagpatch_size"])
-                self._data = self._data[mask]
-
-                names = ["x", "y", "z", "group_mass"]
-                self._data = self.box.convert_from_box(self._data, names)
-                if load_initial:
-                    names = ["x0", "y0", "z0", "lagpatch_size"]
-                    self._data = self.box.convert_from_box(self._data, names)
-
-            if bounds is not None:
-                self.apply_bounds(bounds)
+        if bounds is not None:
+            self.apply_bounds(bounds)
 
     @property
     def nsnap(self):
