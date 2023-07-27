@@ -75,6 +75,11 @@ def _main(nsim, simname, verbose):
         nsnap = -1
     part0, pid0 = partreader.read_particle(
         nsnap, nsim, pars_extract, return_structured=False, verbose=verbose)
+    # Quijote's initial snapshot information also contains velocities but we
+    # don't need those.
+    if simname == "quijote":
+        part0 = part0[:, [0, 1, 2, 6]]
+
     # First enforce them to already be sorted and then apply reverse
     # sorting from the final snapshot.
     part0 = part0[numpy.argsort(pid0)]
