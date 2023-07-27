@@ -117,7 +117,7 @@ class BaseStructure(ABC):
         assert kind in ["crit", "matter"]
         rho = delta_mult * self.box.box_rhoc
         if kind == "matter":
-            rho *= self.box.box_Om
+            rho *= self.box.Om
         pos = self.pos
         mass = self["M"]
 
@@ -216,8 +216,8 @@ class BaseStructure(ABC):
         References
         ----------
         [1] A Universal Angular Momentum Profile for Galactic Halos; 2001;
-        Bullock, J. S.;  Dekel, A.;  Kolatt, T. S.;  Kravtsov, A. V.;
-        Klypin, A. A.;  Porciani, C.;  Primack, J. R.
+        Bullock, J. S.; Dekel, A.;  Kolatt, T. S.; Kravtsov, A. V.;
+        Klypin, A. A.; Porciani, C.; Primack, J. R.
         """
         pos = self.pos
         mask = periodic_distance(pos, ref, boxsize=1) < rad
