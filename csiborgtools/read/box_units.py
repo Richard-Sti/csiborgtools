@@ -86,7 +86,7 @@ class BaseBox(ABC):
         -------
         h : float
         """
-        return self.H0 / 100
+        return self._h
 
     @property
     def Om0(self):
@@ -107,6 +107,74 @@ class BaseBox(ABC):
         Returns
         -------
         boxsize : float
+        """
+        pass
+
+    @abstractmethod
+    def mpc2box(self, length):
+        r"""
+        Convert length from :math:`\mathrm{cMpc} / h` to box units.
+
+        Parameters
+        ----------
+        length : float
+            Length in :math:`\mathrm{cMpc}`
+
+        Returns
+        -------
+        length : float
+            Length in box units.
+        """
+        pass
+
+    @abstractmethod
+    def box2mpc(self, length):
+        r"""
+        Convert length from box units to :math:`\mathrm{cMpc} / h`.
+
+        Parameters
+        ----------
+        length : float
+            Length in box units.
+
+        Returns
+        -------
+        length : float
+            Length in :math:`\mathrm{cMpc} / h`
+        """
+        pass
+
+    @abstractmethod
+    def solarmass2box(self, mass):
+        r"""
+        Convert mass from :math:`M_\odot / h` to box units.
+
+        Parameters
+        ----------
+        mass : float
+            Mass in :math:`M_\odot / h`.
+
+        Returns
+        -------
+        mass : float
+            Mass in box units.
+        """
+        pass
+
+    @abstractmethod
+    def box2solarmass(self, mass):
+        r"""
+        Convert mass from box units to :math:`M_\odot / h`.
+
+        Parameters
+        ----------
+        mass : float
+            Mass in box units.
+
+        Returns
+        -------
+        mass : float
+            Mass in :math:`M_\odot / h`.
         """
         pass
 
@@ -169,8 +237,8 @@ class CSiBORGBox(BaseBox):
                 "omega_k", "omega_b", "unit_l", "unit_d", "unit_t"]
         for par in pars:
             setattr(self, "_" + par, info[par])
-
-        self._cosmo = LambdaCDM(H0=self._H0, Om0=self._omega_m,
+        self._h = self._H0 / 100
+        self._cosmo = LambdaCDM(H0=100, Om0=self._omega_m,
                                 Ode0=self._omega_l, Tcmb0=2.725 * units.K,
                                 Ob0=self._omega_b)
         self._Msuncgs = constants.M_sun.cgs.value  # Solar mass in grams
@@ -220,73 +288,25 @@ class CSiBORGBox(BaseBox):
         """
         return 3 * self.box_H0**2 / (8 * numpy.pi * self.box_G)
 
-    def box2kpc(self, length):
-        r"""
-        Convert length from box units to :math:`\mathrm{ckpc}` (with
-        :math:`h=0.705`).
-
-        Parameters
-        ----------
-        length : float
-            Length in box units.
-
-        Returns
-        -------
-        length : float
-            Length in :math:`\mathrm{ckpc}`
-        """
-        return length * (self._unit_l / units.kpc.to(units.cm) / self._aexp)
-
-    def kpc2box(self, length):
-        r"""
-        Convert length from :math:`\mathrm{ckpc}` (with :math:`h=0.705`) to
-        box units.
-
-        Parameters
-        ----------
-        length : float
-            Length in :math:`\mathrm{ckpc}`
-
-        Returns
-        -------
-        length : float
-            Length in box units.
-        """
-        return length / (self._unit_l / units.kpc.to(units.cm) / self._aexp)
-
     def mpc2box(self, length):
-        r"""
-        Convert length from :math:`\mathrm{cMpc}` (with :math:`h=0.705`) to
-        box units.
-
-        Parameters
-        ----------
-        length : float
-            Length in :math:`\mathrm{cMpc}`
-
-        Returns
-        -------
-        length : float
-            Length in box units.
-        """
-        return self.kpc2box(length * 1e3)
+        conv = (self._unit_l / units.kpc.to(units.cm) / self._aexp) * 1e-3
+        conv *= self._h
+        return length / conv
 
     def box2mpc(self, length):
-        r"""
-        Convert length from box units to :math:`\mathrm{cMpc}` (with
-        :math:`h=0.705`).
+        conv = (self._unit_l / units.kpc.to(units.cm) / self._aexp) * 1e-3
+        conv *= self._h
+        return length * conv
 
-        Parameters
-        ----------
-        length : float
-            Length in box units.
+    def solarmass2box(self, mass):
+        conv = (self._unit_d * self._unit_l**3) / self._Msuncgs
+        conv *= self.h
+        return mass / conv
 
-        Returns
-        -------
-        length : float
-            Length in :math:`\mathrm{ckpc}`
-        """
-        return self.box2kpc(length) * 1e-3
+    def box2solarmass(self, mass):
+        conv = (self._unit_d * self._unit_l**3) / self._Msuncgs
+        conv *= self.h
+        return mass * conv
 
     def box2vel(self, vel):
         r"""
@@ -304,82 +324,13 @@ class CSiBORGBox(BaseBox):
         """
         return vel * (1e-2 * self._unit_l / self._unit_t / self._aexp) * 1e-3
 
-    def solarmass2box(self, mass):
-        r"""
-        Convert mass from :math:`M_\odot` (with :math:`h=0.705`) to box units.
-
-        Parameters
-        ----------
-        mass : float
-            Mass in :math:`M_\odot`.
-
-        Returns
-        -------
-        mass : float
-            Mass in box units.
-        """
-        return mass / (self._unit_d * self._unit_l**3) * self._Msuncgs
-
-    def box2solarmass(self, mass):
-        r"""
-        Convert mass from box units to :math:`M_\odot` (with :math:`h=0.705`).
-        It appears that `self.unit_d` is density in units of
-        :math:`\mathrm{g}/\mathrm{cm}^3`.
-
-        Parameters
-        ----------
-        mass : float
-            Mass in box units.
-
-        Returns
-        -------
-        mass : float
-            Mass in :math:`M_\odot`.
-        """
-        return mass * (self._unit_d * self._unit_l**3) / self._Msuncgs
-
-    def box2dens(self, density):
-        r"""
-        Convert density from box units to :math:`M_\odot / \mathrm{Mpc}^3`
-        (with :math:`h=0.705`).
-
-        Parameters
-        ----------
-        density : float
-            Density in box units.
-
-        Returns
-        -------
-        density : float
-            Density in :math:`M_\odot / \mathrm{pc}^3`.
-        """
-        return (density * self._unit_d
-                / self._Msuncgs * (units.Mpc.to(units.cm)) ** 3)
-
-    def dens2box(self, density):
-        r"""
-        Convert density from :math:`M_\odot / \mathrm{Mpc}^3`
-        (with :math:`h=0.705`) to box units.
-
-        Parameters
-        ----------
-        density : float
-            Density in :math:`M_\odot / \mathrm{pc}^3`.
-
-        Returns
-        -------
-        density : float
-            Density in box units.
-        """
-        return (density / self._unit_d * self._Msuncgs
-                / (units.Mpc.to(units.cm)) ** 3)
-
     def convert_from_box(self, data, names):
         names = [names] if isinstance(names, str) else names
         transforms = {"length": self.box2mpc,
                       "mass": self.box2solarmass,
                       "velocity": self.box2vel,
-                      "density": self.box2dens}
+                      # "density": self.box2dens,
+                      }
 
         for name in names:
             if name not in data.dtype.names:
@@ -428,10 +379,10 @@ class QuijoteBox(BaseBox):
     def __init__(self, nsnap, nsim, paths):
         zdict = {4: 0.0, 3: 0.5, 2: 1.0, 1: 2.0, 0: 3.0}
         assert nsnap in zdict.keys(), f"`nsnap` must be in {zdict.keys()}."
-        self._aexp = 1 / (1 + zdict[nsnap])
-
         info = QuijoteReader(paths).read_info(nsnap, nsim)
-        self._cosmo = LambdaCDM(H0=info["Hubble"], Om0=info["Omega_m"],
+        self._aexp = 1 / (1 + zdict[nsnap])
+        self._h = info["h"]
+        self._cosmo = LambdaCDM(H0=100, Om0=info["Omega_m"],
                                 Ode0=info["Omega_l"], Tcmb0=2.725 * units.K)
         self._info = info
 
@@ -440,35 +391,9 @@ class QuijoteBox(BaseBox):
         return self._info["BoxSize"]
 
     def box2mpc(self, length):
-        r"""
-        Convert length from box units to :math:`\mathrm{cMpc} / h`.
-
-        Parameters
-        ----------
-        length : float
-            Length in box units.
-
-        Returns
-        -------
-        length : float
-            Length in :math:`\mathrm{cMpc} / h`
-        """
         return length * self.boxsize
 
     def mpc2box(self, length):
-        r"""
-        Convert length from :math:`\mathrm{cMpc} / h` to box units.
-
-        Parameters
-        ----------
-        length : float
-            Length in :math:`\mathrm{cMpc} / h`.
-
-        Returns
-        -------
-        length : float
-            Length in box units.
-        """
         return length / self.boxsize
 
     def solarmass2box(self, mass):
