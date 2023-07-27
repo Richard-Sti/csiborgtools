@@ -601,6 +601,7 @@ class QuijoteReader:
                "h": header.hubble,
                "redshift": header.redshift,
                }
+        out["TotMass"] = out["Nall"] * out["PartMass"]
         out["Hubble"] = (100.0 * numpy.sqrt(
             header.omega_m * (1.0 + header.redshift)**3 + header.omega_l))
         return out
@@ -656,9 +657,9 @@ class QuijoteReader:
         if verbose:
             print(f"{datetime.now()}: reading particle masses.")
         if return_structured:
-            out["M"] = info["PartMass"]
+            out["M"] = info["PartMass"] / info["ToTMass"]
         else:
-            out[:, 6] = info["PartMass"]
+            out[:, 6] = info["PartMass"] / info["ToTMass"]
 
         return out, pids
 
