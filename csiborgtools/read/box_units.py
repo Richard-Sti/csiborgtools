@@ -21,9 +21,9 @@ import numpy
 from astropy import constants, units
 from astropy.cosmology import LambdaCDM
 
-from .readsim import CSiBORGReader
+from .readsim import CSiBORGReader, QuijoteReader
 
-# Map of CSiBORG unit conversions
+
 CSIBORG_CONV_NAME = {
     "length": ["x", "y", "z", "peak_x", "peak_y", "peak_z", "Rs", "rmin",
                "rmax", "r200c", "r500c", "r200m", "r500m", "x0", "y0", "z0",
@@ -31,8 +31,14 @@ CSIBORG_CONV_NAME = {
     "velocity": ["vx", "vy", "vz"],
     "mass": ["mass_cl", "totpartmass", "m200c", "m500c", "mass_mmain", "M",
              "m200m", "m500m"],
-    "density": ["rho0"]}
+    "density": ["rho0"]
+    }
 
+QUIJOTE_CONV_NAME = {
+    "length": ["x", "y", "z", "x0", "y0", "z0", "Rs", "r200c", "r500c",
+               "r200m", "r500m", "lagpatch_size"],
+    "mass": ["group_mass", "totpartmass", "m200c", "m500c", "m200m", "m500m"],
+    }
 
 ###############################################################################
 #                              Base box                                       #
@@ -226,7 +232,7 @@ class CSiBORGBox(BaseBox):
 
         Returns
         -------
-        length : foat
+        length : float
             Length in :math:`\mathrm{ckpc}`
         """
         return length * (self._unit_l / units.kpc.to(units.cm) / self._aexp)
@@ -243,7 +249,7 @@ class CSiBORGBox(BaseBox):
 
         Returns
         -------
-        length : foat
+        length : float
             Length in box units.
         """
         return length / (self._unit_l / units.kpc.to(units.cm) / self._aexp)
@@ -260,7 +266,7 @@ class CSiBORGBox(BaseBox):
 
         Returns
         -------
-        length : foat
+        length : float
             Length in box units.
         """
         return self.kpc2box(length * 1e3)
@@ -277,7 +283,7 @@ class CSiBORGBox(BaseBox):
 
         Returns
         -------
-        length : foat
+        length : float
             Length in :math:`\mathrm{ckpc}`
         """
         return self.box2kpc(length) * 1e-3
@@ -419,17 +425,110 @@ class QuijoteBox(BaseBox):
         Empty keyword arguments. For backwards compatibility.
     """
 
-    def __init__(self, nsnap, **kwargs):
+    def __init__(self, nsnap, nsim, paths):
         zdict = {4: 0.0, 3: 0.5, 2: 1.0, 1: 2.0, 0: 3.0}
         assert nsnap in zdict.keys(), f"`nsnap` must be in {zdict.keys()}."
         self._aexp = 1 / (1 + zdict[nsnap])
 
-        self._cosmo = LambdaCDM(H0=67.11, Om0=0.3175, Ode0=0.6825,
-                                Tcmb0=2.725 * units.K, Ob0=0.049)
+        info = QuijoteReader(paths).read_info(nsnap, nsim)
+        self._cosmo = LambdaCDM(H0=info["Hubble"], Om0=info["Omega_m"],
+                                Ode0=info["Omega_l"], Tcmb0=2.725 * units.K)
+        self._info = info
 
     @property
     def boxsize(self):
-        return 1000. / (self._cosmo.H0.value / 100)
+        return self._info["BoxSize"]
+
+    def box2mpc(self, length):
+        r"""
+        Convert length from box units to :math:`\mathrm{cMpc} / h`.
+
+        Parameters
+        ----------
+        length : float
+            Length in box units.
+
+        Returns
+        -------
+        length : float
+            Length in :math:`\mathrm{cMpc} / h`
+        """
+        return length * self.boxsize
+
+    def mpc2box(self, length):
+        r"""
+        Convert length from :math:`\mathrm{cMpc} / h` to box units.
+
+        Parameters
+        ----------
+        length : float
+            Length in :math:`\mathrm{cMpc} / h`.
+
+        Returns
+        -------
+        length : float
+            Length in box units.
+        """
+        return length / self.boxsize
+
+    def solarmass2box(self, mass):
+        r"""
+        Convert mass from :math:`M_\odot / h` to box units.
+
+        Parameters
+        ----------
+        mass : float
+            Mass in :math:`M_\odot`.
+
+        Returns
+        -------
+        mass : float
+            Mass in box units.
+        """
+        return mass / self._info["TotMass"]
+
+    def box2solarmass(self, mass):
+        r"""
+        Convert mass from box units to :math:`M_\odot / h`.
+
+        Parameters
+        ----------
+        mass : float
+            Mass in box units.
+
+        Returns
+        -------
+        mass : float
+            Mass in :math:`M_\odot / h`.
+        """
+        return mass * self._info["TotMass"]
 
     def convert_from_box(self, data, names):
-        raise NotImplementedError("Conversion not implemented for Quijote.")
+        names = [names] if isinstance(names, str) else names
+        transforms = {"length": self.box2mpc,
+                      "mass": self.box2solarmass,
+                      # "velocity": self.box2vel,
+                      # "density": self.box2dens,
+                      }
+
+        for name in names:
+            if name not in data.dtype.names:
+                continue
+
+            # Convert
+            found = False
+            for unittype, suppnames in QUIJOTE_CONV_NAME.items():
+                if name in suppnames:
+                    data[name] = transforms[unittype](data[name])
+                    found = True
+                    continue
+            # If nothing found
+            if not found:
+                raise NotImplementedError(
+                    f"Conversion of `{name}` is not defined.")
+
+            # # Center at the observer
+            # if name in ["x0", "y0", "z0"]:
+            #     data[name] -= transforms["length"](0.5)
+
+        return data
