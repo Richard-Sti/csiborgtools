@@ -32,12 +32,13 @@ except ModuleNotFoundError:
 def pair_match(nsim0, nsimx, sigma, smoothen, verbose):
     # TODO fix this.
     simname = "csiborg"
+    overlapper_kwargs = {"box_size": 512, "box_halfsize": 475}
     from csiborgtools.read import CSiBORGHaloCatalogue, read_h5
 
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     smooth_kwargs = {"sigma": sigma, "mode": "constant", "cval": 0.0}
-    overlapper = csiborgtools.match.ParticleOverlap()
-    matcher = csiborgtools.match.RealisationsMatcher()
+    overlapper = csiborgtools.match.ParticleOverlap(**overlapper_kwargs)
+    matcher = csiborgtools.match.RealisationsMatcher(**overlapper_kwargs)
 
     # Load the raw catalogues (i.e. no selection) including the initial CM
     # positions and the particle archives.
