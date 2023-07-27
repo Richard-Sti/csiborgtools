@@ -434,10 +434,9 @@ class Paths:
         fname = f"parts_{str(nsim).zfill(5)}.h5"
         return join(fdir, fname)
 
-    def structfit(self, nsnap, nsim):
+    def structfit(self, nsnap, nsim, simname):
         """
-        Path to the clump or halo catalogue from `fit_halos.py`. Only CSiBORG
-        is supported.
+        Path to the halo catalogue from `fit_halos.py`.
 
         Parameters
         ----------
@@ -445,15 +444,26 @@ class Paths:
             Snapshot index.
         nsim : int
             IC realisation index.
+        simname : str
+            Simulation name. Must be one of `csiborg` or `quijote`.
 
         Returns
         -------
         path : str
         """
-        fdir = join(self.postdir, "structfit")
+        assert simname in ["csiborg", "quijote"]
+        if simname == "csiborg":
+            fdir = join(self.postdir, "structfit")
+            if not isdir(fdir):
+                mkdir(fdir)
+                warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
+            fname = f"out_{str(nsim).zfill(5)}_{str(nsnap).zfill(5)}.npy"
+            return join(fdir, fname)
+
+        fdir = join(self.quijote_dir, "structfit")
         if not isdir(fdir):
             mkdir(fdir)
-            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
+            warn(f"Created directory `{fdir}`.", UserWarning)
         fname = f"out_{str(nsim).zfill(5)}_{str(nsnap).zfill(5)}.npy"
         return join(fdir, fname)
 
