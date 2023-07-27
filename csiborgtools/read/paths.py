@@ -372,7 +372,7 @@ class Paths:
         Parameters
         ----------
         nsnap : int
-            Snapshot index.
+            Snapshot index. For Quijote, `-1` indicates the IC snapshot.
         nsim : int
             IC realisation index.
         simname : str
@@ -386,6 +386,8 @@ class Paths:
         if simname == "csiborg":
             return join(simpath, f"output_{str(nsnap).zfill(5)}")
         else:
+            if nsnap == -1:
+                return join(simpath, "ICs", "ics")
             nsnap = str(nsnap).zfill(3)
             return join(simpath, f"snapdir_{nsnap}", f"snap_{nsnap}")
 
