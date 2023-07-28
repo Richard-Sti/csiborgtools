@@ -24,6 +24,7 @@ from itertools import product
 from math import floor
 
 import numpy
+
 from readfof import FoF_catalog
 from sklearn.neighbors import NearestNeighbors
 
@@ -102,6 +103,17 @@ class BaseCatalogue(ABC):
             raise RuntimeError("`data` is not set!")
         return self._data
 
+    @abstractproperty
+    def box(self):
+        """
+        Box object.
+
+        Returns
+        -------
+        box : instance of :py:class:`csiborgtools.units.BoxUnits`
+        """
+        pass
+
     def load_initial(self, data, paths, simname):
         """
         Load initial snapshot fits from the script `fit_init.py`.
@@ -165,60 +177,82 @@ class BaseCatalogue(ABC):
 
         return data
 
-    def apply_bounds(self, bounds):
+    def filter_data(self, data, bounds):
         """
-        TODO: docs and fix this.
+        Filters data based on specified bounds for each key.
 
+        Parameters
+        ----------
+        data : structured array
+            The data to be filtered.
+        bounds : dict
+            A dictionary with keys corresponding to data columns or `dist` and
+            values as a tuple of `(xmin, xmax)`. If `xmin` or `xmax` is `None`,
+            it defaults to negative infinity and positive infinity,
+            respectively.
+
+        Returns
+        -------
+        data : structured array
+            The filtered data based on the provided bounds.
         """
         for key, (xmin, xmax) in bounds.items():
             xmin = -numpy.inf if xmin is None else xmin
             xmax = numpy.inf if xmax is None else xmax
+
             if key == "dist":
                 x = self.radial_distance(in_initial=False)
             else:
                 x = self[key]
-            self._data = self._data[(x > xmin) & (x <= xmax)]
 
-    @abstractproperty
-    def box(self):
-        """
-        Box object.
+            data = data[(x > xmin) & (x <= xmax)]
+
+        return data
+
+    @property
+    def observer_location(self):
+        r"""
+        Location of the observer in units :math:`\mathrm{Mpc} / h`.
 
         Returns
         -------
-        box : instance of :py:class:`csiborgtools.units.BoxUnits`
+            obs_pos : 1-dimensional array of shape `(3,)`
         """
-        pass
+        if self._observer_location is None:
+            raise RuntimeError("`observer_location` is not set!")
+        return self._observer_location
+
+    @observer_location.setter
+    def observer_location(self, obs_pos):
+        assert isinstance(obs_pos, (list, tuple, numpy.ndarray))
+        obs_pos = numpy.asanyarray(obs_pos)
+        assert obs_pos.shape == (3,)
+        self._observer_location = obs_pos
 
     def position(self, in_initial=False, cartesian=True):
         r"""
-        Position components. If not Cartesian, then RA is in :math:`[0, 360)`
-        degrees and DEC is in :math:`[-90, 90]` degrees.
+        Return position components (Cartesian or RA/DEC).
 
         Parameters
         ----------
         in_initial : bool, optional
-            Whether to return the initial snapshot positions.
+            Return initial snapshot positions if True.
         cartesian : bool, optional
-            Whether to return the Cartesian or spherical position components.
-            By default Cartesian.
+            Return Cartesian (default) or RA in [0, 360) and DEC in [-90, 90]
+            degrees.
 
         Returns
         -------
         pos : 2-dimensional array of shape `(nobjects, 3)`
         """
-        if in_initial:
-            ps = ["x0", "y0", "z0"]
-        else:
-            ps = ["x", "y", "z"]
+        suffix = '0' if in_initial else ''
+        ps = [f"{p}{suffix}" for p in ("x", "y", "z")]
         pos = numpy.vstack([self[p] for p in ps]).T
-        if not cartesian:
-            pos = cartesian_to_radec(pos)
-        return pos
+        return cartesian_to_radec(pos) if not cartesian else pos
 
     def velocity(self):
         r"""
-        Cartesian velocity components in :math:`\mathrm{km} / \mathrm{s}`.
+        Return Cartesian velocity in :math:`\mathrm{km} / \mathrm{s}`.
 
         Returns
         -------
@@ -244,6 +278,7 @@ class BaseCatalogue(ABC):
         -------
         pos : 2-dimensional array of shape `(nobjects, 3)`
         """
+        # TODO: check units here.
         pos = self.position(cartesian=True)
         vel = self.velocity()
         origin = [0., 0., 0.]
@@ -267,7 +302,7 @@ class BaseCatalogue(ABC):
         radial_distance : 1-dimensional array of shape `(nobjects,)`
         """
         pos = self.position(in_initial=in_initial, cartesian=True)
-        return numpy.linalg.norm(pos, axis=1)
+        return numpy.linalg.norm(pos - self.observer_location, axis=1)
 
     def angmomentum(self):
         """
@@ -420,10 +455,9 @@ class BaseCatalogue(ABC):
                 ind[i] = ind[i][mask]
         return dist, ind
 
-    @property
     def keys(self):
         """
-        Catalogue keys.
+        Return catalogue keys.
 
         Returns
         -------
@@ -432,11 +466,12 @@ class BaseCatalogue(ABC):
         return self.data.dtype.names
 
     def __getitem__(self, key):
+        # If key is an integer, return the corresponding row.
         if isinstance(key, (int, numpy.integer)):
             assert key >= 0
-            return self.data[key]
-        if key not in self.keys:
+        elif key not in self.keys:
             raise KeyError(f"Key '{key}' not in catalogue.")
+
         return self.data[key]
 
     def __len__(self):
@@ -450,10 +485,10 @@ class BaseCatalogue(ABC):
 
 class CSiBORGHaloCatalogue(BaseCatalogue):
     r"""
-    CSiBORG FoF halo catalogue. The following unit convention is assumed:
-        - Length is in :math:`cMpc / h`.
-        - Velocity is in :math:`km / s` TODO: this is currently not the case!!
-        - Mass is in :math:`M_\odot / h`.
+    CSiBORG FoF halo catalogue with units:
+        - Length: :math:`cMpc / h`
+        - Velocity: :math:`km / s` (NOTE: currently in CODE units!)
+        - Mass: :math:`M_\odot / h`
 
     Parameters
     ----------
@@ -461,23 +496,25 @@ class CSiBORGHaloCatalogue(BaseCatalogue):
         IC realisation index.
     paths : py:class`csiborgtools.read.Paths`
         Paths object.
+    observer_location : array, optional
+        Observer's location in :math:`\mathrm{Mpc} / h`.
     bounds : dict
-        Parameter bounds to apply to the catalogue. The keys are the parameter
-        names and the items are a len-2 tuple of (min, max) values. In case of
-        no minimum or maximum, use `None`. For radial distance from the origin
-        use `dist`.
+        Parameter bounds; keys as names, values as (min, max) tuples. Use
+        `dist` for radial distance, `None` for no bound.
     load_fitted : bool, optional
-        Whether to load fitted quantities.
+        Load fitted quantities.
     load_initial : bool, optional
-        Whether to load initial positions.
+        Load initial positions.
     with_lagpatch : bool, optional
-        Whether to only load halos with a resolved Lagrangian patch.
+        Load halos with a resolved Lagrangian patch.
     """
 
-    def __init__(self, nsim, paths, bounds={"dist": (0, 155.5)},
+    def __init__(self, nsim, paths, observer_location=[338.85, 338.85, 338.85],
+                 bounds={"dist": (0, 155.5)},
                  load_fitted=True, load_initial=True, with_lagpatch=True):
         self.nsim = nsim
         self.paths = paths
+        self.observer_location = observer_location
         reader = CSiBORGReader(paths)
         data = reader.read_fof_halos(self.nsim)
         box = self.box
@@ -488,6 +525,7 @@ class CSiBORGHaloCatalogue(BaseCatalogue):
         # Similarly mass in units of Msun / h
         data["fof_totpartmass"] *= box.h
         data["fof_m200c"] *= box.h
+        # Because of a RAMSES bug, we must flip the x and z coordinates
         flip_cols(data, 'x', 'z')
 
         if load_initial:
@@ -500,10 +538,10 @@ class CSiBORGHaloCatalogue(BaseCatalogue):
         if load_initial and with_lagpatch:
             data = data[numpy.isfinite(data["lagpatch_size"])]
 
+        if bounds is not None:
+            data = self.filter_data(data, bounds)
+
         self._data = data
-        # TODO fix this.
-        # if bounds is not None:
-        #     self.apply_bounds(bounds)
 
     @property
     def nsnap(self):
@@ -528,10 +566,10 @@ class CSiBORGHaloCatalogue(BaseCatalogue):
 
 class QuijoteHaloCatalogue(BaseCatalogue):
     r"""
-    Quijote FoF halo catalogue. The following unit convention is assumed:
-        - Length is in :math:`cMpc / h`.
-        - Velocity is in :math:`km / s`.
-        - Mass is in :math:`M_\odot / h`.
+    Quijote FoF halo catalogue with units:
+        - Length: :math:`cMpc / h`
+        - Velocity: :math:`km / s`
+        - Mass: :math:`M_\odot / h`
 
     Parameters
     ----------
@@ -541,29 +579,31 @@ class QuijoteHaloCatalogue(BaseCatalogue):
         Paths object.
     nsnap : int
         Snapshot index.
-    origin : len-3 tuple, optional
-        Where to place the origin of the box. In units of :math:`cMpc / h`.
+    observer_location : array, optional
+        Observer's location in :math:`\mathrm{Mpc} / h`.
     bounds : dict
-        Parameter bounds to apply to the catalogue. The keys are the parameter
-        names and the items are a len-2 tuple of (min, max) values. In case of
-        no minimum or maximum, use `None`. For radial distance from the origin
-        use `dist`.
+        Parameter bounds; keys as parameter names, values as (min, max)
+        tuples. Use `dist` for radial distance, `None` for no bound.
+    load_fitted : bool, optional
+        Load fitted quantities from `fit_halos.py`.
     load_initial : bool, optional
-        Whether to load initial positions.
+        Load initial positions from `fit_init.py`.
     with_lagpatch : bool, optional
-        Whether to only load halos with a resolved Lagrangian patch.
-    **kwargs : dict
-        Keyword arguments for backward compatibility.
+        Load halos with a resolved Lagrangian patch.
+    **kwargs
+        For backward compatibility.
     """
     _nsnap = None
     _origin = None
 
-    def __init__(self, nsim, paths, nsnap, origin=[500., 500., 500.],
+    def __init__(self, nsim, paths, nsnap,
+                 observer_location=[500., 500., 500.],
                  bounds=None, load_fitted=True, load_initial=True,
                  with_lagpatch=True, **kwargs):
+        self.nsim = nsim
         self.paths = paths
         self.nsnap = nsnap
-        self.origin = origin
+        self.observer_location = observer_location
         self._box = QuijoteBox(nsnap, nsim, paths)
         self._boxwidth = self.box.boxsize
 
@@ -581,7 +621,7 @@ class QuijoteHaloCatalogue(BaseCatalogue):
         pos = fof.GroupPos / 1e3
         vel = fof.GroupVel * (1 + self.redshift)
         for i, p in enumerate(["x", "y", "z"]):
-            data[p] = pos[:, i] - self.origin[i]
+            data[p] = pos[:, i]
             data["v" + p] = vel[:, i]
         data["group_mass"] = fof.GroupMass * 1e10
         data["npart"] = fof.GroupLen
@@ -597,9 +637,10 @@ class QuijoteHaloCatalogue(BaseCatalogue):
         if load_initial and with_lagpatch:
             data = data[numpy.isfinite(data["lagpatch_size"])]
 
-        self._data = data
         if bounds is not None:
-            self.apply_bounds(bounds)
+            data = self.filter_data(data, bounds)
+
+        self._data = data
 
     @property
     def nsnap(self):
@@ -631,34 +672,7 @@ class QuijoteHaloCatalogue(BaseCatalogue):
 
     @property
     def box(self):
-        """
-        Quijote box object.
-
-        Returns
-        -------
-        box : instance of :py:class:`csiborgtools.units.BaseBox`
-        """
         return self._box
-
-    @property
-    def origin(self):
-        """
-        Origin of the box with respect to the initial box units.
-
-        Returns
-        -------
-        origin : len-3 tuple
-        """
-        if self._origin is None:
-            raise ValueError("`origin` is not set.")
-        return self._origin
-
-    @origin.setter
-    def origin(self, origin):
-        if isinstance(origin, (list, tuple)):
-            origin = numpy.asanyarray(origin)
-        assert origin.ndim == 1 and origin.size == 3
-        self._origin = origin
 
     def pick_fiducial_observer(self, n, rmax):
         r"""
@@ -676,12 +690,14 @@ class QuijoteHaloCatalogue(BaseCatalogue):
         -------
         cat : instance of csiborgtools.read.QuijoteHaloCatalogue
         """
+        # TODO this needs to be corrected.
         new_origin = fiducial_observers(self.box.boxsize, rmax)[n]
         # We make a copy of the catalogue to avoid modifying the original.
         # Then, we shift coordinates back to the original box frame and then to
         # the new origin.
         cat = deepcopy(self)
         for i, p in enumerate(('x', 'y', 'z')):
+            # TODO check this. Rework this.
             cat._data[p] += self.origin[i]
             cat._data[p] -= new_origin[i]
 
@@ -696,26 +712,20 @@ class QuijoteHaloCatalogue(BaseCatalogue):
 
 def fiducial_observers(boxwidth, radius):
     """
-    Positions of fiducial observers in a box, such that that the box is
-    subdivided among them into spherical regions.
+    Compute observer positions in a box, subdivided into spherical regions.
 
     Parameters
     ----------
     boxwidth : float
-        Box width.
+        Width of the box.
     radius : float
         Radius of the spherical regions.
 
     Returns
     -------
-    origins : list of len-3 lists
-        Positions of the observers.
+    origins : list of lists
+        Positions of the observers, with each position as a len-3 list.
     """
-    nobs = floor(boxwidth / (2 * radius))  # Number of observers per dimension
-
-    origins = list(product([1, 3, 5], repeat=nobs))
-    for i in range(len(origins)):
-        origins[i] = list(origins[i])
-        for j in range(nobs):
-            origins[i][j] *= radius
-    return origins
+    nobs = floor(boxwidth / (2 * radius))
+    return [[val * radius for val in position]
+            for position in product([1, 3, 5], repeat=nobs)]
