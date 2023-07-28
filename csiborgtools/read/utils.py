@@ -80,7 +80,7 @@ def radec_to_cartesian(X, isdeg=True):
     return numpy.vstack([x, y, z]).T
 
 
-def real2redshift(pos, vel, origin, box, in_box_units, periodic_wrap=True,
+def real2redshift(pos, vel, observer_location, box, periodic_wrap=True,
                   make_copy=True):
     r"""
     Convert real-space position to redshift space position.
@@ -88,18 +88,13 @@ def real2redshift(pos, vel, origin, box, in_box_units, periodic_wrap=True,
     Parameters
     ----------
     pos : 2-dimensional array `(nsamples, 3)`
-        Real-space Cartesian position components.
+        Real-space Cartesian components in :math:`\mathrm{cMpc} / h`.
     vel : 2-dimensional array `(nsamples, 3)`
-        Cartesian velocity components.
-    origin : 1-dimensional array `(3,)`
-        Origin of the coordinate system in the `pos` reference frame.
+        Cartesian velocity in :math:`\mathrm{km} \mathrm{s}^{-1}`.
+    observer_location: 1-dimensional array `(3,)`
+        Observer location in :math:`\mathrm{cMpc} / h`.
     box : py:class:`csiborg.read.CSiBORGBox`
         Box units.
-    in_box_units: bool
-        Whether `pos` and `vel` are in box units. If not, position is assumed
-        to be in :math:`\mathrm{Mpc}`, velocity in
-        :math:`\mathrm{km} \mathrm{s}^{-1}` and math:`h=0.705`, or otherwise
-        matching the box.
     periodic_wrap : bool, optional
         Whether to wrap around the box, particles may be outside the default
         bounds once RSD is applied.
@@ -109,29 +104,27 @@ def real2redshift(pos, vel, origin, box, in_box_units, periodic_wrap=True,
     Returns
     -------
     pos : 2-dimensional array `(nsamples, 3)`
-        Redshift-space Cartesian position components, with an observer assumed
-        at the `origin`.
+        Redshift-space Cartesian position in :math:`\mathrm{cMpc} / h`.
     """
-    a = box._aexp
-    H0 = box.box_H0 if in_box_units else box.H0
-
     if make_copy:
         pos = numpy.copy(pos)
-    for i in range(3):
-        pos[:, i] -= origin[i]
 
+    # Place the observer at the origin
+    pos -= observer_location
+    # Dot product of position vector and velocity
+    vr_dot = numpy.sum(pos * vel, axis=1)
+    # Compute the norm squared of the displacement
     norm2 = numpy.sum(pos**2, axis=1)
-    dot = numpy.einsum("ij,ij->i", pos, vel)
-    pos *= (1 + a / H0 * dot / norm2).reshape(-1, 1)
-
-    for i in range(3):
-        pos[:, i] += origin[i]
+    pos *= (1 + box._aexp / box.H0 * vr_dot / norm2).reshape(-1, 1)
+    # Place the observer back at the original location
+    pos += observer_location
 
     if periodic_wrap:
-        boxsize = 1. if in_box_units else box.box2mpc(1.)
-        # Wrap around the box: x > 1 -> x - 1, x < 0 -> x + 1
-        pos[pos > boxsize] -= boxsize
-        pos[pos < 0] += boxsize
+        boxsize = box.box2mpc(1.)
+        # Wrap around the box.
+        pos = numpy.where(pos > boxsize, pos - boxsize, pos)
+        pos = numpy.where(pos < 0, pos + boxsize, pos)
+
     return pos
 
 
