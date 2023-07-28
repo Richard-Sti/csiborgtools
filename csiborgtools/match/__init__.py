@@ -15,4 +15,3 @@
 from .match import (ParticleOverlap, RealisationsMatcher,  # noqa
                     calculate_overlap, calculate_overlap_indxs,
                     cosine_similarity, find_neighbour)
-from .utils import concatenate_parts  # noqa
