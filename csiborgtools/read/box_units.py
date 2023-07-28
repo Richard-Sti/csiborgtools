@@ -198,51 +198,6 @@ class CSiBORGBox(BaseBox):
                                 Ob0=self._omega_b)
         self._Msuncgs = constants.M_sun.cgs.value  # Solar mass in grams
 
-    @property
-    def box_G(self):
-        """
-        Gravitational constant :math:`G` in box units. Given everything else
-        it looks like `self.unit_t` is in seconds.
-
-        Returns
-        -------
-        G : float
-        """
-        return constants.G.cgs.value * (self._unit_d * self._unit_t**2)
-
-    @property
-    def box_H0(self):
-        """
-        Present time Hubble constant :math:`H_0` in box units.
-
-        Returns
-        -------
-        H0 : float
-        """
-        return self.H0 * 1e5 / units.Mpc.to(units.cm) * self._unit_t
-
-    @property
-    def box_c(self):
-        """
-        Speed of light in box units.
-
-        Returns
-        -------
-        c : float
-        """
-        return constants.c.cgs.value * self._unit_t / self._unit_l
-
-    @property
-    def box_rhoc(self):
-        """
-        Critical density in box units.
-
-        Returns
-        -------
-        rhoc : float
-        """
-        return 3 * self.box_H0**2 / (8 * numpy.pi * self.box_G)
-
     def mpc2box(self, length):
         conv = (self._unit_l / units.kpc.to(units.cm) / self._aexp) * 1e-3
         conv *= self._h
