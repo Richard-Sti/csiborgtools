@@ -1008,3 +1008,43 @@ def radius_neighbours(knn, X, radiusX, radiusKNN, nmult=1.0,
             indxs[i] = indxs[i].astype(numpy.int32)
 
     return numpy.asarray(indxs, dtype=object)
+
+
+def find_neighbour(nsim0, cats):
+    """
+    Find the nearest neighbour of halos from a reference catalogue indexed
+    `nsim0` in the remaining simulations.
+
+    Parameters
+    ----------
+    nsim0 : int
+        Index of the reference simulation.
+    cats : dict
+        Dictionary of halo catalogues. Keys must be the simulation indices.
+
+    Returns
+    -------
+    dists : 2-dimensional array of shape `(nhalos, len(cats) - 1)`
+        Distances to the nearest neighbour.
+    cross_hindxs : 2-dimensional array of shape `(nhalos, len(cats) - 1)`
+        Halo indices of the nearest neighbour.
+    """
+    cat0 = cats[nsim0]
+    X = cat0.position(in_initial=False, subtract_observer=True)
+
+    nhalos = X.shape[0]
+    num_cats = len(cats) - 1
+
+    dists = numpy.full((nhalos, num_cats), numpy.nan, dtype=numpy.float32)
+    cross_hindxs = numpy.full((nhalos, num_cats), numpy.nan, dtype=numpy.int32)
+
+    # Filter out the reference simulation from the dictionary
+    filtered_cats = {k: v for k, v in cats.items() if k != nsim0}
+
+    for i, catx in enumerate(filtered_cats):
+        dist, ind = catx.nearest_neighbours(X, radius=1, in_initial=False,
+                                            knearest=True)
+        dists[:, i] = numpy.ravel(dist)
+        cross_hindxs[:, i] = catx["index"][numpy.ravel(ind)]
+
+    return dists, cross_hindxs
