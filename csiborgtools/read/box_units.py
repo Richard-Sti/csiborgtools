@@ -17,7 +17,6 @@ Simulation box unit transformations.
 """
 from abc import ABC, abstractmethod, abstractproperty
 
-import numpy
 from astropy import constants, units
 from astropy.cosmology import LambdaCDM
 
