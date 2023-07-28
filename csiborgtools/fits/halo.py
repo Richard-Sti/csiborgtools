@@ -85,7 +85,7 @@ class BaseStructure(ABC):
         """
         return numpy.vstack([self[p] for p in ("vx", "vy", "vz")]).T
 
-    def spherical_overdensity_mass(self, delta_mult, kind="crit", tol=1e-8,
+    def spherical_overdensity_mass(self, delta_mult, kind="crit", rtol=1e-8,
                                    maxiter=100, npart_min=10):
         r"""
         Calculate spherical overdensity mass and radius via the iterative
@@ -97,7 +97,7 @@ class BaseStructure(ABC):
             Overdensity multiple.
         kind : str, optional
             Either `crit` or `matter`, for critical or matter overdensity
-        tol : float, optional
+        rtol : float, optional
             Tolerance for the change in the center of mass or radius.
         maxiter : int, optional
             Maximum number of iterations.
@@ -107,63 +107,57 @@ class BaseStructure(ABC):
         Returns
         -------
         mass :  float
-            The requested spherical overdensity mass.
+            The requested spherical overdensity mass in :math:`M_\odot / h`.
         rad : float
-            The radius of the sphere enclosing the requested overdensity.
+            The radius of the sphere enclosing the requested overdensity in box
+            units.
         cm : 1-dimensional array of shape `(3, )`
             The center of mass of the sphere enclosing the requested
-            overdensity.
+            overdensity in box units.
         """
         assert kind in ["crit", "matter"]
-        rho = delta_mult * self.box.box_rhoc
+
+        # Calculate density based on the provided kind
+        rho = delta_mult * self.box.rho_crit0
         if kind == "matter":
             rho *= self.box.Om
-        pos = self.pos
-        mass = self["M"]
 
-        # Initial guesses
+        pos, mass = self.pos, self["M"]
+
+        # Initial estimates for center of mass and radius
         init_cm = center_of_mass(pos, mass, boxsize=1)
-        init_rad = mass_to_radius(numpy.sum(mass), rho) * 1.5
+        init_rad = self.box.mpc2box(mass_to_radius(numpy.sum(mass), rho) * 1.5)
 
-        rad = init_rad
-        cm = numpy.copy(init_cm)
+        rad, cm = init_rad, numpy.copy(init_cm)
 
-        success = False
-        for __ in range(maxiter):
-            # Calculate the distance of each particle from the current guess.
+        for _ in range(maxiter):
             dist = periodic_distance(pos, cm, boxsize=1)
             within_rad = dist <= rad
-            # Heuristic reset if there are too few enclosed particles.
+
+            # Heuristic reset if too few enclosed particles
             if numpy.sum(within_rad) < npart_min:
                 js = numpy.random.choice(len(self), len(self), replace=True)
                 cm = center_of_mass(pos[js], mass[js], boxsize=1)
-                rad = init_rad * (0.75 + numpy.random.rand())
+                rad = init_rad * (0.5 + numpy.random.rand())
                 dist = periodic_distance(pos, cm, boxsize=1)
                 within_rad = dist <= rad
 
-            # Calculate the enclosed mass for the current CM and radius.
             enclosed_mass = numpy.sum(mass[within_rad])
-
-            # Calculate the new CM and radius from this mass.
-            new_rad = mass_to_radius(enclosed_mass, rho)
+            new_rad = self.box.mpc2box(mass_to_radius(enclosed_mass, rho))
             new_cm = center_of_mass(pos[within_rad], mass[within_rad],
                                     boxsize=1)
 
-            # Update the CM and radius
-            prev_cm, cm = cm, new_cm
-            prev_rad, rad = rad, new_rad
+            # Check convergence based on center of mass and radius
+            cm_conv = numpy.linalg.norm(cm - new_cm) < rtol
+            rad_conv = abs(rad - new_rad) < rtol
 
-            # Check if the change in CM and radius is small enough.
-            dcm = numpy.linalg.norm(cm - prev_cm)
-            drad = abs(rad - prev_rad)
-            if dcm < tol or drad < tol:
-                success = True
-                break
+            if cm_conv or rad_conv:
+                return enclosed_mass, rad, cm
 
-        if not success:
-            return numpy.nan, numpy.nan, numpy.full(3, numpy.nan)
+            cm, rad = new_cm, new_rad
 
-        return enclosed_mass, rad, cm
+        # Return NaN values if no convergence after max iterations
+        return numpy.nan, numpy.nan, numpy.full(3, numpy.nan, numpy.float32)
 
     def angular_momentum(self, ref, rad, npart_min=10):
         """
