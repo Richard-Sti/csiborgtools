@@ -469,7 +469,7 @@ class BaseCatalogue(ABC):
         # If key is an integer, return the corresponding row.
         if isinstance(key, (int, numpy.integer)):
             assert key >= 0
-        elif key not in self.keys:
+        elif key not in self.keys():
             raise KeyError(f"Key '{key}' not in catalogue.")
 
         return self.data[key]
@@ -667,8 +667,7 @@ class QuijoteHaloCatalogue(BaseCatalogue):
         -------
         redshift : float
         """
-        z_dict = {4: 0.0, 3: 0.5, 2: 1.0, 1: 2.0, 0: 3.0}
-        return z_dict[self.nsnap]
+        return {4: 0.0, 3: 0.5, 2: 1.0, 1: 2.0, 0: 3.0}[self.nsnap]
 
     @property
     def box(self):
@@ -690,18 +689,9 @@ class QuijoteHaloCatalogue(BaseCatalogue):
         -------
         cat : instance of csiborgtools.read.QuijoteHaloCatalogue
         """
-        # TODO this needs to be corrected.
-        new_origin = fiducial_observers(self.box.boxsize, rmax)[n]
-        # We make a copy of the catalogue to avoid modifying the original.
-        # Then, we shift coordinates back to the original box frame and then to
-        # the new origin.
         cat = deepcopy(self)
-        for i, p in enumerate(('x', 'y', 'z')):
-            # TODO check this. Rework this.
-            cat._data[p] += self.origin[i]
-            cat._data[p] -= new_origin[i]
-
-        cat.apply_bounds({"dist": (0, rmax)})
+        cat.observer_location = fiducial_observers(self.box.boxsize, rmax)[n]
+        cat._data = cat.filter_data(cat._data, {"dist": (0, rmax)})
         return cat
 
 
