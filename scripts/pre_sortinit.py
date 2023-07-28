@@ -15,6 +15,10 @@
 """
 Script to sort the initial snapshot particles according to their final
 snapshot ordering, which is sorted by the halo IDs.
+
+Ensures the following units:
+    - Positions in box units.
+    - Masses in :math:`M_\odot / h`.
 """
 from argparse import ArgumentParser
 from datetime import datetime

@@ -11,11 +11,16 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-"""
+r"""
 Script to load in the simulation particles, sort them by their FoF halo ID and
 dump into a HDF5 file. Stores the first and last index of each halo in the
 particle array. This can be used for fast slicing of the array to acces
 particles of a single clump.
+
+Ensures the following units:
+    - Positions in box units.
+    - Velocities in :math:`\mathrm{km} / \mathrm{s}`.
+    - Masses in :math:`M_\odot / h`.
 """
 from argparse import ArgumentParser
 from datetime import datetime
