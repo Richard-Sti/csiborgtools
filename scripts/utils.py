@@ -89,9 +89,13 @@ def read_single_catalogue(args, config, nsim, run, rmax, paths, nobs=None):
         raise KeyError(f"No configuration for run {run}.")
     # We first read the full catalogue without applying any bounds.
     if args.simname == "csiborg":
-        cat = csiborgtools.read.CSiBORGHaloCatalogue(nsim, paths)
+        cat = csiborgtools.read.CSiBORGHaloCatalogue(
+            nsim, paths, load_fitted=True, load_inital=True,
+            with_lagpatch=False)
     else:
-        cat = csiborgtools.read.QuijoteHaloCatalogue(nsim, paths, nsnap=4)
+        cat = csiborgtools.read.QuijoteHaloCatalogue(
+            nsim, paths, nsnap=4, load_fitted=True, load_initial=True,
+            with_lagpatch=False)
         if nobs is not None:
             # We may optionally already here pick a fiducial observer.
             cat = cat.pick_fiducial_observer(nobs, args.Rmax)

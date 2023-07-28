@@ -170,9 +170,6 @@ class BaseCatalogue(ABC):
         data = add_columns(data, X, cols)
         box = self.box
 
-        for p in ("totpartmass", "m200c"):
-            data[p] = box.box2solarmass(data[p])
-
         data["r200c"] = box.box2mpc(data["r200c"])
 
         return data
@@ -494,7 +491,7 @@ class CSiBORGHaloCatalogue(BaseCatalogue):
     r"""
     CSiBORG FoF halo catalogue with units:
         - Length: :math:`cMpc / h`
-        - Velocity: :math:`km / s` (NOTE: currently in CODE units!)
+        - Velocity: :math:`km / s`
         - Mass: :math:`M_\odot / h`
 
     Parameters
@@ -518,7 +515,7 @@ class CSiBORGHaloCatalogue(BaseCatalogue):
 
     def __init__(self, nsim, paths, observer_location=[338.85, 338.85, 338.85],
                  bounds={"dist": (0, 155.5)},
-                 load_fitted=True, load_initial=True, with_lagpatch=True):
+                 load_fitted=True, load_initial=True, with_lagpatch=False):
         self.nsim = nsim
         self.paths = paths
         self.observer_location = observer_location
@@ -597,8 +594,6 @@ class QuijoteHaloCatalogue(BaseCatalogue):
         Load initial positions from `fit_init.py`.
     with_lagpatch : bool, optional
         Load halos with a resolved Lagrangian patch.
-    **kwargs
-        For backward compatibility.
     """
     _nsnap = None
     _origin = None
@@ -606,7 +601,7 @@ class QuijoteHaloCatalogue(BaseCatalogue):
     def __init__(self, nsim, paths, nsnap,
                  observer_location=[500., 500., 500.],
                  bounds=None, load_fitted=True, load_initial=True,
-                 with_lagpatch=True, **kwargs):
+                 with_lagpatch=False):
         self.nsim = nsim
         self.paths = paths
         self.nsnap = nsnap

@@ -59,12 +59,12 @@ def get_counts(nsim, bins, paths, parser_args):
 
     if simname == "csiborg":
         cat = csiborgtools.read.CSiBORGHaloCatalogue(
-            nsim, paths, bounds=bounds, with_lagpatch=False,
-            load_initial=False)
+            nsim, paths, bounds=bounds, load_initial=False)
         logmass = numpy.log10(cat["totpartmass"])
         counts = csiborgtools.fits.number_counts(logmass, bins)
     elif simname == "quijote":
-        cat0 = csiborgtools.read.QuijoteHaloCatalogue(nsim, paths, nsnap=4)
+        cat0 = csiborgtools.read.QuijoteHaloCatalogue(nsim, paths, nsnap=4,
+                                                      load_initial=False)
         nmax = int(cat0.box.boxsize // (2 * parser_args.Rmax))**3
         counts = numpy.full((nmax, len(bins) - 1), numpy.nan,
                             dtype=numpy.float32)
@@ -74,7 +74,8 @@ def get_counts(nsim, bins, paths, parser_args):
             logmass = numpy.log10(cat["group_mass"])
             counts[nobs, :] = csiborgtools.fits.number_counts(logmass, bins)
     elif simname == "quijote_full":
-        cat = csiborgtools.read.QuijoteHaloCatalogue(nsim, paths, nsnap=4)
+        cat = csiborgtools.read.QuijoteHaloCatalogue(nsim, paths, nsnap=4,
+                                                     load_initial=False)
         logmass = numpy.log10(cat["group_mass"])
         counts = csiborgtools.fits.number_counts(logmass, bins)
     else:

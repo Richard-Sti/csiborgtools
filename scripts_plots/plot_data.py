@@ -49,8 +49,10 @@ def open_csiborg(nsim):
     cat : csiborgtools.read.CSiBORGHaloCatalogue
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    bounds = {"totpartmass": (None, None), "dist": (0, 155/0.705)}
-    return csiborgtools.read.CSiBORGHaloCatalogue(nsim, paths, bounds=bounds)
+    bounds = {"totpartmass": (None, None), "dist": (0, 155)}
+    return csiborgtools.read.CSiBORGHaloCatalogue(
+        nsim, paths, bounds=bounds, load_fitted=True, load_initial=True,
+        with_lagpatch=False)
 
 
 def open_quijote(nsim, nobs=None):
@@ -69,9 +71,11 @@ def open_quijote(nsim, nobs=None):
     cat : csiborgtools.read.QuijoteHaloCatalogue
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    cat = csiborgtools.read.QuijoteHaloCatalogue(nsim, paths, nsnap=4)
+    cat = csiborgtools.read.QuijoteHaloCatalogue(
+        nsim, paths, nsnap=4, load_fitted=True, load_initial=True,
+        with_lagpatch=False)
     if nobs is not None:
-        cat = cat.pick_fiducial_observer(nobs, rmax=155.5 / 0.705)
+        cat = cat.pick_fiducial_observer(nobs, rmax=155.5)
     return cat
 
 

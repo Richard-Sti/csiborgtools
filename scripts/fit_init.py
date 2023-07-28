@@ -68,7 +68,8 @@ def _main(nsim, simname, verbose):
         cat = csiborgtools.read.CSiBORGHaloCatalogue(
             nsim, paths, rawdata=True, load_fitted=False, load_initial=False)
     else:
-        cat = csiborgtools.read.QuijoteHaloCatalogue(nsim, paths, nsnap=4)
+        cat = csiborgtools.read.QuijoteHaloCatalogue(
+            nsim, paths, nsnap=4, load_fitted=False, load_initial=False)
     hid2map = {hid: i for i, hid in enumerate(halo_map[:, 0])}
 
     # Initialise the overlapper.
