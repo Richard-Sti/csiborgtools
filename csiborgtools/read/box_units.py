@@ -62,6 +62,18 @@ class BaseBox(ABC):
         return self.cosmo.H0.value
 
     @property
+    def rho_crit0(self):
+        r"""
+        Present-day critical density in :math:`M_\odot h^2 / \mathrm{cMpc}^3`.
+
+        Returns
+        -------
+        rho_crit0 : float
+        """
+        rho_crit0 = self.cosmo.critical_density0
+        return rho_crit0.to_value(units.solMass / units.Mpc**3)
+
+    @property
     def h(self):
         r"""
         The little 'h' parameter at the time of the snapshot.
