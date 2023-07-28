@@ -531,6 +531,8 @@ class MmainReader:
         the position of the parent, the summed mass and the fraction of mass in
         substructure. Corresponds to the PHEW Halo finder.
 
+        NOTE: this code is no longer used and the units may be inconsistent.
+
         Parameters
         ----------
         nsim : int
@@ -642,8 +644,8 @@ class QuijoteReader:
 
         if verbose:
             print(f"{datetime.now()}: reading particle velocities.")
-        # NOTE convert to box units.
-        vel = readgadget.read_block(snapshot, "VEL ", ptype)  # km/s
+        # Unlike the positions, we keep velocities in km/s
+        vel = readgadget.read_block(snapshot, "VEL ", ptype)
         vel *= (1 + info["redshift"])
 
         for i, v in enumerate(['vx', 'vy', 'vz']):
@@ -657,9 +659,9 @@ class QuijoteReader:
         if verbose:
             print(f"{datetime.now()}: reading particle masses.")
         if return_structured:
-            out["M"] = info["PartMass"] / info["TotMass"]
+            out["M"] = info["PartMass"]
         else:
-            out[:, 6] = info["PartMass"] / info["TotMass"]
+            out[:, 6] = info["PartMass"]
 
         return out, pids
 
