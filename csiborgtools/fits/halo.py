@@ -20,6 +20,11 @@ from numba import jit
 from scipy.optimize import minimize
 
 
+GRAV = 6.6743e-11               # m^3 kg^-1 s^-2
+MSUN = 1.988409870698051e+30    # kg
+MPC2M = 3.0856775814671916e+22  # 1 Mpc is this many meters
+
+
 class BaseStructure(ABC):
     """
     Basic structure object for handling operations on its particles.
@@ -160,16 +165,17 @@ class BaseStructure(ABC):
         return numpy.nan, numpy.nan, numpy.full(3, numpy.nan, numpy.float32)
 
     def angular_momentum(self, ref, rad, npart_min=10):
-        """
+        r"""
         Calculate angular momentum around a reference point using all particles
-        within a radius. The angular momentum is returned in box units.
+        within a radius. Units are
+        :math:`(M_\odot / h) (\mathrm{Mpc} / h) \mathrm{km} / \mathrm{s}`.
 
         Parameters
         ----------
         ref : 1-dimensional array of shape `(3, )`
-            Reference point.
+            Reference point in box units.
         rad : float
-            Radius around the reference point.
+            Radius around the reference point in box units.
         npart_min : int, optional
             Minimum number of enclosed particles for a radius to be
             considered trustworthy.
@@ -178,16 +184,21 @@ class BaseStructure(ABC):
         -------
         angmom : 1-dimensional array or shape `(3, )`
         """
-        pos = self.pos
-        mask = periodic_distance(pos, ref, boxsize=1) < rad
-        if numpy.sum(mask) < npart_min:
-            return numpy.full(3, numpy.nan)
+        # Calculate the distance of each particle from the reference point.
+        distances = periodic_distance(self.pos, ref, boxsize=1)
 
-        mass = self["M"][mask]
-        pos = pos[mask]
-        vel = self.vel[mask]
-        # Velocitities in the object CM frame
+        # Filter particles within the provided radius.
+        mask = distances < rad
+        if numpy.sum(mask) < npart_min:
+            return numpy.full(3, numpy.nan, numpy.float32)
+
+        mass, pos, vel = self["M"][mask], self.pos[mask], self.vel[mask]
+
+        # Convert positions to Mpc / h and center around the reference point.
+        pos = self.box.box2mpc(pos) - ref
+        # Adjust velocities to be in the CM frame.
         vel -= numpy.average(vel, axis=0, weights=mass)
+        # Calculate angular momentum.
         return numpy.sum(mass[:, numpy.newaxis] * numpy.cross(pos, vel),
                          axis=0)
 
@@ -199,9 +210,9 @@ class BaseStructure(ABC):
         Parameters
         ----------
         ref : 1-dimensional array of shape `(3, )`
-            Reference point.
+            Reference point in box units.
         rad : float
-            Radius around the reference point.
+            Radius around the reference point in box units.
 
         Returns
         -------
@@ -213,12 +224,18 @@ class BaseStructure(ABC):
         Bullock, J. S.; Dekel, A.;  Kolatt, T. S.; Kravtsov, A. V.;
         Klypin, A. A.; Porciani, C.; Primack, J. R.
         """
-        pos = self.pos
-        mask = periodic_distance(pos, ref, boxsize=1) < rad
-        mass = numpy.sum(self["M"][mask])
-        circvel = numpy.sqrt(self.box.box_G * mass / rad)
-        angmom_norm = numpy.linalg.norm(self.angular_momentum(ref, rad))
-        return angmom_norm / (numpy.sqrt(2) * mass * circvel * rad)
+        # Filter particles within the provided radius
+        mask = periodic_distance(self.pos, ref, boxsize=1) < rad
+        # Calculate the total mass of the enclosed particles
+        enclosed_mass = numpy.sum(self["M"][mask])
+        # Convert the radius from box units to Mpc/h
+        rad_mpc = self.box.box2mpc(rad)
+        # Circular velocity in km/s
+        circvel = (GRAV * enclosed_mass * MSUN / (rad_mpc * MPC2M))**0.5 * 1e-3
+        # Magnitude of the angular momentum
+        l_norm = numpy.linalg.norm(self.angular_momentum(ref, rad))
+        # Compute and return the Bullock spin parameter
+        return l_norm / (numpy.sqrt(2) * enclosed_mass * circvel * rad_mpc)
 
     def nfw_concentration(self, ref, rad, conc_min=1e-3, npart_min=10):
         """
@@ -228,9 +245,9 @@ class BaseStructure(ABC):
         Parameters
         ----------
         ref : 1-dimensional array of shape `(3, )`
-            Reference point.
+            Reference point in box units.
         rad : float
-            Radius around the reference point.
+            Radius around the reference point in box units.
         conc_min : float
             Minimum concentration limit.
         npart_min : int, optional
@@ -241,42 +258,43 @@ class BaseStructure(ABC):
         -------
         conc : float
         """
-        pos = self.pos
-        dist = periodic_distance(pos, ref, boxsize=1)
+        dist = periodic_distance(self.pos, ref, boxsize=1)
         mask = dist < rad
+
         if numpy.sum(mask) < npart_min:
             return numpy.nan
 
-        dist = dist[mask]
-        weight = self["M"][mask]
+        dist, weight = dist[mask], self["M"][mask]
         weight /= numpy.mean(weight)
 
-        # We do the minimization in log space
-        def negll_nfw_concentration(log_c, xs, weight):
+        # Objective function for minimization
+        def negll_nfw_concentration(log_c, xs, w):
             c = 10**log_c
             ll = xs / (1 + c * xs)**2 * c**2
             ll *= (1 + c) / ((1 + c) * numpy.log(1 + c) - c)
-            ll = numpy.sum(numpy.log(weight * ll))
+            ll = numpy.sum(numpy.log(w * ll))
             return -ll
 
-        res = minimize(negll_nfw_concentration, x0=1.5,
+        initial_guess = 1.5
+        res = minimize(negll_nfw_concentration, x0=initial_guess,
                        args=(dist / rad, weight, ), method='Nelder-Mead',
                        bounds=((numpy.log10(conc_min), 5),))
 
         if not res.success:
             return numpy.nan
 
-        res = 10**res["x"][0]
-        if res < conc_min or numpy.isclose(res, conc_min):
+        conc_value = 10**res["x"][0]
+        if conc_value < conc_min or numpy.isclose(conc_value, conc_min):
             return numpy.nan
 
-        return res
+        return conc_value
 
     def __getitem__(self, key):
-        keys = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'M']
-        if key not in keys:
+        key_to_index = {'x': 0, 'y': 1, 'z': 2,
+                        'vx': 3, 'vy': 4, 'vz': 5, 'M': 6}
+        if key not in key_to_index:
             raise RuntimeError(f"Invalid key `{key}`!")
-        return self.particles[:, keys.index(key)]
+        return self.particles[:, key_to_index[key]]
 
     def __len__(self):
         return self.particles.shape[0]
@@ -298,7 +316,6 @@ class Halo(BaseStructure):
 
     def __init__(self, particles, box):
         self.particles = particles
-        # self.info = info
         self.box = box
 
 
