@@ -143,9 +143,14 @@ class BaseStructure(ABC):
             if numpy.sum(within_rad) < npart_min:
                 js = numpy.random.choice(len(self), len(self), replace=True)
                 cm = center_of_mass(pos[js], mass[js], boxsize=1)
-                rad = init_rad * (0.5 + numpy.random.rand())
+                rad = init_rad * (0.75 + numpy.random.rand())
                 dist = periodic_distance(pos, cm, boxsize=1)
                 within_rad = dist <= rad
+
+                # If there are still too few particles, then skip this
+                # iteration.
+                if numpy.sum(within_rad) < npart_min:
+                    continue
 
             enclosed_mass = numpy.sum(mass[within_rad])
             new_rad = self.box.mpc2box(mass_to_radius(enclosed_mass, rho))
