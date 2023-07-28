@@ -612,7 +612,6 @@ class QuijoteHaloCatalogue(BaseCatalogue):
         self.nsnap = nsnap
         self.observer_location = observer_location
         self._box = QuijoteBox(nsnap, nsim, paths)
-        self._boxwidth = self.box.boxsize
 
         fpath = self.paths.fof_cat(nsim, "quijote")
         fof = FoF_catalog(fpath, self.nsnap, long_ids=False, swap=False,
