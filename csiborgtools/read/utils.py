@@ -18,7 +18,6 @@ Various coordinate transformations.
 from os.path import isfile
 
 import numpy
-from astropy import units
 from h5py import File
 
 ###############################################################################
@@ -136,29 +135,6 @@ def real2redshift(pos, vel, origin, box, in_box_units, periodic_wrap=True,
     return pos
 
 
-def M200_to_R200(M200, cosmo):
-    r"""
-    Convert :math:M_{200} to :math:`R_{200}`.
-
-    Parameters
-    ----------
-    M200 : float
-        :math:`M_{200}` in :math:`M_{\odot}`.
-    cosmo : astropy cosmology object
-        Cosmology.
-
-    Returns
-    -------
-    R200 : float
-        :math:`R_{200}` in :math:`\mathrm{Mpc}`.
-    """
-    Msun = 1.98847e30
-    M200 = 1e14 * Msun * units.kg
-    rhoc = cosmo.critical_density0
-    R200 = (M200 / (4 * numpy.pi / 3 * 200 * rhoc))**(1. / 3)
-    return R200.to(units.Mpc).value
-
-
 ###############################################################################
 #                          Array manipulation                                 #
 ###############################################################################
@@ -173,215 +149,121 @@ def cols_to_structured(N, cols):
     N : int
         Structured array size.
     cols: list of tuples
-        Column names and dtypes. Each tuple must written as `(name, dtype)`.
+        Column names and dtypes. Each tuple must be written as `(name, dtype)`.
 
     Returns
     -------
     out : structured array
-        Initialised structured array.
+        Initialized structured array.
     """
-    if not isinstance(cols, list) and all(isinstance(c, tuple) for c in cols):
-        raise TypeError("`cols` must be a list of tuples.")
+    if not (isinstance(cols, list)
+            and all(isinstance(c, tuple) and len(c) == 2 for c in cols)):
+        raise TypeError("`cols` must be a list of (name, dtype) tuples.")
 
-    dtype = {"names": [col[0] for col in cols],
-             "formats": [col[1] for col in cols]}
+    names, formats = zip(*cols)
+    dtype = {"names": names, "formats": formats}
+
     return numpy.full(N, numpy.nan, dtype=dtype)
 
 
 def add_columns(arr, X, cols):
     """
-    Add new columns to a record array `arr`. Creates a new array.
+    Add new columns `X` to a record array `arr`. Creates a new array.
 
     Parameters
     ----------
-    arr : record array
-        Record array to add columns to.
-    X : (list of) 1-dimensional array(s) or 2-dimensional array
+    arr : structured array
+        Structured array to add columns to.
+    X : (list of) 1-dimensional array(s)
         Columns to be added.
     cols : str or list of str
         Column names to be added.
 
     Returns
     -------
-    out : record array
+    out : structured array
     """
-    # Make sure cols is a list of str and X a 2D array
     cols = [cols] if isinstance(cols, str) else cols
+
+    # Convert X to a list of 1D arrays for consistency
     if isinstance(X, numpy.ndarray) and X.ndim == 1:
-        X = X.reshape(-1, 1)
-    if isinstance(X, list) and all(x.ndim == 1 for x in X):
-        X = numpy.vstack([X]).T
-    if len(cols) != X.shape[1]:
-        raise ValueError("Number of columns of `X` does not match `cols`.")
-    if arr.size != X.shape[0]:
-        raise ValueError("Number of rows of `X` does not match size of `arr`.")
+        X = [X]
+    elif isinstance(X, numpy.ndarray):
+        raise ValueError("`X` should be a 1D array or a list of 1D arrays.")
 
-    # Get the new data types
-    dtype = arr.dtype.descr
-    for i, col in enumerate(cols):
-        dtype.append((col, X[i, :].dtype.descr[0][1]))
+    if len(X) != len(cols):
+        raise ValueError("Mismatch between `X` and `cols` lengths.")
 
-    # Fill in the old array
-    out = numpy.full(arr.size, numpy.nan, dtype=dtype)
+    if not all(isinstance(x, numpy.ndarray) and x.ndim == 1 for x in X):
+        raise ValueError("All elements of `X` should be 1D arrays.")
+
+    if not all(x.size == arr.size for x in X):
+        raise ValueError("All arrays in `X` must have the same size as `arr`.")
+
+    # Define new dtype
+    dtype = list(arr.dtype.descr) + [(col, x.dtype) for col, x in zip(cols, X)]
+
+    # Create a new array and fill in values
+    out = numpy.empty(arr.size, dtype=dtype)
     for col in arr.dtype.names:
         out[col] = arr[col]
-    for i, col in enumerate(cols):
-        out[col] = X[:, i]
+    for col, x in zip(cols, X):
+        out[col] = x
 
     return out
 
 
 def rm_columns(arr, cols):
     """
-    Remove columns `cols` from a record array `arr`. Creates a new array.
+    Remove columns `cols` from a structured array `arr`. Allocates a new array.
 
     Parameters
     ----------
-    arr : record array
-        Record array to remove columns from.
+    arr : structured array
+        Structured array to remove columns from.
     cols : str or list of str
         Column names to be removed.
 
     Returns
     -------
-    out : record array
+    out : structured array
     """
-    # Check columns we wish to delete are in the array
+    # Ensure cols is a list
     cols = [cols] if isinstance(cols, str) else cols
-    for col in cols:
-        if col not in arr.dtype.names:
-            raise ValueError("Column `{}` not in `arr`.".format(col))
 
-    # Get a new dtype without the cols to be deleted
-    new_dtype = []
-    for dtype, name in zip(arr.dtype.descr, arr.dtype.names, strict=True):
-        if name not in cols:
-            new_dtype.append(dtype)
+    # Check columns we wish to delete are in the array
+    missing_cols = [col for col in cols if col not in arr.dtype.names]
+    if missing_cols:
+        raise ValueError(f"Columns `{missing_cols}` not in `arr`.")
 
-    # Allocate a new array and fill it in.
-    out = numpy.full(arr.size, numpy.nan, new_dtype)
+    # Define new dtype without the cols to be deleted
+    new_dtype = [(n, dt) for n, dt in arr.dtype.descr if n not in cols]
+
+    # Allocate a new array and fill in values
+    out = numpy.empty(arr.size, dtype=new_dtype)
     for name in out.dtype.names:
         out[name] = arr[name]
 
     return out
 
 
-def list_to_ndarray(arrs, cols):
-    """
-    Convert a list of structured arrays of CSiBORG simulation catalogues to
-    an 3-dimensional array.
-
-    Parameters
-    ----------
-    arrs : list of structured arrays
-        List of CSiBORG catalogues.
-    cols : str or list of str
-        Columns to be extracted from the CSiBORG catalogues.
-
-    Returns
-    -------
-    out : 3-dimensional array
-        Catalogue array of shape `(n_realisations, n_samples, n_cols)`, where
-        `n_samples` is the maximum number of samples over the CSiBORG
-        catalogues.
-    """
-    if not isinstance(arrs, list):
-        raise TypeError("`arrs` must be a list of structured arrays.")
-    cols = [cols] if isinstance(cols, str) else cols
-
-    Narr = len(arrs)
-    Nobj_max = max([arr.size for arr in arrs])
-    Ncol = len(cols)
-    # Preallocate the array and fill it
-    out = numpy.full((Narr, Nobj_max, Ncol), numpy.nan)
-    for i in range(Narr):
-        Nobj = arrs[i].size
-        for j in range(Ncol):
-            out[i, :Nobj, j] = arrs[i][cols[j]]
-    return out
-
-
-def array_to_structured(arr, cols):
-    """
-    Create a structured array from a 2-dimensional array.
-
-    Parameters
-    ----------
-    arr : 2-dimensional array
-        Original array of shape `(n_samples, n_cols)`.
-    cols : list of str
-        Columns of the structured array
-
-    Returns
-    -------
-    out : structured array
-        Output structured array.
-    """
-    cols = [cols] if isinstance(cols, str) else cols
-    if arr.ndim != 2 and arr.shape[1] != len(cols):
-        raise TypeError("`arr` must be a 2D array `(n_samples, n_cols)`.")
-
-    dtype = {"names": cols, "formats": [arr.dtype] * len(cols)}
-    out = numpy.full(arr.shape[0], numpy.nan, dtype=dtype)
-    for i, col in enumerate(cols):
-        out[col] = arr[:, i]
-
-    return out
-
-
 def flip_cols(arr, col1, col2):
     """
-    Flip values in columns `col1` and `col2`. `arr` is passed by reference and
-    is not explicitly returned back.
+    Flip values in columns `col1` and `col2`. `arr` is modified in place.
 
     Parameters
     ----------
     arr : structured array
-        Array whose columns are to be converted.
+        Array whose columns are to be flipped.
     col1 : str
         First column name.
     col2 : str
         Second column name.
-
-    Returns
-    -------
-    None
     """
-    dum = numpy.copy(arr[col1])
-    arr[col1] = arr[col2]
-    arr[col2] = dum
+    if col1 not in arr.dtype.names or col2 not in arr.dtype.names:
+        raise ValueError(f"Both `{col1}` and `{col2}` must exist in `arr`.")
 
-
-def extract_from_structured(arr, cols):
-    """
-    Extract columns `cols` from a structured array. The  array dtype is set
-    to be that of the first column in `cols`.
-
-    Parameters
-    ----------
-    arr : structured array
-        Array from which to extract columns.
-    cols : list of str or str
-        Column to extract.
-
-    Returns
-    -------
-    out : 2- or 1-dimensional array
-        Array with shape `(n_particles, len(cols))`. If `len(cols)` is 1
-        flattens the array.
-    """
-    cols = [cols] if isinstance(cols, str) else cols
-    for col in cols:
-        if col not in arr.dtype.names:
-            raise ValueError(f"Invalid column `{col}`!")
-    # Preallocate an array and populate it
-    out = numpy.zeros((arr.size, len(cols)), dtype=arr[cols[0]].dtype)
-    for i, col in enumerate(cols):
-        out[:, i] = arr[col]
-    # Optionally flatten
-    if len(cols) == 1:
-        return out.reshape(-1, )
-    return out
+    arr[col1], arr[col2] = numpy.copy(arr[col2]), numpy.copy(arr[col1])
 
 
 ###############################################################################
