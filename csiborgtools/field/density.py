@@ -181,6 +181,8 @@ class DensityField(BaseField):
                 vel[:, [0, 2]] = vel[:, [2, 0]]
 
             if in_rsp:
+                raise NotImplementedError("Redshift space needs to be fixed.")
+                # TODO change how called + units.
                 pos = real2redshift(pos, vel, [0.5, 0.5, 0.5], self.box,
                                     in_box_units=True, periodic_wrap=True,
                                     make_copy=False)

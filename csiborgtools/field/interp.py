@@ -255,6 +255,8 @@ def field2rsp(*fields, parts, vobs, box, nbatch=30, flip_partsxz=True,
             pos[:, [0, 2]] = pos[:, [2, 0]]
             vel[:, [0, 2]] = vel[:, [2, 0]]
         # Then move the particles to redshift space.
+        # TODO here the function is now called differently and pos assumes
+        # different units.
         rsp_pos = real2redshift(pos, vel, [0.5, 0.5, 0.5], box,
                                 in_box_units=True, periodic_wrap=True,
                                 make_copy=True)
