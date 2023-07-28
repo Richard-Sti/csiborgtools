@@ -194,15 +194,18 @@ class BaseCatalogue(ABC):
             The filtered data based on the provided bounds.
         """
         for key, (xmin, xmax) in bounds.items():
-            xmin = -numpy.inf if xmin is None else xmin
-            xmax = numpy.inf if xmax is None else xmax
-
             if key == "dist":
-                x = self.radial_distance(in_initial=False)
+                pos = numpy.vstack([data[p] - self.observer_location[i]
+                                    for i, p in enumerate("xyz")]).T
+                values_to_filter = numpy.linalg.norm(pos, axis=1)
             else:
-                x = self[key]
+                values_to_filter = data[key]
 
-            data = data[(x > xmin) & (x <= xmax)]
+            min_bound = xmin if xmin is not None else -numpy.inf
+            max_bound = xmax if xmax is not None else numpy.inf
+
+            data = data[(values_to_filter > min_bound)
+                        & (values_to_filter <= max_bound)]
 
         return data
 
@@ -286,32 +289,25 @@ class BaseCatalogue(ABC):
         return numpy.vstack([self["v{}".format(p)] for p in ("x", "y", "z")]).T
 
     def redshift_space_position(self, cartesian=True):
-        r"""
-        Redshift space position components. If Cartesian, then in
-        :math:`\mathrm{cMpc}`. If spherical, then radius is in
-        :math:`\mathrm{cMpc}`, RA in :math:`[0, 360)` degrees and DEC in
-        :math:`[-90, 90]` degrees. Note that the position is defined as the
-        minimum of the gravitationl potential.
+        """
+        Calculates the position of objects in redshift space. Positions can be
+        returned  in either Cartesian coordinates (default) or spherical
+        coordinates (dist/RA/dec).
 
         Parameters
         ----------
         cartesian : bool, optional
-            Whether to return the Cartesian or spherical position components.
-            By default Cartesian.
+            Returns position in Cartesian coordinates if True, else in
+            spherical coordinates.
 
         Returns
         -------
         pos : 2-dimensional array of shape `(nobjects, 3)`
+            Position of objects in the desired coordinate system.
         """
-        # TODO: check units here.
-        pos = self.position(cartesian=True)
-        vel = self.velocity()
-        origin = [0., 0., 0.]
-        rsp = real2redshift(pos, vel, origin, self.box, in_box_units=False,
-                            make_copy=False)
-        if not cartesian:
-            rsp = cartesian_to_radec(rsp)
-        return rsp
+        rsp = real2redshift(self.position(cartesian=True), self.velocity(),
+                            self.observer_location, self.box, make_copy=False)
+        return rsp if cartesian else cartesian_to_radec(rsp)
 
     def angmomentum(self):
         """
