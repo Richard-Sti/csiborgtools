@@ -24,22 +24,6 @@ from astropy.cosmology import LambdaCDM
 from .readsim import CSiBORGReader, QuijoteReader
 
 
-CSIBORG_CONV_NAME = {
-    "length": ["x", "y", "z", "peak_x", "peak_y", "peak_z", "Rs", "rmin",
-               "rmax", "r200c", "r500c", "r200m", "r500m", "x0", "y0", "z0",
-               "lagpatch_size"],
-    "velocity": ["vx", "vy", "vz"],
-    "mass": ["mass_cl", "totpartmass", "m200c", "m500c", "mass_mmain", "M",
-             "m200m", "m500m"],
-    "density": ["rho0"]
-    }
-
-QUIJOTE_CONV_NAME = {
-    "length": ["x", "y", "z", "x0", "y0", "z0", "Rs", "r200c", "r500c",
-               "r200m", "r500m", "lagpatch_size"],
-    "mass": ["group_mass", "totpartmass", "m200c", "m500c", "m200m", "m500m"],
-    }
-
 ###############################################################################
 #                              Base box                                       #
 ###############################################################################
@@ -178,35 +162,6 @@ class BaseBox(ABC):
         """
         pass
 
-    @abstractmethod
-    def convert_from_box(self, data, names):
-        r"""
-        Convert columns named `names` in array `data` from box units to
-        physical units, such that
-            - length -> :math:`Mpc`,
-            - mass -> :math:`M_\odot`,
-            - velocity -> :math:`\mathrm{km} / \mathrm{s}`,
-            - density -> :math:`M_\odot / \mathrm{Mpc}^3`.
-
-        Any other conversions are currently not implemented. Note that the
-        array is passed by reference and directly modified, even though it is
-        also explicitly returned. Additionally centres the box coordinates on
-        the observer, if they are being transformed.
-
-        Parameters
-        ----------
-        data : structured array
-            Input array.
-        names : list of str
-            Columns to be converted.
-
-        Returns
-        -------
-        data : structured array
-            Input array with converted columns.
-        """
-        pass
-
 
 ###############################################################################
 #                              CSiBORG box                                    #
@@ -324,36 +279,6 @@ class CSiBORGBox(BaseBox):
         """
         return vel * (1e-2 * self._unit_l / self._unit_t / self._aexp) * 1e-3
 
-    def convert_from_box(self, data, names):
-        names = [names] if isinstance(names, str) else names
-        transforms = {"length": self.box2mpc,
-                      "mass": self.box2solarmass,
-                      "velocity": self.box2vel,
-                      # "density": self.box2dens,
-                      }
-
-        for name in names:
-            if name not in data.dtype.names:
-                continue
-
-            # Convert
-            found = False
-            for unittype, suppnames in CSIBORG_CONV_NAME.items():
-                if name in suppnames:
-                    data[name] = transforms[unittype](data[name])
-                    found = True
-                    continue
-            # If nothing found
-            if not found:
-                raise NotImplementedError(
-                    f"Conversion of `{name}` is not defined.")
-
-            # Center at the observer
-            if name in ["x0", "y0", "z0"]:
-                data[name] -= transforms["length"](0.5)
-
-        return data
-
     @property
     def boxsize(self):
         return self.box2mpc(1.)
@@ -427,33 +352,3 @@ class QuijoteBox(BaseBox):
             Mass in :math:`M_\odot / h`.
         """
         return mass * self._info["TotMass"]
-
-    def convert_from_box(self, data, names):
-        names = [names] if isinstance(names, str) else names
-        transforms = {"length": self.box2mpc,
-                      "mass": self.box2solarmass,
-                      # "velocity": self.box2vel,
-                      # "density": self.box2dens,
-                      }
-
-        for name in names:
-            if name not in data.dtype.names:
-                continue
-
-            # Convert
-            found = False
-            for unittype, suppnames in QUIJOTE_CONV_NAME.items():
-                if name in suppnames:
-                    data[name] = transforms[unittype](data[name])
-                    found = True
-                    continue
-            # If nothing found
-            if not found:
-                raise NotImplementedError(
-                    f"Conversion of `{name}` is not defined.")
-
-            # # Center at the observer
-            # if name in ["x0", "y0", "z0"]:
-            #     data[name] -= transforms["length"](0.5)
-
-        return data
