@@ -75,6 +75,13 @@ def _main(nsim, simname, verbose):
         nsnap = -1
     part0, pid0 = partreader.read_particle(
         nsnap, nsim, pars_extract, return_structured=False, verbose=verbose)
+
+    # In CSiBORG we need to convert particle masses from box units.
+    if simname == "csiborg":
+        box = csiborgtools.read.CSiBORGBox(
+            max(paths.get_snapshots(nsim, simname)), nsim, paths)
+        part0[:, 3] = box.box2solarmass(part0[:, 3])
+
     # Quijote's initial snapshot information also contains velocities but we
     # don't need those.
     if simname == "quijote":

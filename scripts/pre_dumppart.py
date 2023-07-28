@@ -118,6 +118,14 @@ def main(nsim, simname, verbose):
         pars_extract = None
     parts, pids = partreader.read_particle(
         nsnap, nsim, pars_extract, return_structured=False, verbose=verbose)
+
+    # In case of CSiBORG, we need to convert the mass and velocities from
+    # box units.
+    if simname == "csiborg":
+        box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
+        parts[:, [3, 4, 5]] = box.box2vel(parts[:, [3, 4, 5]])
+        parts[:, 6] = box.box2solarmass(parts[:, 6])
+
     # Now we in two steps save the particles and particle IDs.
     if verbose:
         print(f"{datetime.now()}: dumping particles from {nsim}.", flush=True)
