@@ -99,7 +99,7 @@ def plot_knn(runname):
 #                              color=cols[k % len(cols)], zorder=0)
 
         plt.legend()
-        plt.xlabel(r"$r~[\mathrm{Mpc}]$")
+        plt.xlabel(r"$r~[\mathrm{Mpc} / h]$")
         plt.ylabel(r"$P(k | V = 4 \pi r^3 / 3)$")
 
         for ext in ["png"]:

@@ -105,7 +105,7 @@ def plot_mass_vs_ncells(nsim, pdf=False):
         plt.yscale("log")
         for n in [1, 10, 100]:
             plt.axvline(n * 512 * mpart, c="black", ls="--", zorder=0, lw=0.8)
-        plt.xlabel(r"$M_{\rm tot} / M_\odot$")
+        plt.xlabel(r"$M_{\rm tot} ~ [M_\odot$ / h]")
         plt.ylabel(r"$N_{\rm cells}$")
 
         for ext in ["png"] if pdf is False else ["png", "pdf"]:
@@ -202,7 +202,7 @@ def plot_hmf(pdf=False):
         ax[1].axhline(1, color="k", ls=plt.rcParams["lines.linestyle"],
                       lw=0.5 * plt.rcParams["lines.linewidth"], zorder=0)
         ax[0].set_ylabel(r"$\frac{\mathrm{d} n}{\mathrm{d}\log M_{\rm h}}~\mathrm{dex}^{-1}$")  # noqa
-        ax[1].set_xlabel(r"$M_{\rm h}$ [$M_\odot$]")
+        ax[1].set_xlabel(r"$M_{\rm h}~[M_\odot / h]$")
         ax[1].set_ylabel(r"$\mathrm{CSiBORG} / \mathrm{Quijote}$")
 
         ax[0].set_xscale("log")
@@ -272,7 +272,7 @@ def plot_hmf_quijote_full(pdf=False):
                       lw=0.5 * plt.rcParams["lines.linewidth"], zorder=0)
         ax[0].set_ylabel(r"$\frac{\mathrm{d}^2 n}{\mathrm{d}\log M_{\rm h} \mathrm{d} V}~[\mathrm{dex}^{-1} (\mathrm{Mpc / h})^{-3}]$",  # noqa
                          fontsize="small")
-        ax[1].set_xlabel(r"$M_{\rm h}$ [$M_\odot$]")
+        ax[1].set_xlabel(r"$M_{\rm h}~[$M_\odot / h]$", fontsize="small")
         ax[1].set_ylabel(r"$\mathrm{HMF} / \langle \mathrm{HMF} \rangle$",
                          fontsize="small")
 

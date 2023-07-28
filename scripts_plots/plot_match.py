@@ -54,7 +54,7 @@ def open_cat(nsim):
     cat : csiborgtools.read.CSiBORGHaloCatalogue
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    bounds = {"totpartmass": (1e12, None)}
+    bounds = {"dist": (0, 155), "totpartmass": (1e12, None)}
     return csiborgtools.read.CSiBORGHaloCatalogue(nsim, paths, bounds=bounds)
 
 
@@ -86,7 +86,7 @@ def plot_mass_vs_pairoverlap(nsim0, nsimx):
         plt.hexbin(x, y, mincnt=1, bins="log",
                    gridsize=50)
         plt.colorbar(label="Counts in bins")
-        plt.xlabel(r"$\log M_{\rm tot} / M_\odot$")
+        plt.xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
         plt.ylabel("Pair overlap")
         plt.ylim(0., 1.)
 
@@ -130,7 +130,7 @@ def plot_mass_vs_maxpairoverlap(nsim0, nsimx):
         plt.hexbin(x, y, mincnt=1, bins="log",
                    gridsize=50)
         plt.colorbar(label="Counts in bins")
-        plt.xlabel(r"$\log M_{\rm tot} / M_\odot$")
+        plt.xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
         plt.ylabel("Maximum pair overlap")
         plt.ylim(0., 1.)
 
@@ -214,9 +214,9 @@ def plot_mass_vsmedmaxoverlap(nsim0):
                             numpy.nanstd(max_overlap, axis=1), gridsize=30,
                             C=x, reduce_C_function=numpy.nanmean)
 
-        axs[0].set_xlabel(r"$\log M_{\rm tot} / M_\odot$")
+        axs[0].set_xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
         axs[0].set_ylabel(r"Mean max. pair overlap")
-        axs[1].set_xlabel(r"$\log M_{\rm tot} / M_\odot$")
+        axs[1].set_xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
         axs[1].set_ylabel(r"Uncertainty of max. pair overlap")
         axs[2].set_xlabel(r"Mean max. pair overlap")
         axs[2].set_ylabel(r"Uncertainty of max. pair overlap")
@@ -287,14 +287,15 @@ def plot_summed_overlap_vs_mass(nsim0):
         axs[2].plot(t, t, color="red", linestyle="--")
         axs[0].set_ylim(0.)
         axs[1].set_ylim(0.)
-        axs[0].set_xlabel(r"$\log M_{\rm tot} / M_\odot$")
+        axs[0].set_xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
         axs[0].set_ylabel("Mean summed overlap")
-        axs[1].set_xlabel(r"$\log M_{\rm tot} / M_\odot$")
+        axs[1].set_xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
         axs[1].set_ylabel("Uncertainty of summed overlap")
         axs[2].set_xlabel(r"$1 - $ mean summed overlap")
         axs[2].set_ylabel("Mean prob. of no match")
 
-        label = ["Bin counts", "Bin counts", r"$\log M_{\rm tot} / M_\odot$"]
+        label = ["Bin counts", "Bin counts",
+                 r"$\log M_{\rm tot} ~ [M_\odot / h]$"]
         ims = [im1, im2, im3]
         for i in range(3):
             axins = inset_axes(axs[i], width="100%", height="5%",
@@ -338,7 +339,7 @@ def plot_mass_vs_separation(nsim0, nsimx, plot_std=False, min_overlap=0.0):
     catx = open_cat(nsimx)
 
     reader = csiborgtools.read.PairOverlap(cat0, catx, paths,
-                                           maxdist=155 / 0.705)
+                                           maxdist=155)
     mass = numpy.log10(reader.cat0("totpartmass"))
     dist = reader.dist(in_initial=False, norm_kind="r200c")
     overlap = reader.overlap(True)
@@ -373,7 +374,7 @@ def plot_mass_vs_separation(nsim0, nsimx, plot_std=False, min_overlap=0.0):
         ax.plot(xrange, numpy.polyval(p, xrange), color="red",
                 linestyle="--")
         fig.colorbar(cx, label="Bin counts")
-        ax.set_xlabel(r"$\log M_{\rm tot} / M_\odot$")
+        ax.set_xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
         ax.set_ylabel(r"$\log \langle \Delta R / R_{\rm 200c}\rangle$")
 
         fig.tight_layout()
@@ -460,10 +461,10 @@ def plot_maxoverlap_mass(nsim0):
         axs[0].plot(t, t + 0.2, color="red", linestyle="--", alpha=0.5)
         axs[0].plot(t, t - 0.2, color="red", linestyle="--", alpha=0.5)
 
-        axs[0].set_xlabel(r"$\log M_{\rm tot} / M_\odot$")
-        axs[1].set_xlabel(r"$\log M_{\rm tot} / M_\odot$")
-        axs[0].set_ylabel(r"Max. overlap mean of $\log M_{\rm tot} / M_\odot$")
-        axs[1].set_ylabel(r"Max. overlap std. of $\log M_{\rm tot} / M_\odot$")
+        axs[0].set_xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
+        axs[1].set_xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
+        axs[0].set_ylabel(r"Max. overlap mean of $\log M_{\rm tot} ~ [M_\odot / h]$")
+        axs[1].set_ylabel(r"Max. overlap std. of $\log M_{\rm tot} ~ [M_\odot / h]$")
 
         ims = [im0, im1]
         for i in range(2):
@@ -518,9 +519,9 @@ def plot_maxoverlapstat(nsim0, key):
         m = numpy.isfinite(key_val) & numpy.isfinite(mu)
         print("True to expectation corr: ", kendalltau(key_val[m], mu[m]))
 
-        axs[0].set_xlabel(r"$\log M_{\rm tot} / M_\odot$")
+        axs[0].set_xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
         axs[0].set_ylabel(r"Max. overlap mean of ${}$".format(key_label))
-        axs[1].set_xlabel(r"$\log M_{\rm tot} / M_\odot$")
+        axs[1].set_xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
         axs[1].set_ylabel(r"Max. overlap std. of ${}$".format(key_label))
         axs[2].set_xlabel(r"${}$".format(key_label))
         axs[2].set_ylabel(r"Max. overlap mean of ${}$".format(key_label))
@@ -622,10 +623,9 @@ def plot_mass_vs_expected_mass(nsim0, min_overlap=0, max_prob_nomatch=1):
                             gridsize=50, C=mass[mask],
                             reduce_C_function=numpy.nanmedian)
         axs[2].axhline(0, color="red", linestyle="--", alpha=0.5)
-
-        axs[0].set_xlabel(r"True $\log M_{\rm tot} / M_\odot$")
-        axs[0].set_ylabel(r"Expected $\log M_{\rm tot} / M_\odot$")
-        axs[1].set_xlabel(r"True $\log M_{\rm tot} / M_\odot$")
+        axs[0].set_xlabel(r"True $\log M_{\rm tot} ~ [M_\odot / h]$")
+        axs[0].set_ylabel(r"Expected $\log M_{\rm tot} ~ [M_\odot / h]$")
+        axs[1].set_xlabel(r"True $\log M_{\rm tot} ~ [M_\odot / h]$")
         axs[1].set_ylabel(r"Std. of $\sigma_{\log M_{\rm tot}}$")
         axs[2].set_xlabel(r"1 - median prob. of no match")
         axs[2].set_ylabel(r"$\log M_{\rm tot} - \log M_{\rm tot, exp}$")
@@ -636,7 +636,8 @@ def plot_mass_vs_expected_mass(nsim0, min_overlap=0, max_prob_nomatch=1):
         axs[0].plot(t, t - 0.2, color="red", linestyle="--", alpha=0.5)
 
         ims = [im0, im1, im2]
-        labels = ["Bin counts", "Bin counts", r"$\log M_{\rm tot}$"]
+        labels = ["Bin counts", "Bin counts",
+                  r"$\log M_{\rm tot} ~ [M_\odot / h]$"]
         for i in range(3):
             axins = inset_axes(axs[i], width="100%", height="5%",
                                loc='upper center', borderpad=-0.75)
@@ -758,10 +759,10 @@ def plot_dist(run, kind, kwargs, runs_to_mass, pulled_cdf=False, r200=None):
 
         fig, ax = plt.subplots()
         if run != "mass009":
-            ax.set_title(r"${} \leq \log M_{{\rm tot}} / M_\odot < {}$"
+            ax.set_title(r"${} \leq \log M_{{\rm tot}} / (M_\odot  h) < {}$"
                          .format(*runs_to_mass[run]), fontsize="small")
         else:
-            ax.set_title(r"$\log M_{{\rm tot}} / M_\odot \geq {}$"
+            ax.set_title(r"$\log M_{{\rm tot}} / (M_\odot h) \geq {}$"
                          .format(runs_to_mass[run][0]), fontsize="small")
         # Plot data
         nrad = y_csiborg.shape[0]
@@ -778,12 +779,12 @@ def plot_dist(run, kind, kwargs, runs_to_mass, pulled_cdf=False, r200=None):
             ax.plot(x2, y2, c="gray", ls="--",
                     label="Quijote" if i == 0 else None)
 
-        fig.colorbar(cmap, ax=ax, label=r"$R_{\rm dist}~[\mathrm{Mpc}]$")
+        fig.colorbar(cmap, ax=ax, label=r"$R_{\rm dist}~[\mathrm{Mpc} / h]$")
         ax.grid(alpha=0.5, lw=0.4)
         # Plot labels
         if pulled_cdf:
             if r200 is None:
-                ax.set_xlabel(r"$\tilde{r}_{1\mathrm{NN}}~[\mathrm{Mpc}]$")
+                ax.set_xlabel(r"$\tilde{r}_{1\mathrm{NN}}~[\mathrm{Mpc} / h]$")
                 if kind == "pdf":
                     ax.set_ylabel(r"$p(\tilde{r}_{1\mathrm{NN}})$")
                 else:
@@ -796,7 +797,7 @@ def plot_dist(run, kind, kwargs, runs_to_mass, pulled_cdf=False, r200=None):
                     ax.set_ylabel(r"$\mathrm{CDF}(\tilde{r}_{1\mathrm{NN}} / R_{200c})$")  # noqa
         else:
             if r200 is None:
-                ax.set_xlabel(r"$r_{1\mathrm{NN}}~[\mathrm{Mpc}]$")
+                ax.set_xlabel(r"$r_{1\mathrm{NN}}~[\mathrm{Mpc} / h]$")
                 if kind == "pdf":
                     ax.set_ylabel(r"$p(r_{1\mathrm{NN}})$")
                 else:
@@ -901,7 +902,7 @@ def plot_cdf_diff(runs, kwargs, pulled_cdf, runs_to_mass):
             ax.fill_between(r, *numpy.percentile(dy, [16, 84], axis=0),
                             alpha=0.5, color=cmap.to_rgba(runs_to_mass[i]))
         fig.colorbar(cmap, ax=ax, ticks=runs_to_mass,
-                     label=r"$\log M_{\rm tot} / M_\odot$")
+                     label=r"$\log M_{\rm tot} ~ [M_\odot / h]$")
         ax.set_xlim(0.0, 55)
         ax.set_ylim(0)
 
@@ -909,17 +910,17 @@ def plot_cdf_diff(runs, kwargs, pulled_cdf, runs_to_mass):
 
         # Plot labels
         if pulled_cdf:
-            ax.set_xlabel(r"$\tilde{r}_{1\mathrm{NN}}~[\mathrm{Mpc}]$")
+            ax.set_xlabel(r"$\tilde{r}_{1\mathrm{NN}}~[\mathrm{Mpc} / h]$")
         else:
-            ax.set_xlabel(r"$r_{1\mathrm{NN}}~[\mathrm{Mpc}]$")
+            ax.set_xlabel(r"$r_{1\mathrm{NN}}~[\mathrm{Mpc} / h]$")
         ax.set_ylabel(r"$\Delta \mathrm{CDF}(r_{1\mathrm{NN}})$")
 
         # Plot labels
         if pulled_cdf:
-            ax.set_xlabel(r"$\tilde{r}_{1\mathrm{NN}}~[\mathrm{Mpc}]$")
+            ax.set_xlabel(r"$\tilde{r}_{1\mathrm{NN}}~[\mathrm{Mpc} / h]$")
             ax.set_ylabel(r"$\Delta \mathrm{CDF}(\tilde{r}_{1\mathrm{NN}})$")
         else:
-            ax.set_xlabel(r"$r_{1\mathrm{NN}}~[\mathrm{Mpc}]$")
+            ax.set_xlabel(r"$r_{1\mathrm{NN}}~[\mathrm{Mpc} / h]$")
             ax.set_ylabel(r"$\Delta \mathrm{CDF}(r_{1\mathrm{NN}})$")
 
         fig.tight_layout()
@@ -1104,7 +1105,7 @@ def plot_significance(simname, runs, nsim, nobs, kind, kwargs, runs_to_mass):
 
         cbar_ax = fig.add_axes([1.0, 0.125, 0.035, 0.85])
         fig.colorbar(cmap, cax=cbar_ax, ticks=runs_to_mass,
-                     label=r"$\log M_{\rm tot} / M_\odot$")
+                     label=r"$\log M_{\rm tot} ~ [M_\odot / h]$")
 
         ax[0].set_xlim(z[0], z[-1])
         ax[0].set_ylim(1e-5, 1.)
@@ -1216,7 +1217,7 @@ def plot_significance_vs_mass(simname, runs, nsim, nobs, kind, kwargs,
         corr = plt_utils.latex_float(*kendalltau(xs[mask], ys[mask]))
         plt.title(r"$\tau = {}, p = {}$".format(*corr), fontsize="small")
 
-        plt.xlabel(r"$\log M_{\rm tot} / M_\odot$")
+        plt.xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
         if kind == "ks":
             plt.ylabel(r"$\log p$-value of $r_{1\mathrm{NN}}$ distribution")
             plt.ylim(top=0)
