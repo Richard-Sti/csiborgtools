@@ -21,6 +21,17 @@ from warnings import warn
 import numpy
 
 
+def check_directory(path):
+    if not isdir(path):
+        raise IOError(f"Invalid directory `{path}`!")
+
+
+def try_create_directory(fdir):
+    if not isdir(fdir):
+        makedirs(fdir)
+        warn(f"Created directory `{fdir}`.")
+
+
 class Paths:
     """
     Paths manager for CSiBORG and Quijote simulations.
@@ -48,11 +59,6 @@ class Paths:
         self.borg_dir = borg_dir
         self.quijote_dir = quijote_dir
 
-    @staticmethod
-    def _check_directory(path):
-        if not isdir(path):
-            raise IOError(f"Invalid directory `{path}`!")
-
     @property
     def srcdir(self):
         """
@@ -70,7 +76,7 @@ class Paths:
     def srcdir(self, path):
         if path is None:
             return
-        self._check_directory(path)
+        check_directory(path)
         self._srcdir = path
 
     @property
@@ -90,7 +96,7 @@ class Paths:
     def borg_dir(self, path):
         if path is None:
             return
-        self._check_directory(path)
+        check_directory(path)
         self._borg_dir = path
 
     @property
@@ -110,7 +116,7 @@ class Paths:
     def quijote_dir(self, path):
         if path is None:
             return
-        self._check_directory(path)
+        check_directory(path)
         self._quijote_dir = path
 
     @property
@@ -130,7 +136,7 @@ class Paths:
     def postdir(self, path):
         if path is None:
             return
-        self._check_directory(path)
+        check_directory(path)
         self._postdir = path
 
     @property
@@ -143,9 +149,7 @@ class Paths:
         path : str
         """
         fpath = join(self.postdir, "temp")
-        if not isdir(fpath):
-            mkdir(fpath)
-            warn(f"Created directory `{fpath}`.", UserWarning, stacklevel=1)
+        try_create_directory(fpath)
         return fpath
 
     @staticmethod
@@ -202,11 +206,9 @@ class Paths:
         """
         assert simname in ["csiborg", "quijote"]
         if simname == "quijote":
-            raise RuntimeError("Quijote FoF membership is in the FoF cats..")
+            raise RuntimeError("Quijote FoF membership is in the FoF cats.")
         fdir = join(self.postdir, "FoF_membership", )
-        if not isdir(fdir):
-            mkdir(fdir)
-            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
+        try_create_directory(fdir)
         fout = join(fdir, f"fof_membership_{nsim}.npy")
         if sorted:
             fout = fout.replace(".npy", "_sorted.npy")
@@ -223,14 +225,14 @@ class Paths:
         simname : str
             Simulation name. Must be one of `csiborg` or `quijote`.
         """
-        assert simname in ["csiborg", "quijote"]
         if simname == "csiborg":
             fdir = join(self.postdir, "FoF_membership", )
-            if not isdir(fdir):
-                mkdir(fdir)
-                warn(f"Created directory `{fdir}`.", UserWarning)
+            try_create_directory(fdir)
             return join(fdir, f"halo_catalog_{nsim}_FOF.txt")
-        return join(self.quijote_dir, "Halos_fiducial", str(nsim))
+        elif simname == "quijote":
+            return join(self.quijote_dir, "Halos_fiducial", str(nsim))
+        else:
+            raise ValueError(f"Unknown simulation name `{simname}`.")
 
     def mmain(self, nsnap, nsim):
         """
@@ -248,11 +250,9 @@ class Paths:
         path : str
         """
         fdir = join(self.postdir, "mmain")
-        if not isdir(fdir):
-            mkdir(fdir)
-            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
-        return join(fdir,
-                    f"mmain_{str(nsim).zfill(5)}_{str(nsnap).zfill(5)}.npz")
+        try_create_directory(fdir)
+        return join(
+            fdir, f"mmain_{str(nsim).zfill(5)}_{str(nsnap).zfill(5)}.npz")
 
     def initmatch(self, nsim, simname, kind):
         """
@@ -272,21 +272,17 @@ class Paths:
         -------
         path : str
         """
-        assert simname in ["csiborg", "quijote"]
         assert kind in ["particles", "fit"]
         ftype = "npy" if kind == "fit" else "h5"
 
         if simname == "csiborg":
             fdir = join(self.postdir, "initmatch")
-            if not isdir(fdir):
-                mkdir(fdir)
-                warn(f"Created directory `{fdir}`.", UserWarning)
-            return join(fdir, f"{kind}_{str(nsim).zfill(5)}.{ftype}")
+        elif simname == "quijote":
+            fdir = join(self.quijote_dir, "initmatch")
+        else:
+            raise ValueError(f"Unknown simulation name `{simname}`.")
 
-        fdir = join(self.quijote_dir, "initmatch")
-        if not isdir(fdir):
-            mkdir(fdir)
-            warn(f"Created directory `{fdir}`.", UserWarning)
+        try_create_directory(fdir)
         return join(fdir, f"{kind}_{str(nsim).zfill(5)}.{ftype}")
 
     def get_ics(self, simname):
@@ -303,7 +299,6 @@ class Paths:
         -------
         ids : 1-dimensional array
         """
-        assert simname in ["csiborg", "quijote", "quijote_full"]
         if simname == "csiborg":
             files = glob(join(self.srcdir, "ramses_out*"))
             files = [f.split("/")[-1] for f in files]      # Only file names
@@ -315,10 +310,13 @@ class Paths:
                 ids.remove(5511)
             except ValueError:
                 pass
-            return numpy.sort(ids)
+        elif simname == "quijote" or simname == "quijote_full":
+            files = glob(
+                "/mnt/extraspace/rstiskalek/Quijote/Snapshots_fiducial/*")
+            files = [int(f.split("/")[-1]) for f in files]
+        else:
+            raise ValueError(f"Unknown simulation name `{simname}`.")
 
-        files = glob("/mnt/extraspace/rstiskalek/Quijote/Snapshots_fiducial/*")
-        files = [int(f.split("/")[-1]) for f in files]
         return numpy.sort(files)
 
     def snapshots(self, nsim, simname, tonew=False):
@@ -339,15 +337,16 @@ class Paths:
         -------
         path : str
         """
-        assert simname in ["csiborg", "quijote"]
         if simname == "csiborg":
             fname = "ramses_out_{}"
             if tonew:
                 fname += "_new"
                 return join(self.postdir, "output", fname.format(nsim))
             return join(self.srcdir, fname.format(nsim))
-
-        return join(self.quijote_dir, "Snapshots_fiducial", str(nsim))
+        elif simname == "quijote":
+            return join(self.quijote_dir, "Snapshots_fiducial", str(nsim))
+        else:
+            raise ValueError(f"Unknown simulation name `{simname}`.")
 
     def get_snapshots(self, nsim, simname):
         """
@@ -370,10 +369,12 @@ class Paths:
             snaps = glob(join(simpath, "output_*"))
             # Take just the last _00XXXX from each file  and strip zeros
             snaps = [int(snap.split("_")[-1].lstrip("0")) for snap in snaps]
-        else:
+        elif simname == "quijote":
             snaps = glob(join(simpath, "snapdir_*"))
             snaps = [int(snap.split("/")[-1].split("snapdir_")[-1])
                      for snap in snaps]
+        else:
+            raise ValueError(f"Unknown simulation name `{simname}`.")
         return numpy.sort(snaps)
 
     def snapshot(self, nsnap, nsim, simname):
@@ -418,19 +419,14 @@ class Paths:
         -------
         path : str
         """
-        assert simname in ["csiborg", "quijote"]
         if simname == "csiborg":
             fdir = join(self.postdir, "particles")
-            if not isdir(fdir):
-                makedirs(fdir)
-                warn(f"Created directory `{fdir}`.", UserWarning)
-            fname = f"parts_{str(nsim).zfill(5)}.h5"
-            return join(fdir, fname)
+        elif simname == "quijote":
+            fdir = join(self.quijote_dir, "Particles_fiducial")
+        else:
+            raise ValueError(f"Unknown simulation name `{simname}`.")
 
-        fdir = join(self.quijote_dir, "Particles_fiducial")
-        if not isdir(fdir):
-            makedirs(fdir)
-            warn(f"Created directory `{fdir}`.", UserWarning)
+        try_create_directory(fdir)
         fname = f"parts_{str(nsim).zfill(5)}.h5"
         return join(fdir, fname)
 
@@ -451,19 +447,13 @@ class Paths:
         -------
         path : str
         """
-        assert simname in ["csiborg", "quijote"]
         if simname == "csiborg":
             fdir = join(self.postdir, "structfit")
-            if not isdir(fdir):
-                mkdir(fdir)
-                warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
-            fname = f"out_{str(nsim).zfill(5)}_{str(nsnap).zfill(5)}.npy"
-            return join(fdir, fname)
+        elif simname == "quijote":
+            fdir = join(self.quijote_dir, "structfit")
+        else:
+            raise ValueError(f"Unknown simulation name `{simname}`.")
 
-        fdir = join(self.quijote_dir, "structfit")
-        if not isdir(fdir):
-            mkdir(fdir)
-            warn(f"Created directory `{fdir}`.", UserWarning)
         fname = f"out_{str(nsim).zfill(5)}_{str(nsnap).zfill(5)}.npy"
         return join(fdir, fname)
 
@@ -485,9 +475,8 @@ class Paths:
         path : str
         """
         fdir = join(self.postdir, "overlap")
-        if not isdir(fdir):
-            mkdir(fdir)
-            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
+        try_create_directory(fdir)
+
         fname = f"overlap_{str(nsim0).zfill(5)}_{str(nsimx).zfill(5)}.npz"
         if smoothed:
             fname = fname.replace("overlap", "overlap_smoothed")
@@ -520,11 +509,11 @@ class Paths:
         fdir = join(self.postdir, "environment")
         assert kind in ["density", "velocity", "potential", "radvel",
                         "environment"]
-        if not isdir(fdir):
-            makedirs(fdir)
-            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
+        try_create_directory(fdir)
+
         if in_rsp:
             kind = kind + "_rsp"
+
         fname = f"{kind}_{MAS}_{str(nsim).zfill(5)}_grid{grid}.npy"
         if smooth_scale is not None and smooth_scale > 0:
             smooth_scale = float(smooth_scale)
@@ -547,9 +536,7 @@ class Paths:
         path : str
         """
         fdir = join(self.postdir, "HMF")
-        if not isdir(fdir):
-            makedirs(fdir)
-            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
+        try_create_directory(fdir)
         fname = f"halo_counts_{simname}_{str(nsim).zfill(5)}.npz"
         return join(fdir, fname)
 
@@ -579,9 +566,8 @@ class Paths:
         assert simname in ["csiborg", "quijote"]
         assert kind in ["dist", "bin_dist", "tot_counts"]
         fdir = join(self.postdir, "nearest_neighbour")
-        if not isdir(fdir):
-            makedirs(fdir)
-            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
+        try_create_directory(fdir)
+
         if nsim is not None:
             if simname == "csiborg":
                 nsim = str(nsim).zfill(5)
@@ -615,9 +601,8 @@ class Paths:
         """
         assert simname in ["csiborg", "quijote"]
         fdir = join(self.postdir, "knn", "auto")
-        if not isdir(fdir):
-            makedirs(fdir)
-            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
+        try_create_directory(fdir)
+
         if nsim is not None:
             if simname == "csiborg":
                 nsim = str(nsim).zfill(5)
@@ -648,9 +633,8 @@ class Paths:
         path : str
         """
         fdir = join(self.postdir, "knn", "cross")
-        if not isdir(fdir):
-            makedirs(fdir)
-            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
+        try_create_directory(fdir)
+
         if nsims is not None:
             assert isinstance(nsims, (list, tuple)) and len(nsims) == 2
             nsim0 = str(nsims[0]).zfill(5)
@@ -680,9 +664,8 @@ class Paths:
         path : str
         """
         fdir = join(self.postdir, "tpcf", "auto")
-        if not isdir(fdir):
-            makedirs(fdir)
-            warn(f"Created directory `{fdir}`.", UserWarning, stacklevel=1)
+        try_create_directory(fdir)
+
         if nsim is not None:
             return join(fdir, f"{simname}_tpcf{str(nsim).zfill(5)}_{run}.p")
 
