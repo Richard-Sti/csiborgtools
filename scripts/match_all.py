@@ -11,10 +11,7 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-"""
-Script to match all pairs of CSiBORG simulations. Mathches main haloes whose
-mass is above 1e12 solar masses.
-"""
+"""A script to match all IC pairs of a simulation."""
 from argparse import ArgumentParser
 from distutils.util import strtobool
 from itertools import combinations
@@ -34,10 +31,15 @@ except ModuleNotFoundError:
     import csiborgtools
 
 
-def get_combs():
+def get_combs(simname):
     """
-    Get the list of all pairs of simulations, then permute them with a known
-    seed to minimise loading the same files simultaneously.
+    Get the list of all pairs of IC indices and permute them with a fixed
+    seed.
+
+    Parameters
+    ----------
+    simname : str
+        Simulation name.
 
     Returns
     -------
@@ -45,38 +47,49 @@ def get_combs():
         List of pairs of simulations.
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    ics = paths.get_ics("csiborg")
-    combs = list(combinations(ics, 2))
+    combs = list(combinations(paths.get_ics(simname), 2))
+
     Random(42).shuffle(combs)
     return combs
 
 
-def do_work(comb):
+def main(comb, simname, sigma, verbose):
     """
     Match a pair of simulations.
 
     Parameters
     ----------
     comb : tuple
-        Pair of simulations.
+        Pair of simulation IC indices.
+    simname : str
+        Simulation name.
+    sigma : float
+        Smoothing scale in number of grid cells.
+    verbose : bool
+        Verbosity flag.
 
     Returns
     -------
     None
     """
     nsim0, nsimx = comb
-    pair_match(nsim0, nsimx, args.sigma, args.smoothen, args.verbose)
+    pair_match(nsim0, nsimx, simname, sigma, verbose)
 
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--sigma", type=float, default=None)
-    parser.add_argument("--smoothen", type=lambda x: bool(strtobool(x)),
-                        default=None)
+    parser.add_argument("--simname", type=str, help="Simulation name.",
+                        choices=["csiborg", "quijote"])
+    parser.add_argument("--sigma", type=float, default=0,
+                        help="Smoothing scale in number of grid cells.")
     parser.add_argument("--verbose", type=lambda x: bool(strtobool(x)),
-                        default=False)
+                        default=False, help="Verbosity flag.")
     args = parser.parse_args()
-    comm = MPI.COMM_WORLD
 
     combs = get_combs()
-    work_delegation(do_work, combs, comm, master_verbose=True)
+
+    def _main(comb):
+        main(comb, args.simname, args.sigma, args.verbose)
+
+    work_delegation(_main, combs, MPI.COMM_WORLD)
+
