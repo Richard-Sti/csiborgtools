@@ -366,6 +366,7 @@ class Paths:
         snapshots : 1-dimensional array
         """
         simpath = self.snapshots(nsim, simname, tonew=False)
+
         if simname == "csiborg":
             # Get all files in simpath that start with output_
             snaps = glob(join(simpath, "output_*"))
@@ -456,6 +457,8 @@ class Paths:
         else:
             raise ValueError(f"Unknown simulation name `{simname}`.")
 
+        try_create_directory(fdir)
+
         fname = f"out_{str(nsim).zfill(5)}_{str(nsnap).zfill(5)}.npy"
         return join(fdir, fname)
 
@@ -477,6 +480,7 @@ class Paths:
         path : str
         """
         fdir = join(self.postdir, "overlap")
+
         try_create_directory(fdir)
 
         fname = f"overlap_{str(nsim0).zfill(5)}_{str(nsimx).zfill(5)}.npz"
@@ -508,9 +512,10 @@ class Paths:
         -------
         path : str
         """
-        fdir = join(self.postdir, "environment")
         assert kind in ["density", "velocity", "potential", "radvel",
                         "environment"]
+        fdir = join(self.postdir, "environment")
+
         try_create_directory(fdir)
 
         if in_rsp:
