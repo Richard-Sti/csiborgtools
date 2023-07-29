@@ -29,95 +29,118 @@ except ModuleNotFoundError:
     import csiborgtools
 
 
-def pair_match(nsim0, nsimx, sigma, smoothen, verbose):
-    # TODO fix this.
-    simname = "csiborg"
-    overlapper_kwargs = {"box_size": 512, "bckg_halfsize": 475}
-    from csiborgtools.read import CSiBORGHaloCatalogue, read_h5
+def pair_match(nsim0, nsimx, simname, sigma, verbose):
+    """
+    Calculate overlaps between two simulations.
 
+    Parameters
+    ----------
+    nsim0 : int
+        The reference simulation IC index.
+    nsimx : int
+        The cross simulation IC index.
+    simname : str
+        Simulation name.
+    sigma : float
+        Smoothing scale in number of grid cells.
+    verbose : bool
+        Verbosity flag.
+
+    Returns
+    -------
+    None
+    """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    smooth_kwargs = {"sigma": sigma, "mode": "constant", "cval": 0.0}
-    overlapper = csiborgtools.match.ParticleOverlap(**overlapper_kwargs)
-    matcher = csiborgtools.match.RealisationsMatcher(**overlapper_kwargs)
+    smooth_kwargs = {"sigma": sigma, "mode": "wrap"}
 
-    # Load the raw catalogues (i.e. no selection) including the initial CM
-    # positions and the particle archives.
-    bounds = {"totpartmass": (1e12, None)}
-    cat0 = CSiBORGHaloCatalogue(nsim0, paths, load_initial=True, bounds=bounds,
-                                with_lagpatch=True, load_clumps_cat=True)
-    catx = CSiBORGHaloCatalogue(nsimx, paths, load_initial=True, bounds=bounds,
-                                with_lagpatch=True, load_clumps_cat=True)
+    if simname == "csiborg":
+        overlapper_kwargs = {"box_size": 2048, "bckg_halfsize": 475}
+        # TODO decide on this bound.
+        bounds = {"totpartmass": (1e12, None)}
+        cat0 = csiborgtools.read.CSiBORGHaloCatalogue(
+            nsim0, paths, bounds=bounds, with_lagpatch=True)
+        catx = csiborgtools.read.CSiBORGHaloCatalogue(
+            nsimx, paths, bounds=bounds, with_lagpatch=True)
+    elif simname == "quijote":
+        overlapper_kwargs = {"box_size": 512, "bckg_halfsize": 256}
+        cat0 = csiborgtools.read.QuijoteHaloCatalogue(
+            nsim0, paths, 4, with_lagpatch=True)
+        catx = csiborgtools.read.QuijoteHaloCatalogue(
+            nsimx, paths, 4, with_lagpatch=True)
+    else:
+        raise ValueError(f"Unknown simulation name: `{simname}`.")
 
-    clumpmap0 = read_h5(paths.particles(nsim0, simname))["clumpmap"]
-    parts0 = read_h5(paths.initmatch(nsim0, simname, "particles"))["particles"]
-    clid2map0 = {clid: i for i, clid in enumerate(clumpmap0[:, 0])}
+    halomap0 = csiborgtools.read.read_h5(
+        paths.particles(nsim0, simname))["halomap"]
+    parts0 = csiborgtools.read.read_h5(
+        paths.initmatch(nsim0, simname, "particles"))["particles"]
+    hid2map0 = {hid: i for i, hid in enumerate(halomap0[:, 0])}
 
-    clumpmapx = read_h5(paths.particles(nsimx, simname))["clumpmap"]
-    partsx = read_h5(paths.initmatch(nsimx, simname, "particles"))["particles"]
-    clid2mapx = {clid: i for i, clid in enumerate(clumpmapx[:, 0])}
+    halomapx = csiborgtools.read.read_h5(
+        paths.particles(nsimx, simname))["halomap"]
+    partsx = csiborgtools.read.read_h5(
+        paths.initmatch(nsimx, simname, "particles"))["particles"]
+    hid2mapx = {hid: i for i, hid in enumerate(halomapx[:, 0])}
 
-    # We generate the background density fields. Loads halos's particles one by
-    # one from the archive, concatenates them and calculates the NGP density
-    # field.
     if verbose:
-        print(f"{datetime.now()}: generating the background density fields.",
+        print(f"{datetime.now()}: calculating the background density fields.",
               flush=True)
-    delta_bckg = overlapper.make_bckg_delta(parts0, clumpmap0, clid2map0, cat0,
+    overlapper = csiborgtools.match.ParticleOverlap(**overlapper_kwargs)
+    delta_bckg = overlapper.make_bckg_delta(parts0, halomap0, hid2map0, cat0,
                                             verbose=verbose)
-    delta_bckg = overlapper.make_bckg_delta(partsx, clumpmapx, clid2mapx, catx,
+    delta_bckg = overlapper.make_bckg_delta(partsx, halomapx, hid2mapx, catx,
                                             delta=delta_bckg, verbose=verbose)
 
-    # We calculate the overlap between the NGP fields.
     if verbose:
-        print(f"{datetime.now()}: crossing the simulations.", flush=True)
+        print(f"{datetime.now()}: NGP crossing the simulations.", flush=True)
+    matcher = csiborgtools.match.RealisationsMatcher(**overlapper_kwargs)
     match_indxs, ngp_overlap = matcher.cross(cat0, catx, parts0, partsx,
-                                             clumpmap0, clumpmapx, delta_bckg,
+                                             halomap0, halomapx, delta_bckg,
                                              verbose=verbose)
-    # We wish to store the halo IDs of the matches, not their array positions
-    # in the catalogues
+
+    # We want to store the halo IDs of the matches, not their array positions
+    # in the catalogues.
     match_hids = deepcopy(match_indxs)
     for i, matches in enumerate(match_indxs):
         for j, match in enumerate(matches):
             match_hids[i][j] = catx["index"][match]
 
     fout = paths.overlap(nsim0, nsimx, smoothed=False)
+    if verbose:
+        print(f"{datetime.now()}: saving to ... `{fout}`.", flush=True)
     numpy.savez(fout, ref_hids=cat0["index"], match_hids=match_hids,
                 ngp_overlap=ngp_overlap)
-    if verbose:
-        print(f"{datetime.now()}: calculated NGP overlap, saved to {fout}.",
-              flush=True)
 
-    if not smoothen:
-        quit()
+    if not sigma > 0:
+        return
 
-    # We now smoothen up the background density field for the smoothed overlap
-    # calculation.
     if verbose:
         print(f"{datetime.now()}: smoothing the background field.", flush=True)
     gaussian_filter(delta_bckg, output=delta_bckg, **smooth_kwargs)
 
     # We calculate the smoothed overlap for the pairs whose NGP overlap is > 0.
     smoothed_overlap = matcher.smoothed_cross(cat0, catx, parts0, partsx,
-                                              clumpmap0, clumpmapx, delta_bckg,
+                                              halomap0, halomapx, delta_bckg,
                                               match_indxs, smooth_kwargs,
                                               verbose=verbose)
 
     fout = paths.overlap(nsim0, nsimx, smoothed=True)
-    numpy.savez(fout, smoothed_overlap=smoothed_overlap, sigma=sigma)
     if verbose:
-        print(f"{datetime.now()}: calculated smoothing, saved to {fout}.",
-              flush=True)
+        print(f"{datetime.now()}: saving to ... `{fout}`.", flush=True)
+    numpy.savez(fout, smoothed_overlap=smoothed_overlap, sigma=sigma)
 
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--nsim0", type=int)
-    parser.add_argument("--nsimx", type=int)
-    parser.add_argument("--sigma", type=float, default=None)
-    parser.add_argument("--smoothen", type=lambda x: bool(strtobool(x)),
-                        default=None)
+    parser.add_argument("--nsim0", type=int,
+                        help="Reference simulation IC index.")
+    parser.add_argument("--nsimx", type=int,
+                        help="Cross simulation IC index.")
+    parser.add_argument("--simname", type=str, help="Simulation name.")
+    parser.add_argument("--sigma", type=float, default=0,
+                        help="Smoothing scale in number of grid cells.")
     parser.add_argument("--verbose", type=lambda x: bool(strtobool(x)),
-                        default=False)
+                        default=False, help="Verbosity flag.")
     args = parser.parse_args()
 
-    pair_match(args.nsim0, args.nsimx, args.sigma, args.smoothen, args.verbose)
+    pair_match(args.nsim0, args.nsimx, args.simname, args.sigma, args.verbose)
