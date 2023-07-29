@@ -11,7 +11,10 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-"""A script to calculate overlap between two CSiBORG realisations."""
+"""
+A script to calculate overlap between two IC realisations of the same
+simulation.
+"""
 from argparse import ArgumentParser
 from copy import deepcopy
 from datetime import datetime
