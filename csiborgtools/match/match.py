@@ -21,8 +21,9 @@ from functools import lru_cache
 from math import ceil
 
 import numpy
-from numba import jit
 from scipy.ndimage import gaussian_filter
+
+from numba import jit
 from tqdm import tqdm, trange
 
 from ..read import load_halo_particles
@@ -45,34 +46,39 @@ class BaseMatcher(ABC):
         box_size : int
         """
         if self._box_size is None:
-            raise RuntimeError("`box_size` is not set.")
+            raise RuntimeError("`box_size` has not been set.")
         return self._box_size
 
     @box_size.setter
     def box_size(self, value):
-        assert isinstance(value, int)
-        assert value > 0
+        if not (isinstance(value, int) and value > 0):
+            raise ValueError("`box_size` must be a positive integer.")
+        if not value != 0 and (value & (value - 1) == 0):
+            raise ValueError("`box_size` must be a power of 2.")
         self._box_size = value
 
     @property
     def bckg_halfsize(self):
         """
-        Number of to each side of the centre of the box to calculate the
-        density field. This is because in CSiBORG we are only interested in the
-        high-resolution region.
+        Background half-size for density field calculation. This is the
+        grid distance from the center of the box to each side over which to
+        evaluate the background density field. Must be less than or equal to
+        half the box size.
 
         Returns
         -------
         bckg_halfsize : int
         """
         if self._bckg_halfsize is None:
-            raise RuntimeError("`bckg_halfsize` is not set.")
+            raise RuntimeError("`bckg_halfsize` has not been set.")
         return self._bckg_halfsize
 
     @bckg_halfsize.setter
     def bckg_halfsize(self, value):
-        assert isinstance(value, int)
-        assert value > 0
+        if not (isinstance(value, int) and value > 0):
+            raise ValueError("`bckg_halfsize` must be a positive integer.")
+        if value > self.box_size // 2:
+            raise ValueError("`bckg_halfsize` must be <= half the box size.")
         self._bckg_halfsize = value
 
 
@@ -83,26 +89,26 @@ class BaseMatcher(ABC):
 
 class RealisationsMatcher(BaseMatcher):
     """
-    A tool to match haloes between IC realisations.
+    Matches haloes between IC realisations.
 
     Parameters
     ----------
     box_size : int
         Number of cells in the box.
     bckg_halfsize : int
-        Number of to each side of the centre of the box to calculate the
-        density field. This is because in CSiBORG we are only interested in the
-        high-resolution region.
+        Background half-size for density field calculation. This is the
+        grid distance from the center of the box to each side over which to
+        evaluate the background density field. Must be less than or equal to
+        half the box size.
     nmult : float or int, optional
-        Multiple of the sum of pair initial Lagrangian patch sizes
-        within which to return neighbours. By default 1.
+        Multiplier of the sum of the initial Lagrangian patch sizes of a halo
+        pair. Determines the range within which neighbors are returned.
     dlogmass : float, optional
         Tolerance on the absolute logarithmic mass difference of potential
-        matches. By default 2.
+        matches.
     mass_kind : str, optional
-        The mass kind whose similarity is to be checked. Must be a valid
-        catalogue key. By default `totpartmass`, i.e. the total particle
-        mass associated with a halo.
+        Mass kind whose similarity is to be checked. Must be a valid key in the
+        halo catalogue.
     """
     _nmult = None
     _dlogmass = None
@@ -111,27 +117,31 @@ class RealisationsMatcher(BaseMatcher):
 
     def __init__(self, box_size, bckg_halfsize, nmult=1.0, dlogmass=2.0,
                  mass_kind="totpartmass"):
-        assert nmult > 0
-        assert dlogmass > 0
-        assert isinstance(mass_kind, str)
         self.box_size = box_size
-        self.halfsize = bckg_halfsize
-        self._nmult = nmult
-        self._dlogmass = dlogmass
-        self._mass_kind = mass_kind
+        self.bckg_halfsize = bckg_halfsize
+        self.nmult = nmult
+        self.dlogmass = dlogmass
+        self.mass_kind = mass_kind
+
         self._overlapper = ParticleOverlap(box_size, bckg_halfsize)
 
     @property
     def nmult(self):
         """
-        Multiple of the sum of pair initial Lagrangian patch sizes within which
-        to return neighbours.
+        Multiplier of the sum of the initial Lagrangian patch sizes of a halo
+        pair. Determines the range within which neighbors are returned.
 
         Returns
         -------
         nmult : float
         """
         return self._nmult
+
+    @nmult.setter
+    def nmult(self, value):
+        if not (value > 0 and isinstance(value, (int, float))):
+            raise ValueError("`nmult` must be a positive integer or float.")
+        self._nmult = float(value)
 
     @property
     def dlogmass(self):
@@ -145,16 +155,29 @@ class RealisationsMatcher(BaseMatcher):
         """
         return self._dlogmass
 
+    @dlogmass.setter
+    def dlogmass(self, value):
+        if not (value > 0 and isinstance(value, (float, int))):
+            raise ValueError("`dlogmass` must be a positive float.")
+        self._dlogmass = float(value)
+
     @property
     def mass_kind(self):
         """
-        Mass kind whose similarity is to be checked.
+        Mass kind whose similarity is to be checked. Must be a valid key in the
+        halo catalogue.
 
         Returns
         -------
         mass_kind : str
         """
         return self._mass_kind
+
+    @mass_kind.setter
+    def mass_kind(self, value):
+        if not isinstance(value, str):
+            raise ValueError("`mass_kind` must be a string.")
+        self._mass_kind = value
 
     @property
     def overlapper(self):
@@ -172,34 +195,33 @@ class RealisationsMatcher(BaseMatcher):
         r"""
         Find all neighbours whose CM separation is less than `nmult` times the
         sum of their initial Lagrangian patch sizes and calculate their
-        overlap. Enforces that the neighbours' are similar in mass up to
+        overlap. Enforces that the neighbours are similar in mass up to
         `dlogmass` dex.
 
         Parameters
         ----------
-        cat0 : :py:class:`csiborgtools.read.CSiBORGHaloCatalogue`
+        cat0 : instance of :py:class:`csiborgtools.read.BaseCatalogue`
             Halo catalogue of the reference simulation.
-        catx : :py:class:`csiborgtools.read.CSiBORGHaloCatalogue`
+        catx : instance of :py:class:`csiborgtools.read.BaseCatalogue`
             Halo catalogue of the cross simulation.
         particles0 : 2-dimensional array
-            Array of particles in box units in the reference simulation.
-            The columns must be `x`, `y`, `z` and `M`.
+            Particles archive file of the reference simulation. The columns
+            must be `x`, `y`, `z` and `M`.
         particlesx : 2-dimensional array
-            Array of particles in box units in the cross simulation.
-            The columns must be `x`, `y`, `z` and `M`.
+            Particles archive file of the cross simulation. The columns must be
+            `x`, `y`, `z` and `M`.
         halo_map0 : 2-dimensional array
             Halo map of the reference simulation.
         halo_mapx : 2-dimensional array
             Halo map of the cross simulation.
         delta_bckg : 3-dimensional array
             Summed background density field of the reference and cross
-            simulations calculated with particles assigned to haloes at the
-            final snapshot. Assumed to only be sampled in cells
-            :math:`[512, 1536)^3`.
+            simulations calculated with particles assigned to halos at the
+            final snapshot. Calculated on a grid determined by `bckg_halfsize`.
         cache_size : int, optional
             Caching size for loading the cross simulation halos.
         verbose : bool, optional
-            iterator verbosity flag. by default `true`.
+            Iterator verbosity flag. By default `true`.
 
         Returns
         -------
@@ -279,21 +301,21 @@ class RealisationsMatcher(BaseMatcher):
                        halo_mapx, delta_bckg, match_indxs, smooth_kwargs,
                        cache_size=10000, verbose=True):
         r"""
-        Calculate the smoothed overlaps for pair previously identified via
-        `self.cross(...)` to have a non-zero overlap.
+        Calculate the smoothed overlaps for pairs previously identified via
+        `self.cross(...)` to have a non-zero NGP overlap.
 
         Parameters
         ----------
-        cat0 : :py:class:`csiborgtools.read.CSiBORGHaloCatalogue`
+        cat0 : instance of :py:class:`csiborgtools.read.BaseCatalogue`
             Halo catalogue of the reference simulation.
-        catx : :py:class:`csiborgtools.read.CSiBORGHaloCatalogue`
+        catx : instance of :py:class:`csiborgtools.read.BaseCatalogue`
             Halo catalogue of the cross simulation.
         particles0 : 2-dimensional array
-            Array of particles in box units in the reference simulation.
-            The columns must be `x`, `y`, `z` and `M`.
+            Particles archive file of the reference simulation. The columns
+            must be `x`, `y`, `z` and `M`.
         particlesx : 2-dimensional array
-            Array of particles in box units in the cross simulation.
-            The columns must be `x`, `y`, `z` and `M`.
+            Particles archive file of the cross simulation. The columns must be
+            `x`, `y`, `z` and `M`.
         halo_map0 : 2-dimensional array
             Halo map of the reference simulation.
         halo_mapx : 2-dimensional array
@@ -301,8 +323,7 @@ class RealisationsMatcher(BaseMatcher):
         delta_bckg : 3-dimensional array
             Smoothed summed background density field of the reference and cross
             simulations calculated with particles assigned to halos at the
-            final snapshot. Assumed to only be sampled in cells
-            :math:`[512, 1536)^3`.
+            final snapshot. Calculated on a grid determined by `bckg_halfsize`.
         match_indxs : 1-dimensional array of arrays
             Indices of halo counterparts in the cross catalogue.
         smooth_kwargs : kwargs
@@ -310,7 +331,7 @@ class RealisationsMatcher(BaseMatcher):
         cache_size : int, optional
             Caching size for loading the cross simulation halos.
         verbose : bool, optional
-            Iterator verbosity flag. By default `True`.
+            Iterator verbosity flag. By default `true`.
 
         Returns
         -------
@@ -328,8 +349,8 @@ class RealisationsMatcher(BaseMatcher):
         if verbose:
             print(f"{datetime.now()}: calculating smoothed overlaps.",
                   flush=True)
-        indxs = cat0["index"]
         cross = [numpy.asanyarray([], dtype=numpy.float32)] * match_indxs.size
+        indxs = cat0["index"]
         for i, k0 in enumerate(tqdm(indxs) if verbose else indxs):
             pos0, mass0, __, mins0, maxs0 = load_processed_halo(
                 k0, particles0, halo_map0, hid2map0, nshift=nshift,
@@ -348,39 +369,8 @@ class RealisationsMatcher(BaseMatcher):
 
 
 ###############################################################################
-#                           Matching statistics                               #
+#                       Overlap calculator                                    #
 ###############################################################################
-
-
-def cosine_similarity(x, y):
-    r"""
-    Calculate the cosine similarity between two Cartesian vectors. Defined
-    as :math:`\Sum_{i} x_i y_{i} / (|x| * |y|)`.
-
-    Parameters
-    ----------
-    x : 1-dimensional array
-        The first vector.
-    y : 1- or 2-dimensional array
-        The second vector. Can be 2-dimensional of shape `(n_samples, 3)`,
-        in which case the calculation is broadcasted.
-
-    Returns
-    -------
-    out : float or 1-dimensional array
-        The cosine similarity. If y is 1-dimensinal returns only a float.
-    """
-    # Quick check of dimensions
-    if x.ndim != 1:
-        raise ValueError("`x` must be a 1-dimensional array.")
-    y = y.reshape(-1, 3) if y.ndim == 1 else y
-
-    out = numpy.sum(x * y, axis=1)
-    out /= numpy.linalg.norm(x) * numpy.linalg.norm(y, axis=1)
-
-    if out.size == 1:
-        return out[0]
-    return out
 
 
 class ParticleOverlap(BaseMatcher):
@@ -394,9 +384,10 @@ class ParticleOverlap(BaseMatcher):
     box_size : int
         Number of cells in the box.
     bckg_halfsize : int
-        Number of to each side of the centre of the box to calculate the
-        density field. This is because in CSiBORG we are only interested in the
-        high-resolution region.
+        Background half-size for density field calculation. This is the
+        grid distance from the center of the box to each side over which to
+        evaluate the background density field. Must be less than or equal to
+        half the box size.
     """
 
     def __init__(self, box_size, bckg_halfsize):
@@ -414,16 +405,16 @@ class ParticleOverlap(BaseMatcher):
         Parameters
         ----------
         particles : 2-dimensional array
-            Array of particles.
+            Particles archive file. The columns must be `x`, `y`, `z` and `M`.
         halo_map : 2-dimensional array
             Array containing start and end indices in the particle array
             corresponding to each halo.
         hid2map : dict
             Dictionary mapping halo IDs to `halo_map` array positions.
-        halo_cat: :py:class:`csiborgtools.read.CSiBORGHaloCatalogue`
+        halo_cat : instance of :py:class:`csiborgtools.read.BaseCatalogue`
             Halo catalogue.
         delta : 3-dimensional array, optional
-            Array to store the density field in. If `None` a new array is
+            Array to store the density field. If `None` a new array is
             created.
         verbose : bool, optional
             Verbosity flag for loading the halos' particles.
@@ -449,6 +440,7 @@ class ParticleOverlap(BaseMatcher):
 
             pos, mass = pos[:, :3], pos[:, 3]
             pos = pos2cell(pos, self.box_size)
+
             # We mask out particles outside the cubical high-resolution region
             mask = numpy.all((cellmin <= pos) & (pos < cellmax), axis=1)
             pos = pos[mask]
@@ -465,14 +457,13 @@ class ParticleOverlap(BaseMatcher):
         Parameters
         ----------
         pos : 2-dimensional array
-            Halo particle position array.
+            Halo's particles position array.
         mass : 1-dimensional array
-            Halo particle mass array.
+            Halo's particles mass array.
         mins, maxs : 1-dimensional arrays of shape `(3,)`
             Minimun and maximum cell numbers along each dimension.
         subbox : bool, optional
-            Whether to calculate the density field on a grid strictly enclosing
-            the halo.
+            Whether to calculate the field on a grid enclosing the halo.
         smooth_kwargs : kwargs, optional
             Kwargs to be passed to :py:func:`scipy.ndimage.gaussian_filter`.
             If `None` no smoothing is applied.
@@ -483,25 +474,25 @@ class ParticleOverlap(BaseMatcher):
         """
         nshift = read_nshift(smooth_kwargs)
         cells = pos2cell(pos, self.box_size)
-        # Check that minima and maxima are integers
+
         if not (mins is None and maxs is None):
             assert mins.dtype.char in numpy.typecodes["AllInteger"]
             assert maxs.dtype.char in numpy.typecodes["AllInteger"]
 
         if subbox:
             if mins is None or maxs is None:
-                mins, maxs = get_halolims(cells, self.box_size, nshift)
-
-            ncells = maxs - mins + 1  # To get the number of cells
+                mins, maxs = get_halo_cell_limits(cells, self.box_size, nshift)
+            ncells = maxs - mins + 1
         else:
             mins = [0, 0, 0]
             ncells = (self.box_size, ) * 3
 
-        # Preallocate and fill the array
         delta = numpy.zeros(ncells, dtype=numpy.float32)
         fill_delta(delta, cells[:, 0], cells[:, 1], cells[:, 2], *mins, mass)
+
         if smooth_kwargs is not None:
             gaussian_filter(delta, output=delta, **smooth_kwargs)
+
         return delta
 
     def make_deltas(self, pos1, pos2, mass1, mass2, mins1=None, maxs1=None,
@@ -543,6 +534,7 @@ class ParticleOverlap(BaseMatcher):
         nshift = read_nshift(smooth_kwargs)
         pos1 = pos2cell(pos1, self.box_size)
         pos2 = pos2cell(pos2, self.box_size)
+
         xc1, yc1, zc1 = [pos1[:, i] for i in range(3)]
         xc2, yc2, zc2 = [pos2[:, i] for i in range(3)]
 
@@ -551,6 +543,7 @@ class ParticleOverlap(BaseMatcher):
             xmin = min(numpy.min(xc1), numpy.min(xc2)) - nshift
             ymin = min(numpy.min(yc1), numpy.min(yc2)) - nshift
             zmin = min(numpy.min(zc1), numpy.min(zc2)) - nshift
+
             # Make sure shifting does not go beyond boundaries
             xmin, ymin, zmin = [max(px, 0) for px in (xmin, ymin, zmin)]
 
@@ -558,6 +551,7 @@ class ParticleOverlap(BaseMatcher):
             xmax = max(numpy.max(xc1), numpy.max(xc2)) + nshift
             ymax = max(numpy.max(yc1), numpy.max(yc2)) + nshift
             zmax = max(numpy.max(zc1), numpy.max(zc2)) + nshift
+
             # Make sure shifting does not go beyond boundaries
             xmax, ymax, zmax = [min(px, self.box_size - 1)
                                 for px in (xmax, ymax, zmax)]
@@ -565,10 +559,9 @@ class ParticleOverlap(BaseMatcher):
             xmin, ymin, zmin = [min(mins1[i], mins2[i]) for i in range(3)]
             xmax, ymax, zmax = [max(maxs1[i], maxs2[i]) for i in range(3)]
 
-        cellmins = (xmin, ymin, zmin)  # Cell minima
-        ncells = xmax - xmin + 1, ymax - ymin + 1, zmax - zmin + 1  # Num cells
+        cellmins = (xmin, ymin, zmin)
+        ncells = (xmax - xmin + 1, ymax - ymin + 1, zmax - zmin + 1,)
 
-        # Preallocate and fill the arrays
         delta1 = numpy.zeros(ncells, dtype=numpy.float32)
         delta2 = numpy.zeros(ncells, dtype=numpy.float32)
 
@@ -590,6 +583,7 @@ class ParticleOverlap(BaseMatcher):
         if smooth_kwargs is not None:
             gaussian_filter(delta1, output=delta1, **smooth_kwargs)
             gaussian_filter(delta2, output=delta2, **smooth_kwargs)
+
         return delta1, delta2, cellmins, nonzero
 
     def __call__(self, pos1, pos2, mass1, mass2, delta_bckg,
@@ -644,9 +638,10 @@ class ParticleOverlap(BaseMatcher):
         if smooth_kwargs is not None:
             return calculate_overlap(delta1, delta2, cellmins, delta_bckg,
                                      self.box_size, self.bckg_halfsize)
-        # Calculate masses not given
+
         totmass1 = numpy.sum(mass1) if totmass1 is None else totmass1
         totmass2 = numpy.sum(mass2) if totmass2 is None else totmass2
+
         return calculate_overlap_indxs(delta1, delta2, cellmins, delta_bckg,
                                        nonzero, totmass1, totmass2,
                                        self.box_size, self.bckg_halfsize)
@@ -681,29 +676,26 @@ def pos2cell(pos, ncells):
 
 def read_nshift(smooth_kwargs):
     """
-    Read off the number of cells to pad the density field if smoothing is
-    applied. Defaults to the ceiling of twice of the smoothing scale.
+    Determine the number of cells to pad the density field if smoothing is
+    applied. It defaults to the ceiling of three times the smoothing scale.
 
     Parameters
     ----------
-    smooth_kwargs : kwargs, optional
-        Kwargs to be passed to :py:func:`scipy.ndimage.gaussian_filter`.
-        If `None` no smoothing is applied.
+    smooth_kwargs : dict or None
+        Arguments to be passed to :py:func:`scipy.ndimage.gaussian_filter`.
+        If `None`, no smoothing is applied.
 
     Returns
     -------
     nshift : int
     """
-    if smooth_kwargs is None:
-        return 0
-    else:
-        return ceil(2 * smooth_kwargs["sigma"])
+    return 0 if smooth_kwargs is None else ceil(3 * smooth_kwargs["sigma"])
 
 
 @jit(nopython=True)
 def fill_delta(delta, xcell, ycell, zcell, xmin, ymin, zmin, weights):
     """
-    Fill array `delta` at the specified indices with their weights. This is a
+    Fill array `delta` by adding `weights` to the specified cells. This is a
     JIT implementation.
 
     Parameters
@@ -715,20 +707,23 @@ def fill_delta(delta, xcell, ycell, zcell, xmin, ymin, zmin, weights):
     xmin, ymin, zmin : ints
         Minimum cell IDs of particles.
     weights : 1-dimensional arrays
-        Particle mass.
+        Weights
 
     Returns
     -------
     None
     """
-    for n in range(xcell.size):
-        delta[xcell[n] - xmin, ycell[n] - ymin, zcell[n] - zmin] += weights[n]
+    n_particles = xcell.size
+
+    for n in range(n_particles):
+        i, j, k = xcell[n] - xmin, ycell[n] - ymin, zcell[n] - zmin
+        delta[i, j, k] += weights[n]
 
 
 @jit(nopython=True)
 def fill_delta_indxs(delta, xcell, ycell, zcell, xmin, ymin, zmin, weights):
     """
-    Fill array `delta` at the specified indices with their weights and return
+    Fill array `delta` by adding `weights` to the specified cells and return
     indices where `delta` was assigned a value. This is a JIT implementation.
 
     Parameters
@@ -740,36 +735,41 @@ def fill_delta_indxs(delta, xcell, ycell, zcell, xmin, ymin, zmin, weights):
     xmin, ymin, zmin : ints
         Minimum cell IDs of particles.
     weights : 1-dimensional arrays
-        Particle mass.
+        Weights.
 
     Returns
     -------
     cells : 1-dimensional array
         Indices where `delta` was assigned a value.
     """
-    # Array to count non-zero cells
-    cells = numpy.full((xcell.size, 3), numpy.nan, numpy.int32)
+    n_particles = xcell.size
+    cells = numpy.full((n_particles, 3), numpy.nan, numpy.int32)
     count_nonzero = 0
-    for n in range(xcell.size):
+
+    for n in range(n_particles):
         i, j, k = xcell[n] - xmin, ycell[n] - ymin, zcell[n] - zmin
-        # If a cell is zero add it
+
         if delta[i, j, k] == 0:
-            cells[count_nonzero, :] = i, j, k
+            cells[count_nonzero] = i, j, k
             count_nonzero += 1
 
         delta[i, j, k] += weights[n]
 
-    return cells[:count_nonzero, :]  # Cutoff unassigned places
+    return cells[:count_nonzero]
 
 
-def get_halolims(pos, ncells, nshift=None):
+@jit(nopython=True)
+def get_halo_cell_limits(pos, ncells, nshift=0):
     """
-    Get the lower and upper limit of a halo's positions or cell numbers.
+    Get the lower and upper limit of a halo's cell numbers. Optionally,
+    floating point positions are also supported. However, in this case `nshift`
+    must be 0. Be careful, no error will be raised.
 
     Parameters
     ----------
     pos : 2-dimensional array
-        Halo particle array. Columns must be `x`, `y`, `z`.
+        Halo particle array. The first three columns must be the cell numbers
+        corresponding to `x`, `y`, `z`.
     ncells : int
         Number of grid cells of the box along a single dimension.
     nshift : int, optional
@@ -778,16 +778,12 @@ def get_halolims(pos, ncells, nshift=None):
     Returns
     -------
     mins, maxs : 1-dimensional arrays of shape `(3, )`
-        Minimum and maximum along each axis.
     """
-    # Check that in case of `nshift` we have integer positions.
     dtype = pos.dtype
-    if nshift is not None and dtype.char not in numpy.typecodes["AllInteger"]:
-        raise TypeError("`nshift` supported only positions are cells.")
-    nshift = 0 if nshift is None else nshift  # To simplify code below
 
     mins = numpy.full(3, numpy.nan, dtype=dtype)
     maxs = numpy.full(3, numpy.nan, dtype=dtype)
+
     for i in range(3):
         mins[i] = max(numpy.min(pos[:, i]) - nshift, 0)
         maxs[i] = min(numpy.max(pos[:, i]) + nshift, ncells - 1)
@@ -810,27 +806,29 @@ def calculate_overlap(delta1, delta2, cellmins, delta_bckg, box_size,
     delta2 : 3-dimensional array
         Density field of the second halo.
     cellmins : len-3 tuple
-        Tuple of left-most cell ID in the full box.
+        Tuple of lower cell ID in the full box.
     delta_bckg : 3-dimensional array
         Summed background density field of the reference and cross simulations
         calculated with particles assigned to halos at the final snapshot.
-        Assumed to only be sampled in cells :math:`[512, 1536)^3`.
+        Calculated on a grid determined by `bckg_halfsize`.
     box_size : int
         Number of cells in the box.
     bckg_halfsize : int
-        Number of to each side of the centre of the box to calculate the
-        density field. This is because in CSiBORG we are only interested in the
-        high-resolution region.
+        Background half-size for density field calculation. This is the
+        grid distance from the center of the box to each side over which to
+        evaluate the background density field. Must be less than or equal to
+        half the box size.
 
     Returns
     -------
     overlap : float
     """
-    totmass = 0.0  # Total mass of halo 1 and halo 2
-    intersect = 0.0  # Weighted intersecting mass
-    i0, j0, k0 = cellmins  # Unpack things
+    totmass = 0.0
+    intersect = 0.0
     bckg_size = 2 * bckg_halfsize
     bckg_offset = box_size // 2 - bckg_halfsize
+
+    i0, j0, k0 = cellmins
     imax, jmax, kmax = delta1.shape
 
     for i in range(imax):
@@ -868,11 +866,11 @@ def calculate_overlap_indxs(delta1, delta2, cellmins, delta_bckg, nonzero,
     delta2 : 3-dimensional array
         Density field of the second halo.
     cellmins : len-3 tuple
-        Tuple of left-most cell ID in the full box.
+        Tuple of lower cell ID in the full box.
     delta_bckg : 3-dimensional array
         Summed background density field of the reference and cross simulations
         calculated with particles assigned to halos at the final snapshot.
-        Assumed to only be sampled in cells :math:`[512, 1536)^3`.
+        Calculated on a grid determined by `bckg_halfsize`.
     nonzero : 2-dimensional array of shape `(n_cells, 3)`
         Indices of cells that are non-zero of the lower mass halo. Expected to
         be precomputed from `fill_delta_indxs`.
@@ -882,18 +880,20 @@ def calculate_overlap_indxs(delta1, delta2, cellmins, delta_bckg, nonzero,
     box_size : int
         Number of cells in the box.
     bckg_halfsize : int
-        Number of to each side of the centre of the box to calculate the
-        density field. This is because in CSiBORG we are only interested in the
-        high-resolution region.
+        Background half-size for density field calculation. This is the
+        grid distance from the center of the box to each side over which to
+        evaluate the background density field. Must be less than or equal to
+        half the box size.
 
     Returns
     -------
     overlap : float
     """
-    intersect = 0.0  # Weighted intersecting mass
-    i0, j0, k0 = cellmins  # Unpack cell minimas
+    intersect = 0.0
     bckg_size = 2 * bckg_halfsize
     bckg_offset = box_size // 2 - bckg_halfsize
+
+    i0, j0, k0 = cellmins
 
     for n in range(nonzero.shape[0]):
         i, j, k = nonzero[n, :]
@@ -905,7 +905,7 @@ def calculate_overlap_indxs(delta1, delta2, cellmins, delta_bckg, nonzero,
             jj = j0 + j - bckg_offset  # background density field.
             kk = k0 + k - bckg_offset
 
-            ishighres = 0 <= ii < bckg_size  # Is this cell is in the high
+            ishighres = 0 <= ii < bckg_size   # Is this cell is in the high
             ishighres &= 0 <= jj < bckg_size  # resolution region for which the
             ishighres &= 0 <= kk < bckg_size  # background field is calculated.
 
@@ -933,9 +933,9 @@ def load_processed_halo(hid, particles, halo_map, hid2map, ncells, nshift):
     hid2map : dict
         Dictionary mapping halo IDs to `halo_map` array positions.
     ncells : int
-        Number of cells in the original density field. Typically 2048.
+        Number of cells in the box density field.
     nshift : int
-        Number of cells to pad the density field.
+        Cell padding for the density field.
 
     Returns
     -------
@@ -952,29 +952,28 @@ def load_processed_halo(hid, particles, halo_map, hid2map, ncells, nshift):
     """
     pos = load_halo_particles(hid, particles, halo_map, hid2map)
     pos, mass = pos[:, :3], pos[:, 3]
+
     pos = pos2cell(pos, ncells)
-    totmass = numpy.sum(mass)
-    mins, maxs = get_halolims(pos, ncells=ncells, nshift=nshift)
-    return pos, mass, totmass, mins, maxs
+    mins, maxs = get_halo_cell_limits(pos, ncells=ncells, nshift=nshift)
+    return pos, mass, numpy.sum(mass), mins, maxs
 
 
 def radius_neighbours(knn, X, radiusX, radiusKNN, nmult=1.0,
                       enforce_int32=False, verbose=True):
     """
-    Find all neigbours of a trained KNN model whose center of mass separation
+    Find all neigbours of a fitted kNN model whose center of mass separation
     is less than `nmult` times the sum of their respective radii.
 
     Parameters
     ----------
     knn : :py:class:`sklearn.neighbors.NearestNeighbors`
         Fitted nearest neighbour search.
-    X : 2-dimensional array
-        Array of shape `(n_samples, 3)`, where the latter axis represents
-        `x`, `y` and `z`.
+    X : 2-dimensional array of shape `(n_samples, 3)`
+        Array of halo positions from the cross simulation.
     radiusX: 1-dimensional array of shape `(n_samples, )`
-        Patch radii corresponding to haloes in `X`.
+        Lagrangian patch radii corresponding to haloes in `X`.
     radiusKNN : 1-dimensional array
-        Patch radii corresponding to haloes used to train `knn`.
+        Lagrangian patch radii corresponding to haloes used to train the kNN.
     nmult : float, optional
         Multiple of the sum of two radii below which to consider a match.
     enforce_int32 : bool, optional
@@ -988,22 +987,24 @@ def radius_neighbours(knn, X, radiusX, radiusKNN, nmult=1.0,
     indxs : 1-dimensional array `(n_samples,)` of arrays
         Matches to `X` from `knn`.
     """
-    assert X.ndim == 2 and X.shape[1] == 3  # shape of X ok?
-    assert X.shape[0] == radiusX.size  # patchX matches X?
-    assert radiusKNN.size == knn.n_samples_fit_  # patchknn matches the knn?
+    if X.shape != (radiusX.size, 3):
+        raise ValueError("Mismatch in shape of `X` or `radiusX`")
+    if radiusKNN.size != knn.n_samples_fit_:
+        raise ValueError("Mismatch in shape of `radiusKNN` or `knn`")
 
-    nsamples = X.shape[0]
+    nsamples = len(X)
     indxs = [None] * nsamples
-    patchknn_max = numpy.max(radiusKNN)  # Maximum for completeness
+    patchknn_max = numpy.max(radiusKNN)
 
     for i in trange(nsamples) if verbose else range(nsamples):
         dist, indx = knn.radius_neighbors(
-            X[i, :].reshape(-1, 3), radiusX[i] + patchknn_max,
+            X[i].reshape(1, -1), radiusX[i] + patchknn_max,
             sort_results=True)
         # Note that `dist` and `indx` are wrapped in 1-element arrays
         # so we take the first item where appropriate
         mask = (dist[0] / (radiusX[i] + radiusKNN[indx[0]])) < nmult
         indxs[i] = indx[0][mask]
+
         if enforce_int32:
             indxs[i] = indxs[i].astype(numpy.int32)
 
@@ -1048,3 +1049,32 @@ def find_neighbour(nsim0, cats):
         cross_hindxs[:, i] = catx["index"][numpy.ravel(ind)]
 
     return dists, cross_hindxs
+
+
+def cosine_similarity(x, y):
+    r"""
+    Calculate the cosine similarity between two Cartesian vectors. Defined
+    as :math:`\Sum_{i} x_i y_{i} / (|x| * |y|)`.
+
+    Parameters
+    ----------
+    x : 1-dimensional array
+        The first vector.
+    y : 1- or 2-dimensional array
+        The second vector. Can be 2-dimensional of shape `(n_samples, 3)`,
+        in which case the calculation is broadcasted.
+
+    Returns
+    -------
+    out : float or 1-dimensional array
+    """
+    if x.ndim != 1:
+        raise ValueError("`x` must be a 1-dimensional array.")
+
+    if y.ndim == 1:
+        y = y.reshape(1, -1)
+
+    out = numpy.sum(x * y, axis=1)
+    out /= numpy.linalg.norm(x) * numpy.linalg.norm(y, axis=1)
+
+    return out[0] if out.size == 1 else out
