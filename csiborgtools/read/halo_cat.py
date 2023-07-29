@@ -614,8 +614,8 @@ class QuijoteHaloCatalogue(BaseCatalogue):
                           SFR=False, read_IDs=False)
 
         cols = [("x", numpy.float32), ("y", numpy.float32),
-                ("z", numpy.float32), ("vx", numpy.float32),
-                ("vy", numpy.float32), ("vz", numpy.float32),
+                ("z", numpy.float32), ("fof_vx", numpy.float32),
+                ("fof_vy", numpy.float32), ("fof_vz", numpy.float32),
                 ("group_mass", numpy.float32), ("npart", numpy.int32),
                 ("index", numpy.int32)]
         data = cols_to_structured(fof.GroupLen.size, cols)
@@ -624,7 +624,7 @@ class QuijoteHaloCatalogue(BaseCatalogue):
         vel = fof.GroupVel * (1 + self.redshift)
         for i, p in enumerate(["x", "y", "z"]):
             data[p] = pos[:, i]
-            data["v" + p] = vel[:, i]
+            data["fof_v" + p] = vel[:, i]
         data["group_mass"] = fof.GroupMass * 1e10
         data["npart"] = fof.GroupLen
         # We want to start indexing from 1. Index 0 is reserved for
