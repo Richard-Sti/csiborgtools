@@ -58,7 +58,8 @@ class BaseCatalogue(ABC):
 
     @nsim.setter
     def nsim(self, nsim):
-        assert isinstance(nsim, (int, numpy.integer))
+        if not isinstance(nsim, (int, numpy.integer)):
+            raise TypeError("`nsim` must be an integer!")
         self._nsim = nsim
 
     @abstractproperty
