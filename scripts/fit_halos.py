@@ -37,7 +37,8 @@ except ModuleNotFoundError:
 
 def fit_halo(particles, box):
     """
-    Fit a single halo from the particle array.
+    Fit a single halo from the particle array. Only halos with more than 100
+    particles are fitted.
 
     Parameters
     ----------
@@ -58,6 +59,9 @@ def fit_halo(particles, box):
     out["totpartmass"] = numpy.sum(halo["M"])
     for i, v in enumerate(["vx", "vy", "vz"]):
         out[v] = numpy.average(halo.vel[:, i], weights=halo["M"])
+
+    if out["npart"] < 100:
+        return out
 
     cm, dist = halo.center_of_mass()
     m200c, r200c = halo.spherical_overdensity_mass(dist, 200)
@@ -115,7 +119,6 @@ def _main(nsim, simname, verbose):
     for i in trange(len(cat)) if verbose else range(len(cat)):
         hid = cat["index"][i]
         out["index"][i] = hid
-        # print("i = ", i)
         part = csiborgtools.read.load_halo_particles(hid, particles, halo_map,
                                                      hid2map)
         # Skip if no particles.
@@ -124,7 +127,7 @@ def _main(nsim, simname, verbose):
 
         _out = fit_halo(part, box)
         for key in _out.keys():
-            out[key][i] = _out[key]
+            out[key][i] = _out.get(key, numpy.nan)
 
     fout = paths.structfit(nsnap, nsim, simname)
     if verbose:
