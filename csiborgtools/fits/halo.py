@@ -87,7 +87,7 @@ class BaseStructure(ABC):
         """
         return numpy.vstack([self[p] for p in ("vx", "vy", "vz")]).T
 
-    def center_of_mass(self, npart_min=50, shrink_factor=0.75):
+    def center_of_mass(self, npart_min=30, shrink_factor=0.975):
         r"""
         Calculate the center of mass of a halo via the shrinking sphere
         procedure. Iteratively reduces initial radius and calculates the CM of
@@ -163,9 +163,12 @@ class BaseStructure(ABC):
         dist = self.box.box2mpc(dist[argsort])
 
         norm_density = numpy.cumsum(self['M'][argsort])
+        totmass = norm_density[-1]
         norm_density /= (4. / 3. * numpy.pi * dist**3)
         norm_density /= rho
 
+        # This ensures that the j - 1 index is also just above 1, therefore the
+        # expression below strictly interpolates.
         j = find_first_below_threshold(norm_density, 1.)
 
         if j is None:
@@ -179,6 +182,9 @@ class BaseStructure(ABC):
 
         mass = radius_to_mass(rad, rho)
         rad = self.box.mpc2box(rad)
+
+        if mass > totmass:
+            return numpy.nan, numpy.nan
 
         return mass, rad
 
@@ -456,7 +462,7 @@ def find_first_below_threshold(x, threshold):
     index : int or None
     """
     for i in range(1, len(x)):
-        if x[i] < threshold:
+        if 1 < x[i - 1] and x[i] < threshold:
             return i
     return None
 
