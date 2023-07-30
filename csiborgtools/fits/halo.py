@@ -190,7 +190,8 @@ class BaseStructure(ABC):
     def angular_momentum(self, dist, cm, rad, npart_min=10):
         r"""
         Calculate angular momentum around a centre of mass using all particles
-        within a radius. Units are (Msun / h) * (Mpc / h) * (km / s).
+        within a radius. Accounts for periodicity of the box and units are
+        (Msun / h) * (Mpc / h) * (km / s).
 
         Parameters
         ----------
