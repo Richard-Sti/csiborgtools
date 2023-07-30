@@ -19,10 +19,7 @@ import numpy
 from numba import jit
 from scipy.optimize import minimize
 
-
-GRAV = 6.6743e-11               # m^3 kg^-1 s^-2
-MSUN = 1.988409870698051e+30    # kg
-MPC2M = 3.0856775814671916e+22  # 1 Mpc is this many meters
+GRAV = 4.300917270069976e-09  # G in (Msun / h)^-1 (Mpc / h) (km / s)^2
 
 
 class BaseStructure(ABC):
@@ -90,94 +87,111 @@ class BaseStructure(ABC):
         """
         return numpy.vstack([self[p] for p in ("vx", "vy", "vz")]).T
 
-    def spherical_overdensity_mass(self, delta_mult, kind="crit", rtol=1e-8,
-                                   maxiter=100, npart_min=10):
+    def center_of_mass(self, npart_min=50, shrink_factor=0.75):
         r"""
-        Calculate spherical overdensity mass and radius via the iterative
-        shrinking sphere method.
+        Calculate the center of mass of a halo via the shrinking sphere
+        procedure. Iteratively reduces initial radius and calculates the CM of
+        enclosed particles while the number of enclosed particles is greater
+        than a set minimum.
+
 
         Parameters
         ----------
+        npart_min : int, optional
+            Minimum number of enclosed particles above which to continue
+            shrinking the sphere.
+        shrink_factor : float, optional
+            Factor by which to shrink the sphere radius at each iteration.
+
+        Returns
+        -------
+        cm : 1-dimensional array of shape `(3, )`
+            Center of mass in box units.
+        dist : 1-dimensional array of shape `(n_particles, )`
+            Distance of each particle from the center of mass in box units.
+        """
+        pos, mass = self.pos, self["M"]
+
+        cm = center_of_mass(pos, mass, boxsize=1)
+        rad = None
+
+        while True:
+            dist = periodic_distance(pos, cm, boxsize=1)
+
+            if rad is None:
+                rad = numpy.max(dist)
+
+            within_rad = dist <= rad
+
+            cm = center_of_mass(pos[within_rad], mass[within_rad], boxsize=1)
+
+            if numpy.sum(within_rad) < npart_min:
+                return cm, periodic_distance(pos, cm, boxsize=1)
+
+            rad *= shrink_factor
+
+    def spherical_overdensity_mass(self, dist, delta_mult, kind="crit"):
+        r"""
+        Calculate spherical overdensity mass and radius around a CM, defined as
+        the inner-most radius where the density falls below a given threshold.
+        The exact radius is found via linear interpolation between the two
+        particles enclosing the threshold.
+
+        Parameters
+        ----------
+        dist : 1-dimensional array of shape `(n_particles, )`
+            Distance of each particle from the centre of mass in box units.
         delta_mult : int or float
             Overdensity multiple.
         kind : str, optional
             Either `crit` or `matter`, for critical or matter overdensity
-        rtol : float, optional
-            Tolerance for the change in the center of mass or radius.
-        maxiter : int, optional
-            Maximum number of iterations.
-        npart_min : int, optional
-            Minimum number of enclosed particles to reset the iterator.
 
         Returns
         -------
         mass :  float
-            The requested spherical overdensity mass in :math:`M_\odot / h`.
+            Overdensity mass in (Msun / h).
         rad : float
-            The radius of the sphere enclosing the requested overdensity in box
-            units.
-        cm : 1-dimensional array of shape `(3, )`
-            The center of mass of the sphere enclosing the requested
-            overdensity in box units.
+            Overdensity radius in box units.
         """
-        assert kind in ["crit", "matter"]
+        if kind not in ["crit", "matter"]:
+            raise ValueError("kind must be either `crit` or `matter`.")
 
-        # Calculate density based on the provided kind
         rho = delta_mult * self.box.rho_crit0
-        if kind == "matter":
-            rho *= self.box.Om
+        rho *= self.box.Om if kind == "matter" else 1.
 
-        pos, mass = self.pos, self["M"]
+        argsort = numpy.argsort(dist)
+        dist = self.box.box2mpc(dist[argsort])
 
-        # Initial estimates for center of mass and radius
-        init_cm = center_of_mass(pos, mass, boxsize=1)
-        init_rad = self.box.mpc2box(mass_to_radius(numpy.sum(mass), rho) * 1.5)
+        norm_density = numpy.cumsum(self['M'][argsort])
+        norm_density /= (4. / 3. * numpy.pi * dist**3)
+        norm_density /= rho
 
-        rad, cm = init_rad, numpy.copy(init_cm)
+        j = find_first_below_threshold(norm_density, 1.)
 
-        for _ in range(maxiter):
-            dist = periodic_distance(pos, cm, boxsize=1)
-            within_rad = dist <= rad
+        if j is None:
+            return numpy.nan, numpy.nan
 
-            # Heuristic reset if too few enclosed particles
-            if numpy.sum(within_rad) < npart_min:
-                js = numpy.random.choice(len(self), len(self), replace=True)
-                cm = center_of_mass(pos[js], mass[js], boxsize=1)
-                rad = init_rad * (0.75 + numpy.random.rand())
-                dist = periodic_distance(pos, cm, boxsize=1)
-                within_rad = dist <= rad
+        i = j - 1
 
-                # If there are still too few particles, then skip this
-                # iteration.
-                if numpy.sum(within_rad) < npart_min:
-                    continue
+        rad = (dist[j] - dist[i])
+        rad *= (1. - norm_density[i]) / (norm_density[j] - norm_density[i])
+        rad += dist[i]
 
-            enclosed_mass = numpy.sum(mass[within_rad])
-            new_rad = self.box.mpc2box(mass_to_radius(enclosed_mass, rho))
-            new_cm = center_of_mass(pos[within_rad], mass[within_rad],
-                                    boxsize=1)
+        mass = radius_to_mass(rad, rho)
+        rad = self.box.mpc2box(rad)
 
-            # Check convergence based on center of mass and radius
-            cm_conv = numpy.linalg.norm(cm - new_cm) < rtol
-            rad_conv = abs(rad - new_rad) < rtol
+        return mass, rad
 
-            if cm_conv or rad_conv:
-                return enclosed_mass, rad, cm
-
-            cm, rad = new_cm, new_rad
-
-        # Return NaN values if no convergence after max iterations
-        return numpy.nan, numpy.nan, numpy.full(3, numpy.nan, numpy.float32)
-
-    def angular_momentum(self, ref, rad, npart_min=10):
+    def angular_momentum(self, dist, cm, rad, npart_min=10):
         r"""
-        Calculate angular momentum around a reference point using all particles
-        within a radius. Units are
-        :math:`(M_\odot / h) (\mathrm{Mpc} / h) \mathrm{km} / \mathrm{s}`.
+        Calculate angular momentum around a centre of mass using all particles
+        within a radius. Units are (Msun / h) * (Mpc / h) * (km / s).
 
         Parameters
         ----------
-        ref : 1-dimensional array of shape `(3, )`
+        dist : 1-dimensional array of shape `(n_particles, )`
+            Distance of each particle from center of mass in box units.
+        cm : 1-dimensional array of shape `(3, )`
             Reference point in box units.
         rad : float
             Radius around the reference point in box units.
@@ -189,31 +203,27 @@ class BaseStructure(ABC):
         -------
         angmom : 1-dimensional array or shape `(3, )`
         """
-        # Calculate the distance of each particle from the reference point.
-        distances = periodic_distance(self.pos, ref, boxsize=1)
+        mask = dist < rad
 
-        # Filter particles within the provided radius.
-        mask = distances < rad
         if numpy.sum(mask) < npart_min:
             return numpy.full(3, numpy.nan, numpy.float32)
 
         mass, pos, vel = self["M"][mask], self.pos[mask], self.vel[mask]
 
-        # Convert positions to Mpc / h and center around the reference point.
-        pos = self.box.box2mpc(pos) - ref
-        # Adjust velocities to be in the CM frame.
+        pos = self.box.box2mpc(pos - cm)
         vel -= numpy.average(vel, axis=0, weights=mass)
-        # Calculate angular momentum.
+
         return numpy.sum(mass[:, numpy.newaxis] * numpy.cross(pos, vel),
                          axis=0)
 
-    def lambda_bullock(self, ref, rad):
-        r"""
-        Bullock spin, see Eq. 5 in [1], in a given radius around a reference
-        point.
+    def lambda_bullock(self, angmom, mass, rad):
+        """
+        Calculate the Bullock spin, see Eq. 5 in [1].
 
         Parameters
         ----------
+        angmom : 1-dimensional array of shape `(3, )`
+            Angular momentum in (Msun / h) * (Mpc / h) * (km / s).
         ref : 1-dimensional array of shape `(3, )`
             Reference point in box units.
         rad : float
@@ -229,28 +239,18 @@ class BaseStructure(ABC):
         Bullock, J. S.; Dekel, A.;  Kolatt, T. S.; Kravtsov, A. V.;
         Klypin, A. A.; Porciani, C.; Primack, J. R.
         """
-        # Filter particles within the provided radius
-        mask = periodic_distance(self.pos, ref, boxsize=1) < rad
-        # Calculate the total mass of the enclosed particles
-        enclosed_mass = numpy.sum(self["M"][mask])
-        # Convert the radius from box units to Mpc/h
-        rad_mpc = self.box.box2mpc(rad)
-        # Circular velocity in km/s
-        circvel = (GRAV * enclosed_mass * MSUN / (rad_mpc * MPC2M))**0.5 * 1e-3
-        # Magnitude of the angular momentum
-        l_norm = numpy.linalg.norm(self.angular_momentum(ref, rad))
-        # Compute and return the Bullock spin parameter
-        return l_norm / (numpy.sqrt(2) * enclosed_mass * circvel * rad_mpc)
+        out = numpy.linalg.norm(angmom)
+        return out / numpy.sqrt(2 * GRAV * mass**3 * self.box.box2mpc(rad))
 
-    def nfw_concentration(self, ref, rad, conc_min=1e-3, npart_min=10):
+    def nfw_concentration(self, dist, rad, conc_min=1e-3, npart_min=10):
         """
         Calculate the NFW concentration parameter in a given radius around a
         reference point.
 
         Parameters
         ----------
-        ref : 1-dimensional array of shape `(3, )`
-            Reference point in box units.
+        dist : 1-dimensional array of shape `(n_particles, )`
+            Distance of each particle from center of mass in box units.
         rad : float
             Radius around the reference point in box units.
         conc_min : float
@@ -263,36 +263,25 @@ class BaseStructure(ABC):
         -------
         conc : float
         """
-        dist = periodic_distance(self.pos, ref, boxsize=1)
         mask = dist < rad
-
         if numpy.sum(mask) < npart_min:
             return numpy.nan
 
         dist, weight = dist[mask], self["M"][mask]
-        weight /= numpy.mean(weight)
+        weight /= weight[0]
 
-        # Objective function for minimization
-        def negll_nfw_concentration(log_c, xs, w):
-            c = 10**log_c
-            ll = xs / (1 + c * xs)**2 * c**2
-            ll *= (1 + c) / ((1 + c) * numpy.log(1 + c) - c)
-            ll = numpy.sum(numpy.log(w * ll))
-            return -ll
-
-        initial_guess = 1.5
-        res = minimize(negll_nfw_concentration, x0=initial_guess,
+        res = minimize(negll_nfw_concentration, x0=1.,
                        args=(dist / rad, weight, ), method='Nelder-Mead',
                        bounds=((numpy.log10(conc_min), 5),))
 
         if not res.success:
             return numpy.nan
 
-        conc_value = 10**res["x"][0]
-        if conc_value < conc_min or numpy.isclose(conc_value, conc_min):
+        conc = 10**res["x"][0]
+        if conc < conc_min or numpy.isclose(conc, conc_min):
             return numpy.nan
 
-        return conc_value
+        return conc
 
     def __getitem__(self, key):
         key_to_index = {'x': 0, 'y': 1, 'z': 2,
@@ -329,11 +318,12 @@ class Halo(BaseStructure):
 ###############################################################################
 
 
+@jit(nopython=True, fastmath=True, boundscheck=False)
 def center_of_mass(points, mass, boxsize):
     """
-    Calculate the center of mass of a halo, while assuming for periodic
-    boundary conditions of a cubical box. Assuming that particle positions are
-    in `[0, boxsize)` range.
+    Calculate the center of mass of a halo while assuming periodic boundary
+    conditions of a cubical box. Assuming that particle positions are in
+    `[0, boxsize)` range. This is a JIT implementation.
 
     Parameters
     ----------
@@ -348,20 +338,29 @@ def center_of_mass(points, mass, boxsize):
     -------
     cm : 1-dimensional array of shape `(3, )`
     """
-    # Convert positions to unit circle coordinates in the complex plane
-    pos = numpy.exp(2j * numpy.pi * points / boxsize)
-    # Compute weighted average of these coordinates, convert it back to
-    # box coordinates and fix any negative positions due to angle calculations.
-    cm = numpy.angle(numpy.average(pos, axis=0, weights=mass))
-    cm *= boxsize / (2 * numpy.pi)
-    cm[cm < 0] += boxsize
+    cm = numpy.zeros(3, dtype=points.dtype)
+    totmass = sum(mass)
+
+    # Convert positions to unit circle coordinates in the complex plane,
+    # calculate the weighted average and convert it back to box coordinates.
+    for i in range(3):
+        cm_i = sum(mass * numpy.exp(2j * numpy.pi * points[:, i] / boxsize))
+        cm_i /= totmass
+
+        cm_i = numpy.arctan2(cm_i.imag, cm_i.real) * boxsize / (2 * numpy.pi)
+
+        if cm_i < 0:
+            cm_i += boxsize
+        cm[i] = cm_i
+
     return cm
 
 
+@jit(nopython=True)
 def periodic_distance(points, reference, boxsize):
     """
-    Compute the periodic distance between multiple points and a reference
-    point.
+    Compute the 3D distance between multiple points and a reference point using
+    periodic boundary conditions. This is an optimized JIT implementation.
 
     Parameters
     ----------
@@ -376,9 +375,22 @@ def periodic_distance(points, reference, boxsize):
     -------
     dist : 1-dimensional array of shape `(n_points, )`
     """
-    delta = numpy.abs(points - reference)
-    delta = numpy.where(delta > boxsize / 2, boxsize - delta, delta)
-    return numpy.linalg.norm(delta, axis=1)
+    npoints = len(points)
+    half_box = boxsize / 2
+
+    dist = numpy.zeros(npoints, dtype=points.dtype)
+    for i in range(npoints):
+        for j in range(3):
+            dist_1d = abs(points[i, j] - reference[j])
+
+            if dist_1d > (half_box):
+                dist_1d = boxsize - dist_1d
+
+            dist[i] += dist_1d**2
+
+        dist[i] = dist[i]**0.5
+
+    return dist
 
 
 def shift_to_center_of_box(points, cm, boxsize, set_cm_to_zero=False):
@@ -407,26 +419,74 @@ def shift_to_center_of_box(points, cm, boxsize, set_cm_to_zero=False):
     return pos
 
 
-def mass_to_radius(mass, rho):
+@jit(nopython=True, fastmath=True, boundscheck=False)
+def radius_to_mass(radius, rho):
     """
-    Compute the radius of a sphere with a given mass and density.
+    Compute the mass of a sphere with a given radius and density.
 
     Parameters
     ----------
-    mass : float
-        Mass of the sphere.
+    radius : float
+        Radius of the sphere.
     rho : float
         Density of the sphere.
 
     Returns
     -------
-    rad : float
-        Radius of the sphere.
+    mass : float
     """
-    return ((3 * mass) / (4 * numpy.pi * rho))**(1./3)
+    return ((4 * numpy.pi * rho) / 3) * radius**3
 
 
-@jit(nopython=True)
+@jit(nopython=True, fastmath=True, boundscheck=False)
+def find_first_below_threshold(x, threshold):
+    """
+    Find index of first element in `x` that is below `threshold`. The index
+    must be greater than 0. If no such element is found, return `None`.
+
+    Parameters
+    ----------
+    x : 1-dimensional array
+        Array to search in.
+    threshold : float
+        Threshold value.
+
+    Returns
+    -------
+    index : int or None
+    """
+    for i in range(1, len(x)):
+        if x[i] < threshold:
+            return i
+    return None
+
+
+@jit(nopython=True, fastmath=True, boundscheck=False)
+def negll_nfw_concentration(log_c, xs, w):
+    """
+    Negative log-likelihood of the NFW concentration parameter.
+
+    Parameters
+    ----------
+    log_c : float
+        Logarithm of the concentration parameter.
+    xs : 1-dimensional array
+        Normalised radii.
+    w : 1-dimensional array
+        Weights.
+
+    Returns
+    ------
+    negll : float
+    """
+    c = 10**log_c
+    ll = xs / (1 + c * xs)**2 * c**2
+    ll *= (1 + c) / ((1 + c) * numpy.log(1 + c) - c)
+    ll = numpy.sum(numpy.log(w * ll))
+    return -ll
+
+
+@jit(nopython=True, fastmath=True, boundscheck=False)
 def delta2ncells(delta):
     """
     Calculate the number of cells in `delta` that are non-zero.
@@ -451,7 +511,7 @@ def delta2ncells(delta):
     return tot
 
 
-@jit(nopython=True)
+@jit(nopython=True, fastmath=True, boundscheck=False)
 def number_counts(x, bin_edges):
     """
     Calculate counts of samples in bins.
