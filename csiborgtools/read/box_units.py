@@ -263,8 +263,10 @@ class QuijoteBox(BaseBox):
     ----------
     nsnap : int
         Snapshot number.
-    **kwargs : dict
-        Empty keyword arguments. For backwards compatibility.
+    nsim : int
+        IC realisation index.
+    paths : py:class`csiborgtools.read.Paths`
+        Paths manager
     """
 
     def __init__(self, nsnap, nsim, paths):
