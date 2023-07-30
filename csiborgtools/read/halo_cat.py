@@ -58,7 +58,7 @@ class BaseCatalogue(ABC):
 
     @nsim.setter
     def nsim(self, nsim):
-        assert isinstance(nsim, int)
+        assert isinstance(nsim, (int, numpy.integer))
         self._nsim = nsim
 
     @abstractproperty
