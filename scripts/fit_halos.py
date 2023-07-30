@@ -59,12 +59,14 @@ def fit_halo(particles, box):
     for i, v in enumerate(["vx", "vy", "vz"]):
         out[v] = numpy.average(halo.vel[:, i], weights=halo["M"])
 
-    m200c, r200c, cm = halo.spherical_overdensity_mass(200, kind="crit",
-                                                       maxiter=100)
+    cm, dist = halo.center_of_mass()
+    m200c, r200c = halo.spherical_overdensity_mass(dist, 200)
+    angmom = halo.angular_momentum(dist, cm, r200c)
+
     out["m200c"] = m200c
     out["r200c"] = r200c
-    out["lambda200c"] = halo.lambda_bullock(cm, r200c)
-    out["conc"] = halo.nfw_concentration(cm, r200c)
+    out["lambda200c"] = halo.lambda_bullock(angmom, m200c, r200c)
+    out["conc"] = halo.nfw_concentration(dist, r200c)
     return out
 
 
@@ -81,9 +83,6 @@ def _main(nsim, simname, verbose):
     verbose : bool
         Verbosity flag.
     """
-    # if simname == "quijote":
-    #     raise NotImplementedError("Quijote not implemented yet.")
-
     cols = [("index", numpy.int32),
             ("npart", numpy.int32),
             ("totpartmass", numpy.float32),
