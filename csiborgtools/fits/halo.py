@@ -26,7 +26,6 @@ class BaseStructure(ABC):
     """
     Basic structure object for handling operations on its particles.
     """
-
     _particles = None
     _box = None
 
@@ -87,7 +86,7 @@ class BaseStructure(ABC):
         """
         return numpy.vstack([self[p] for p in ("vx", "vy", "vz")]).T
 
-    def center_of_mass(self, npart_min=30, shrink_factor=0.975):
+    def center_of_mass(self, npart_min=30, shrink_factor=0.98):
         r"""
         Calculate the center of mass of a halo via the shrinking sphere
         procedure. Iteratively reduces initial radius and calculates the CM of
@@ -216,7 +215,8 @@ class BaseStructure(ABC):
 
         mass, pos, vel = self["M"][mask], self.pos[mask], self.vel[mask]
 
-        pos = self.box.box2mpc(pos - cm)
+        pos = shift_to_center_of_box(pos, cm, 1.0, set_cm_to_zero=True)
+        pos = self.box.box2mpc(pos)
         vel -= numpy.average(vel, axis=0, weights=mass)
 
         return numpy.sum(mass[:, numpy.newaxis] * numpy.cross(pos, vel),
