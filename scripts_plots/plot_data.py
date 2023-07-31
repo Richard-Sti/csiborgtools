@@ -136,8 +136,7 @@ def plot_hmf(pdf=False):
     print("Plotting the HMF...", flush=True)
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 
-    # csiborg_nsims = paths.get_ics("csiborg")
-    csiborg_nsims = [7444]
+    csiborg_nsims = paths.get_ics("csiborg")
     print("Loading CSiBORG halo counts.", flush=True)
     for i, nsim in enumerate(tqdm(csiborg_nsims)):
         data = numpy.load(paths.halo_counts("csiborg", nsim))
@@ -163,16 +162,19 @@ def plot_hmf(pdf=False):
         quijote_counts[i * nmax:(i + 1) * nmax, :] = data["counts"]
     quijote_counts /= numpy.diff(bins).reshape(1, -1)
 
+    vol = 155.5**3
+    csiborg_counts /= vol
+    quijote_counts /= vol
+
     x = 10**(0.5 * (bins[1:] + bins[:-1]))
     # Edit lower limits
     csiborg_counts[:, x < 1e12] = numpy.nan
-    quijote_counts[:, x < 10**(12.4)] = numpy.nan
+    quijote_counts[:, x < 10**(13.1)] = numpy.nan
     # Edit upper limits
-    csiborg_counts[:, x > 4e15] = numpy.nan
-    quijote_counts[:, x > 4e15] = numpy.nan
+    csiborg_counts[:, x > 3e15] = numpy.nan
+    quijote_counts[:, x > 3e15] = numpy.nan
 
     with plt.style.context(plt_utils.mplstyle):
-        cols = plt.rcParams["axes.prop_cycle"].by_key()["color"]
         fig, ax = plt.subplots(nrows=2, sharex=True,
                                figsize=(3.5, 2.625 * 1.25),
                                gridspec_kw={"height_ratios": [1, 0.65]})
@@ -194,20 +196,23 @@ def plot_hmf(pdf=False):
         log_y = numpy.log10(mean_csiborg / mean_quijote)
         err = numpy.sqrt((std_csiborg / mean_csiborg / numpy.log(10))**2
                          + (std_quijote / mean_quijote / numpy.log(10))**2)
-        ax[1].plot(x, 10**log_y, c=cols[2])
+        ax[1].plot(x, 10**log_y, c="gray")
         ax[1].fill_between(x, 10**(log_y - err), 10**(log_y + err), alpha=0.5,
-                           color=cols[2])
+                           color="gray")
 
         # Labels and accesories
-        ax[1].axhline(1, color="k", ls=plt.rcParams["lines.linestyle"],
+        ax[1].axhline(1, color="k", ls="--",
                       lw=0.5 * plt.rcParams["lines.linewidth"], zorder=0)
-        ax[0].set_ylabel(r"$\frac{\mathrm{d} n}{\mathrm{d}\log M_{\rm h}}~\mathrm{dex}^{-1}$")  # noqa
-        ax[1].set_xlabel(r"$M_{\rm h}~[M_\odot / h]$")
-        ax[1].set_ylabel(r"$\mathrm{CSiBORG} / \mathrm{Quijote}$")
+        ax[0].set_ylabel(r"$\frac{\mathrm{d}^2 N}{\mathrm{d} V \mathrm{d}\log M_{\rm tot}}~[\mathrm{dex}^{-1} (\mathrm{Mpc} / h)^{-3}]$",  # noqa
+                         fontsize="small")
+        ax[1].set_xlabel(r"$M_{\rm tot}~[M_\odot / h]$", fontsize="small")
+        ax[1].set_ylabel(r"$\mathrm{CSiBORG} / \mathrm{Quijote}$",
+                         fontsize="small")
 
         ax[0].set_xscale("log")
         ax[0].set_yscale("log")
-        ax[1].set_yscale("log")
+        ax[1].set_ylim(0.5, 2.0)
+        # ax[1].set_yscale("log")
         ax[0].legend()
 
         fig.tight_layout(h_pad=0, w_pad=0)
@@ -268,11 +273,11 @@ def plot_hmf_quijote_full(pdf=False):
             ax[1].plot(x, counts[i, :] / mean, c=cols[0])
 
         # Labels and accesories
-        ax[1].axhline(1, color="k", ls=plt.rcParams["lines.linestyle"],
+        ax[1].axhline(1, color="k", ls="--",
                       lw=0.5 * plt.rcParams["lines.linewidth"], zorder=0)
-        ax[0].set_ylabel(r"$\frac{\mathrm{d}^2 n}{\mathrm{d}\log M_{\rm h} \mathrm{d} V}~[\mathrm{dex}^{-1} (\mathrm{Mpc / h})^{-3}]$",  # noqa
+        ax[0].set_ylabel(r"$\frac{\mathrm{d}^2 n}{\mathrm{d}\log M_{\rm tot} \mathrm{d} V}~[\mathrm{dex}^{-1} (\mathrm{Mpc / h})^{-3}]$",  # noqa
                          fontsize="small")
-        ax[1].set_xlabel(r"$M_{\rm h}~[$M_\odot / h]$", fontsize="small")
+        ax[1].set_xlabel(r"$M_{\rm tot}~[$M_\odot / h]$", fontsize="small")
         ax[1].set_ylabel(r"$\mathrm{HMF} / \langle \mathrm{HMF} \rangle$",
                          fontsize="small")
 
@@ -635,10 +640,10 @@ if __name__ == "__main__":
     if False:
         plot_mass_vs_ncells(7444, pdf=False)
 
-    if False:
+    if True:
         plot_hmf(pdf=False)
 
-    if True:
+    if False:
         plot_hmf_quijote_full(pdf=False)
 
     if False:
