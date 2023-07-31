@@ -13,7 +13,10 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 A script to calculate overlap between two IC realisations of the same
-simulation.
+simulation. The matching is performed for haloes whose total particles mass is
+    - CSiBORG: > 1e13 Msun/h,
+    - Quijote: > 1e14 Msun/h,
+since Quijote has much lower resolution than CSiBORG.
 """
 from argparse import ArgumentParser
 from copy import deepcopy
@@ -58,18 +61,22 @@ def pair_match(nsim0, nsimx, simname, sigma, verbose):
 
     if simname == "csiborg":
         overlapper_kwargs = {"box_size": 2048, "bckg_halfsize": 475}
-        # TODO decide on this bound.
-        bounds = {"totpartmass": (1e12, None)}
+        mass_kind = "fof_totpartmass"
+        bounds = {mass_kind: (1e13, None)}
         cat0 = csiborgtools.read.CSiBORGHaloCatalogue(
-            nsim0, paths, bounds=bounds, with_lagpatch=True)
+            nsim0, paths, bounds=bounds, load_fitted=False,
+            with_lagpatch=True)
         catx = csiborgtools.read.CSiBORGHaloCatalogue(
-            nsimx, paths, bounds=bounds, with_lagpatch=True)
+            nsimx, paths, bounds=bounds, load_fitted=False,
+            with_lagpatch=True)
     elif simname == "quijote":
         overlapper_kwargs = {"box_size": 512, "bckg_halfsize": 256}
+        mass_kind = "group_mass"
+        bounds = {mass_kind: (1e14, None)}
         cat0 = csiborgtools.read.QuijoteHaloCatalogue(
-            nsim0, paths, 4, with_lagpatch=True)
+            nsim0, paths, 4, load_fitted=False, with_lagpatch=True)
         catx = csiborgtools.read.QuijoteHaloCatalogue(
-            nsimx, paths, 4, with_lagpatch=True)
+            nsimx, paths, 4, load_fitted=False, with_lagpatch=True)
     else:
         raise ValueError(f"Unknown simulation name: `{simname}`.")
 
@@ -96,7 +103,8 @@ def pair_match(nsim0, nsimx, simname, sigma, verbose):
 
     if verbose:
         print(f"{datetime.now()}: NGP crossing the simulations.", flush=True)
-    matcher = csiborgtools.match.RealisationsMatcher(**overlapper_kwargs)
+    matcher = csiborgtools.match.RealisationsMatcher(
+        mass_kind=mass_kind, **overlapper_kwargs)
     match_indxs, ngp_overlap = matcher.cross(cat0, catx, parts0, partsx,
                                              halomap0, halomapx, delta_bckg,
                                              verbose=verbose)
