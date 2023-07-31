@@ -66,7 +66,7 @@ def _main(nsim, simname, verbose):
 
     if simname == "csiborg":
         cat = csiborgtools.read.CSiBORGHaloCatalogue(
-            nsim, paths, load_fitted=False, load_initial=False)
+            nsim, paths, bounds=None, load_fitted=False, load_initial=False)
     else:
         cat = csiborgtools.read.QuijoteHaloCatalogue(
             nsim, paths, nsnap=4, load_fitted=False, load_initial=False)
