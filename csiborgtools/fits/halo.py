@@ -163,7 +163,8 @@ class BaseStructure(ABC):
 
         norm_density = numpy.cumsum(self['M'][argsort])
         totmass = norm_density[-1]
-        norm_density /= (4. / 3. * numpy.pi * dist**3)
+        with numpy.errstate(divide="ignore"):
+            norm_density /= (4. / 3. * numpy.pi * dist**3)
         norm_density /= rho
 
         # This ensures that the j - 1 index is also just above 1, therefore the
