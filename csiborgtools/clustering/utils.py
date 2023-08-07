@@ -51,16 +51,20 @@ class BaseRVS(ABC):
 class RVSinsphere(BaseRVS):
     """
     Generator of uniform RVS in a sphere of radius `R` in Cartesian
-    coordinates centered at the origin.
+    coordinates centered at the centre of the box.
 
     Parameters
     ----------
     R : float
         Radius of the sphere.
+    boxsize : float
+        Box size
     """
-    def __init__(self, R):
+    def __init__(self, R, boxsize):
         assert R > 0, "Radius must be positive."
+        assert boxsize > 0, "Box size must be positive."
         self.R = R
+        self.boxsize = boxsize
         BaseRVS.__init__(self)
 
     def __call__(self, nsamples, random_state=42, dtype=numpy.float32):
@@ -73,7 +77,7 @@ class RVSinsphere(BaseRVS):
         x = r * numpy.sin(theta) * numpy.cos(phi)
         y = r * numpy.sin(theta) * numpy.sin(phi)
         z = r * numpy.cos(theta)
-        return numpy.vstack([x, y, z]).T
+        return numpy.vstack([x, y, z]).T + self.boxsize / 2
 
 
 class RVSinbox(BaseRVS):
