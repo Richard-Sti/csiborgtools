@@ -178,6 +178,7 @@ def plot_hmf(pdf=False):
     csiborg5511[x > 3e15] = numpy.nan
 
     with plt.style.context(plt_utils.mplstyle):
+        cols = plt.rcParams["axes.prop_cycle"].by_key()["color"]
         fig, ax = plt.subplots(nrows=2, sharex=True,
                                figsize=(3.5, 2.625 * 1.25),
                                gridspec_kw={"height_ratios": [1, 0.45]})
@@ -186,15 +187,15 @@ def plot_hmf(pdf=False):
         # Upper panel data
         mean_csiborg = numpy.mean(csiborg_counts, axis=0)
         std_csiborg = numpy.std(csiborg_counts, axis=0)
-        ax[0].plot(x, mean_csiborg, label="CSiBORG")
+        ax[0].plot(x, mean_csiborg, label="CSiBORG", c=cols[0])
         ax[0].fill_between(x, mean_csiborg - std_csiborg,
-                           mean_csiborg + std_csiborg, alpha=0.5)
+                           mean_csiborg + std_csiborg, alpha=0.5, color=cols[0])
 
         mean_quijote = numpy.mean(quijote_counts, axis=0)
         std_quijote = numpy.std(quijote_counts, axis=0)
-        ax[0].plot(x, mean_quijote, label="Quijote")
+        ax[0].plot(x, mean_quijote, label="Quijote", c=cols[1])
         ax[0].fill_between(x, mean_quijote - std_quijote,
-                           mean_quijote + std_quijote, alpha=0.5)
+                           mean_quijote + std_quijote, alpha=0.5, color=cols[1])
 
         ax[0].plot(x, csiborg5511, label="CSiBORG 5511", c="k", ls="--")
         std5511 = numpy.sqrt(csiborg5511)
@@ -204,9 +205,11 @@ def plot_hmf(pdf=False):
         log_y = numpy.log10(mean_csiborg / mean_quijote)
         err = numpy.sqrt((std_csiborg / mean_csiborg / numpy.log(10))**2
                          + (std_quijote / mean_quijote / numpy.log(10))**2)
-        ax[1].plot(x, 10**log_y, c="gray")
+        ax[1].plot(x, 10**log_y, c=cols[0])
         ax[1].fill_between(x, 10**(log_y - err), 10**(log_y + err), alpha=0.5,
-                           color="gray")
+                           color=col[0])
+
+        ax[1].plot(x, csiborg5511 / mean_quijote, c="k", ls="--")
 
         # Labels and accesories
         ax[1].axhline(1, color="k", ls="--",
