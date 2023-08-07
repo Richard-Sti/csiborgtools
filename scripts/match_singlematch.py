@@ -57,12 +57,13 @@ def pair_match(nsim0, nsimx, simname, sigma, verbose):
     None
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    smooth_kwargs = {"sigma": sigma, "mode": "wrap"}
+    smooth_kwargs = {"sigma": sigma, "mode": "constant", "cval": 0}
 
     if simname == "csiborg":
-        overlapper_kwargs = {"box_size": 2048, "bckg_halfsize": 475}
+        overlapper_kwargs = {"box_size": 2048, "bckg_halfsize": 512}
         mass_kind = "fof_totpartmass"
-        bounds = {mass_kind: (1e13, None)}
+        bounds = {"dist": (0, 155), mass_kind: (1e13, None)}
+
         cat0 = csiborgtools.read.CSiBORGHaloCatalogue(
             nsim0, paths, bounds=bounds, load_fitted=False,
             with_lagpatch=True)
@@ -73,10 +74,13 @@ def pair_match(nsim0, nsimx, simname, sigma, verbose):
         overlapper_kwargs = {"box_size": 512, "bckg_halfsize": 256}
         mass_kind = "group_mass"
         bounds = {mass_kind: (1e14, None)}
+
         cat0 = csiborgtools.read.QuijoteHaloCatalogue(
-            nsim0, paths, 4, load_fitted=False, with_lagpatch=True)
+            nsim0, paths, 4, bounds=bounds, load_fitted=False,
+            with_lagpatch=True)
         catx = csiborgtools.read.QuijoteHaloCatalogue(
-            nsimx, paths, 4, load_fitted=False, with_lagpatch=True)
+            nsimx, paths, 4, bounds=bounds, load_fitted=False,
+            with_lagpatch=True)
     else:
         raise ValueError(f"Unknown simulation name: `{simname}`.")
 
