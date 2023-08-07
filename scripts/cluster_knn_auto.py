@@ -59,10 +59,10 @@ def do_auto(args, config, cats, nsim, paths):
     -------
     None
     """
-    rvs_gen = csiborgtools.clustering.RVSinsphere(args.Rmax)
-    knncdf = csiborgtools.clustering.kNN_1DCDF()
     cat = cats[nsim]
-    knn = cat.knn(in_initial=False)
+    rvs_gen = csiborgtools.clustering.RVSinsphere(args.Rmax, cat.boxsize)
+    knncdf = csiborgtools.clustering.kNN_1DCDF()
+    knn = cat.knn(in_initial=False, subtract_observer=False, periodic=True)
     rs, cdf = knncdf(
         knn, rvs_gen=rvs_gen, nneighbours=config["nneighbours"],
         rmin=config["rmin"], rmax=config["rmax"],
@@ -97,9 +97,9 @@ def do_cross_rand(args, config, cats, nsim, paths):
     -------
     None
     """
-    rvs_gen = csiborgtools.clustering.RVSinsphere(args.Rmax)
     cat = cats[nsim]
-    knn1 = cat.knn(in_initial=False)
+    rvs_gen = csiborgtools.clustering.RVSinsphere(args.Rmax, cat.boxsize)
+    knn1 = cat.knn(in_initial=False, subtract_observer=False, periodic=True)
 
     knn2 = NearestNeighbors()
     pos2 = rvs_gen(len(cat).shape[0])
@@ -126,7 +126,7 @@ if __name__ == "__main__":
                         help="Simulation name")
     parser.add_argument("--nsims", type=int, nargs="+", default=None,
                         help="Indices of simulations to cross. If `-1` processes all simulations.")  # noqa
-    parser.add_argument("--Rmax", type=float, default=155/0.705,
+    parser.add_argument("--Rmax", type=float, default=155,
                         help="High-resolution region radius")  # noqa
     parser.add_argument("--verbose", type=lambda x: bool(strtobool(x)),
                         default=False)

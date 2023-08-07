@@ -37,12 +37,12 @@ except ModuleNotFoundError:
 
 
 def do_auto(args, config, cats, nsim, paths):
+    cat = cats[nsim]
     tpcf = csiborgtools.clustering.Mock2PCF()
-    rvs_gen = csiborgtools.clustering.RVSinsphere(args.Rmax)
+    rvs_gen = csiborgtools.clustering.RVSinsphere(args.Rmax, cat.boxsize)
     bins = numpy.logspace(
         numpy.log10(config["rpmin"]), numpy.log10(config["rpmax"]),
         config["nrpbins"] + 1,)
-    cat = cats[nsim]
 
     pos = cat.position(in_initial=False, cartesian=True)
     nrandom = int(config["randmult"] * pos.shape[0])
@@ -59,7 +59,7 @@ if __name__ == "__main__":
                         help="Simulation name")
     parser.add_argument("--nsims", type=int, nargs="+", default=None,
                         help="Indices of simulations to cross. If `-1` processes all simulations.")  # noqa
-    parser.add_argument("--Rmax", type=float, default=155/0.705,
+    parser.add_argument("--Rmax", type=float, default=155,
                         help="High-resolution region radius.")
     parser.add_argument("--verbose", type=lambda x: bool(strtobool(x)),
                         default=False, help="Verbosity flag.")
