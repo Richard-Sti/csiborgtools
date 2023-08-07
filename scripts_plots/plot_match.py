@@ -143,13 +143,15 @@ def plot_mass_vs_maxpairoverlap(nsim0, nsimx):
 
 
 @cache_to_disk(7)
-def get_overlap(nsim0):
+def get_overlap(simname, nsim0):
     """
     Calculate the summed overlap and probability of no match for a single
     reference simulation.
 
     Parameters
     ----------
+    simname : str
+        Simulation name.
     nsim0 : int
         Simulation index.
 
@@ -167,7 +169,8 @@ def get_overlap(nsim0):
         Probability of no match for each halo in the reference simulation.
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    nsimxs = csiborgtools.read.get_cross_sims(nsim0, paths, smoothed=True)
+    nsimxs = csiborgtools.read.get_cross_sims(simname, nsim0, paths,
+                                              smoothed=True)
     cat0 = open_cat(nsim0)
 
     catxs = []
@@ -195,7 +198,7 @@ def plot_mass_vsmedmaxoverlap(nsim0):
     nsim0 : int
         Reference simulation index.
     """
-    x, __, max_overlap, __, __ = get_overlap(nsim0)
+    x, __, max_overlap, __, __ = get_overlap("csiborg", nsim0)
 
     for i in trange(max_overlap.shape[0]):
         if numpy.sum(numpy.isnan(max_overlap[i, :])) > 0:
@@ -255,7 +258,7 @@ def plot_summed_overlap_vs_mass(nsim0):
     -------
     None
     """
-    x, __, __, summed_overlap, prob_nomatch = get_overlap(nsim0)
+    x, __, __, summed_overlap, prob_nomatch = get_overlap("csiborg", nsim0)
     del __
     collect()
 
@@ -389,12 +392,14 @@ def plot_mass_vs_separation(nsim0, nsimx, plot_std=False, min_overlap=0.0):
 
 
 @cache_to_disk(7)
-def get_max_key(nsim0, key):
+def get_max_key(simname, nsim0, key):
     """
     Get the value of a maximum overlap halo's property.
 
     Parameters
     ----------
+    simname : str
+        Simulation name.
     nsim0 : int
         Reference simulation index.
     key : str
@@ -412,7 +417,8 @@ def get_max_key(nsim0, key):
         Value of the property of the maximum overlap halo.
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    nsimxs = csiborgtools.read.get_cross_sims(nsim0, paths, smoothed=True)
+    nsimxs = csiborgtools.read.get_cross_sims(simname, nsim0, paths,
+                                              smoothed=True)
     nsimxs = nsimxs
     cat0 = open_cat(nsim0)
 
@@ -440,7 +446,7 @@ def plot_maxoverlap_mass(nsim0):
     nsim0 : int
         Reference simulation index.
     """
-    mass0, __, __, stat = get_max_key(nsim0, "totpartmass")
+    mass0, __, __, stat = get_max_key("csiborg", nsim0, "totpartmass")
 
     mu = numpy.mean(stat, axis=1)
     std = numpy.std(numpy.log10(stat), axis=1)
@@ -463,8 +469,10 @@ def plot_maxoverlap_mass(nsim0):
 
         axs[0].set_xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
         axs[1].set_xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
-        axs[0].set_ylabel(r"Max. overlap mean of $\log M_{\rm tot} ~ [M_\odot / h]$")
-        axs[1].set_ylabel(r"Max. overlap std. of $\log M_{\rm tot} ~ [M_\odot / h]$")
+        axs[0].set_ylabel(
+            r"Max. overlap mean of $\log M_{\rm tot} ~ [M_\odot / h]$")
+        axs[1].set_ylabel(
+            r"Max. overlap std. of $\log M_{\rm tot} ~ [M_\odot / h]$")
 
         ims = [im0, im1]
         for i in range(2):
@@ -498,7 +506,7 @@ def plot_maxoverlapstat(nsim0, key):
         Property to get.
     """
     assert key != "totpartmass"
-    mass0, key_val, __, stat = get_max_key(nsim0, key)
+    mass0, key_val, __, stat = get_max_key("csiborg", nsim0, key)
 
     xlabels = {"lambda200c": r"\log \lambda_{\rm 200c}"}
     key_label = xlabels.get(key, key)
@@ -546,13 +554,15 @@ def plot_maxoverlapstat(nsim0, key):
 
 
 @cache_to_disk(7)
-def get_expected_mass(nsim0, min_overlap):
+def get_expected_mass(simname, nsim0, min_overlap):
     """
     Get the expected mass of a reference halo given its overlap with halos
     from other simulations.
 
     Parameters
     ----------
+    simname : str
+        Simulation name.
     nsim0 : int
         Reference simulation index.
     min_overlap : float
@@ -570,7 +580,8 @@ def get_expected_mass(nsim0, min_overlap):
         Probability of not matching the reference halo.
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    nsimxs = csiborgtools.read.get_cross_sims(nsim0, paths, smoothed=True)
+    nsimxs = csiborgtools.read.get_cross_sims(simname, nsim0, paths,
+                                              smoothed=True)
     nsimxs = nsimxs
     cat0 = open_cat(nsim0)
 
@@ -602,7 +613,8 @@ def plot_mass_vs_expected_mass(nsim0, min_overlap=0, max_prob_nomatch=1):
     max_prob_nomatch : float, optional
         Maximum probability of no match to consider.
     """
-    mass, mu, std, prob_nomatch = get_expected_mass(nsim0, min_overlap)
+    mass, mu, std, prob_nomatch = get_expected_mass("csiborg", nsim0,
+                                                    min_overlap)
 
     std = std / mu / numpy.log(10)
     mass = numpy.log10(mass)
@@ -1343,7 +1355,7 @@ def plot_kl_vs_overlap(runs, nsim, kwargs, runs_to_mass, plot_std=True,
     for run in runs:
         nn_data = nn_reader.read_single("csiborg", run, nsim, nobs=None)
         nn_hindxs = nn_data["ref_hindxs"]
-        mass, overlap_hindxs, __, summed_overlap, prob_nomatch = get_overlap(nsim)  # noqa
+        mass, overlap_hindxs, __, summed_overlap, prob_nomatch = get_overlap("csiborg", nsim)  # noqa
 
         # We need to match the hindxs between the two.
         hind2overlap_array = {hind: i for i, hind in enumerate(overlap_hindxs)}

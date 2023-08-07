@@ -462,12 +462,14 @@ class Paths:
         fname = f"out_{str(nsim).zfill(5)}_{str(nsnap).zfill(5)}.npy"
         return join(fdir, fname)
 
-    def overlap(self, nsim0, nsimx, smoothed):
+    def overlap(self, simname, nsim0, nsimx, smoothed):
         """
         Path to the overlap files between two CSiBORG simulations.
 
         Parameters
         ----------
+        simname : str
+            Simulation name. Must be one of `csiborg` or `quijote`.
         nsim0 : int
             IC realisation index of the first simulation.
         nsimx : int
@@ -479,7 +481,12 @@ class Paths:
         -------
         path : str
         """
-        fdir = join(self.postdir, "overlap")
+        if simname == "csiborg":
+            fdir = join(self.postdir, "overlap")
+        elif simname == "quijote":
+            fdir = join(self.quijote_dir, "overlap")
+        else:
+            raise ValueError(f"Unknown simulation name `{simname}`.")
 
         try_create_directory(fdir)
 

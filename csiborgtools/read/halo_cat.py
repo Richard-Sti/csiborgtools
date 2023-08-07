@@ -74,6 +74,17 @@ class BaseCatalogue(ABC):
         """
         pass
 
+    @abstractproperty
+    def simname(self):
+        """
+        Simulation name.
+
+        Returns
+        -------
+        simname : str
+        """
+        pass
+
     @property
     def paths(self):
         """
@@ -584,6 +595,10 @@ class CSiBORGHaloCatalogue(BaseCatalogue):
         """
         return CSiBORGBox(self.nsnap, self.nsim, self.paths)
 
+    @property
+    def simname(self):
+        return "csiborg"
+
 
 ###############################################################################
 #                         Quijote halo catalogue                              #
@@ -680,6 +695,10 @@ class QuijoteHaloCatalogue(BaseCatalogue):
     def nsnap(self, nsnap):
         assert nsnap in [0, 1, 2, 3, 4]
         self._nsnap = nsnap
+
+    @property
+    def simname(self):
+        return "quijote"
 
     @property
     def redshift(self):

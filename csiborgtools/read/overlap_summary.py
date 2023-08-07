@@ -47,6 +47,10 @@ class PairOverlap:
     _data = None
 
     def __init__(self, cat0, catx, paths, maxdist=None):
+        if cat0.simname != catx.simname:
+            raise ValueError("The two catalogues must be from the same "
+                             "simulation.")
+
         self._cat0 = cat0
         self._catx = catx
         self.load(cat0, catx, paths, maxdist)
@@ -77,8 +81,8 @@ class PairOverlap:
 
         # We first load in the output files. We need to find the right
         # combination of the reference and cross simulation.
-        fname = paths.overlap(nsim0, nsimx, smoothed=False)
-        fname_inv = paths.overlap(nsimx, nsim0, smoothed=False)
+        fname = paths.overlap(cat0.simname, nsim0, nsimx, smoothed=False)
+        fname_inv = paths.overlap(cat0.simname, nsimx, nsim0, smoothed=False)
         if isfile(fname):
             data_ngp = numpy.load(fname, allow_pickle=True)
             to_invert = False
@@ -89,7 +93,8 @@ class PairOverlap:
         else:
             raise FileNotFoundError(f"No file found for {nsim0} and {nsimx}.")
 
-        fname_smooth = paths.overlap(cat0.nsim, catx.nsim, smoothed=True)
+        fname_smooth = paths.overlap(cat0.simname, cat0.nsim, catx.nsim,
+                                     smoothed=True)
         data_smooth = numpy.load(fname_smooth, allow_pickle=True)
 
         # Create mapping from halo indices to array positions in the catalogue.
@@ -764,13 +769,15 @@ class NPairsOverlap:
 ###############################################################################
 
 
-def get_cross_sims(nsim0, paths, smoothed):
+def get_cross_sims(simname, nsim0, paths, smoothed):
     """
     Get the list of cross simulations for a given reference simulation for
     which the overlap has been calculated.
 
     Parameters
     ----------
+    simname : str
+        Simulation name.
     nsim0 : int
         Reference simulation number.
     paths : :py:class:`csiborgtools.paths.Paths`
@@ -782,8 +789,8 @@ def get_cross_sims(nsim0, paths, smoothed):
     for nsimx in paths.get_ics("csiborg"):
         if nsimx == nsim0:
             continue
-        f1 = paths.overlap(nsim0, nsimx, smoothed)
-        f2 = paths.overlap(nsimx, nsim0, smoothed)
+        f1 = paths.overlap(simname, nsim0, nsimx, smoothed)
+        f2 = paths.overlap(simname, nsimx, nsim0, smoothed)
         if isfile(f1) or isfile(f2):
             nsimxs.append(nsimx)
     return nsimxs

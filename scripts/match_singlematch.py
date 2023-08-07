@@ -62,7 +62,7 @@ def pair_match(nsim0, nsimx, simname, sigma, verbose):
     if simname == "csiborg":
         overlapper_kwargs = {"box_size": 2048, "bckg_halfsize": 512}
         mass_kind = "fof_totpartmass"
-        bounds = {"dist": (0, 155), mass_kind: (1e13, None)}
+        bounds = {"dist": (0, 155), mass_kind: (10**13.25, None)}
 
         cat0 = csiborgtools.read.CSiBORGHaloCatalogue(
             nsim0, paths, bounds=bounds, load_fitted=False,
@@ -73,7 +73,7 @@ def pair_match(nsim0, nsimx, simname, sigma, verbose):
     elif simname == "quijote":
         overlapper_kwargs = {"box_size": 512, "bckg_halfsize": 256}
         mass_kind = "group_mass"
-        bounds = {mass_kind: (1e14, None)}
+        bounds = {mass_kind: (10**13.25, None)}
 
         cat0 = csiborgtools.read.QuijoteHaloCatalogue(
             nsim0, paths, 4, bounds=bounds, load_fitted=False,
@@ -120,7 +120,7 @@ def pair_match(nsim0, nsimx, simname, sigma, verbose):
         for j, match in enumerate(matches):
             match_hids[i][j] = catx["index"][match]
 
-    fout = paths.overlap(nsim0, nsimx, smoothed=False)
+    fout = paths.overlap(simname, nsim0, nsimx, smoothed=False)
     if verbose:
         print(f"{datetime.now()}: saving to ... `{fout}`.", flush=True)
     numpy.savez(fout, ref_hids=cat0["index"], match_hids=match_hids,
@@ -139,7 +139,7 @@ def pair_match(nsim0, nsimx, simname, sigma, verbose):
                                               match_indxs, smooth_kwargs,
                                               verbose=verbose)
 
-    fout = paths.overlap(nsim0, nsimx, smoothed=True)
+    fout = paths.overlap(simname, nsim0, nsimx, smoothed=True)
     if verbose:
         print(f"{datetime.now()}: saving to ... `{fout}`.", flush=True)
     numpy.savez(fout, smoothed_overlap=smoothed_overlap, sigma=sigma)
