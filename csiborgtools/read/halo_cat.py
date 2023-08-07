@@ -33,6 +33,7 @@ from .paths import Paths
 from .readsim import CSiBORGReader
 from .utils import (add_columns, cartesian_to_radec, cols_to_structured,
                     flip_cols, radec_to_cartesian, real2redshift)
+from ..utils import periodic_distance_two_points
 
 
 class BaseCatalogue(ABC):
@@ -327,7 +328,7 @@ class BaseCatalogue(ABC):
         return numpy.vstack([self["L{}".format(p)] for p in ("x", "y", "z")]).T
 
     @lru_cache(maxsize=2)
-    def knn(self, in_initial):
+    def knn(self, in_initial, subtract_observer, periodic):
         r"""
         kNN object for catalogue objects with caching. Positions are centered
         on the observer.
@@ -336,14 +337,32 @@ class BaseCatalogue(ABC):
         ----------
         in_initial : bool
             Whether to define the kNN on the initial or final snapshot.
+        subtract_observer : bool
+            Whether to subtract the observer's location from the positions.
+        periodic : bool
+            Whether to use periodic boundary conditions.
 
         Returns
         -------
         knn : :py:class:`sklearn.neighbors.NearestNeighbors`
             kNN object fitted with object positions.
         """
-        pos = self.position(in_initial=in_initial)
-        return NearestNeighbors().fit(pos)
+        if subtract_observer and periodic:
+            raise ValueError("Subtracting observer is not supported for "
+                             "periodic boundary conditions.")
+
+        pos = self.position(in_initial=in_initial,
+                            subtract_observer=subtract_observer)
+
+        if periodic:
+            L = self.box.boxsize
+            knn = NearestNeighbors(
+                metric=lambda a, b: periodic_distance_two_points(a, b, L))
+        else:
+            knn = NearestNeighbors()
+
+        knn.fit(pos)
+        return knn
 
     def nearest_neighbours(self, X, radius, in_initial, knearest=False,
                            return_mass=False, mass_key=None):
@@ -382,7 +401,8 @@ class BaseCatalogue(ABC):
         if return_mass and not mass_key:
             raise ValueError("`mass_key` must be provided if `return_mass`.")
 
-        knn = self.knn(in_initial)
+        knn = self.knn(in_initial, subtract_observer=False, periodic=True)
+
         if knearest:
             dist, indxs = knn.kneighbors(X, radius)
         else:
