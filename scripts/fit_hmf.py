@@ -61,7 +61,7 @@ def get_counts(nsim, bins, paths, parser_args):
         cat = csiborgtools.read.CSiBORGHaloCatalogue(
             nsim, paths, bounds=bounds, load_fitted=False, load_initial=False)
         logmass = numpy.log10(cat["fof_totpartmass"])
-        counts = csiborgtools.fits.number_counts(logmass, bins)
+        counts = csiborgtools.number_counts(logmass, bins)
     elif simname == "quijote":
         cat0 = csiborgtools.read.QuijoteHaloCatalogue(
             nsim, paths, nsnap=4, load_fitted=False, load_initial=False)
@@ -72,12 +72,12 @@ def get_counts(nsim, bins, paths, parser_args):
         for nobs in range(nmax):
             cat = cat0.pick_fiducial_observer(nobs, rmax=parser_args.Rmax)
             logmass = numpy.log10(cat["group_mass"])
-            counts[nobs, :] = csiborgtools.fits.number_counts(logmass, bins)
+            counts[nobs, :] = csiborgtools.number_counts(logmass, bins)
     elif simname == "quijote_full":
         cat = csiborgtools.read.QuijoteHaloCatalogue(
             nsim, paths, nsnap=4, load_fitted=False, load_initial=False)
         logmass = numpy.log10(cat["group_mass"])
-        counts = csiborgtools.fits.number_counts(logmass, bins)
+        counts = csiborgtools.number_counts(logmass, bins)
     else:
         raise ValueError(f"Unknown simulation name `{simname}`.")
 

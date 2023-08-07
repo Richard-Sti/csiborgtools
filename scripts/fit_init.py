@@ -91,14 +91,14 @@ def _main(nsim, simname, verbose):
 
         pos, mass = part[:, :3], part[:, 3]
         # Calculate the centre of mass and the Lagrangian patch size.
-        cm = csiborgtools.fits.center_of_mass(pos, mass, boxsize=1.0)
-        distances = csiborgtools.fits.periodic_distance(pos, cm, boxsize=1.0)
+        cm = csiborgtools.center_of_mass(pos, mass, boxsize=1.0)
+        distances = csiborgtools.periodic_distance(pos, cm, boxsize=1.0)
         out["x"][i], out["y"][i], out["z"][i] = cm
         out["lagpatch_size"][i] = numpy.percentile(distances, 99)
 
         # Calculate the number of cells with > 0 density.
         delta = overlapper.make_delta(pos, mass, subbox=True)
-        out["lagpatch_ncells"][i] = csiborgtools.fits.delta2ncells(delta)
+        out["lagpatch_ncells"][i] = csiborgtools.delta2ncells(delta)
 
     # Now save it
     fout = paths.initmatch(nsim, simname, "fit")
