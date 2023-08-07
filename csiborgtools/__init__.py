@@ -13,7 +13,8 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 from csiborgtools import clustering, field, match, read  # noqa
-from .utils import (center_of_mass, delta2ncells, periodic_distance, number_counts)  # noqa
+from .utils import (center_of_mass, delta2ncells, periodic_distance,  # noqa
+                    periodic_distance_two_points, number_counts)  # noqa
 
 # Arguments to csiborgtools.read.Paths.
 paths_glamdring = {"srcdir": "/mnt/extraspace/hdesmond/",

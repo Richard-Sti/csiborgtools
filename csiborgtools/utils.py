@@ -93,6 +93,39 @@ def periodic_distance(points, reference, boxsize):
 
 
 @jit(nopython=True, fastmath=True, boundscheck=False)
+def periodic_distance_two_points(p1, p2, boxsize):
+    """
+    Compute the 3D distance between two points using periodic boundary
+    conditions. This is an optimized JIT implementation.
+
+    Parameters
+    ----------
+    p1 : 1-dimensional array of shape `(3, )`
+        First point.
+    p2 : 1-dimensional array of shape `(3, )`
+        Second point.
+    boxsize : float
+        Box size.
+
+    Returns
+    -------
+    dist : 1-dimensional array of shape `(n_points, )`
+    """
+    half_box = boxsize / 2
+
+    dist = 0
+    for i in range(3):
+        dist_1d = abs(p1[i] - p2[i])
+
+        if dist_1d > (half_box):
+            dist_1d = boxsize - dist_1d
+
+        dist += dist_1d**2
+
+    return dist**0.5
+
+
+@jit(nopython=True, fastmath=True, boundscheck=False)
 def delta2ncells(delta):
     """
     Calculate the number of cells in `delta` that are non-zero.
