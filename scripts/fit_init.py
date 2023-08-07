@@ -14,8 +14,9 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 Script to calculate the particle centre of mass, Lagrangian patch size in the
-initial snapshot. The initial snapshot particles are read from the sorted
-files.
+initial snapshot.
+
+The initial snapshot particles are read from the sorted files.
 """
 from argparse import ArgumentParser
 from datetime import datetime
@@ -86,7 +87,7 @@ def _main(nsim, simname, verbose):
                                                      hid2map)
 
         # Skip if the halo has no particles or is too small.
-        if part is None or part.size < 100:
+        if part is None or part.size < 40:
             continue
 
         pos, mass = part[:, :3], part[:, 3]
