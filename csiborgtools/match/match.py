@@ -239,7 +239,8 @@ class RealisationsMatcher(BaseMatcher):
         if verbose:
             print(f"{datetime.now()}: querying the KNN.", flush=True)
         match_indxs = radius_neighbours(
-            catx.knn(in_initial=True), cat0.position(in_initial=True),
+            catx.knn(in_initial=True, subtract_observer=False, periodic=True),
+            cat0.position(in_initial=True),
             radiusX=cat0["lagpatch_size"], radiusKNN=catx["lagpatch_size"],
             nmult=self.nmult, enforce_int32=True, verbose=verbose)
 
@@ -515,7 +516,7 @@ class ParticleOverlap(BaseMatcher):
             Minimun and maximum cell numbers along each dimension of `halo1`.
             Optional.
         mins2, maxs2 : 1-dimensional arrays of shape `(3,)`
-            Minimun and maximum cell numbers along each dimension of `halo2`.
+            Minimum and maximum cell numbers along each dimension of `halo2`.
             Optional.
         smooth_kwargs : kwargs, optional
             Kwargs to be passed to :py:func:`scipy.ndimage.gaussian_filter`.
@@ -1014,7 +1015,8 @@ def radius_neighbours(knn, X, radiusX, radiusKNN, nmult=1.0,
 def find_neighbour(nsim0, cats):
     """
     Find the nearest neighbour of halos from a reference catalogue indexed
-    `nsim0` in the remaining simulations.
+    `nsim0` in the remaining simulations. Note that this must be the same
+    simulation suite.
 
     Parameters
     ----------
@@ -1030,8 +1032,10 @@ def find_neighbour(nsim0, cats):
     cross_hindxs : 2-dimensional array of shape `(nhalos, len(cats) - 1)`
         Halo indices of the nearest neighbour.
     """
+    assert all(isinstance(cat, type(cats[nsim0])) for cat in cats.values())
+
     cat0 = cats[nsim0]
-    X = cat0.position(in_initial=False, subtract_observer=True)
+    X = cat0.position(in_initial=False)
 
     nhalos = X.shape[0]
     num_cats = len(cats) - 1
