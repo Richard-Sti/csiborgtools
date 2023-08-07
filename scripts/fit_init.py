@@ -75,7 +75,7 @@ def _main(nsim, simname, verbose):
 
     # Initialise the overlapper.
     if simname == "csiborg":
-        kwargs = {"box_size": 2048, "bckg_halfsize": 475}
+        kwargs = {"box_size": 2048, "bckg_halfsize": 512}
     else:
         kwargs = {"box_size": 512, "bckg_halfsize": 256}
     overlapper = csiborgtools.match.ParticleOverlap(**kwargs)
