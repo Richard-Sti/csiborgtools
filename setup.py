@@ -1,5 +1,24 @@
 from setuptools import find_packages, setup
 
+# List of dependencies:
+#   - Corrfunc  -> To be moved to a separate package.
+#   - NumPy
+#   - SciPy
+#   - Numba
+#   - Pylians
+#   - tqdm
+#   - healpy
+#   - astropy
+#   - scikit-learn
+#   - joblib
+#   - h5py
+#   - MPI
+#   - pyyaml
+#   - taskmaster
+#   - matplotlib
+#   - scienceplots
+#   - cache_to_disk
+
 
 BUILD_REQ = ["numpy", "scipy"]
 INSTALL_REQ = BUILD_REQ
