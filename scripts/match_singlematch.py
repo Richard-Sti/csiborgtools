@@ -23,13 +23,7 @@ from distutils.util import strtobool
 import numpy
 from scipy.ndimage import gaussian_filter
 
-try:
-    import csiborgtools
-except ModuleNotFoundError:
-    import sys
-
-    sys.path.append("../")
-    import csiborgtools
+import csiborgtools
 
 
 def pair_match(nsim0, nsimx, simname, min_logmass, sigma, verbose):
@@ -95,27 +89,17 @@ def pair_match(nsim0, nsimx, simname, min_logmass, sigma, verbose):
         paths.initmatch(nsimx, simname, "particles"))["particles"]
     hid2mapx = {hid: i for i, hid in enumerate(halomapx[:, 0])}
 
-    if verbose:
-        print(f"{datetime.now()}: calculating the background density fields.",
-              flush=True)
     overlapper = csiborgtools.match.ParticleOverlap(**overlapper_kwargs)
     delta_bckg = overlapper.make_bckg_delta(parts0, halomap0, hid2map0, cat0,
                                             verbose=verbose)
     delta_bckg = overlapper.make_bckg_delta(partsx, halomapx, hid2mapx, catx,
                                             delta=delta_bckg, verbose=verbose)
-    if verbose:
-        print()
 
-
-    if verbose:
-        print(f"{datetime.now()}: NGP crossing the simulations.", flush=True)
     matcher = csiborgtools.match.RealisationsMatcher(
         mass_kind=mass_kind, **overlapper_kwargs)
     match_indxs, ngp_overlap = matcher.cross(cat0, catx, parts0, partsx,
                                              halomap0, halomapx, delta_bckg,
                                              verbose=verbose)
-    if verbose:
-        print()
 
     # We want to store the halo IDs of the matches, not their array positions
     # in the catalogues.
