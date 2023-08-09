@@ -259,10 +259,12 @@ class RealisationsMatcher(BaseMatcher):
             return load_processed_halo(hid, particlesx, halo_mapx, hid2mapx,
                                        nshift=0, ncells=self.box_size)
 
-        cross = [numpy.asanyarray([], dtype=numpy.float32)] * match_indxs.size
         iterator = tqdm(
-            cat0["index"], desc=f"{datetime.now()}: calculating NGP overlaps",
-            disable=not verbose)
+            cat0["index"],
+            desc=f"{datetime.now()}: calculating NGP overlaps",
+            disable=not verbose
+            )
+        cross = [numpy.asanyarray([], dtype=numpy.float32)] * match_indxs.size
         for i, k0 in enumerate(iterator):
             # If we have no matches continue to the next halo.
             matches = match_indxs[i]
@@ -345,10 +347,12 @@ class RealisationsMatcher(BaseMatcher):
             return load_processed_halo(hid, particlesx, halo_mapx, hid2mapx,
                                        nshift=nshift, ncells=self.box_size)
 
-        cross = [numpy.asanyarray([], dtype=numpy.float32)] * match_indxs.size
         iterator = tqdm(
-            cat0["index"], desc=f"{datetime.now()}: calculating overlaps",
-            disable=not verbose)
+            cat0["index"],
+            desc=f"{datetime.now()}: calculating smoothed overlaps",
+            disable=not verbose
+            )
+        cross = [numpy.asanyarray([], dtype=numpy.float32)] * match_indxs.size
         for i, k0 in enumerate(iterator):
             pos0, mass0, __, mins0, maxs0 = load_processed_halo(
                 k0, particles0, halo_map0, hid2map0, nshift=nshift,
@@ -434,7 +438,8 @@ class ParticleOverlap(BaseMatcher):
         iterator = tqdm(
             halo_cat["index"],
             desc=f"{datetime.now()} Calculating the background field",
-            disable=not verbose)
+            disable=not verbose
+            )
         for hid in iterator:
             pos = load_halo_particles(hid, particles, halo_map, hid2map)
             if pos is None:
