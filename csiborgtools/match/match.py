@@ -236,8 +236,6 @@ class RealisationsMatcher(BaseMatcher):
         # We begin by querying the kNN for the nearest neighbours of each halo
         # in the reference simulation from the cross simulation in the initial
         # snapshot.
-        if verbose:
-            print(f"{datetime.now()}: querying the KNN.", flush=True)
         match_indxs = radius_neighbours(
             catx.knn(in_initial=True, subtract_observer=False, periodic=True),
             cat0.position(in_initial=True),
@@ -261,11 +259,11 @@ class RealisationsMatcher(BaseMatcher):
             return load_processed_halo(hid, particlesx, halo_mapx, hid2mapx,
                                        nshift=0, ncells=self.box_size)
 
-        if verbose:
-            print(f"{datetime.now()}: calculating overlaps.", flush=True)
         cross = [numpy.asanyarray([], dtype=numpy.float32)] * match_indxs.size
-        indxs = cat0["index"]
-        for i, k0 in enumerate(tqdm(indxs) if verbose else indxs):
+        iterator = tqdm(
+            cat0["index"], desc=f"{datetime.now()}: calculating NGP overlaps",
+            disable=not verbose)
+        for i, k0 in enumerate(iterator):
             # If we have no matches continue to the next halo.
             matches = match_indxs[i]
             if matches.size == 0:
@@ -347,12 +345,11 @@ class RealisationsMatcher(BaseMatcher):
             return load_processed_halo(hid, particlesx, halo_mapx, hid2mapx,
                                        nshift=nshift, ncells=self.box_size)
 
-        if verbose:
-            print(f"{datetime.now()}: calculating smoothed overlaps.",
-                  flush=True)
         cross = [numpy.asanyarray([], dtype=numpy.float32)] * match_indxs.size
-        indxs = cat0["index"]
-        for i, k0 in enumerate(tqdm(indxs) if verbose else indxs):
+        iterator = tqdm(
+            cat0["index"], desc=f"{datetime.now()}: calculating overlaps",
+            disable=not verbose)
+        for i, k0 in enumerate(iterator):
             pos0, mass0, __, mins0, maxs0 = load_processed_halo(
                 k0, particles0, halo_map0, hid2map0, nshift=nshift,
                 ncells=self.box_size)
@@ -434,7 +431,11 @@ class ParticleOverlap(BaseMatcher):
             assert ((delta.shape == (ncells,) * 3)
                     & (delta.dtype == numpy.float32))
 
-        for hid in tqdm(halo_cat["index"]) if verbose else halo_cat["index"]:
+        iterator = tqdm(
+            halo_cat["index"],
+            desc=f"{datetime.now()} Calculating the background field",
+            disable=not verbose)
+        for hid in iterator:
             pos = load_halo_particles(hid, particles, halo_map, hid2map)
             if pos is None:
                 continue
@@ -997,7 +998,7 @@ def radius_neighbours(knn, X, radiusX, radiusKNN, nmult=1.0,
     indxs = [None] * nsamples
     patchknn_max = numpy.max(radiusKNN)
 
-    for i in trange(nsamples) if verbose else range(nsamples):
+    for i in trange(nsamples, desc="Querying the kNN", disable=not verbose):
         dist, indx = knn.radius_neighbors(
             X[i].reshape(1, -1), radiusX[i] + patchknn_max,
             sort_results=True)
