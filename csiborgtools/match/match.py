@@ -999,11 +999,13 @@ def radius_neighbours(knn, X, radiusX, radiusKNN, nmult=1.0,
     if radiusKNN.size != knn.n_samples_fit_:
         raise ValueError("Mismatch in shape of `radiusKNN` or `knn`")
 
-    nsamples = len(X)
-    indxs = [None] * nsamples
     patchknn_max = numpy.max(radiusKNN)
 
-    for i in trange(nsamples, desc="Querying the kNN", disable=not verbose):
+    iterator = trange(len(X),
+                      desc=f"{datetime.now()}: querying the kNN",
+                      disable=not verbose)
+    indxs = [None] * len(X)
+    for i in iterator:
         dist, indx = knn.radius_neighbors(
             X[i].reshape(1, -1), radiusX[i] + patchknn_max,
             sort_results=True)
