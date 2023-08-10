@@ -15,6 +15,7 @@
 
 import numpy
 from scipy.stats import binned_statistic
+from scipy.special import erf
 
 dpi = 600
 fout = "../plots/"
@@ -91,3 +92,25 @@ def binned_trend(x, y, weights, bins):
     stat_std /= stat_w
     stat_std = numpy.sqrt(stat_std)
     return stat_x, stat_mu, stat_std
+
+
+def compute_error_bars(x, y, xbins, sigma):
+    bin_indices = numpy.digitize(x, xbins)
+    y_medians = numpy.array([numpy.median(y[bin_indices == i]) for i in range(1, len(xbins))])
+
+    lower_pct = 100 * 0.5 * (1 - erf(sigma / numpy.sqrt(2)))
+    upper_pct = 100 - lower_pct
+
+    y_lower = [numpy.percentile(y[bin_indices == i], lower_pct) for i in range(1, len(xbins))]
+    y_upper = [numpy.percentile(y[bin_indices == i], upper_pct) for i in range(1, len(xbins))]
+
+    yerr = (y_medians - numpy.array(y_lower), numpy.array(y_upper) - y_medians)
+
+    return y_medians, yerr
+
+
+def normalize_hexbin(hb):
+    hexagon_counts = hb.get_array()
+    normalized_counts = hexagon_counts / hexagon_counts.sum()
+    hb.set_array(normalized_counts)
+    hb.set_clim(normalized_counts.min(), normalized_counts.max())
