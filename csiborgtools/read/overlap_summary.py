@@ -257,6 +257,8 @@ class PairOverlap:
         for i in range(len(overlap)):
             if len(overlap[i]) > 0:
                 out[i] = numpy.sum(overlap[i])
+            else:
+                out[i] = 0
         return out
 
     def prob_nomatch(self, from_smoothed):
@@ -279,6 +281,8 @@ class PairOverlap:
         for i in range(len(overlap)):
             if len(overlap[i]) > 0:
                 out[i] = numpy.product(numpy.subtract(1, overlap[i]))
+            else:
+                out[i] = 1
         return out
 
     def dist(self, in_initial, norm_kind=None):
@@ -607,7 +611,7 @@ class NPairsOverlap:
         """
         def get_max(y_):
             if len(y_) == 0:
-                return numpy.nan
+                return 0
             return numpy.max(y_)
 
         iterator = tqdm(self.pairs,
