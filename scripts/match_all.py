@@ -81,7 +81,8 @@ def main(comb, simname, min_logmass, sigma, verbose):
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--simname", type=str, required=True,
-                        help="Simulation name.", choices=["csiborg", "quijote"])
+                        help="Simulation name.",
+                        choices=["csiborg", "quijote"])
     parser.add_argument("--min_logmass", type=float, required=True,
                         help="Minimum log halo mass.")
     parser.add_argument("--sigma", type=float, default=0,
@@ -90,7 +91,7 @@ if __name__ == "__main__":
                         default=False, help="Verbosity flag.")
     args = parser.parse_args()
 
-    combs = get_combs()
+    combs = get_combs(args.simname)
 
     def _main(comb):
         main(comb, args.simname, args.min_logmass, args.sigma, args.verbose)
