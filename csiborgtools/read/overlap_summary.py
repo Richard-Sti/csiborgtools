@@ -544,7 +544,7 @@ def weighted_stats(x, weights, min_weight=0, verbose=False):
     """
     out = numpy.full((x.size, 2), numpy.nan, dtype=numpy.float32)
 
-    for i in trange(len(x)) if verbose else range(len(x)):
+    for i in trange(len(x), disable=not verbose):
         x_, w_ = numpy.asarray(x[i]), numpy.asarray(weights[i])
         mask = w_ > min_weight
         x_ = x_[mask]
@@ -574,17 +574,18 @@ class NPairsOverlap:
         List of cross simulation halo catalogues.
     paths : py:class`csiborgtools.read.Paths`
         CSiBORG paths object.
+    min_logmass : float
+        Minimum log mass of halos to consider.
     verbose : bool, optional
         Verbosity flag for loading the overlap objects.
     """
     _pairs = None
 
-    def __init__(self, cat0, catxs, paths, verbose=True):
+    def __init__(self, cat0, catxs, paths, min_logmass, verbose=True):
         pairs = [None] * len(catxs)
-        if verbose:
-            print("Loading individual overlap objects...", flush=True)
-        for i, catx in enumerate(tqdm(catxs) if verbose else catxs):
-            pairs[i] = PairOverlap(cat0, catx, paths)
+        for i, catx in enumerate(tqdm(catxs, desc="Loading overlap objects",
+                                      disable=not verbose)):
+            pairs[i] = PairOverlap(cat0, catx, paths, min_logmass)
 
         self._pairs = pairs
 
@@ -604,16 +605,17 @@ class NPairsOverlap:
         -------
         max_overlap : 2-dimensional array of shape `(nhalos, ncatxs)`
         """
-        out = [None] * len(self)
-        if verbose:
-            print("Calculating maximum overlap...", flush=True)
-
         def get_max(y_):
             if len(y_) == 0:
                 return numpy.nan
             return numpy.max(y_)
 
-        for i, pair in enumerate(tqdm(self.pairs) if verbose else self.pairs):
+        iterator = tqdm(self.pairs,
+                        desc="Calculating maximum overlap",
+                        disable=not verbose
+                        )
+        out = [None] * len(self)
+        for i, pair in enumerate(iterator):
             out[i] = numpy.asanyarray([get_max(y_)
                                        for y_ in pair.overlap(from_smoothed)])
         return numpy.vstack(out).T
@@ -636,11 +638,12 @@ class NPairsOverlap:
         -------
         out : 2-dimensional array of shape `(nhalos, ncatxs)`
         """
+        iterator = tqdm(self.pairs,
+                        desc=f"Calculating maximum overlap {key}",
+                        disable=not verbose
+                        )
         out = [None] * len(self)
-        if verbose:
-            print(f"Calculating maximum overlap {key}...", flush=True)
-
-        for i, pair in enumerate(tqdm(self.pairs) if verbose else self.pairs):
+        for i, pair in enumerate(iterator):
             out[i] = pair.max_overlap_key(key, from_smoothed)
 
         return numpy.vstack(out).T
@@ -661,10 +664,11 @@ class NPairsOverlap:
         -------
         summed_overlap : 2-dimensional array of shape `(nhalos, ncatxs)`
         """
+        iterator = tqdm(self.pairs,
+                        desc="Calculating summed overlap",
+                        disable=not verbose)
         out = [None] * len(self)
-        if verbose:
-            print("Calculating summed overlap...", flush=True)
-        for i, pair in enumerate(tqdm(self.pairs) if verbose else self.pairs):
+        for i, pair in enumerate(iterator):
             out[i] = pair.summed_overlap(from_smoothed)
         return numpy.vstack(out).T
 
@@ -684,10 +688,12 @@ class NPairsOverlap:
         -------
         prob_nomatch : 2-dimensional array of shape `(nhalos, ncatxs)`
         """
+        iterator = tqdm(self.pairs,
+                        desc="Calculating probability of no match",
+                        disable=not verbose
+                        )
         out = [None] * len(self)
-        if verbose:
-            print("Calculating probability of no match...", flush=True)
-        for i, pair in enumerate(tqdm(self.pairs) if verbose else self.pairs):
+        for i, pair in enumerate(iterator):
             out[i] = pair.prob_nomatch(from_smoothed)
         return numpy.vstack(out).T
 
@@ -727,17 +733,19 @@ class NPairsOverlap:
             Expected mass and standard deviation from each cross simulation.
             Returned only if `return_full` is `True`.
         """
+        iterator = tqdm(self.pairs,
+                        desc="Calculating counterpart masses",
+                        disable=not verbose)
         mus, stds = [None] * len(self), [None] * len(self)
-        if verbose:
-            print("Calculating counterpart masses...", flush=True)
-        for i, pair in enumerate(tqdm(self.pairs) if verbose else self.pairs):
+        for i, pair in enumerate(iterator):
             mus[i], stds[i] = pair.counterpart_mass(
                 from_smoothed=from_smoothed,
                 overlap_threshold=overlap_threshold, in_log=in_log,
                 mass_kind=mass_kind)
         mus, stds = numpy.vstack(mus).T, numpy.vstack(stds).T
 
-        probmatch = 1 - self.prob_nomatch(from_smoothed)  # Prob of > 0 matches
+        # Prob of > 0 matches
+        probmatch = 1 - self.prob_nomatch(from_smoothed)
         # Normalise it for weighted sums etc.
         norm_probmatch = numpy.apply_along_axis(
             lambda x: x / numpy.sum(x), axis=1, arr=probmatch)
@@ -765,6 +773,11 @@ class NPairsOverlap:
     @property
     def cat0(self):
         return self.pairs[0].cat0  # All pairs have the same ref catalogue
+
+    def __getitem__(self, key):
+        if not isinstance(key, int):
+            raise TypeError("Key must be an integer.")
+        return self.pairs[key]
 
     def __len__(self):
         return len(self.pairs)
@@ -794,7 +807,7 @@ def get_cross_sims(simname, nsim0, paths, min_logmass, smoothed):
         Whether to use the smoothed overlap or not.
     """
     nsimxs = []
-    for nsimx in paths.get_ics("csiborg"):
+    for nsimx in paths.get_ics(simname):
         if nsimx == nsim0:
             continue
         f1 = paths.overlap(simname, nsim0, nsimx, min_logmass, smoothed)
