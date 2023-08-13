@@ -274,7 +274,6 @@ def mtot_vs_summedpairoverlap(nsim0, simname, min_logmass, smoothed, nbins,
         fig, axs = plt.subplots(ncols=3, figsize=(3.5 * 2, 2.625))
         im1 = axs[0].hexbin(mass0, mean_overlap, mincnt=1, bins="log",
                             gridsize=30)
-        plt_utils.normalize_hexbin(im1)
 
         y_median, yerr = plt_utils.compute_error_bars(
             mass0, mean_overlap, xbins, sigma=2)
@@ -283,7 +282,6 @@ def mtot_vs_summedpairoverlap(nsim0, simname, min_logmass, smoothed, nbins,
 
         im2 = axs[1].hexbin(mass0, std_overlap, mincnt=1, bins="log",
                             gridsize=30)
-        plt_utils.normalize_hexbin(im2)
 
         y_median, yerr = plt_utils.compute_error_bars(
             mass0, std_overlap, xbins, sigma=2)
@@ -329,7 +327,7 @@ def mtot_vs_summedpairoverlap(nsim0, simname, min_logmass, smoothed, nbins,
         axs[2].set_xlabel(r"$1 - $ mean summed overlap")
         axs[2].set_ylabel("Mean prob. of no match")
 
-        label = ["Normalized bin counts", "Normalized bin counts",
+        label = ["Bin counts", "Bin counts",
                  r"$\log M_{\rm tot} ~ [M_\odot / h]$"]
         ims = [im1, im2, im3]
         for i in range(3):
@@ -354,62 +352,92 @@ def mtot_vs_summedpairoverlap(nsim0, simname, min_logmass, smoothed, nbins,
 # --------------------------------------------------------------------------- #
 
 
-# # simname = "quijote"
-# # nsim0 = 0
-# simname = "csiborg"
-# nsim0 = 7444
-# min_logmass = 13.25
-# nbins = 10
-# smoothed = True
-#
-# # delete_disk_caches_for_function("get_overlap_summary")
-# x = plot_match.get_overlap_summary(nsim0, simname, min_logmass, smoothed)
-#
-# mass0 = numpy.log10(x["mass0"])
-# max_overlap = x["max_overlap"]
-#
-# xbins = numpy.linspace(numpy.nanmin(mass0), numpy.nanmax(mass0), nbins)
-#
-# mean_max_overlap = numpy.nanmean(max_overlap, axis=1)
-# std_max_overlap = numpy.nanstd(max_overlap, axis=1)
-#
-#
-# with plt.style.context(plt_utils.mplstyle):
-#     fig, axs = plt.subplots(ncols=3, figsize=(3.5 * 2, 2.625))
-#     im1 = axs[0].hexbin(mass0, mean_max_overlap, gridsize=30, mincnt=1, bins="log")
-#     y_median, yerr = plt_utils.compute_error_bars(mass0, mean_max_overlap, xbins, sigma=2)
-#     axs[0].errorbar(0.5 * (xbins[1:] + xbins[:-1]), y_median, yerr=yerr, color='red', ls='dashed', capsize=3)
-#
-#     im2 = axs[1].hexbin(mass0, std_max_overlap, gridsize=30, mincnt=1, bins="log")
-#     y_median, yerr = plt_utils.compute_error_bars(mass0, std_max_overlap, xbins, sigma=2)
-#     axs[1].errorbar(0.5 * (xbins[1:] + xbins[:-1]), y_median, yerr=yerr, color='red', ls='dashed', capsize=3)
-#
-#     im3 = axs[2].hexbin(numpy.nanmean(max_overlap, axis=1), numpy.nanstd(max_overlap, axis=1), gridsize=30, C=mass0, reduce_C_function=numpy.nanmean)
-#
-#     axs[0].set_xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
-#     axs[0].set_ylim(0.0, 0.75)
-#     axs[0].set_ylabel(r"Mean max. pair overlap")
-#     axs[1].set_xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
-#     axs[1].set_ylabel(r"Uncertainty of max. pair overlap")
-#     axs[2].set_xlabel(r"Mean max. pair overlap")
-#     axs[2].set_ylabel(r"Uncertainty of max. pair overlap")
-#
-#     label = ["Bin counts", "Bin counts", r"$\log M_{\rm tot} / M_\odot$"]
-#     ims = [im1, im2, im3]
-#     for i in range(3):
-#         axins = axs[i].inset_axes([0.0, 1.0, 1.0, 0.05])
-#         fig.colorbar(ims[i], cax=axins, orientation="horizontal",
-#                      label=label[i])
-#         axins.xaxis.tick_top()
-#         axins.xaxis.set_tick_params(labeltop=True)
-#         axins.xaxis.set_label_position("top")
-#
-#     fig.tight_layout()
-#     if to_save:
-#         fout = join(plt_utils.fout, f"maxpairoverlap_{nsim0}.{ext}")
-#         print(f"Saving to `{fout}`.")
-#         fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
-#     plt.show()
+def mtot_vs_mean_max_overlap(nsim0, simname, min_logmass, smoothed, nbins):
+    x = get_overlap_summary(nsim0, simname, min_logmass, smoothed)
+
+    mass0 = numpy.log10(x["mass0"])
+    max_overlap = x["max_overlap"]
+
+    xbins = numpy.linspace(numpy.nanmin(mass0), numpy.nanmax(mass0), nbins)
+
+    mean_max_overlap = numpy.nanmean(max_overlap, axis=1)
+    std_max_overlap = numpy.nanstd(max_overlap, axis=1)
+
+    with plt.style.context(plt_utils.mplstyle):
+        fig, axs = plt.subplots(ncols=3, figsize=(3.5 * 2, 2.625))
+
+        im1 = axs[0].hexbin(mass0, mean_max_overlap, gridsize=30, mincnt=1,
+                            bins="log")
+        y_median, yerr = plt_utils.compute_error_bars(
+            mass0, mean_max_overlap, xbins, sigma=2)
+        axs[0].errorbar(0.5 * (xbins[1:] + xbins[:-1]), y_median, yerr=yerr,
+                        color='red', ls='dashed', capsize=3,
+                        label="CSiBORG" if simname == "csiborg" else None)
+
+        im2 = axs[1].hexbin(mass0, std_max_overlap, gridsize=30, mincnt=1,
+                            bins="log")
+        y_median, yerr = plt_utils.compute_error_bars(
+            mass0, std_max_overlap, xbins, sigma=2)
+        axs[1].errorbar(0.5 * (xbins[1:] + xbins[:-1]), y_median, yerr=yerr,
+                        color='red', ls='dashed', capsize=3)
+
+        if simname == "csiborg":
+            x_quijote = get_overlap_summary(0, "quijote", min_logmass,
+                                            smoothed)
+            mass0_quijote = numpy.log10(x_quijote["mass0"])
+            max_overlap_quijote = x_quijote["max_overlap"]
+
+            xbins_quijote = numpy.linspace(numpy.nanmin(mass0_quijote),
+                                           numpy.nanmax(mass0_quijote), nbins)
+            mean_max_overlap_quijote = numpy.nanmean(max_overlap_quijote,
+                                                     axis=1)
+            y_median_quijote, yerr_quijote = plt_utils.compute_error_bars(
+                mass0_quijote, mean_max_overlap_quijote, xbins_quijote,
+                sigma=2)
+            axs[0].errorbar(0.5 * (xbins[1:] + xbins[:-1]) + 0.01,
+                            y_median_quijote, yerr=yerr_quijote,
+                            color='blue', ls='dashed', capsize=3,
+                            label="Quijote")
+
+            std_max_overlap_quijote = numpy.nanstd(max_overlap_quijote,
+                                                   axis=1)
+            y_median_quijote, yerr_quijote = plt_utils.compute_error_bars(
+                mass0_quijote, std_max_overlap_quijote, xbins_quijote,
+                sigma=2)
+            axs[1].errorbar(0.5 * (xbins[1:] + xbins[:-1]) + 0.01,
+                            y_median_quijote, yerr=yerr_quijote,
+                            color='blue', ls='dashed', capsize=3)
+
+            axs[0].legend(fontsize="small")
+
+        im3 = axs[2].hexbin(numpy.nanmean(max_overlap, axis=1),
+                            numpy.nanstd(max_overlap, axis=1), gridsize=30,
+                            C=mass0, reduce_C_function=numpy.nanmean)
+
+        axs[0].set_xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
+        axs[0].set_ylim(0.0, 0.75)
+        axs[0].set_ylabel(r"Mean max. pair overlap")
+        axs[1].set_xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
+        axs[1].set_ylabel(r"Uncertainty of max. pair overlap")
+        axs[2].set_xlabel(r"Mean max. pair overlap")
+        axs[2].set_ylabel(r"Uncertainty of max. pair overlap")
+
+        label = ["Bin counts", "Bin counts",
+                 r"$\log M_{\rm tot} ~ [M_\odot / h]$"]
+        ims = [im1, im2, im3]
+        for i in range(3):
+            axins = axs[i].inset_axes([0.0, 1.0, 1.0, 0.05])
+            fig.colorbar(ims[i], cax=axins, orientation="horizontal",
+                         label=label[i])
+            axins.xaxis.tick_top()
+            axins.xaxis.set_tick_params(labeltop=True)
+            axins.xaxis.set_label_position("top")
+
+        fig.tight_layout()
+        fout = join(plt_utils.fout, f"max_pairoverlap_{simname}_{nsim0}.{ext}")
+        print(f"Saving to `{fout}`.")
+        fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
+        plt.close()
 
 
 # --------------------------------------------------------------------------- #
@@ -879,9 +907,16 @@ if __name__ == "__main__":
             mtot_vs_expected_mass(0, "quijote", min_logmass, smoothed, nbins,
                                   min_overlap=0, max_prob_nomatch=1, ext=ext)
 
-    if True:
+    if False:
         mass_vs_separation(7444, 7444 + 24, "csiborg", min_logmass, nbins,
                            smoothed, plot_std=False)
-        # if plot_quijote:
-        #     mass_vs_separation(0, 1, "quijote", min_logmass, nbins,
-        #                        smoothed, plot_std=False)
+        if plot_quijote:
+            mass_vs_separation(0, 1, "quijote", min_logmass, nbins,
+                               smoothed, plot_std=False)
+
+    if True:
+        mtot_vs_mean_max_overlap(7444, "csiborg", min_logmass, smoothed, nbins)
+
+        if plot_quijote:
+            mtot_vs_mean_max_overlap(0, "quijote", min_logmass, smoothed,
+                                     nbins)
