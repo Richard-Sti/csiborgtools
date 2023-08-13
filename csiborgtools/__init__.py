@@ -14,7 +14,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 from csiborgtools import clustering, field, match, read  # noqa
 
-from .utils import (center_of_mass, delta2ncells, number_counts,
+from .utils import (center_of_mass, delta2ncells, number_counts,  # noqa
                     periodic_distance, periodic_distance_two_points)  # noqa
 
 # Arguments to csiborgtools.read.Paths.
