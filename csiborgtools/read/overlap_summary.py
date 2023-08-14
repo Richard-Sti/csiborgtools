@@ -362,7 +362,7 @@ class PairOverlap:
                 ratio[i] = numpy.abs(ratio[i])
         return numpy.array(ratio, dtype=object)
 
-    def max_overlap_key(self, key, from_smoothed):
+    def max_overlap_key(self, key, min_overlap, from_smoothed):
         """
         Calculate the maximum overlap mass of each halo in the reference
         simulation from the cross simulation.
@@ -593,13 +593,15 @@ class NPairsOverlap:
 
         self._pairs = pairs
 
-    def max_overlap(self, from_smoothed, verbose=True):
+    def max_overlap(self, min_overlap, from_smoothed, verbose=True):
         """
         Calculate maximum overlap of each halo in the reference simulation with
         the cross simulations.
 
         Parameters
         ----------
+        min_overlap : float
+            Minimum pair overlap to consider.
         from_smoothed : bool
             Whether to use the smoothed overlap or not.
         verbose : bool, optional
