@@ -371,10 +371,10 @@ class PairOverlap:
         ----------
         key : str
             Key to the maximum overlap statistic to calculate.
+        min_overlap : float
+            Minimum pair overlap to consider.
         from_smoothed : bool
             Whether to use the smoothed overlap or not.
-        mass_kind : str, optional
-            The mass kind whose ratio is to be calculated.
 
         Returns
         -------
@@ -388,7 +388,11 @@ class PairOverlap:
             # Skip if no match
             if len(match_ind) == 0:
                 continue
-            out[i] = y[match_ind][numpy.argmax(overlap[i])]
+
+            k = numpy.argmax(overlap[i])
+            if overlap[i][k] > min_overlap:
+                out[i] = y[match_ind][k]
+
         return out
 
     def counterpart_mass(self, from_smoothed, overlap_threshold=0.,
@@ -614,7 +618,9 @@ class NPairsOverlap:
         def get_max(y_):
             if len(y_) == 0:
                 return 0
-            return numpy.max(y_)
+            out = numpy.max(y_)
+
+            return out if out >= min_overlap else 0
 
         iterator = tqdm(self.pairs,
                         desc="Calculating maximum overlap",
@@ -626,7 +632,7 @@ class NPairsOverlap:
                                        for y_ in pair.overlap(from_smoothed)])
         return numpy.vstack(out).T
 
-    def max_overlap_key(self, key, from_smoothed, verbose=True):
+    def max_overlap_key(self, key, min_overlap, from_smoothed, verbose=True):
         """
         Calculate maximum overlap mass of each halo in the reference
         simulation with the cross simulations.
@@ -635,6 +641,8 @@ class NPairsOverlap:
         ----------
         key : str
             Key to the maximum overlap statistic to calculate.
+        min_overlap : float
+            Minimum pair overlap to consider.
         from_smoothed : bool
             Whether to use the smoothed overlap or not.
         verbose : bool, optional
@@ -650,7 +658,7 @@ class NPairsOverlap:
                         )
         out = [None] * len(self)
         for i, pair in enumerate(iterator):
-            out[i] = pair.max_overlap_key(key, from_smoothed)
+            out[i] = pair.max_overlap_key(key, min_overlap, from_smoothed)
 
         return numpy.vstack(out).T
 

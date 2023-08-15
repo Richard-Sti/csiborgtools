@@ -887,7 +887,7 @@ if __name__ == "__main__":
     plot_quijote = True
     min_maxoverlap = 0.25
 
-    if False:
+    if True:
         funcs = [
             # "get_overlap_summary",
             # "get_expected_mass",
@@ -919,7 +919,7 @@ if __name__ == "__main__":
         if plot_quijote:
             mtot_vs_summedpairoverlap(0, "quijote", min_logmass, smoothed,
                                       nbins, ext)
-    if False:
+    if True:
         mtot_vs_maxoverlap_mass(7444, "csiborg", min_logmass, smoothed,
                                 nbins, min_maxoverlap, ext)
         if plot_quijote:
@@ -947,7 +947,7 @@ if __name__ == "__main__":
             mtot_vs_mean_max_overlap(0, "quijote", min_logmass, smoothed,
                                      nbins)
 
-    if True:
+    if False:
         key = "lambda200c"
         mtot_vs_maxoverlap_property(7444, "csiborg", min_logmass, key,
                                     min_maxoverlap, smoothed)
