@@ -1090,3 +1090,86 @@ def cosine_similarity(x, y):
     out /= numpy.linalg.norm(x) * numpy.linalg.norm(y, axis=1)
 
     return out[0] if out.size == 1 else out
+
+
+def matching_max(cat0, catx, mass_kind, min_logmass, mult, periodic, verbose):
+    """
+    Halo matching algorithm based on [1].
+
+    Parameters
+    ----------
+    cat0 : instance of :py:class:`csiborgtools.read.BaseCatalogue`
+        Halo catalogue of the reference simulation.
+    catx : instance of :py:class:`csiborgtools.read.BaseCatalogue`
+        Halo catalogue of the cross simulation.
+    mass_kind : str
+        Name of the mass column.
+    min_logmass : float
+        Minimum log mass of haloes to consider.
+    mult : float
+        Multiple of R200c below which to consider a match.
+    periodic : bool
+        Whether to account for periodic boundary conditions.
+    verbose : bool
+        Verbosity flag.
+
+    Returns
+    -------
+    out : structured array
+        Array of matches. Columns are `hid0`, `hidx`, `dist`, `success`.
+
+    References
+    ----------
+    [1] Maxwell L Hutt, Harry Desmond, Julien Devriendt, Adrianne Slyz; The
+    effect of local Universe constraints on halo abundance and clustering;
+    Monthly Notices of the Royal Astronomical Society, Volume 516, Issue 3,
+    November 2022, Pages 3592–3601, https://doi.org/10.1093/mnras/stac2407
+    """
+    pos0 = cat0.position(in_initial=False)
+    knnx = catx.knn(in_initial=False, subtract_observer=False,
+                    periodic=periodic)
+    rad0 = cat0["r200c"]
+
+    log_massx = numpy.log10(catx[mass_kind])
+    maskx = log_massx >= min_logmass
+
+    hid02arrpos = {hid: i for i, hid in enumerate(cat0["index"])}
+    hidx2arrpos = {hid: i for i, hid in enumerate(catx["index"])}
+
+    dtype = {"names": ["hid0", "hidx", "dist", "success"],
+             "formats": [numpy.int32, numpy.int32, numpy.float32, numpy.bool_]}
+    out = numpy.full(len(cat0), numpy.nan, dtype=dtype)
+    out["success"] = False
+
+    mass0 = cat0[mass_kind]
+    mass0[~numpy.isfinite(mass0)] = 0
+    for hid in tqdm(cat0["index"][numpy.argsort(mass0)[::-1]],
+                    desc="Matching haloes", disable=not verbose):
+        i = hid02arrpos[hid]
+        out[i]["hid0"] = hid
+
+        neigh_dist, neigh_ind = knnx.radius_neighbors(pos0[i].reshape(1, -1),
+                                                      mult * rad0[i])
+        neigh_dist = neigh_dist[0]
+        neigh_ind = neigh_ind[0]
+
+        if neigh_dist.size == 0:
+            continue
+
+        # Sort the neighbours by masses
+        sort_order = numpy.argsort(log_massx[neigh_ind])[::-1]
+        neigh_dist = neigh_dist[sort_order]
+        neigh_ind = neigh_ind[sort_order]
+
+        for j, hidx in enumerate(catx["index"][neigh_ind]):
+            k = hidx2arrpos[hidx]
+
+            if maskx[k]:
+                out[i]["hidx"] = hidx
+                out[i]["dist"] = neigh_dist[j]
+                out[i]["success"] = True
+
+                maskx[k] = False
+                break
+
+    return out
