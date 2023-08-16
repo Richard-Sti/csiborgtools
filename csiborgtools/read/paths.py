@@ -501,6 +501,47 @@ class Paths:
             fname = fname.replace("overlap", "overlap_smoothed")
         return join(fdir, fname)
 
+    def match_max(self, simname, nsim0, nsimx, min_logmass, mult):
+        """
+        Path to the files containing matching based on [1].
+
+        Parameters
+        ----------
+        simname : str
+            Simulation name.
+        nsim0 : int
+            IC realisation index of the first simulation.
+        nsimx : int
+            IC realisation index of the second simulation.
+        min_logmass : float
+            Minimum log mass of halos to consider.
+        mult : float
+            Multiplicative search radius factor.
+
+        Returns
+        -------
+        path : str
+
+        References
+        ----------
+        [1] Maxwell L Hutt, Harry Desmond, Julien Devriendt, Adrianne Slyz; The
+        effect of local Universe constraints on halo abundance and clustering;
+        Monthly Notices of the Royal Astronomical Society, Volume 516, Issue 3,
+        November 2022, Pages 3592–3601, https://doi.org/10.1093/mnras/stac2407
+        """
+        if simname != "csiborg":
+            raise ValueError(f"Unknown simulation name `{simname}`.")
+
+        fdir = join(self.postdir, "match_max")
+        try_create_directory(fdir)
+
+        nsim0 = str(nsim0).zfill(5)
+        nsimx = str(nsimx).zfill(5)
+        min_logmass = float('%.4g' % min_logmass)
+        fname = f"match_max_{nsim0}_{nsimx}_{min_logmass}_{str(mult)}.npz"
+
+        return join(fdir, fname)
+
     def field(self, kind, MAS, grid, nsim, in_rsp, smooth_scale=None):
         r"""
         Path to the files containing the calculated density fields in CSiBORG.
