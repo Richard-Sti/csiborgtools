@@ -61,16 +61,19 @@ def pair_match_max(nsim0, nsimx, simname, min_logmass, mult, verbose):
 
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 
-    mass_kind = "totpartmass"
+    mass_kind = "fof_totpartmass"
     bounds = {"dist": (0, 155), mass_kind: (10**min_logmass, None)}
     cat0 = csiborgtools.read.CSiBORGHaloCatalogue(
-        nsim0, paths, bounds=bounds, load_fitted=True, with_lagpatch=False)
+        nsim0, paths, bounds=bounds, load_fitted=True, load_initial=False)
     catx = csiborgtools.read.CSiBORGHaloCatalogue(
-        nsimx, paths, bounds=bounds, load_fitted=True, with_lagpatch=False)
+        nsimx, paths, bounds=bounds, load_fitted=True, load_initial=False)
 
+    reader = csiborgtools.read.PairOverlap(cat0, catx, paths, min_logmass,
+                                           maxdist=155)
     out = csiborgtools.match.matching_max(
-        cat0, catx, mass_kind, min_logmass, mult=mult, periodic=False,
-        verbose=verbose)
+        cat0, catx, mass_kind, mult=mult, periodic=False,
+        overlap=reader.overlap(from_smoothed=True),
+        match_indxs=reader["match_indxs"], verbose=verbose)
 
     fout = paths.match_max(simname, nsim0, nsimx, min_logmass, mult)
     if verbose:

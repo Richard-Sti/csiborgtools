@@ -12,16 +12,17 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """A script to match all IC pairs of a simulation."""
+import warnings
 from argparse import ArgumentParser
 from distutils.util import strtobool
 from itertools import combinations
 from random import Random
 
 from mpi4py import MPI
+from taskmaster import work_delegation
 
 import csiborgtools
 from match_singlematch import pair_match, pair_match_max
-from taskmaster import work_delegation
 
 
 def get_combs(simname):
@@ -100,7 +101,11 @@ if __name__ == "__main__":
     combs = get_combs(args.simname)
 
     def _main(comb):
-        main(comb, args.kind, args.simname, args.min_logmass, args.sigma,
-             args.mult, args.verbose)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore",
+                                    "invalid value encountered in cast",
+                                    RuntimeWarning)
+            main(comb, args.kind, args.simname, args.min_logmass, args.sigma,
+                 args.mult, args.verbose)
 
     work_delegation(_main, combs, MPI.COMM_WORLD)
