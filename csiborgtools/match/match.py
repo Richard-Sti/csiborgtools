@@ -1092,7 +1092,8 @@ def cosine_similarity(x, y):
     return out[0] if out.size == 1 else out
 
 
-def matching_max(cat0, catx, mass_kind, min_logmass, mult, periodic, verbose):
+def matching_max(cat0, catx, mass_kind, mult, periodic, overlap=None,
+                 match_indxs=None, verbose=True):
     """
     Halo matching algorithm based on [1].
 
@@ -1104,13 +1105,18 @@ def matching_max(cat0, catx, mass_kind, min_logmass, mult, periodic, verbose):
         Halo catalogue of the cross simulation.
     mass_kind : str
         Name of the mass column.
-    min_logmass : float
-        Minimum log mass of haloes to consider.
     mult : float
         Multiple of R200c below which to consider a match.
     periodic : bool
         Whether to account for periodic boundary conditions.
-    verbose : bool
+    overlap : array of 1-dimensional arrays, optional
+        Overlap of halos from `cat0` with halos from `catx`. If `overlap` or
+        `match_indxs` is not provided, then the overlap of the identified halos
+        is not calculated.
+    match_indxs : array of 1-dimensional arrays, optional
+        Indicies of halos from `catx` having a non-zero overlap with halos
+        from `cat0`.
+    verbose : bool, optional
         Verbosity flag.
 
     Returns
@@ -1130,46 +1136,61 @@ def matching_max(cat0, catx, mass_kind, min_logmass, mult, periodic, verbose):
                     periodic=periodic)
     rad0 = cat0["r200c"]
 
-    log_massx = numpy.log10(catx[mass_kind])
-    maskx = log_massx >= min_logmass
+    mass0 = numpy.log10(cat0[mass_kind])
+    massx = numpy.log10(catx[mass_kind])
 
-    hid02arrpos = {hid: i for i, hid in enumerate(cat0["index"])}
-    hidx2arrpos = {hid: i for i, hid in enumerate(catx["index"])}
+    assert numpy.all(numpy.isfinite(mass0)) & numpy.all(numpy.isfinite(massx))
 
-    dtype = {"names": ["hid0", "hidx", "dist", "success"],
-             "formats": [numpy.int32, numpy.int32, numpy.float32, numpy.bool_]}
-    out = numpy.full(len(cat0), numpy.nan, dtype=dtype)
+    maskx = numpy.ones(len(catx), dtype=numpy.bool_)
+
+    dtypes = [("hid0", numpy.int32),
+              ("hidx", numpy.int32),
+              ("mass0", numpy.float32),
+              ("massx", numpy.float32),
+              ("dist", numpy.float32),
+              ("success", numpy.bool_),
+              ("match_overlap", numpy.float32),
+              ("max_overlap", numpy.float32),
+              ]
+    out = numpy.full(len(cat0), numpy.nan, dtype=dtypes)
     out["success"] = False
 
-    mass0 = cat0[mass_kind]
-    mass0[~numpy.isfinite(mass0)] = 0
-    for hid in tqdm(cat0["index"][numpy.argsort(mass0)[::-1]],
-                    desc="Matching haloes", disable=not verbose):
-        i = hid02arrpos[hid]
-        out[i]["hid0"] = hid
+    for i in tqdm(numpy.argsort(mass0)[::-1], desc="Matching haloes",
+                  disable=not verbose):
+        hid0 = cat0["index"][i]
+        out[i]["hid0"] = hid0
+        out[i]["mass0"] = 10**mass0[i]
 
-        neigh_dist, neigh_ind = knnx.radius_neighbors(pos0[i].reshape(1, -1),
-                                                      mult * rad0[i])
-        neigh_dist = neigh_dist[0]
-        neigh_ind = neigh_ind[0]
+        neigh_dists, neigh_inds = knnx.radius_neighbors(pos0[i].reshape(1, -1),
+                                                        mult * rad0[i])
+        neigh_dists, neigh_inds = neigh_dists[0], neigh_inds[0]
 
-        if neigh_dist.size == 0:
+        if neigh_dists.size == 0:
             continue
 
-        # Sort the neighbours by masses
-        sort_order = numpy.argsort(log_massx[neigh_ind])[::-1]
-        neigh_dist = neigh_dist[sort_order]
-        neigh_ind = neigh_ind[sort_order]
+        # Sort the neighbours by mass difference
+        sort_order = numpy.argsort(numpy.abs(mass0[i] - massx[neigh_inds]))
+        neigh_dists = neigh_dists[sort_order]
+        neigh_inds = neigh_inds[sort_order]
 
-        for j, hidx in enumerate(catx["index"][neigh_ind]):
-            k = hidx2arrpos[hidx]
+        for j, neigh_ind in enumerate(neigh_inds):
 
-            if maskx[k]:
-                out[i]["hidx"] = hidx
-                out[i]["dist"] = neigh_dist[j]
+            if maskx[neigh_ind]:
+                out[i]["hidx"] = catx["index"][neigh_ind]
+                out[i]["dist"] = neigh_dists[j]
+                out[i]["massx"] = 10**massx[neigh_ind]
+
                 out[i]["success"] = True
 
-                maskx[k] = False
+                maskx[neigh_ind] = False
+
+                if overlap is not None and match_indxs is not None:
+                    if neigh_ind in match_indxs[i]:
+                        k = numpy.where(neigh_ind == match_indxs[i])[0][0]
+                        out[i]["match_overlap"] = overlap[i][k]
+                    if len(overlap[i]) > 0:
+                        out[i]["max_overlap"] = numpy.max(overlap[i])
+
                 break
 
     return out
