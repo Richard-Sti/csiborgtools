@@ -21,6 +21,8 @@ from os.path import isfile
 import numpy
 from tqdm import tqdm, trange
 
+from ..utils import periodic_distance
+
 ###############################################################################
 #                         Overlap of two simulations                          #
 ###############################################################################
@@ -47,6 +49,7 @@ class PairOverlap:
     _cat0 = None
     _catx = None
     _data = None
+    _paths = None
 
     def __init__(self, cat0, catx, paths, min_logmass, maxdist=None):
         if cat0.simname != catx.simname:
@@ -55,6 +58,7 @@ class PairOverlap:
 
         self._cat0 = cat0
         self._catx = catx
+        self._paths = paths
         self.load(cat0, catx, paths, min_logmass, maxdist)
 
     def load(self, cat0, catx, paths, min_logmass, maxdist=None):
@@ -285,7 +289,7 @@ class PairOverlap:
                 out[i] = 1
         return out
 
-    def dist(self, in_initial, norm_kind=None):
+    def dist(self, in_initial, boxsize, norm_kind=None):
         """
         Pair distances of matched halos between the reference and cross
         simulations.
@@ -294,6 +298,8 @@ class PairOverlap:
         ----------
         in_initial : bool
             Whether to calculate separation in the initial or final snapshot.
+        boxsize : float
+            The size of the simulation box.
         norm_kind : str, optional
             The kind of normalisation to apply to the distances.
             Can be `r200c`, `ref_patch` or `sum_patch`.
@@ -324,8 +330,7 @@ class PairOverlap:
         # Now calculate distances
         dist = [None] * len(self)
         for i, ind in enumerate(self["match_indxs"]):
-            # n refers to the reference halo catalogue position
-            dist[i] = numpy.linalg.norm(pos0[i, :] - posx[ind, :], axis=1)
+            dist[i] = periodic_distance(posx[ind, :], pos0[i, :], boxsize)
 
             if norm_kind is not None:
                 dist[i] /= norm[i]
