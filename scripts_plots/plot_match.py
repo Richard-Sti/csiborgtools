@@ -447,7 +447,8 @@ def mtot_vs_mean_max_overlap(nsim0, simname, min_logmass, smoothed, nbins):
 # --------------------------------------------------------------------------- #
 
 @cache_to_disk(120)
-def get_mass_vs_separation(nsim0, nsimx, simname, min_logmass, smoothed):
+def get_mass_vs_separation(nsim0, nsimx, simname, min_logmass, boxsize,
+                           smoothed):
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 
     cat0 = open_cat(nsim0, simname)
@@ -456,7 +457,7 @@ def get_mass_vs_separation(nsim0, nsimx, simname, min_logmass, smoothed):
     reader = csiborgtools.read.PairOverlap(cat0, catx, paths, min_logmass)
 
     mass = numpy.log10(reader.cat0(MASS_KINDS[simname]))
-    dist = reader.dist(in_initial=False, norm_kind="r200c")
+    dist = reader.dist(in_initial=False, boxsize=boxsize, norm_kind="r200c")
     overlap = reader.overlap(smoothed)
     dist = csiborgtools.read.weighted_stats(dist, overlap, min_weight=0)
 
@@ -469,9 +470,9 @@ def get_mass_vs_separation(nsim0, nsimx, simname, min_logmass, smoothed):
 
 
 def mass_vs_separation(nsim0, nsimx, simname, min_logmass, nbins, smoothed,
-                       plot_std):
+                       boxsize, plot_std):
     mass, dist = get_mass_vs_separation(nsim0, nsimx, simname, min_logmass,
-                                        smoothed)
+                                        boxsize, smoothed)
     xbins = numpy.linspace(numpy.nanmin(mass), numpy.nanmax(mass), nbins)
     y = dist[:, 0] if not plot_std else dist[:, 1]
 
@@ -486,7 +487,7 @@ def mass_vs_separation(nsim0, nsimx, simname, min_logmass, nbins, smoothed,
 
         if simname == "csiborg":
             mass_quijote, dist_quijote = get_mass_vs_separation(
-                0, 1, "quijote", min_logmass, smoothed)
+                0, 1, "quijote", min_logmass, boxsize, smoothed)
             xbins_quijote = numpy.linspace(numpy.nanmin(mass_quijote),
                                            numpy.nanmax(mass_quijote), nbins)
             if not plot_std:
@@ -516,6 +517,82 @@ def mass_vs_separation(nsim0, nsimx, simname, min_logmass, nbins, smoothed,
         fig.tight_layout()
         fout = join(plt_utils.fout,
                     f"mass_vs_sep_{simname}_{nsim0}_{nsimx}.{ext}")
+        if plot_std:
+            fout = fout.replace(f".{ext}", f"_std.{ext}")
+        print(f"Saving to `{fout}`.")
+        fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
+        plt.close()
+
+
+# --------------------------------------------------------------------------- #
+###############################################################################
+#               Total DM halo mass vs max overlap separation                  #
+###############################################################################
+
+
+@cache_to_disk(120)
+def get_mass_vs_max_overlap_separation(nsim0, nsimx, simname, min_logmass,
+                                       boxsize, smoothed):
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+
+    cat0 = open_cat(nsim0, simname)
+    catx = open_cat(nsimx, simname)
+
+    reader = csiborgtools.read.PairOverlap(cat0, catx, paths, min_logmass)
+
+    mass = numpy.log10(reader.cat0(MASS_KINDS[simname]))
+    dist = reader.dist(in_initial=False, boxsize=boxsize, norm_kind="r200c")
+    overlap = reader.overlap(smoothed)
+
+    maxoverlap_dist = numpy.full(len(cat0), numpy.nan, dtype=numpy.float32)
+
+    for i in range(len(cat0)):
+        if len(overlap[i]) == 0:
+            continue
+        imax = numpy.argmax(overlap[i])
+        maxoverlap_dist[i] = dist[i][imax]
+
+    mask = numpy.isfinite(maxoverlap_dist)
+    mass = mass[mask]
+    maxoverlap_dist = numpy.log10(maxoverlap_dist[mask])
+    return mass, maxoverlap_dist
+
+
+def mass_vs_maxoverlap_separation(nsim0, nsimx, simname, min_logmass, nbins,
+                                  smoothed, boxsize, plot_std):
+    mass, y = get_mass_vs_max_overlap_separation(
+        nsim0, nsimx, simname, min_logmass, boxsize, smoothed)
+    xbins = numpy.linspace(numpy.nanmin(mass), numpy.nanmax(mass), nbins)
+
+    with plt.style.context(plt_utils.mplstyle):
+        fig, ax = plt.subplots()
+
+        cx = ax.hexbin(mass, y, mincnt=1, bins="log", gridsize=50)
+        y_median, yerr = plt_utils.compute_error_bars(mass, y, xbins, sigma=2)
+        ax.errorbar(0.5 * (xbins[1:] + xbins[:-1]), y_median, yerr=yerr,
+                    color='red', ls='dashed', capsize=3,
+                    label="CSiBORG" if simname == "csiborg" else None)
+
+        if simname == "csiborg":
+            mass_quijote, y_quijote = get_mass_vs_max_overlap_separation(
+                0, 1, "quijote", min_logmass, boxsize, smoothed)
+            xbins_quijote = numpy.linspace(numpy.nanmin(mass_quijote),
+                                           numpy.nanmax(mass_quijote), nbins)
+            y_median_quijote, yerr_quijote = plt_utils.compute_error_bars(
+                mass_quijote, y_quijote, xbins_quijote, sigma=2)
+            ax.errorbar(0.5 * (xbins_quijote[1:] + xbins_quijote[:-1]),
+                        y_median_quijote, yerr=yerr_quijote, color='blue',
+                        ls='dashed',
+                        capsize=3, label="Quijote")
+            ax.legend(fontsize="small", loc="upper left")
+
+        fig.colorbar(cx, label="Bin counts")
+        ax.set_xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
+        ax.set_ylabel(r"$\log (\Delta R_{\mathcal{O}_{\max}} / R_{\rm 200c})$")
+
+        fig.tight_layout()
+        fout = join(plt_utils.fout,
+                    f"mass_vs_maxoverlap_sep_{simname}_{nsim0}_{nsimx}.{ext}")
         if plot_std:
             fout = fout.replace(f".{ext}", f"_std.{ext}")
         print(f"Saving to `{fout}`.")
@@ -563,8 +640,8 @@ def mtot_vs_maxoverlap_mass(nsim0, simname, min_logmass, smoothed, nbins,
     mass0 = x["mass0"]
     stat = x["prop_maxoverlap"]
 
-    mu = numpy.nanmean(stat, axis=1)
-    std = numpy.nanstd(numpy.log10(stat), axis=1)
+    mu = plt_utils.nan_weighted_average(stat, axis=1)
+    std = plt_utils.nan_weighted_std(numpy.log10(stat), axis=1)
     mu = numpy.log10(mu)
 
     mass0 = numpy.log10(mass0)
@@ -887,17 +964,18 @@ if __name__ == "__main__":
     plot_quijote = True
     min_maxoverlap = 0.25
 
-    if True:
-        funcs = [
-            # "get_overlap_summary",
-            # "get_expected_mass",
-            # "get_mtot_vs_all_pairoverlap",
-            # "get_mtot_vs_maxpairoverlap",
-            # "get_mass_vs_separation",
-            "get_property_maxoverlap",
-            ]
-        for func in funcs:
-            delete_disk_caches_for_function(func)
+    funcs = [
+        # "get_overlap_summary",
+        # "get_expected_mass",
+        # "get_mtot_vs_all_pairoverlap",
+        # "get_mtot_vs_maxpairoverlap",
+        "get_mass_vs_separation",
+        "mass_vs_maxoverlap_separation",
+        # "get_property_maxoverlap",
+        ]
+    for func in funcs:
+        print(f"Cleaning up cache for `{func}`.")
+        delete_disk_caches_for_function(func)
 
     if False:
         mtot_vs_all_pairoverlap(7444, "csiborg", min_logmass, smoothed,
@@ -919,7 +997,7 @@ if __name__ == "__main__":
         if plot_quijote:
             mtot_vs_summedpairoverlap(0, "quijote", min_logmass, smoothed,
                                       nbins, ext)
-    if True:
+    if False:
         mtot_vs_maxoverlap_mass(7444, "csiborg", min_logmass, smoothed,
                                 nbins, min_maxoverlap, ext)
         if plot_quijote:
@@ -935,10 +1013,18 @@ if __name__ == "__main__":
 
     if False:
         mass_vs_separation(7444, 7444 + 24, "csiborg", min_logmass, nbins,
-                           smoothed, plot_std=False)
+                           smoothed, boxsize=677.7, plot_std=False)
         if plot_quijote:
             mass_vs_separation(0, 1, "quijote", min_logmass, nbins,
-                               smoothed, plot_std=False)
+                               smoothed, boxsize=1000, plot_std=False)
+    if True:
+        mass_vs_maxoverlap_separation(7444, 7444 + 24, "csiborg", min_logmass,
+                                      nbins, smoothed, boxsize=677.7,
+                                      plot_std=False)
+        if plot_quijote:
+            mass_vs_maxoverlap_separation(
+                0, 1, "quijote", min_logmass, nbins, smoothed, boxsize=1000,
+                plot_std=False)
 
     if False:
         mtot_vs_mean_max_overlap(7444, "csiborg", min_logmass, smoothed, nbins)
@@ -951,3 +1037,6 @@ if __name__ == "__main__":
         key = "lambda200c"
         mtot_vs_maxoverlap_property(7444, "csiborg", min_logmass, key,
                                     min_maxoverlap, smoothed)
+        if plot_quijote:
+            mtot_vs_maxoverlap_property(0, "quijote", min_logmass, key,
+                                        min_maxoverlap, smoothed)
