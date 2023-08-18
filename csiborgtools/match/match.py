@@ -1161,6 +1161,9 @@ def matching_max(cat0, catx, mass_kind, mult, periodic, overlap=None,
         out[i]["hid0"] = hid0
         out[i]["mass0"] = 10**mass0[i]
 
+        if not numpy.isfinite(rad0[i]):
+            continue
+
         neigh_dists, neigh_inds = knnx.radius_neighbors(pos0[i].reshape(1, -1),
                                                         mult * rad0[i])
         neigh_dists, neigh_inds = neigh_dists[0], neigh_inds[0]
