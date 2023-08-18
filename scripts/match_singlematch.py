@@ -56,22 +56,35 @@ def pair_match_max(nsim0, nsimx, simname, min_logmass, mult, verbose):
     Monthly Notices of the Royal Astronomical Society, Volume 516, Issue 3,
     November 2022, Pages 3592–3601, https://doi.org/10.1093/mnras/stac2407
     """
-    if simname == "quijote":
-        raise NotImplementedError("Not implemented for Quijote.")
-
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 
-    mass_kind = "fof_totpartmass"
-    bounds = {"dist": (0, 155), mass_kind: (10**min_logmass, None)}
-    cat0 = csiborgtools.read.CSiBORGHaloCatalogue(
-        nsim0, paths, bounds=bounds, load_fitted=True, load_initial=False)
-    catx = csiborgtools.read.CSiBORGHaloCatalogue(
-        nsimx, paths, bounds=bounds, load_fitted=True, load_initial=False)
+    if simname == "csiborg":
+        mass_kind = "fof_totpartmass"
+        maxdist = 155
+        periodic = False
+        bounds = {"dist": (0, maxdist), mass_kind: (10**min_logmass, None)}
+        cat0 = csiborgtools.read.CSiBORGHaloCatalogue(
+            nsim0, paths, bounds=bounds, load_fitted=True, load_initial=False)
+        catx = csiborgtools.read.CSiBORGHaloCatalogue(
+            nsimx, paths, bounds=bounds, load_fitted=True, load_initial=False)
+    elif simname == "quijote":
+        mass_kind = "group_mass"
+        maxdist = None
+        periodic = True
+        bounds = {mass_kind: (10**min_logmass, None)}
+        cat0 = csiborgtools.read.QuijoteHaloCatalogue(
+            nsim0, paths, 4, bounds=bounds, load_fitted=True,
+            load_initial=False)
+        catx = csiborgtools.read.QuijoteHaloCatalogue(
+            nsimx, paths, 4, bounds=bounds, load_fitted=True,
+            load_initial=False)
+    else:
+        raise ValueError(f"Unknown simulation `{simname}`.")
 
     reader = csiborgtools.read.PairOverlap(cat0, catx, paths, min_logmass,
-                                           maxdist=155)
+                                           maxdist=maxdist)
     out = csiborgtools.match.matching_max(
-        cat0, catx, mass_kind, mult=mult, periodic=False,
+        cat0, catx, mass_kind, mult=mult, periodic=periodic,
         overlap=reader.overlap(from_smoothed=True),
         match_indxs=reader["match_indxs"], verbose=verbose)
 

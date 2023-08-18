@@ -529,10 +529,13 @@ class Paths:
         Monthly Notices of the Royal Astronomical Society, Volume 516, Issue 3,
         November 2022, Pages 3592–3601, https://doi.org/10.1093/mnras/stac2407
         """
-        if simname != "csiborg":
-            raise ValueError(f"Unknown simulation name `{simname}`.")
+        if simname == "csiborg":
+            fdir = join(self.postdir, "match_max")
+        elif simname == "quijote":
+            fdir = join(self.quijote_dir, "match_max")
+        else:
+            ValueError(f"Unknown simulation name `{simname}`.")
 
-        fdir = join(self.postdir, "match_max")
         try_create_directory(fdir)
 
         nsim0 = str(nsim0).zfill(5)
