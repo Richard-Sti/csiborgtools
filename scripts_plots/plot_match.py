@@ -843,76 +843,88 @@ def mtot_vs_maxoverlap_property(nsim0, simname, min_logmass, key, min_overlap,
 
 # --------------------------------------------------------------------------- #
 ###############################################################################
-#                       KL final snapshot vs overlaps                         #
+#                      Max's matching vs overlap success                      #
 ###############################################################################
 # --------------------------------------------------------------------------- #
 
-# def get_matching_max_vs_overlap(nsim0, min_logmass):
-#     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-#
-#     nsimsx = [nsim for nsim in paths.get_ics("csiborg") if nsim != nsim0]
-#
-#     for nsimx in nsimxs:
-#         try:
-#             fpath = paths.match_max("csiborg", nsim0, nsimx, min_logmass, mult=5.)
-#             data = numpy.load(fpath, allow_pickle=True)
-#         except FileNotFoundError:
-#             fpath = paths.match_max("csiborg", nsim0, nsimx, min_logmass, mult=5.)
-#
-#
-#         except:
 
-
-def matching_max_vs_overlap(nsim0, nsimx, min_logmass):
+@cache_to_disk(120)
+def get_matching_max_vs_overlap(nsim0, min_logmass, mult):
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 
-    # bounds = {"dist": (0, 155), "fof_totpartmass": (10**min_logmass, None)}
+    nsimsx = [nsim for nsim in paths.get_ics("csiborg") if nsim != nsim0]
+    for i in trange(len(nsimsx), desc="Loading data"):
+        nsimx = nsimsx[i]
+        fpath = paths.match_max("csiborg", nsim0, nsimx, min_logmass,
+                                mult=mult)
 
-    # cat0 = csiborgtools.read.CSiBORGHaloCatalogue(
-    #     nsim0, paths, bounds=bounds, load_fitted=True, load_initial=False)
-    # catx = csiborgtools.read.CSiBORGHaloCatalogue(
-    #     nsimx, paths, bounds=bounds, load_fitted=True, load_initial=False)
+        data = numpy.load(fpath, allow_pickle=True)
 
-    # reader = csiborgtools.read.PairOverlap(cat0, catx, paths, min_logmass,
-    #                                        maxdist=155)
+        if i == 0:
+            mass0 = data["mass0"]
+            max_overlap = numpy.full((mass0.size, len(nsimsx)), numpy.nan)
+            match_overlap = numpy.full((mass0.size, len(nsimsx)), numpy.nan)
+            success = numpy.zeros((mass0.size, len(nsimsx)), numpy.bool_)
 
-    fpath = paths.match_max("csiborg", nsim0, nsimx, min_logmass, mult=5.)
+        max_overlap[:, i] = data["max_overlap"]
+        match_overlap[:, i] = data["match_overlap"]
+        success[:, i] = data["success"]
 
-    data = numpy.load(fpath, allow_pickle=True)
+    return {"mass0": mass0, "max_overlap": max_overlap,
+            "match_overlap": match_overlap, "success": success}
 
-    mass0 = data["mass0"]
-    max_overlap = data["max_overlap"]
-    match_overlap = data["match_overlap"]
-    success = data["success"]
 
-    left_edges = 10**numpy.arange(min_logmass, 15, 0.2)
-    nbins = len(left_edges)
-    y = numpy.full(nbins, numpy.nan)
-    for i in range(nbins):
-        m = mass0 > left_edges[i]
-
-        y[i] = numpy.sum(max_overlap[m] == match_overlap[m])
-        y[i] /= numpy.sum(success[m])
+def matching_max_vs_overlap(nsim0, min_logmass):
+    left_edges = numpy.arange(min_logmass, 15, 0.1)
 
     with plt.style.context("science"):
-        plt.figure()
-        plt.plot(left_edges, y)
-        plt.xscale("log")
+        fig, axs = plt.subplots(ncols=2, figsize=(3.5 * 2, 2.625))
+        cols = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+        for n, mult in enumerate([2.5, 5., 7.5, 10.0]):
+            x = get_matching_max_vs_overlap(nsim0, min_logmass, mult=mult)
+            mass0 = numpy.log10(x["mass0"])
+            max_overlap = x["max_overlap"]
+            match_overlap = x["match_overlap"]
+            success = x["success"]
 
-        plt.xlabel(r"$M_{\rm tot, min} ~ [M_\odot / h]$")
+            nbins = len(left_edges)
+            y = numpy.full((nbins, 100), numpy.nan)
+            y2 = numpy.full((nbins, 100), numpy.nan)
+            for i in range(nbins):
+                m = mass0 > left_edges[i]
+                for j in range(100):
+                    y[i, j] = numpy.sum(
+                        max_overlap[m, j] == match_overlap[m, j])
+                    y[i, j] /= numpy.sum(success[m, j])
+                    y2[i, j] = numpy.sum(success[m, j]) / numpy.sum(m)
 
-        plt.tight_layout()
-        plt.savefig("../plots/test.png", bbox_inches="tight")
+            offset = numpy.random.normal(0, 0.01)
+
+            ysummary = numpy.percentile(y, [16, 50, 84], axis=1)
+            axs[0].errorbar(
+                left_edges + offset, ysummary[1],
+                yerr=[ysummary[1] - ysummary[0], ysummary[2] - ysummary[1]],
+                capsize=3, c=cols[n],
+                label=r"$\leq {}~R_{{\rm 200c}}$".format(mult), errorevery=2)
+            ysummary = numpy.percentile(y2, [16, 50, 84], axis=1)
+            axs[1].errorbar(
+                left_edges + offset, ysummary[1], ls="--",
+                yerr=[ysummary[1] - ysummary[0], ysummary[2] - ysummary[1]],
+                capsize=3, c=cols[n], errorevery=2)
+
+        axs[0].legend(ncols=2, fontsize="small")
+        for i in range(2):
+            axs[i].set_xlabel(r"$\log M_{\rm tot, min} ~ [M_\odot / h]$")
+
+        axs[0].set_ylabel(r"$f_{\rm agreement}$")
+        axs[1].set_ylabel(r"$f_{\rm match}$")
+
+        fig.tight_layout()
+        fout = join(plt_utils.fout,
+                    f"matching_max_agreement_{nsim0}_{min_logmass}.png")
+        print(f"Saving to `{fout}`.")
+        fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
-
-
-
-
-
-
-
-
-
 
 
 # --------------------------------------------------------------------------- #
@@ -1113,4 +1125,4 @@ if __name__ == "__main__":
                                         min_maxoverlap, smoothed)
 
     if True:
-        matching_max_vs_overlap(7444, 7468, min_logmass)
+        matching_max_vs_overlap(7444, min_logmass)
