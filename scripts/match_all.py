@@ -88,6 +88,8 @@ if __name__ == "__main__":
     parser.add_argument("--simname", type=str, required=True,
                         help="Simulation name.",
                         choices=["csiborg", "quijote"])
+    parser.add_argument("--nsim0", type=int, default=None,
+                        help="Reference IC for Max's matching method.")
     parser.add_argument("--min_logmass", type=float, required=True,
                         help="Minimum log halo mass.")
     parser.add_argument("--sigma", type=float, default=0,
@@ -98,7 +100,12 @@ if __name__ == "__main__":
                         default=False, help="Verbosity flag.")
     args = parser.parse_args()
 
-    combs = get_combs(args.simname)
+    if args.kind == "overlap":
+        combs = get_combs(args.simname)
+    else:
+        paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+        combs = [(args.nsim0, nsimx) for nsimx in paths.get_ics(args.simname)
+                 if nsimx != args.nsim0]
 
     def _main(comb):
         with warnings.catch_warnings():
