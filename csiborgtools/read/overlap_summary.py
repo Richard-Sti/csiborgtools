@@ -401,7 +401,7 @@ class PairOverlap:
         return out
 
     def counterpart_mass(self, from_smoothed, overlap_threshold=0.,
-                         in_log=False, mass_kind="totpartmass"):
+                         mass_kind="totpartmass"):
         """
         Calculate the expected counterpart mass of each halo in the reference
         simulation from the crossed simulation.
@@ -413,9 +413,6 @@ class PairOverlap:
         overlap_threshold : float, optional
             Minimum overlap required for a halo to be considered a match. By
             default 0.0, i.e. no threshold.
-        in_log : bool, optional
-            Whether to calculate the expectation value in log space. By default
-            `False`.
         mass_kind : str, optional
             The mass kind whose ratio is to be calculated. Must be a valid
             catalogue key. By default `totpartmass`, i.e. the total particle
@@ -447,14 +444,10 @@ class PairOverlap:
                 massx_ = massx_[mask]
                 overlap_ = overlap_[mask]
 
-            massx_ = numpy.log10(massx_) if in_log else massx_
+            massx_ = numpy.log10(massx_)
             # Weighted average and *biased* standard deviation
             mean_ = numpy.average(massx_, weights=overlap_)
             std_ = numpy.average((massx_ - mean_)**2, weights=overlap_)**0.5
-
-            # If in log, convert back to linear
-            mean_ = 10**mean_ if in_log else mean_
-            std_ = mean_ * std_ * numpy.log(10) if in_log else std_
 
             mean[i] = mean_
             std[i] = std_
@@ -717,8 +710,8 @@ class NPairsOverlap:
         return numpy.vstack(out).T
 
     def counterpart_mass(self, from_smoothed, overlap_threshold=0.,
-                         in_log=False, mass_kind="totpartmass",
-                         return_full=False, verbose=True):
+                         mass_kind="totpartmass", return_full=False,
+                         verbose=True):
         """
         Calculate the expected counterpart mass of each halo in the reference
         simulation from the crossed simulation.
@@ -730,9 +723,6 @@ class NPairsOverlap:
         overlap_threshold : float, optional
             Minimum overlap required for a halo to be considered a match. By
             default 0.0, i.e. no threshold.
-        in_log : bool, optional
-            Whether to calculate the expectation value in log space. By default
-            `False`.
         mass_kind : str, optional
             The mass kind whose ratio is to be calculated. Must be a valid
             catalogue key. By default `totpartmass`, i.e. the total particle
@@ -759,8 +749,7 @@ class NPairsOverlap:
         for i, pair in enumerate(iterator):
             mus[i], stds[i] = pair.counterpart_mass(
                 from_smoothed=from_smoothed,
-                overlap_threshold=overlap_threshold, in_log=in_log,
-                mass_kind=mass_kind)
+                overlap_threshold=overlap_threshold, mass_kind=mass_kind)
         mus, stds = numpy.vstack(mus).T, numpy.vstack(stds).T
 
         # Prob of > 0 matches
@@ -770,9 +759,13 @@ class NPairsOverlap:
             lambda x: x / numpy.sum(x), axis=1, arr=probmatch)
 
         # Mean and standard deviation of weighted stacked Gaussians
-        mu = numpy.sum(norm_probmatch * mus, axis=1)
-        std = numpy.sum(norm_probmatch * (mus**2 + stds**2), axis=1) - mu**2
+        mu = numpy.sum((norm_probmatch * mus), axis=1)
+        std = numpy.sum((norm_probmatch * (mus**2 + stds**2)), axis=1) - mu**2
         std **= 0.5
+
+        mask = mu <= 0
+        mu[mask] = numpy.nan
+        std[mask] = numpy.nan
 
         if return_full:
             return mu, std, mus, stds
