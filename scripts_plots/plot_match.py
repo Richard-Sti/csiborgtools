@@ -923,8 +923,9 @@ def matching_max_vs_overlap(simname, nsim0, min_logmass):
         axs[1].set_ylabel(r"$f_{\rm match}$")
 
         fig.tight_layout()
-        fout = join(plt_utils.fout,
-                    f"matching_max_agreement_{nsim0}_{min_logmass}.png")
+        fout = join(
+            plt_utils.fout,
+            f"matching_max_agreement_{simname}_{nsim0}_{min_logmass}.png")
         print(f"Saving to `{fout}`.")
         fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
