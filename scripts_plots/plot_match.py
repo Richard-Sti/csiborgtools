@@ -849,13 +849,13 @@ def mtot_vs_maxoverlap_property(nsim0, simname, min_logmass, key, min_overlap,
 
 
 @cache_to_disk(120)
-def get_matching_max_vs_overlap(nsim0, min_logmass, mult):
+def get_matching_max_vs_overlap(simname, nsim0, min_logmass, mult):
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 
-    nsimsx = [nsim for nsim in paths.get_ics("csiborg") if nsim != nsim0]
+    nsimsx = [nsim for nsim in paths.get_ics(simname) if nsim != nsim0]
     for i in trange(len(nsimsx), desc="Loading data"):
         nsimx = nsimsx[i]
-        fpath = paths.match_max("csiborg", nsim0, nsimx, min_logmass,
+        fpath = paths.match_max(simname, nsim0, nsimx, min_logmass,
                                 mult=mult)
 
         data = numpy.load(fpath, allow_pickle=True)
@@ -874,14 +874,17 @@ def get_matching_max_vs_overlap(nsim0, min_logmass, mult):
             "match_overlap": match_overlap, "success": success}
 
 
-def matching_max_vs_overlap(nsim0, min_logmass):
+def matching_max_vs_overlap(simname, nsim0, min_logmass):
     left_edges = numpy.arange(min_logmass, 15, 0.1)
+
+    delete_disk_caches_for_function("get_matching_max_vs_overlap")
 
     with plt.style.context("science"):
         fig, axs = plt.subplots(ncols=2, figsize=(3.5 * 2, 2.625))
         cols = plt.rcParams["axes.prop_cycle"].by_key()["color"]
         for n, mult in enumerate([2.5, 5., 7.5, 10.0]):
-            x = get_matching_max_vs_overlap(nsim0, min_logmass, mult=mult)
+            x = get_matching_max_vs_overlap(simname,
+                                            nsim0, min_logmass, mult=mult)
             mass0 = numpy.log10(x["mass0"])
             max_overlap = x["max_overlap"]
             match_overlap = x["match_overlap"]
