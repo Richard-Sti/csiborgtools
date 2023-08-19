@@ -545,7 +545,7 @@ class Paths:
 
         return join(fdir, fname)
 
-    def field(self, kind, MAS, grid, nsim, in_rsp, smooth_scale=None):
+    def field(self, kind, MAS, grid, nsim, in_rsp):
         r"""
         Path to the files containing the calculated density fields in CSiBORG.
 
@@ -562,8 +562,6 @@ class Paths:
             IC realisation index.
         in_rsp : bool
             Whether the calculation is performed in redshift space.
-        smooth_scale : float, optional
-            Smoothing scale in :math:`\mathrm{Mpc}/h`
 
         Returns
         -------
@@ -579,9 +577,6 @@ class Paths:
             kind = kind + "_rsp"
 
         fname = f"{kind}_{MAS}_{str(nsim).zfill(5)}_grid{grid}.npy"
-        if smooth_scale is not None and smooth_scale > 0:
-            smooth_scale = float(smooth_scale)
-            fname = fname.replace(".npy", f"smooth{smooth_scale}.npy")
         return join(fdir, fname)
 
     def halo_counts(self, simname, nsim):
