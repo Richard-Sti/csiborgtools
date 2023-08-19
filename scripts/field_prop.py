@@ -74,13 +74,9 @@ def density_field(nsim, parser_args, to_save=True):
         field = gen(parts, parser_args.grid, in_rsp=parser_args.in_rsp,
                     verbose=parser_args.verbose)
 
-    if parser_args.smooth_scale > 0:
-        field = csiborgtools.field.smoothen_field(
-            field, parser_args.smooth_scale, box.boxsize * box.h, threads=1)
-
     if to_save:
         fout = paths.field(parser_args.kind, parser_args.MAS, parser_args.grid,
-                           nsim, parser_args.in_rsp, parser_args.smooth_scale)
+                           nsim, parser_args.in_rsp)
         print(f"{datetime.now()}: saving output to `{fout}`.")
         numpy.save(fout, field)
     return field
@@ -93,7 +89,7 @@ def density_field(nsim, parser_args, to_save=True):
 
 def velocity_field(nsim, parser_args, to_save=True):
     """
-    Calculate the velocity field in the CSiBORG simulation.
+    Calculate the velocity field in a CSiBORG simulation.
 
     Parameters
     ----------
@@ -110,18 +106,15 @@ def velocity_field(nsim, parser_args, to_save=True):
     """
     if parser_args.in_rsp:
         raise NotImplementedError("Velocity field in RSP is not implemented.")
-    if parser_args.smooth_scale > 0:
-        raise NotImplementedError(
-            "Smoothed velocity field is not implemented.")
+
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    mpart = 1.1641532e-10  # Particle mass in CSiBORG simulations.
     nsnap = max(paths.get_snapshots(nsim, "csiborg"))
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
     parts = csiborgtools.read.read_h5(paths.particles(nsim, "csiborg"))
     parts = parts["particles"]
 
     gen = csiborgtools.field.VelocityField(box, parser_args.MAS)
-    field = gen(parts, parser_args.grid, mpart, verbose=parser_args.verbose)
+    field = gen(parts, parser_args.grid, verbose=parser_args.verbose)
 
     if to_save:
         fout = paths.field("velocity", parser_args.MAS, parser_args.grid,
@@ -161,9 +154,6 @@ def potential_field(nsim, parser_args, to_save=True):
     density_gen = csiborgtools.field.DensityField(box, parser_args.MAS)
     rho = numpy.load(paths.field("density", parser_args.MAS, parser_args.grid,
                                  nsim, in_rsp=False))
-    if parser_args.smooth_scale > 0:
-        rho = csiborgtools.field.smoothen_field(rho, parser_args.smooth_scale,
-                                                box.boxsize * box.h, threads=1)
     rho = density_gen.overdensity_field(rho)
     # Calculate the real space potentiel field
     gen = csiborgtools.field.PotentialField(box, parser_args.MAS)
@@ -176,7 +166,7 @@ def potential_field(nsim, parser_args, to_save=True):
                                              verbose=parser_args.verbose)
     if to_save:
         fout = paths.field(parser_args.kind, parser_args.MAS, parser_args.grid,
-                           nsim, parser_args.in_rsp, parser_args.smooth_scale)
+                           nsim, parser_args.in_rsp)
         print(f"{datetime.now()}: saving output to `{fout}`.")
         numpy.save(fout, field)
     return field
@@ -206,9 +196,7 @@ def radvel_field(nsim, parser_args, to_save=True):
     """
     if parser_args.in_rsp:
         raise NotImplementedError("Radial vel. field in RSP not implemented.")
-    if parser_args.smooth_scale > 0:
-        raise NotImplementedError(
-            "Smoothed radial vel. field not implemented.")
+
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsnap = max(paths.get_snapshots(nsim, "csiborg"))
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
@@ -258,9 +246,7 @@ def environment_field(nsim, parser_args, to_save=True):
         print(f"{datetime.now()}: loading density field.")
     rho = numpy.load(paths.field("density", parser_args.MAS, parser_args.grid,
                                  nsim, in_rsp=False))
-    if parser_args.smooth_scale > 0:
-        rho = csiborgtools.field.smoothen_field(rho, parser_args.smooth_scale,
-                                                box.boxsize * box.h, threads=1)
+
     rho = density_gen.overdensity_field(rho)
     # Calculate the real space tidal tensor field, delete overdensity.
     if parser_args.verbose:
@@ -303,7 +289,7 @@ def environment_field(nsim, parser_args, to_save=True):
 
     if to_save:
         fout = paths.field("environment", parser_args.MAS, parser_args.grid,
-                           nsim, parser_args.in_rsp, parser_args.smooth_scale)
+                           nsim, parser_args.in_rsp)
         print(f"{datetime.now()}: saving output to `{fout}`.")
         numpy.save(fout, env)
     return env
@@ -327,8 +313,6 @@ if __name__ == "__main__":
     parser.add_argument("--grid", type=int, help="Grid resolution.")
     parser.add_argument("--in_rsp", type=lambda x: bool(strtobool(x)),
                         help="Calculate in RSP?")
-    parser.add_argument("--smooth_scale", type=float, default=0,
-                        help="Smoothing scale in Mpc/h.")
     parser.add_argument("--verbose", type=lambda x: bool(strtobool(x)),
                         help="Verbosity flag for reading in particles.")
     parser.add_argument("--simname", type=str, default="csiborg",
