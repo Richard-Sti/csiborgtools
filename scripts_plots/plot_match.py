@@ -876,8 +876,7 @@ def get_matching_max_vs_overlap(simname, nsim0, min_logmass, mult):
 
 def matching_max_vs_overlap(simname, nsim0, min_logmass):
     left_edges = numpy.arange(min_logmass, 15, 0.1)
-
-    delete_disk_caches_for_function("get_matching_max_vs_overlap")
+    nsims = 100 if simname == "csiborg" else 9
 
     with plt.style.context("science"):
         fig, axs = plt.subplots(ncols=2, figsize=(3.5 * 2, 2.625))
@@ -891,34 +890,36 @@ def matching_max_vs_overlap(simname, nsim0, min_logmass):
             success = x["success"]
 
             nbins = len(left_edges)
-            y = numpy.full((nbins, 100), numpy.nan)
-            y2 = numpy.full((nbins, 100), numpy.nan)
+            y = numpy.full((nbins, nsims), numpy.nan)
+            y2 = numpy.full(nbins, numpy.nan)
+            y2err = numpy.full(nbins, numpy.nan)
             for i in range(nbins):
                 m = mass0 > left_edges[i]
-                for j in range(100):
+                for j in range(nsims):
                     y[i, j] = numpy.sum(
                         max_overlap[m, j] == match_overlap[m, j])
                     y[i, j] /= numpy.sum(success[m, j])
-                    y2[i, j] = numpy.sum(success[m, j]) / numpy.sum(m)
 
-            offset = numpy.random.normal(0, 0.01)
+                y2[i] = numpy.mean(numpy.sum(success[m, :], axis=1) / nsims)
+                y2err[i] = numpy.std(numpy.sum(success[m, :], axis=1) / nsims)
+
+            offset = numpy.random.normal(0, 0.015)
 
             ysummary = numpy.percentile(y, [16, 50, 84], axis=1)
             axs[0].errorbar(
                 left_edges + offset, ysummary[1],
                 yerr=[ysummary[1] - ysummary[0], ysummary[2] - ysummary[1]],
-                capsize=3, c=cols[n],
+                capsize=4, c=cols[n], ls="dashed",
                 label=r"$\leq {}~R_{{\rm 200c}}$".format(mult), errorevery=2)
-            ysummary = numpy.percentile(y2, [16, 50, 84], axis=1)
-            axs[1].errorbar(
-                left_edges + offset, ysummary[1], ls="--",
-                yerr=[ysummary[1] - ysummary[0], ysummary[2] - ysummary[1]],
-                capsize=3, c=cols[n], errorevery=2)
+
+            axs[1].errorbar(left_edges + offset, y2, yerr=y2err,
+                            capsize=4, errorevery=2, c=cols[n], ls="dashed")
 
         axs[0].legend(ncols=2, fontsize="small")
         for i in range(2):
             axs[i].set_xlabel(r"$\log M_{\rm tot, min} ~ [M_\odot / h]$")
 
+        axs[1].set_ylim(0)
         axs[0].set_ylabel(r"$f_{\rm agreement}$")
         axs[1].set_ylabel(r"$f_{\rm match}$")
 
@@ -1048,7 +1049,7 @@ if __name__ == "__main__":
     smoothed = True
     nbins = 10
     ext = "png"
-    plot_quijote = False
+    plot_quijote = True
     min_maxoverlap = 0.
 
     funcs = [
@@ -1129,4 +1130,7 @@ if __name__ == "__main__":
                                         min_maxoverlap, smoothed)
 
     if True:
-        matching_max_vs_overlap(7444, min_logmass)
+        matching_max_vs_overlap("csiborg", 7444, min_logmass)
+
+        if plot_quijote:
+            matching_max_vs_overlap("quijote", 0, min_logmass)
