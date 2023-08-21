@@ -579,6 +579,29 @@ class Paths:
         fname = f"{kind}_{MAS}_{str(nsim).zfill(5)}_grid{grid}.npy"
         return join(fdir, fname)
 
+    def observer_peculiar_velocity(self, MAS, grid, nsim):
+        """
+        Path to the files containing the observer peculiar velocity.
+
+        Parameters
+        ----------
+        MAS : str
+           Mass-assignment scheme.
+        grid : int
+            Grid size.
+        nsim : int
+            IC realisation index.
+
+        Returns
+        -------
+        path : str
+        """
+        fdir = join(self.postdir, "environment")
+        try_create_directory(fdir)
+
+        fname = f"obs_vp_{MAS}_{str(nsim).zfill(5)}_{grid}.npz"
+        return join(fdir, fname)
+
     def halo_counts(self, simname, nsim):
         """
         Path to the files containing the binned halo counts.
