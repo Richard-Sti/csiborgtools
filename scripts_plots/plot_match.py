@@ -191,7 +191,7 @@ def get_mtot_vs_maxpairoverlap(nsim0, simname, mass_kind, min_logmass,
     def get_max(y_):
         if len(y_) == 0:
             return 0
-        return numpy.max(y_)
+        return numpy.nanmax(y_)
 
     reader = csiborgtools.read.NPairsOverlap(cat0, catxs, paths, min_logmass)
 
@@ -218,7 +218,6 @@ def mtot_vs_maxpairoverlap(nsim0, simname, mass_kind, min_logmass, smoothed,
     x, y, xbins = get_mtot_vs_maxpairoverlap(nsim0, simname, mass_kind,
                                              min_logmass, smoothed, nbins)
 
-    plt.close("all")
     with plt.style.context(plt_utils.mplstyle):
         plt.figure()
         plt.hexbin(x, y, mincnt=1, gridsize=50, bins="log")
@@ -247,6 +246,87 @@ def mtot_vs_maxpairoverlap(nsim0, simname, mass_kind, min_logmass, smoothed,
 
         plt.tight_layout()
         fout = join(plt_utils.fout, f"mass_vs_max_pair_overlap{nsim0}.{ext}")
+        print(f"Saving to `{fout}`.")
+        plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
+        plt.close()
+
+
+# --------------------------------------------------------------------------- #
+###############################################################################
+#            Total DM halo mass vs maximum pair overlap consistency           #
+###############################################################################
+# --------------------------------------------------------------------------- #
+
+@cache_to_disk(120)
+def get_mtot_vs_maxpairoverlap_consistency(nsim0, simname, mass_kind,
+                                           min_logmass, smoothed):
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    nsimxs = csiborgtools.read.get_cross_sims(simname, nsim0, paths,
+                                              min_logmass, smoothed=smoothed)
+    cat0 = open_cat(nsim0, simname)
+    catxs = open_cats(nsimxs, simname)
+
+    reader = csiborgtools.read.NPairsOverlap(cat0, catxs, paths, min_logmass)
+
+    x = numpy.log10(cat0[mass_kind])
+    mask = x > min_logmass
+    x = x[mask]
+    nhalos = len(x)
+
+    y = numpy.full((len(catxs), nhalos), numpy.nan)
+    for i in trange(len(catxs), desc="Stacking catalogues"):
+        overlaps = reader[i].overlap(smoothed)
+        for j in range(nhalos):
+            # if len(overlaps[j]) > 0:
+            y[i, j] = numpy.sum(overlaps[j])
+
+    return x, y
+
+
+def mtot_vs_maxpairoverlap_consistency(nsim0, simname, mass_kind, min_logmass,
+                                       smoothed, ext="png"):
+    left_edges = numpy.arange(min_logmass, 15, 0.1)
+    # delete_disk_caches_for_function("get_mtot_vs_maxpairoverlap_consistency")
+    x, y0 = get_mtot_vs_maxpairoverlap_consistency(nsim0, simname, mass_kind,
+                                                   min_logmass, smoothed)
+    nsims, nhalos = y0.shape
+    x_2, y0_2 = get_mtot_vs_maxpairoverlap_consistency(
+        0, "quijote", "group_mass", min_logmass, smoothed)
+    nsims2, nhalos = y0_2.shape
+
+    with plt.style.context(plt_utils.mplstyle):
+        plt.figure()
+
+        yplot = numpy.full(len(left_edges), numpy.nan)
+        yplot_2 = numpy.full(len(left_edges), numpy.nan)
+
+        for ymin in [0.3]:
+
+            y = numpy.sum(y0 > ymin, axis=0) / nsims
+            y_2 = numpy.sum(y0_2 > ymin, axis=0) / nsims2
+
+            for i, left_edge in enumerate(left_edges):
+                mask = x > left_edge
+                yplot[i] = numpy.mean(y[mask]) #/ nsims
+                mask = x_2 > left_edge
+                yplot_2[i] = numpy.mean(y_2[mask]) #/ nsims
+
+        plt.plot(left_edges, yplot, label="CSiBORG")
+        plt.plot(left_edges, yplot_2, label="Quijote")
+        plt.legend()
+        # y2 = numpy.concatenate(y0)
+        # y2 = y2[y2 > 0]
+        # m = y0 > 0
+        # plt.hist(y0[m], bins=30, density=True, histtype="step")
+        # m = y0_2 > 0
+        # plt.hist(y0_2[m], bins=30, density=True, histtype="step")
+        # plt.yscale("log")
+
+
+        plt.tight_layout()
+        fout = join(
+            plt_utils.fout,
+            f"mass_vs_max_pair_overlap_consistency_{simname}_{nsim0}.{ext}")
         print(f"Saving to `{fout}`.")
         plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
@@ -1129,8 +1209,19 @@ if __name__ == "__main__":
             mtot_vs_maxoverlap_property(0, "quijote", min_logmass, key,
                                         min_maxoverlap, smoothed)
 
-    if True:
+    if False:
         matching_max_vs_overlap("csiborg", 7444, min_logmass)
 
         if plot_quijote:
             matching_max_vs_overlap("quijote", 0, min_logmass)
+
+    if True:
+        mtot_vs_maxpairoverlap_consistency(
+            7444, "csiborg", "fof_totpartmass", min_logmass, smoothed,
+            ext="png")
+        # if plot_quijote:
+        #     mtot_vs_maxpairoverlap_consistency(
+        #         0, "quijote", "group_mass", min_logmass, smoothed,
+        #         ext="png")
+
+
