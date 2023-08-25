@@ -80,7 +80,8 @@ def radec_to_cartesian(X, isdeg=True):
     return numpy.vstack([x, y, z]).T
 
 
-def real2redshift(pos, vel, observer_location, box, periodic_wrap=True,
+def real2redshift(pos, vel, observer_location, observer_velocity, box,
+                  periodic_wrap=True,
                   subtract_observer=False, make_copy=True):
     r"""
     Convert real-space position to redshift space position.
@@ -118,6 +119,8 @@ def real2redshift(pos, vel, observer_location, box, periodic_wrap=True,
     vr_dot = numpy.sum(pos * vel, axis=1)
     # Compute the norm squared of the displacement
     norm2 = numpy.sum(pos**2, axis=1)
+
+    # NOTE correctall this
     pos *= (1 + box._aexp / box.H0 * vr_dot / norm2).reshape(-1, 1)
 
     # Place the observer back at the original location
