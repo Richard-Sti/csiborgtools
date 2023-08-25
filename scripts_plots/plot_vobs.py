@@ -57,7 +57,8 @@ def observer_peculiar_velocity(MAS, grid, ext="png"):
             fig.suptitle(r"$N_{{\rm grid}} = {}$, $\sigma_{{\rm smooth}} = {:.2f} ~ [\mathrm{{Mpc}} / h]$".format(grid, smooth_scale)) # noqa
 
             fig.tight_layout(w_pad=0)
-            fout = join(plt_utils.fout, f"observer_vp_{smooth_scale}.{ext}")
+            fout = join(plt_utils.fout,
+                        f"observer_vp_{grid}_{smooth_scale}.{ext}")
             fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
             plt.close()
 
@@ -79,7 +80,7 @@ def observer_peculiar_velocity(MAS, grid, ext="png"):
         fig.suptitle(r"$N_{{\rm grid}} = {}$".format(grid))
 
         fig.tight_layout(w_pad=0)
-        fout = join(plt_utils.fout, f"observer_vp_summary.{ext}")
+        fout = join(plt_utils.fout, f"observer_vp_summary_{grid}.{ext}")
         fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
 
