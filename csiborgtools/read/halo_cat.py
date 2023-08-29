@@ -631,6 +631,9 @@ class QuijoteHaloCatalogue(BaseCatalogue):
         Load initial positions from `fit_init.py`.
     with_lagpatch : bool, optional
         Load halos with a resolved Lagrangian patch.
+    load_backup : bool, optional
+        Load halos from the backup catalogue that do not have corresponding
+        snapshots.
     """
     _nsnap = None
     _origin = None
@@ -638,14 +641,15 @@ class QuijoteHaloCatalogue(BaseCatalogue):
     def __init__(self, nsim, paths, nsnap,
                  observer_location=[500., 500., 500.],
                  bounds=None, load_fitted=True, load_initial=True,
-                 with_lagpatch=False):
+                 with_lagpatch=False, load_backup=False):
         self.nsim = nsim
         self.paths = paths
         self.nsnap = nsnap
         self.observer_location = observer_location
-        self._box = QuijoteBox(nsnap, nsim, paths)
+        # NOTE watch out about here setting nsim = 0
+        self._box = QuijoteBox(nsnap, 0, paths)
 
-        fpath = self.paths.fof_cat(nsim, "quijote")
+        fpath = self.paths.fof_cat(nsim, "quijote", load_backup)
         fof = FoF_catalog(fpath, self.nsnap, long_ids=False, swap=False,
                           SFR=False, read_IDs=False)
 
@@ -666,6 +670,10 @@ class QuijoteHaloCatalogue(BaseCatalogue):
         # We want to start indexing from 1. Index 0 is reserved for
         # particles unassigned to any FoF group.
         data["index"] = 1 + numpy.arange(data.size, dtype=numpy.int32)
+
+        if load_backup and (load_initial or load_fitted):
+            raise ValueError("Cannot load initial/fitted data for the backup "
+                             "catalogues.")
 
         if load_initial:
             data = self.load_initial(data, paths, "quijote")

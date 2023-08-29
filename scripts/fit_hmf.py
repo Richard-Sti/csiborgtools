@@ -75,13 +75,14 @@ def get_counts(nsim, bins, paths, parser_args):
             counts[nobs, :] = csiborgtools.number_counts(logmass, bins)
     elif simname == "quijote_full":
         cat = csiborgtools.read.QuijoteHaloCatalogue(
-            nsim, paths, nsnap=4, load_fitted=False, load_initial=False)
+            nsim, paths, nsnap=4, load_fitted=False, load_initial=False,
+            load_backup=parser_args.from_quijote_backup)
         logmass = numpy.log10(cat["group_mass"])
         counts = csiborgtools.number_counts(logmass, bins)
     else:
         raise ValueError(f"Unknown simulation name `{simname}`.")
 
-    fout = paths.halo_counts(simname, nsim)
+    fout = paths.halo_counts(simname, nsim, parser_args.from_quijote_backup)
     if parser_args.verbose:
         print(f"{datetime.now()}: saving halo counts to `{fout}`.")
     numpy.savez(fout, counts=counts, bins=bins, rmax=parser_args.Rmax)
@@ -97,6 +98,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--Rmax", type=float, default=155,
         help="High-res region radius in Mpc / h. Ignored for `quijote_full`.")
+    parser.add_argument("--from_quijote_backup",
+                        type=lambda x: bool(strtobool(x)), default=False,
+                        help="Flag to indicate Quijote backup data.")
     parser.add_argument("--lims", type=float, nargs="+", default=[11., 16.],
                         help="Mass limits in Msun / h.")
     parser.add_argument("--bw", type=float, default=0.2,

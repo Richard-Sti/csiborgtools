@@ -214,7 +214,7 @@ class Paths:
             fout = fout.replace(".npy", "_sorted.npy")
         return fout
 
-    def fof_cat(self, nsim, simname):
+    def fof_cat(self, nsim, simname, from_quijote_backup=False):
         r"""
         Path to the :math:`z = 0` FoF halo catalogue.
 
@@ -224,13 +224,24 @@ class Paths:
             IC realisation index.
         simname : str
             Simulation name. Must be one of `csiborg` or `quijote`.
+        from_quijote_backup : bool, optional
+            Whether to return the path to the Quijote FoF catalogue from the
+            backup.
+
+
+        Returns
+        -------
+        path : str
         """
         if simname == "csiborg":
             fdir = join(self.postdir, "FoF_membership", )
             try_create_directory(fdir)
             return join(fdir, f"halo_catalog_{nsim}_FOF.txt")
         elif simname == "quijote":
-            return join(self.quijote_dir, "Halos_fiducial", str(nsim))
+            if from_quijote_backup:
+                return join(self.quijote_dir, "halos_backup", str(nsim))
+            else:
+                return join(self.quijote_dir, "Halos_fiducial", str(nsim))
         else:
             raise ValueError(f"Unknown simulation name `{simname}`.")
 
@@ -285,7 +296,7 @@ class Paths:
         try_create_directory(fdir)
         return join(fdir, f"{kind}_{str(nsim).zfill(5)}.{ftype}")
 
-    def get_ics(self, simname):
+    def get_ics(self, simname, from_quijote_backup=False):
         """
         Get available IC realisation IDs for either the CSiBORG or Quijote
         simulation suite.
@@ -294,6 +305,8 @@ class Paths:
         ----------
         simname : str
             Simulation name. Must be `csiborg` or `quijote`.
+        from_quijote_backup : bool, optional
+            Whether to return the ICs from the Quijote backup.
 
         Returns
         -------
@@ -311,10 +324,13 @@ class Paths:
             except ValueError:
                 pass
         elif simname == "quijote" or simname == "quijote_full":
-            files = glob(
-                "/mnt/extraspace/rstiskalek/Quijote/Snapshots_fiducial/*")
+            if from_quijote_backup:
+                files = glob(join(self.quijote_dir, "halos_backup", "*"))
+            else:
+                warn(("Taking only the snapshots that also have "
+                     "a FoF catalogue!"))
+                files = glob(join(self.quijote_dir, "Snapshots_fiducial", "*"))
             files = [int(f.split("/")[-1]) for f in files]
-            warn("Taking only the snapshots that also have a FoF catalogue!")
             files = [f for f in files if f < 100]
         else:
             raise ValueError(f"Unknown simulation name `{simname}`.")
@@ -602,7 +618,7 @@ class Paths:
         fname = f"obs_vp_{MAS}_{str(nsim).zfill(5)}_{grid}.npz"
         return join(fdir, fname)
 
-    def halo_counts(self, simname, nsim):
+    def halo_counts(self, simname, nsim, from_quijote_backup=False):
         """
         Path to the files containing the binned halo counts.
 
@@ -612,6 +628,9 @@ class Paths:
             Simulation name. Must be `csiborg`, `quijote` or `quijote_full`.
         nsim : int
             IC realisation index.
+        from_quijote_backup : bool, optional
+            Whether to return the path to the Quijote halo counts from the
+            backup catalogues.
 
         Returns
         -------
@@ -620,6 +639,8 @@ class Paths:
         fdir = join(self.postdir, "HMF")
         try_create_directory(fdir)
         fname = f"halo_counts_{simname}_{str(nsim).zfill(5)}.npz"
+        if from_quijote_backup:
+            fname = fname.replace("halo_counts", "halo_counts_backup")
         return join(fdir, fname)
 
     def cross_nearest(self, simname, run, kind, nsim=None, nobs=None):
