@@ -20,9 +20,8 @@ import numpy
 from numba import jit
 from tqdm import trange
 
-from ..read.utils import radec_to_cartesian
 from .utils import force_single_precision
-from ..utils import periodic_wrap_grid
+from ..utils import periodic_wrap_grid, radec_to_cartesian
 
 
 def evaluate_cartesian(*fields, pos, interp="CIC"):
@@ -91,7 +90,8 @@ def evaluate_sky(*fields, pos, box, isdeg=True):
     # We first calculate convert the distance to box coordinates and then
     # convert to Cartesian coordinates.
     pos[:, 0] = box.mpc2box(pos[:, 0])
-    X = radec_to_cartesian(pos, isdeg)
+    assert isdeg
+    X = radec_to_cartesian(pos)
     # Then we move the origin to match the box coordinates
     X += 0.5
     return evaluate_cartesian(*fields, pos=X)
