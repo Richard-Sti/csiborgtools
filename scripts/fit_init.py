@@ -41,15 +41,6 @@ def _main(nsim, simname, verbose):
     """
     Calculate the Lagrangian halo centre of mass and Lagrangian patch size in
     the initial snapshot.
-
-    Parameters
-    ----------
-    nsim : int
-        IC realisation index.
-    simname : str
-        Simulation name.
-    verbose : bool
-        Verbosity flag.
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     cols = [("index", numpy.int32),

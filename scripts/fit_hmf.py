@@ -37,21 +37,6 @@ except ModuleNotFoundError:
 def get_counts(nsim, bins, paths, parser_args):
     """
     Calculate and save the number of haloes in each mass bin.
-
-    Parameters
-    ----------
-    nsim : int
-        Simulation index.
-    bins : 1-dimensional array
-        Array of bin edges (in log10 mass).
-    paths : csiborgtools.read.Paths
-        Paths object.
-    parser_args : argparse.Namespace
-        Parsed command-line arguments.
-
-    Returns
-    -------
-    None
     """
     simname = parser_args.simname
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)

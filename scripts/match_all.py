@@ -29,16 +29,6 @@ def get_combs(simname):
     """
     Get the list of all pairs of IC indices and permute them with a fixed
     seed.
-
-    Parameters
-    ----------
-    simname : str
-        Simulation name.
-
-    Returns
-    -------
-    combs : list
-        List of pairs of simulations.
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     combs = list(combinations(paths.get_ics(simname), 2))
@@ -50,27 +40,6 @@ def get_combs(simname):
 def main(comb, kind, simname, min_logmass, sigma, mult, verbose):
     """
     Match a pair of simulations.
-
-    Parameters
-    ----------
-    comb : tuple
-        Pair of simulation IC indices.
-    kind : str
-        Kind of matching.
-    simname : str
-        Simulation name.
-    min_logmass : float
-        Minimum log halo mass.
-    sigma : float
-        Smoothing scale in number of grid cells.
-    mult : float
-        Multiplicative factor for search radius.
-    verbose : bool
-        Verbosity flag.
-
-    Returns
-    -------
-    None
     """
     nsim0, nsimx = comb
     if kind == "overlap":
