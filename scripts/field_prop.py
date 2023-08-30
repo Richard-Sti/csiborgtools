@@ -140,25 +140,27 @@ def potential_field(nsim, parser_args, to_save=True):
     """
     Calculate the potential field in the CSiBORG simulation.
     """
-    # TODO add RSP
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsnap = max(paths.get_snapshots(nsim, "csiborg"))
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
 
-    # Load the real space overdensity field
-    density_gen = csiborgtools.field.DensityField(box, parser_args.MAS)
-    rho = numpy.load(paths.field("density", parser_args.MAS, parser_args.grid,
-                                 nsim, in_rsp=False))
-    rho = density_gen.overdensity_field(rho)
-    # Calculate the real space potentiel field
-    gen = csiborgtools.field.PotentialField(box, parser_args.MAS)
-    field = gen(rho)
+    if not parser_args.in_rsp:
+        rho = numpy.load(paths.field(
+            "density", parser_args.MAS, parser_args.grid, nsim, in_rsp=False))
+        density_gen = csiborgtools.field.DensityField(box, parser_args.MAS)
+        rho = density_gen.overdensity_field(rho)
 
-    if parser_args.in_rsp:
-        parts = csiborgtools.read.read_h5(paths.particles(nsim, "csiborg"))
-        parts = parts["particles"]
-        field = csiborgtools.field.field2rsp(*field, parts=parts, box=box,
-                                             verbose=parser_args.verbose)
+        gen = csiborgtools.field.PotentialField(box, parser_args.MAS)
+        field = gen(rho)
+    else:
+        field = numpy.load(paths.field(
+            "potential", parser_args.MAS, parser_args.grid, nsim, False))
+        radvel_field = numpy.load(paths.field(
+            "radvel", parser_args.MAS, parser_args.grid, nsim, False))
+
+        field = csiborgtools.field.field2rsp(field, radvel_field, box,
+                                             parser_args.MAS)
+
     if to_save:
         fout = paths.field(parser_args.kind, parser_args.MAS, parser_args.grid,
                            nsim, parser_args.in_rsp)
@@ -176,58 +178,42 @@ def environment_field(nsim, parser_args, to_save=True):
     """
     Calculate the environmental classification in the CSiBORG simulation.
     """
-    # TODO add RSP
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsnap = max(paths.get_snapshots(nsim, "csiborg"))
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
+
+    rho = numpy.load(paths.field(
+        "density", parser_args.MAS, parser_args.grid, nsim, in_rsp=False))
     density_gen = csiborgtools.field.DensityField(box, parser_args.MAS)
-    gen = csiborgtools.field.TidalTensorField(box, parser_args.MAS)
-
-    # Load the real space overdensity field
-    if parser_args.verbose:
-        print(f"{datetime.now()}: loading density field.")
-    rho = numpy.load(paths.field("density", parser_args.MAS, parser_args.grid,
-                                 nsim, in_rsp=False))
-
     rho = density_gen.overdensity_field(rho)
-    # Calculate the real space tidal tensor field, delete overdensity.
-    if parser_args.verbose:
-        print(f"{datetime.now()}: calculating tidal tensor field.")
-    tensor_field = gen(rho)
+
+    gen = csiborgtools.field.TidalTensorField(box, parser_args.MAS)
+    field = gen(rho)
+
     del rho
     collect()
 
-    # Optionally drag the field to RSP.
     if parser_args.in_rsp:
-        parts = csiborgtools.read.read_h5(paths.particles(nsim, "csiborg"))
-        parts = parts["particles"]
-        fields = (tensor_field.T00, tensor_field.T11, tensor_field.T22,
-                  tensor_field.T01, tensor_field.T02, tensor_field.T12)
+        radvel_field = numpy.load(paths.field(
+            "radvel", parser_args.MAS, parser_args.grid, nsim, False))
+        args = (radvel_field, box, parser_args.MAS)
 
-        T00, T11, T22, T01, T02, T12 = csiborgtools.field.field2rsp(
-            *fields, parts=parts, box=box, verbose=parser_args.verbose)
-        tensor_field.T00[...] = T00
-        tensor_field.T11[...] = T11
-        tensor_field.T22[...] = T22
-        tensor_field.T01[...] = T01
-        tensor_field.T02[...] = T02
-        tensor_field.T12[...] = T12
-        del T00, T11, T22, T01, T02, T12
+        field.T00 = csiborgtools.field.field2rsp(field.T00, *args)
+        field.T11 = csiborgtools.field.field2rsp(field.T11, *args)
+        field.T22 = csiborgtools.field.field2rsp(field.T22, *args)
+        field.T01 = csiborgtools.field.field2rsp(field.T01, *args)
+        field.T02 = csiborgtools.field.field2rsp(field.T02, *args)
+        field.T12 = csiborgtools.field.field2rsp(field.T12, *args)
+
+        del radvel_field
         collect()
 
-    # Calculate the eigenvalues of the tidal tensor field, delete tensor field.
-    if parser_args.verbose:
-        print(f"{datetime.now()}: calculating eigenvalues.")
-    eigvals = gen.tensor_field_eigvals(tensor_field)
-    del tensor_field
+    eigvals = gen.tensor_field_eigvals(field)
+
+    del field
     collect()
 
-    # Classify the environment based on the eigenvalues.
-    if parser_args.verbose:
-        print(f"{datetime.now()}: classifying environment.")
     env = gen.eigvals_to_environment(eigvals)
-    del eigvals
-    collect()
 
     if to_save:
         fout = paths.field("environment", parser_args.MAS, parser_args.grid,
