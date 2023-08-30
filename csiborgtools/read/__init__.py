@@ -26,5 +26,4 @@ from .pk_summary import PKReader  # noqa
 from .readsim import (MmainReader, CSiBORGReader, QuijoteReader, halfwidth_mask,  # noqa
                       load_halo_particles)  # noqa
 from .tpcf_summary import TPCFReader  # noqa
-from .utils import (cartesian_to_radec, cols_to_structured, radec_to_cartesian,  # noqa
-                    read_h5, real2redshift)  # noqa
+from .utils import (cols_to_structured, read_h5)  # noqa
