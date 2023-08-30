@@ -305,7 +305,7 @@ def plot_hmf_quijote_full(pdf=False):
         plt.close()
 
 
-def load_field(kind, nsim, grid, MAS, in_rsp=False, smooth_scale=None):
+def load_field(kind, nsim, grid, MAS, in_rsp=False):
     r"""
     Load a single field.
 
@@ -321,16 +321,13 @@ def load_field(kind, nsim, grid, MAS, in_rsp=False, smooth_scale=None):
         Mass assignment scheme.
     in_rsp : bool, optional
         Whether to load the field in redshift space.
-    smooth_scale : float, optional
-        Smoothing scale in :math:`\mathrm{Mpc} / h`.
 
     Returns
     -------
     field : n-dimensional array
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    return numpy.load(paths.field(kind, MAS, grid, nsim, in_rsp=in_rsp,
-                                  smooth_scale=smooth_scale))
+    return numpy.load(paths.field(kind, MAS, grid, nsim, in_rsp=in_rsp))
 
 
 ###############################################################################
@@ -377,16 +374,16 @@ def plot_projected_field(kind, nsim, grid, in_rsp, smooth_scale, MAS="PCS",
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
 
     if kind == "overdensity":
-        field = load_field("density", nsim, grid, MAS=MAS, in_rsp=in_rsp,
-                           smooth_scale=smooth_scale)
+        field = load_field("density", nsim, grid, MAS=MAS, in_rsp=in_rsp)
         density_gen = csiborgtools.field.DensityField(box, MAS)
-        field = density_gen.overdensity_field(field) + 1
+        field = density_gen.overdensity_field(field) + 2
+
+        field = numpy.log10(field)
     elif kind == "borg_density":
         field = File(paths.borg_mcmc(nsim), 'r')
         field = field["scalars"]["BORG_final_density"][...]
     else:
-        field = load_field(kind, nsim, grid, MAS=MAS, in_rsp=in_rsp,
-                           smooth_scale=smooth_scale)
+        field = load_field(kind, nsim, grid, MAS=MAS, in_rsp=in_rsp)
 
     if kind == "velocity":
         field = field[vel_component, ...]
@@ -422,6 +419,9 @@ def plot_projected_field(kind, nsim, grid, in_rsp, smooth_scale, MAS="PCS",
                 im = ax[i].imshow(img, vmin=vmin, vmax=vmax, cmap=cmap)
             else:
                 ax[i].imshow(img, vmin=vmin, vmax=vmax, cmap=cmap)
+
+            k = img.shape[0] // 2
+            ax[i].scatter(k, k, marker="x", s=5, zorder=2, c="red")
 
             frad = 155.5 / 677.7
             R = 155.5 / 677.7 * grid
@@ -486,6 +486,7 @@ def plot_projected_field(kind, nsim, grid, in_rsp, smooth_scale, MAS="PCS",
                                     rotation=90, va="center")
         else:
             fig.colorbar(im, cax=cbar_ax, label=clabel)
+
 
         fig.tight_layout(h_pad=0, w_pad=0)
         for ext in ["png"] if pdf is False else ["png", "pdf"]:
@@ -587,7 +588,7 @@ def plot_sky_distribution(field, nsim, grid, nside, smooth_scale=None,
     nsnap = max(paths.get_snapshots(nsim, "csiborg"))
     box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
 
-    if field== "overdensity":
+    if field == "overdensity":
         field = load_field("density", nsim, grid, MAS=MAS, in_rsp=False,
                            smooth_scale=smooth_scale)
         density_gen = csiborgtools.field.DensityField(box, MAS)
@@ -652,7 +653,7 @@ if __name__ == "__main__":
     if False:
         plot_mass_vs_ncells(7444, pdf=False)
 
-    if True:
+    if False:
         plot_hmf(pdf=False)
 
     if False:
@@ -665,16 +666,17 @@ if __name__ == "__main__":
                               plot_groups=False, dmin=45, dmax=60,
                               plot_halos=5e13, volume_weight=True)
 
-    if False:
-        kind = "overdensity"
-        grid = 256
+    if True:
+        kind = "potential"
+        grid = 512
         smooth_scale = 0
         # plot_projected_field("overdensity", 7444, grid, in_rsp=True,
         #                      highres_only=False)
-        plot_projected_field(kind, 7444, grid, in_rsp=False,
-                             smooth_scale=smooth_scale, slice_find=0.5,
-                             MAS="PCS",
-                             highres_only=True)
+        # for in_rsp in [True, False]:
+        for in_rsp in [True, False]:
+            plot_projected_field(kind, 7444, grid, in_rsp=in_rsp,
+                                 smooth_scale=smooth_scale, slice_find=0.5,
+                                 MAS="PCS", highres_only=True)
 
     if False:
         paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
