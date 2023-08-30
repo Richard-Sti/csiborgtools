@@ -35,6 +35,10 @@ except ModuleNotFoundError:
 
 
 def observer_peculiar_velocity(nsim, parser_args):
+    """
+    Calculate the peculiar velocity of an observer in the centre of the box
+    for several smoothing scales.
+    """
     pos = numpy.array([0.5, 0.5, 0.5]).reshape(-1, 3)
     boxsize = 677.7
     smooth_scales = [0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0]
