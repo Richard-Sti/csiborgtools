@@ -20,8 +20,9 @@ import numpy
 from numba import jit
 from tqdm import trange
 
-from ..read.utils import radec_to_cartesian, real2redshift
+from ..read.utils import radec_to_cartesian
 from .utils import force_single_precision
+from ..utils import periodic_wrap_grid
 
 
 def evaluate_cartesian(*fields, pos, interp="CIC"):
@@ -96,6 +97,26 @@ def evaluate_sky(*fields, pos, box, isdeg=True):
     return evaluate_cartesian(*fields, pos=X)
 
 
+def observer_vobs(velocity_field):
+    """
+    Calculate the observer velocity from a velocity field. Assumes an observer
+    in the centre of the box.
+
+    Parameters
+    ----------
+    velocity_field : 4-dimensional array of shape `(3, grid, grid, grid)`
+
+    Returns
+    -------
+    1-dimensional array of shape `(3,)`
+    """
+    pos = numpy.asanyarray([0.5, 0.5, 0.5]).reshape(1, 3)
+    vobs = numpy.full(3, numpy.nan, dtype=numpy.float32)
+    for i in range(3):
+        vobs[i] = evaluate_cartesian(velocity_field[i, ...], pos=pos)[0]
+    return vobs
+
+
 def make_sky(field, angpos, dist, box, volume_weight=True, verbose=True):
     r"""
     Make a sky map of a scalar field. The observer is in the centre of the
@@ -152,22 +173,9 @@ def make_sky(field, angpos, dist, box, volume_weight=True, verbose=True):
 @jit(nopython=True)
 def divide_nonzero(field0, field1):
     """
-    Divide two fields where the second one is not zero. If the second field
-    is zero, the first one is left unchanged. Operates in-place.
-
-    Parameters
-    ----------
-    field0 : 3-dimensional array of shape `(grid, grid, grid)`
-        Field to be divided.
-    field1 : 3-dimensional array of shape `(grid, grid, grid)`
-        Field to divide by.
-
-    Returns
-    -------
-    field0 : 3-dimensional array of shape `(grid, grid, grid)`
-        Field divided by the second one.
+    Perform in-place `field0 /= field1` but only where `field1 != 0`.
     """
-    assert field0.shape == field1.shape
+    assert field0.shape == field1.shape, "Field shapes must match."
 
     imax, jmax, kmax = field0.shape
     for i in range(imax):
@@ -177,134 +185,89 @@ def divide_nonzero(field0, field1):
                     field0[i, j, k] /= field1[i, j, k]
 
 
-def observer_vobs(velocity_field):
+@jit(nopython=True)
+def make_gridpos(grid_size):
+    """Make a regular grid of positions and distances from the center."""
+    grid_pos = numpy.full((grid_size**3, 3), numpy.nan, dtype=numpy.float32)
+    grid_dist = numpy.full(grid_size**3, numpy.nan, dtype=numpy.float32)
+
+    n = 0
+    for i in range(grid_size):
+        px = (i - 0.5 * (grid_size - 1)) / grid_size
+        px2 = px**2
+        for j in range(grid_size):
+            py = (j - 0.5 * (grid_size - 1)) / grid_size
+            py2 = py**2
+            for k in range(grid_size):
+                pz = (k - 0.5 * (grid_size - 1)) / grid_size
+                pz2 = pz**2
+
+                grid_pos[n, 0] = px
+                grid_pos[n, 1] = py
+                grid_pos[n, 2] = pz
+
+                grid_dist[n] = (px2 + py2 + pz2)**0.5
+
+                n += 1
+
+    return grid_pos, grid_dist
+
+
+def field2rsp(field, radvel_field, box, MAS, init_value=0.):
     """
-    Calculate the observer velocity from a velocity field. Assumes the observer
-    is in the centre of the box.
+    Forward model a real space scalar field to redshift space.
 
     Parameters
     ----------
-    velocity_field : 4-dimensional array of shape `(3, grid, grid, grid)`
-        Velocity field to calculate the observer velocity from.
-
-    Returns
-    -------
-    vobs : 1-dimensional array of shape `(3,)`
-        Observer velocity in units of `velocity_field`.
-    """
-    pos = numpy.asanyarray([0.5, 0.5, 0.5]).reshape(1, 3)
-    vobs = numpy.full(3, numpy.nan, dtype=numpy.float32)
-    for i in range(3):
-        vobs[i] = evaluate_cartesian(velocity_field[i, ...], pos=pos)[0]
-    return vobs
-
-
-def field2rsp(*fields, parts, vobs, box, nbatch=30, flip_partsxz=True,
-              init_value=0., verbose=True):
-    """
-    Forward model real space scalar fields to redshift space. Attaches field
-    values to particles, those are then moved to redshift space and from their
-    positions reconstructs back the field on a grid by NGP interpolation.
-
-    Parameters
-    ----------
-    fields : (list of) 3-dimensional array of shape `(grid, grid, grid)`
-        Real space fields to be evolved to redshift space.
-    parts : 2-dimensional array of shape `(n_parts, 6)`
-        Particle positions and velocities in real space. Must be organised as
-        `x, y, z, vx, vy, vz`.
-    vobs : 1-dimensional array of shape `(3,)`
-        Observer velocity in units matching `parts`.
+    field : 3-dimensional array of shape `(grid, grid, grid)`
+        Real space field to be evolved to redshift space.
+    radvel_field : 3-dimensional array of shape `(grid, grid, grid)`
+        Radial velocity field in `km / s`. Expected to account for the observer
+        velocity.
     box : :py:class:`csiborgtools.read.CSiBORGBox`
         The simulation box information and transformations.
-    nbatch : int, optional
-        Number of batches to use when moving particles to redshift space.
-        Particles are assumed to be lazily loaded to memory.
-    flip_partsxz : bool, optional
-        Whether to flip the x and z coordinates of the particles. This is
-        because of a RAMSES bug.
+    MAS : str
+        Mass assignment. Must be one of `NGP`, `CIC`, `TSC` or `PCS`.
     init_value : float, optional
         Initial value of the RSP field on the grid.
-    verbose : bool, optional
-        Verbosity flag.
 
     Returns
     -------
-    rsp_fields : (list of) 3-dimensional array of shape `(grid, grid, grid)`
+    3-dimensional array of shape `(grid, grid, grid)`
     """
-    raise NotImplementedError("Figure out what to do with Vobs.")
-    nfields = len(fields)
-    # Check that all fields have the same shape.
-    if nfields > 1:
-        assert all(fields[0].shape == fields[i].shape
-                   for i in range(1, nfields))
+    grid = field.shape[0]
+    H0_inv = 1. / 100 / box.box2mpc(1.)
 
-    rsp_fields = [numpy.full(field.shape, init_value, dtype=numpy.float32)
-                  for field in fields]
-    cellcounts = numpy.zeros(rsp_fields[0].shape, dtype=numpy.float32)
+    # Calculate the regular grid positions and distances from the center.
+    grid_pos, grid_dist = make_gridpos(grid)
+    grid_dist = grid_dist.reshape(-1, 1)
 
-    nparts = parts.shape[0]
-    batch_size = nparts // nbatch
-    start = 0
-    for __ in trange(nbatch + 1) if verbose else range(nbatch + 1):
-        # We first load the batch of particles into memory and flip x and z.
-        end = min(start + batch_size, nparts)
-        pos = parts[start:end]
-        pos, vel = pos[:, :3], pos[:, 3:6]
-        if flip_partsxz:
-            pos[:, [0, 2]] = pos[:, [2, 0]]
-            vel[:, [0, 2]] = vel[:, [2, 0]]
-        # Then move the particles to redshift space.
-        # TODO here the function is now called differently and pos assumes
-        # different units.
-        rsp_pos = real2redshift(pos, vel, [0.5, 0.5, 0.5], box,
-                                in_box_units=True, periodic_wrap=True,
-                                make_copy=True)
-        # ... and count the number of particles in each grid cell.
-        MASL.MA(rsp_pos, cellcounts, 1., "NGP")
+    # Move the grid positions to redshift space.
+    grid_pos *= (1 + H0_inv * radvel_field.reshape(-1, 1) / grid_dist)
+    grid_pos += 0.5
+    grid_pos = periodic_wrap_grid(grid_pos)
 
-        # Now finally we evaluate the field at the particle positions in real
-        # space and then assign the values to the grid in redshift space.
-        for i in range(nfields):
-            values = evaluate_cartesian(fields[i], pos=pos)
-            MASL.MA(rsp_pos, rsp_fields[i], 1., "NGP", W=values)
-        if end == nparts:
-            break
-        start = end
+    rsp_field = numpy.full(field.shape, init_value, dtype=numpy.float32)
+    cell_counts = numpy.zeros(rsp_field.shape, dtype=numpy.float32)
 
-    # We divide by the number of particles in each cell.
-    for i in range(len(fields)):
-        divide_nonzero(rsp_fields[i], cellcounts)
+    # Interpolate the field to the grid positions.
+    MASL.MA(grid_pos, rsp_field, 1., MAS, W=field.reshape(-1,))
+    MASL.MA(grid_pos, cell_counts, 1., MAS)
+    divide_nonzero(rsp_field, cell_counts)
 
-    if len(fields) == 1:
-        return rsp_fields[0]
-    return rsp_fields
+    return rsp_field
 
 
 @jit(nopython=True)
 def fill_outside(field, fill_value, rmax, boxsize):
     """
-    Fill cells outside of a sphere of radius `rmax` with `fill_value`. Centered
-    in the middle of the box.
-
-    Parameters
-    ----------
-    field : 3-dimensional array of shape `(grid, grid, grid)`
-        Field to be filled.
-    fill_value : float
-        Value to fill the field with.
-    rmax : float
-        Radius outside of which to fill the field..
-    boxsize : float
-        Size of the box.
-
-    Returns
-    -------
-    field : 3-dimensional array of shape `(grid, grid, grid)`
+    Fill cells outside of a sphere of radius `rmax` around the box centre with
+    `fill_value`.
     """
     imax, jmax, kmax = field.shape
     assert imax == jmax == kmax
     N = imax
+
     # Squared radial distance from the center of the box in box units.
     rmax_box2 = (N * rmax / boxsize)**2
 
