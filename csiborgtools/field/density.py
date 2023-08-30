@@ -32,25 +32,13 @@ class BaseField(ABC):
     _MAS = None
 
     @property
-    def boxsize(self):
-        """
-        Box size. Particle positions are always assumed to be in box units,
-        therefore this is 1.
-
-        Returns
-        -------
-        boxsize : float
-        """
-        return 1.
-
-    @property
     def box(self):
         """
         Simulation box information and transformations.
 
         Returns
         -------
-        box : :py:class:`csiborgtools.units.CSiBORGBox`
+        :py:class:`csiborgtools.units.CSiBORGBox`
         """
         return self._box
 
@@ -69,10 +57,10 @@ class BaseField(ABC):
 
         Returns
         -------
-        MAS : str
+        str
         """
         if self._MAS is None:
-            raise ValueError("`mas` is not set.")
+            raise ValueError("`MAS` is not set.")
         return self._MAS
 
     @MAS.setter
@@ -178,7 +166,7 @@ class DensityField(BaseField):
                 pos[:, [0, 2]] = pos[:, [2, 0]]
                 vel[:, [0, 2]] = vel[:, [2, 0]]
 
-            MASL.MA(pos, rho, self.boxsize, self.MAS, W=mass, verbose=False)
+            MASL.MA(pos, rho, 1., self.MAS, W=mass, verbose=False)
             if end == nparts:
                 break
             start = end
@@ -305,10 +293,10 @@ class VelocityField(BaseField):
             vel *= mass.reshape(-1, 1)
 
             for i in range(3):
-                MASL.MA(pos, rho_vel[i], self.boxsize, self.MAS, W=vel[:, i],
+                MASL.MA(pos, rho_vel[i], 1., self.MAS, W=vel[:, i],
                         verbose=False)
 
-            MASL.MA(pos, cellcounts, self.boxsize, self.MAS, W=mass,
+            MASL.MA(pos, cellcounts, 1., self.MAS, W=mass,
                     verbose=False)
             if end == nparts:
                 break
