@@ -151,7 +151,7 @@ class RealisationsMatcher(BaseMatcher):
 
         Returns
         -------
-        dlogmass : float
+        float
         """
         return self._dlogmass
 
@@ -169,7 +169,7 @@ class RealisationsMatcher(BaseMatcher):
 
         Returns
         -------
-        mass_kind : str
+        str
         """
         return self._mass_kind
 
@@ -186,7 +186,7 @@ class RealisationsMatcher(BaseMatcher):
 
         Returns
         -------
-        overlapper : :py:class:`csiborgtools.match.ParticleOverlap`
+        :py:class:`csiborgtools.match.ParticleOverlap`
         """
         return self._overlapper
 
