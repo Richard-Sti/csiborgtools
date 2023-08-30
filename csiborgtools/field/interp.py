@@ -112,25 +112,22 @@ def observer_vobs(velocity_field):
 def make_sky(field, angpos, dist, box, volume_weight=True, verbose=True):
     r"""
     Make a sky map of a scalar field. The observer is in the centre of the
-    box the field is evaluated along directions `angpos`. Along each
-    direction, the field is evaluated distances `dist_marg` and summed.
-    Uses CIC interpolation.
+    box the field is evaluated along directions `angpos` (RA [0, 360) deg,
+    dec [-90, 90] deg). Along each direction, the field is evaluated distances
+    `dist` (`Mpc / h`) and summed. Uses CIC interpolation.
 
     Parameters
     ----------
     field : 3-dimensional array of shape `(grid, grid, grid)`
         Field to be interpolated
     angpos : 2-dimensional arrays of shape `(ndir, 2)`
-        Directions to evaluate the field. Assumed to be RA
-        :math:`\in [0, 360]` and dec :math:`\in [-90, 90]` degrees,
-        respectively.
+        Directions to evaluate the field.
     dist : 1-dimensional array
         Uniformly spaced radial distances to evaluate the field.
     box : :py:class:`csiborgtools.read.CSiBORGBox`
         The simulation box information and transformations.
     volume_weight : bool, optional
-        Whether to weight the field by the volume of the pixel, i.e. a
-        :math:`r^2` correction.
+        Whether to weight the field by the volume of the pixel.
     verbose : bool, optional
         Verbosity flag.
 
