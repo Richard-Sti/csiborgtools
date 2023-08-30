@@ -52,7 +52,7 @@ def get_nsims(args, paths):
         Simulation indices.
     """
     if args.nsims is None or args.nsims[0] == -1:
-        nsims = paths.get_ics(args.simname)
+        nsims = paths.get_ics(args.simname, args.from_quijote_backup)
     else:
         nsims = args.nsims
     return list(nsims)
@@ -93,9 +93,14 @@ def read_single_catalogue(args, config, nsim, run, rmax, paths, nobs=None):
             nsim, paths, load_fitted=True, load_inital=True,
             with_lagpatch=False)
     else:
+        if args.from_quijote_backup:
+            load_fitted = False
+            load_initial = False
+
         cat = csiborgtools.read.QuijoteHaloCatalogue(
-            nsim, paths, nsnap=4, load_fitted=True, load_initial=True,
-            with_lagpatch=False)
+            nsim, paths, nsnap=4, load_fitted=load_fitted,
+            load_initial=load_initial, with_lagpatch=False,
+            load_backup=args.from_quijote_backup)
         if nobs is not None:
             # We may optionally already here pick a fiducial observer.
             cat = cat.pick_fiducial_observer(nobs, args.Rmax)
