@@ -15,31 +15,16 @@
 """
 Utility functions for the field module.
 """
-from warnings import warn
-
 import healpy
 import numpy
 import smoothing_library as SL
 
 
-def force_single_precision(x, name):
+def force_single_precision(x):
     """
-    Convert `x` to float32 if it is not already.
-
-    Parameters
-    ----------
-    x : array
-        Array to convert.
-    name : str
-        Name of the array.
-
-    Returns
-    -------
-    x : array
-        Converted array.
+    Attempt to convert an array `x` to float 32.
     """
     if x.dtype != numpy.float32:
-        warn(f"Converting `{name}` to float32.", UserWarning, stacklevel=1)
         x = x.astype(numpy.float32)
     return x
 
@@ -47,21 +32,6 @@ def force_single_precision(x, name):
 def smoothen_field(field, smooth_scale, boxsize, threads=1):
     """
     Smooth a field with a Gaussian filter.
-
-    Parameters
-    ----------
-    field : 3-dimensional array of shape `(grid, grid, grid)`
-        Field to be smoothed.
-    smooth_scale : float, optional
-        Gaussian kernal scale to smoothen the density field, in box units.
-    boxsize : float
-        Size of the box.
-    threads : int, optional
-        Number of threads. By default 1.
-
-    Returns
-    -------
-    smoothed_field : 3-dimensional array of shape `(grid, grid, grid)`
     """
     W_k = SL.FT_filter(boxsize, smooth_scale, field.shape[0], "Gaussian",
                        threads)
@@ -70,19 +40,10 @@ def smoothen_field(field, smooth_scale, boxsize, threads=1):
 
 def nside2radec(nside):
     """
-    Generate RA and declination for HEALPix pixel centres.
-
-    Parameters
-    ----------
-    nside : int
-        HEALPix nside parameter.
-
-    Returns
-    -------
-    radec : array of shape `(npix, 2)`
-        RA and declination in degrees.
+    Generate RA [0, 360] deg. and declination [-90, 90] deg. for HEALPix pixel
+    centres at a given nside.
     """
     pixs = numpy.arange(healpy.nside2npix(nside))
     theta, phi = healpy.pix2ang(nside, pixs)
     theta -= numpy.pi / 2
-    return numpy.rad2deg(numpy.vstack([phi, theta]).T)
+    return 180 / numpy.pi * numpy.vstack([phi, theta]).T
