@@ -22,8 +22,7 @@ import numpy
 from numba import jit
 from tqdm import trange
 
-from ..utils import real2redshift
-from .interp import divide_nonzero, evaluate_cartesian
+from .interp import divide_nonzero
 from .utils import force_single_precision
 
 
@@ -224,7 +223,8 @@ class VelocityField(BaseField):
         ----------
         rho_vel : 4-dimensional array of shape `(3, grid, grid, grid)`.
             Velocity field along each axis.
-        # TODO
+        observer_velocity : 3-dimensional array of shape `(3,)`
+            Observer velocity.
 
         Returns
         -------
@@ -233,17 +233,7 @@ class VelocityField(BaseField):
         """
         grid = rho_vel.shape[1]
         radvel = numpy.zeros((grid, grid, grid), dtype=numpy.float32)
-
         vx0, vy0, vz0 = observer_velocity
-
-        # print(rho_vel[0])
-
-        # print(evaluate_cartesian(rho_vel[0], pos=pos_observer))
-
-        # v_obs = evaluate_cartesian(rho_vel[0], rho_vel[1], rho_vel[2],
-        #                            pos=pos_observer)
-        # print("The observer's velocity is: vx = %.2f, vy = %.2f, vz = %.2f")
-        # vx0, vy0, vz0 = v_obs[0][0], v_obs[1][0], v_obs[2][0]
 
         for i in range(grid):
             px = i - 0.5 * (grid - 1)
@@ -251,11 +241,10 @@ class VelocityField(BaseField):
                 py = j - 0.5 * (grid - 1)
                 for k in range(grid):
                     pz = k - 0.5 * (grid - 1)
-                    vx, vy, vz = rho_vel[:, i, j, k]
 
-                    vx -= vx0
-                    vy -= vy0
-                    vz -= vz0
+                    vx = rho_vel[0, i, j, k] - vx0
+                    vy = rho_vel[1, i, j, k] - vy0
+                    vz = rho_vel[2, i, j, k] - vz0
 
                     radvel[i, j, k] = ((px * vx + py * vy + pz * vz)
                                        / numpy.sqrt(px**2 + py**2 + pz**2))
