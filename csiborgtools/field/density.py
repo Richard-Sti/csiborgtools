@@ -159,9 +159,9 @@ class DensityField(BaseField):
             pos = parts[start:end]
             pos, vel, mass = pos[:, :3], pos[:, 3:6], pos[:, 6]
 
-            pos = force_single_precision(pos, "particle_position")
-            vel = force_single_precision(vel, "particle_velocity")
-            mass = force_single_precision(mass, "particle_mass")
+            pos = force_single_precision(pos)
+            vel = force_single_precision(vel)
+            mass = force_single_precision(mass)
             if flip_xz:
                 pos[:, [0, 2]] = pos[:, [2, 0]]
                 vel[:, [0, 2]] = vel[:, [2, 0]]
@@ -284,9 +284,9 @@ class VelocityField(BaseField):
             pos = parts[start:end]
             pos, vel, mass = pos[:, :3], pos[:, 3:6], pos[:, 6]
 
-            pos = force_single_precision(pos, "particle_position")
-            vel = force_single_precision(vel, "particle_velocity")
-            mass = force_single_precision(mass, "particle_mass")
+            pos = force_single_precision(pos)
+            vel = force_single_precision(vel)
+            mass = force_single_precision(mass)
             if flip_xz:
                 pos[:, [0, 2]] = pos[:, [2, 0]]
                 vel[:, [0, 2]] = vel[:, [2, 0]]
