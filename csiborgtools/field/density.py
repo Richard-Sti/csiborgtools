@@ -22,8 +22,8 @@ import numpy
 from numba import jit
 from tqdm import trange
 
-from ..read.utils import real2redshift
-from .interp import divide_nonzero
+from ..utils import real2redshift
+from .interp import divide_nonzero, evaluate_cartesian
 from .utils import force_single_precision
 
 
@@ -99,6 +99,8 @@ class DensityField(BaseField):
         Mass assignment scheme. Options are Options are: 'NGP' (nearest grid
         point), 'CIC' (cloud-in-cell), 'TSC' (triangular-shape cloud), 'PCS'
         (piecewise cubic spline).
+    paths : :py:class:`csiborgtools.read.Paths`
+        The simulation paths.
 
     References
     ----------
@@ -128,13 +130,12 @@ class DensityField(BaseField):
         delta -= 1
         return delta
 
-    def __call__(self, parts, grid, in_rsp, flip_xz=True, nbatch=30,
-                 verbose=True):
+    def __call__(self, parts, grid, flip_xz=True, nbatch=30, verbose=True):
         """
         Calculate the density field using a Pylians routine [1, 2].
         Iteratively loads the particles into memory, flips their `x` and `z`
         coordinates. Particles are assumed to be in box units, with positions
-        in [0, 1] and observer in the centre of the box if RSP is applied.
+        in [0, 1]
 
         Parameters
         ----------
@@ -143,8 +144,6 @@ class DensityField(BaseField):
             Columns are: `x`, `y`, `z`, `vx`, `vy`, `vz`, `M`.
         grid : int
             Grid size.
-        in_rsp : bool
-            Whether to calculate the density field in redshift space.
         flip_xz : bool, optional
             Whether to flip the `x` and `z` coordinates.
         nbatch : int, optional
@@ -179,13 +178,6 @@ class DensityField(BaseField):
             if flip_xz:
                 pos[:, [0, 2]] = pos[:, [2, 0]]
                 vel[:, [0, 2]] = vel[:, [2, 0]]
-
-            if in_rsp:
-                raise NotImplementedError("Redshift space needs to be fixed.")
-                # TODO change how called + units.
-                pos = real2redshift(pos, vel, [0.5, 0.5, 0.5], self.box,
-                                    in_box_units=True, periodic_wrap=True,
-                                    make_copy=False)
 
             MASL.MA(pos, rho, self.boxsize, self.MAS, W=mass, verbose=False)
             if end == nparts:
@@ -223,7 +215,7 @@ class VelocityField(BaseField):
 
     @staticmethod
     @jit(nopython=True)
-    def radial_velocity(rho_vel):
+    def radial_velocity(rho_vel, observer_velocity):
         """
         Calculate the radial velocity field around the observer in the centre
         of the box.
@@ -232,6 +224,7 @@ class VelocityField(BaseField):
         ----------
         rho_vel : 4-dimensional array of shape `(3, grid, grid, grid)`.
             Velocity field along each axis.
+        # TODO
 
         Returns
         -------
@@ -240,6 +233,18 @@ class VelocityField(BaseField):
         """
         grid = rho_vel.shape[1]
         radvel = numpy.zeros((grid, grid, grid), dtype=numpy.float32)
+
+        vx0, vy0, vz0 = observer_velocity
+
+        # print(rho_vel[0])
+
+        # print(evaluate_cartesian(rho_vel[0], pos=pos_observer))
+
+        # v_obs = evaluate_cartesian(rho_vel[0], rho_vel[1], rho_vel[2],
+        #                            pos=pos_observer)
+        # print("The observer's velocity is: vx = %.2f, vy = %.2f, vz = %.2f")
+        # vx0, vy0, vz0 = v_obs[0][0], v_obs[1][0], v_obs[2][0]
+
         for i in range(grid):
             px = i - 0.5 * (grid - 1)
             for j in range(grid):
@@ -247,6 +252,11 @@ class VelocityField(BaseField):
                 for k in range(grid):
                     pz = k - 0.5 * (grid - 1)
                     vx, vy, vz = rho_vel[:, i, j, k]
+
+                    vx -= vx0
+                    vy -= vy0
+                    vz -= vz0
+
                     radvel[i, j, k] = ((px * vx + py * vy + pz * vz)
                                        / numpy.sqrt(px**2 + py**2 + pz**2))
         return radvel
