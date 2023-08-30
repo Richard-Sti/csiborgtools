@@ -26,17 +26,16 @@ from ..utils import periodic_wrap_grid, radec_to_cartesian
 
 def evaluate_cartesian(*fields, pos, interp="CIC"):
     """
-    Evaluate a scalar field at Cartesian coordinates.
+    Evaluate a scalar field(s) at Cartesian coordinates `pos`.
 
     Parameters
     ----------
     field : (list of) 3-dimensional array of shape `(grid, grid, grid)`
         Fields to be interpolated.
     pos : 2-dimensional array of shape `(n_samples, 3)`
-        Positions to evaluate the density field. Assumed to be in box
-        units.
+        Query positions in box units.
     interp : str, optional
-        Interpolation method. Can be either `CIC` or `NGP`.
+        Interpolation method, `NGP` or `CIC`.
 
     Returns
     -------
@@ -44,7 +43,7 @@ def evaluate_cartesian(*fields, pos, interp="CIC"):
     """
     assert interp in ["CIC", "NGP"]
     boxsize = 1.
-    pos = force_single_precision(pos, "pos")
+    pos = force_single_precision(pos)
 
     nsamples = pos.shape[0]
     interp_fields = [numpy.full(nsamples, numpy.nan, dtype=numpy.float32)
@@ -64,37 +63,30 @@ def evaluate_cartesian(*fields, pos, interp="CIC"):
     return interp_fields
 
 
-def evaluate_sky(*fields, pos, box, isdeg=True):
+def evaluate_sky(*fields, pos, box):
     """
-    Evaluate the scalar fields at given distance, right ascension and
-    declination. Assumes an observed in the centre of the box, with
-    distance being in :math:`Mpc`. Uses CIC interpolation.
+    Evaluate a scalar field(s) at radial distance `Mpc / h`, right ascensions
+    [0, 360) deg and declinations [-90, 90] deg.
 
     Parameters
     ----------
     fields : (list of) 3-dimensional array of shape `(grid, grid, grid)`
         Field to be interpolated.
     pos : 2-dimensional array of shape `(n_samples, 3)`
-        Spherical coordinates to evaluate the field. Columns are distance,
-        right ascension, declination, respectively.
+        Query spherical coordinates.
     box : :py:class:`csiborgtools.read.CSiBORGBox`
         The simulation box information and transformations.
-    isdeg : bool, optional
-        Whether `ra` and `dec` are in degres. By default `True`.
 
     Returns
     -------
     interp_fields : (list of) 1-dimensional array of shape `(n_samples,).
     """
-    pos = force_single_precision(pos, "pos")
-    # We first calculate convert the distance to box coordinates and then
-    # convert to Cartesian coordinates.
+    pos = force_single_precision(pos)
+
     pos[:, 0] = box.mpc2box(pos[:, 0])
-    assert isdeg
-    X = radec_to_cartesian(pos)
-    # Then we move the origin to match the box coordinates
-    X += 0.5
-    return evaluate_cartesian(*fields, pos=X)
+    cart_pos = radec_to_cartesian(pos) + 0.5
+
+    return evaluate_cartesian(*fields, pos=cart_pos)
 
 
 def observer_vobs(velocity_field):
