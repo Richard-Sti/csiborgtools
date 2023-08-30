@@ -31,9 +31,9 @@ from sklearn.neighbors import NearestNeighbors
 from .box_units import CSiBORGBox, QuijoteBox
 from .paths import Paths
 from .readsim import CSiBORGReader
-from .utils import (add_columns, cartesian_to_radec, cols_to_structured,
-                    flip_cols, radec_to_cartesian, real2redshift)
-from ..utils import periodic_distance_two_points
+from .utils import add_columns, cols_to_structured, flip_cols
+from ..utils import (periodic_distance_two_points, real2redshift,
+                     cartesian_to_radec, radec_to_cartesian)
 
 
 class BaseCatalogue(ABC):
