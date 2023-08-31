@@ -16,8 +16,6 @@
 import joblib
 import numpy
 
-from .paths import Paths
-
 
 class TPCFReader:
     """
@@ -45,7 +43,6 @@ class TPCFReader:
 
     @paths.setter
     def paths(self, paths):
-        assert isinstance(paths, Paths)
         self._paths = paths
 
     def read(self, run):

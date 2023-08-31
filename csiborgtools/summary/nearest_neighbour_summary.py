@@ -19,11 +19,10 @@ the final snapshot.
 from math import floor
 
 import numpy
+from numba import jit
 from scipy.integrate import cumulative_trapezoid, quad
 from scipy.interpolate import interp1d
 from scipy.stats import gaussian_kde, kstest
-
-from numba import jit
 from tqdm import tqdm
 
 
