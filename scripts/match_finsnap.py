@@ -81,7 +81,7 @@ def find_neighbour(args, nsim, cats, paths, comm, save_kind):
         numpy.savez(fout, **out)
 
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    reader = csiborgtools.read.NearestNeighbourReader(
+    reader = csiborgtools.summary.NearestNeighbourReader(
         paths=paths, **csiborgtools.neighbour_kwargs)
     counts = numpy.zeros((reader.nbins_radial, reader.nbins_neighbour),
                          dtype=numpy.float32)

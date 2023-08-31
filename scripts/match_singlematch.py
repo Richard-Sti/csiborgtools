@@ -68,7 +68,7 @@ def pair_match_max(nsim0, nsimx, simname, min_logmass, mult, verbose):
     else:
         raise ValueError(f"Unknown simulation `{simname}`.")
 
-    reader = csiborgtools.read.PairOverlap(cat0, catx, paths, min_logmass,
+    reader = csiborgtools.summary.PairOverlap(cat0, catx, paths, min_logmass,
                                            maxdist=maxdist)
     out = csiborgtools.match.matching_max(
         cat0, catx, mass_kind, mult=mult, periodic=periodic,
