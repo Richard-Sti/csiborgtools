@@ -149,13 +149,15 @@ def plot_hmf(pdf=False):
         std_csiborg = numpy.std(csiborg_counts, axis=0)
         ax[0].plot(x, mean_csiborg, label="CSiBORG", c=cols[0])
         ax[0].fill_between(x, mean_csiborg - std_csiborg,
-                           mean_csiborg + std_csiborg, alpha=0.5, color=cols[0])
+                           mean_csiborg + std_csiborg,
+                           alpha=0.5, color=cols[0])
 
         mean_quijote = numpy.mean(quijote_counts, axis=0)
         std_quijote = numpy.std(quijote_counts, axis=0)
         ax[0].plot(x, mean_quijote, label="Quijote", c=cols[1])
         ax[0].fill_between(x, mean_quijote - std_quijote,
-                           mean_quijote + std_quijote, alpha=0.5, color=cols[1])
+                           mean_quijote + std_quijote, alpha=0.5,
+                           color=cols[1])
 
         ax[0].plot(x, csiborg5511, label="CSiBORG 5511", c="k", ls="--")
         std5511 = numpy.sqrt(csiborg5511)
@@ -167,7 +169,7 @@ def plot_hmf(pdf=False):
                          + (std_quijote / mean_quijote / numpy.log(10))**2)
         ax[1].plot(x, 10**log_y, c=cols[0])
         ax[1].fill_between(x, 10**(log_y - err), 10**(log_y + err), alpha=0.5,
-                           color=col[0])
+                           color=cols[0])
 
         ax[1].plot(x, csiborg5511 / mean_quijote, c="k", ls="--")
 
