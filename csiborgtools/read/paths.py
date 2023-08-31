@@ -561,7 +561,7 @@ class Paths:
 
         return join(fdir, fname)
 
-    def field(self, kind, MAS, grid, nsim, in_rsp):
+    def field(self, kind, MAS, grid, nsim, in_rsp, smooth_scale=None):
         r"""
         Path to the files containing the calculated density fields in CSiBORG.
 
@@ -578,6 +578,8 @@ class Paths:
             IC realisation index.
         in_rsp : bool
             Whether the calculation is performed in redshift space.
+        smooth_scale : float, optional
+            Smoothing scale in Mpc/h.
 
         Returns
         -------
@@ -593,6 +595,10 @@ class Paths:
             kind = kind + "_rsp"
 
         fname = f"{kind}_{MAS}_{str(nsim).zfill(5)}_grid{grid}.npy"
+
+        if smooth_scale is not None:
+            fname = fname.replace(".npy", f"_smooth{smooth_scale}.npy")
+
         return join(fdir, fname)
 
     def observer_peculiar_velocity(self, MAS, grid, nsim):
