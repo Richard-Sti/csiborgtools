@@ -60,6 +60,10 @@ def density_field(nsim, parser_args, to_save=True):
         radvel_field = numpy.load(paths.field(
             "radvel", parser_args.MAS, parser_args.grid, nsim, False))
 
+        if parser_args.verbose:
+            print(f"{datetime.now()}: converting density field to RSP.",
+                  flush=True)
+
         field = csiborgtools.field.field2rsp(field, radvel_field, box,
                                              parser_args.MAS)
 

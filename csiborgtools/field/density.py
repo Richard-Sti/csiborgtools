@@ -153,7 +153,9 @@ class DensityField(BaseField):
         nparts = parts.shape[0]
         batch_size = nparts // nbatch
         start = 0
-        for __ in trange(nbatch + 1) if verbose else range(nbatch + 1):
+
+        for __ in trange(nbatch + 1, disable=not verbose,
+                         desc="Loading particles for the density field"):
             end = min(start + batch_size, nparts)
             pos = parts[start:end]
             pos, vel, mass = pos[:, :3], pos[:, 3:6], pos[:, 6]
