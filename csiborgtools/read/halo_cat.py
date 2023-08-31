@@ -50,7 +50,7 @@ class BaseCatalogue(ABC):
 
         Returns
         -------
-        nsim : int
+        int
         """
         if self._nsim is None:
             raise RuntimeError("`nsim` is not set!")
@@ -69,7 +69,7 @@ class BaseCatalogue(ABC):
 
         Returns
         -------
-        nsnap : int
+        int
         """
         pass
 
@@ -80,7 +80,7 @@ class BaseCatalogue(ABC):
 
         Returns
         -------
-        simname : str
+        str
         """
         pass
 
@@ -91,7 +91,7 @@ class BaseCatalogue(ABC):
 
         Returns
         -------
-        paths : :py:class:`csiborgtools.read.Paths`
+        :py:class:`csiborgtools.read.Paths`
         """
         if self._paths is None:
             raise RuntimeError("`paths` is not set!")
@@ -109,7 +109,7 @@ class BaseCatalogue(ABC):
 
         Returns
         -------
-        data : structured array
+        structured array
         """
         if self._data is None:
             raise RuntimeError("`data` is not set!")
@@ -122,7 +122,7 @@ class BaseCatalogue(ABC):
 
         Returns
         -------
-        box : instance of :py:class:`csiborgtools.units.BoxUnits`
+        instance of :py:class:`csiborgtools.units.BoxUnits`
         """
         pass
 
@@ -141,7 +141,7 @@ class BaseCatalogue(ABC):
 
         Returns
         -------
-        data : structured array
+        structured array
         """
         fits = numpy.load(paths.initmatch(self.nsim, simname, "fit"))
         X, cols = [], []
@@ -173,7 +173,7 @@ class BaseCatalogue(ABC):
 
         Returns
         -------
-        data : structured array
+        structured array
         """
         fits = numpy.load(paths.structfit(self.nsnap, self.nsim, simname))
 
@@ -202,8 +202,7 @@ class BaseCatalogue(ABC):
 
         Returns
         -------
-        data : structured array
-            The filtered data based on the provided bounds.
+        structured array
         """
         for key, (xmin, xmax) in bounds.items():
             if key == "dist":
@@ -228,7 +227,7 @@ class BaseCatalogue(ABC):
 
         Returns
         -------
-            obs_pos : 1-dimensional array of shape `(3,)`
+        1-dimensional array of shape `(3,)`
         """
         if self._observer_location is None:
             raise RuntimeError("`observer_location` is not set!")
@@ -260,8 +259,7 @@ class BaseCatalogue(ABC):
 
         Returns
         -------
-        pos : ndarray, shape `(nobjects, 3)`
-            Position components.
+        ndarray, shape `(nobjects, 3)`
         """
         suffix = '0' if in_initial else ''
         component_keys = [f"{comp}{suffix}" for comp in ('x', 'y', 'z')]
@@ -284,7 +282,7 @@ class BaseCatalogue(ABC):
 
         Returns
         -------
-        radial_distance : 1-dimensional array of shape `(nobjects,)`
+        1-dimensional array of shape `(nobjects,)`
         """
         pos = self.position(in_initial=in_initial, cartesian=True,
                             subtract_observer=True)
@@ -317,8 +315,7 @@ class BaseCatalogue(ABC):
 
         Returns
         -------
-        pos : 2-dimensional array of shape `(nobjects, 3)`
-            Position of objects in the desired coordinate system.
+        2-dimensional array of shape `(nobjects, 3)`
         """
         # Force subtraction of observer if not in Cartesian coordinates
         subtract_observer = subtract_observer or not cartesian
@@ -333,7 +330,7 @@ class BaseCatalogue(ABC):
 
         Returns
         -------
-        angmom : 2-dimensional array of shape `(nobjects, 3)`
+        2-dimensional array of shape `(nobjects, 3)`
         """
         return numpy.vstack([self["L{}".format(p)] for p in ("x", "y", "z")]).T
 
@@ -354,8 +351,7 @@ class BaseCatalogue(ABC):
 
         Returns
         -------
-        knn : :py:class:`sklearn.neighbors.NearestNeighbors`
-            kNN object fitted with object positions.
+        :py:class:`sklearn.neighbors.NearestNeighbors`
         """
         if subtract_observer and periodic:
             raise ValueError("Subtracting observer is not supported for "
@@ -694,7 +690,7 @@ class QuijoteHaloCatalogue(BaseCatalogue):
 
         Returns
         -------
-        nsnap : int
+        int
         """
         return self._nsnap
 
@@ -714,7 +710,7 @@ class QuijoteHaloCatalogue(BaseCatalogue):
 
         Returns
         -------
-        redshift : float
+        float
         """
         return {4: 0.0, 3: 0.5, 2: 1.0, 1: 2.0, 0: 3.0}[self.nsnap]
 
@@ -736,7 +732,7 @@ class QuijoteHaloCatalogue(BaseCatalogue):
 
         Returns
         -------
-        cat : instance of csiborgtools.read.QuijoteHaloCatalogue
+        instance of `csiborgtools.read.QuijoteHaloCatalogue`
         """
         cat = deepcopy(self)
         cat.observer_location = fiducial_observers(self.box.boxsize, rmax)[n]
