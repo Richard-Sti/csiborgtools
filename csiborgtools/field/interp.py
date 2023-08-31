@@ -76,7 +76,7 @@ def evaluate_cartesian(*fields, pos, smooth_scales=None, verbose=False):
     return interp_fields
 
 
-def evaluate_sky(*fields, pos, box, smooth_scales=None, verbose=False):
+def evaluate_sky(*fields, pos, mpc2box, smooth_scales=None, verbose=False):
     """
     Evaluate a scalar field(s) at radial distance `Mpc / h`, right ascensions
     [0, 360) deg and declinations [-90, 90] deg.
@@ -87,8 +87,8 @@ def evaluate_sky(*fields, pos, box, smooth_scales=None, verbose=False):
         Field to be interpolated.
     pos : 2-dimensional array of shape `(n_samples, 3)`
         Query spherical coordinates.
-    box : :py:class:`csiborgtools.read.CSiBORGBox`
-        The simulation box information and transformations.
+    mpc2box : float
+        Conversion factor to multiply the radial distance by to get box units.
     smooth_scales : (list of) float, optional
         Smoothing scales in `Mpc / h`. If `None`, no smoothing is performed.
     verbose : bool, optional
@@ -100,11 +100,17 @@ def evaluate_sky(*fields, pos, box, smooth_scales=None, verbose=False):
     """
     pos = force_single_precision(pos)
 
-    pos[:, 0] = box.mpc2box(pos[:, 0])
+    pos[:, 0] *= mpc2box
     cart_pos = radec_to_cartesian(pos) + 0.5
 
     if smooth_scales is not None:
-        smooth_scales = box.mpc2box(smooth_scales)
+        if isinstance(smooth_scales, (int, float)):
+            smooth_scales = [smooth_scales]
+
+        if isinstance(smooth_scales, list):
+            smooth_scales = numpy.array(smooth_scales, dtype=numpy.float32)
+
+        smooth_scales *= mpc2box
 
     return evaluate_cartesian(*fields, pos=cart_pos,
                               smooth_scales=smooth_scales, verbose=verbose)
@@ -163,6 +169,7 @@ def make_sky(field, angpos, dist, box, volume_weight=True, verbose=True):
     # of distances. We pre-allocate arrays for speed.
     dir_loop = numpy.full((dist.size, 3), numpy.nan, dtype=numpy.float32)
     boxdist = box.mpc2box(dist)
+    boxsize = box.box2mpc(1.)
     ndir = angpos.shape[0]
     out = numpy.full(ndir, numpy.nan, dtype=numpy.float32)
     for i in trange(ndir) if verbose else range(ndir):
@@ -172,10 +179,10 @@ def make_sky(field, angpos, dist, box, volume_weight=True, verbose=True):
         if volume_weight:
             out[i] = numpy.sum(
                 boxdist**2
-                * evaluate_sky(field, pos=dir_loop, box=box, isdeg=True))
+                * evaluate_sky(field, pos=dir_loop, mpc2box=1 / boxsize))
         else:
             out[i] = numpy.sum(
-                evaluate_sky(field, pos=dir_loop, box=box, isdeg=True))
+                evaluate_sky(field, pos=dir_loop, mpc2box=1 / boxsize))
     out *= dx
     return out
 
