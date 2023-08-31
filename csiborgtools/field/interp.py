@@ -18,13 +18,13 @@ Tools for interpolating 3D fields at arbitrary positions.
 import MAS_library as MASL
 import numpy
 from numba import jit
-from tqdm import trange
+from tqdm import trange, tqdm
 
-from .utils import force_single_precision
+from .utils import force_single_precision, smoothen_field
 from ..utils import periodic_wrap_grid, radec_to_cartesian
 
 
-def evaluate_cartesian(*fields, pos, interp="CIC"):
+def evaluate_cartesian(*fields, pos, smooth_scales=None, verbose=False):
     """
     Evaluate a scalar field(s) at Cartesian coordinates `pos`.
 
@@ -34,36 +34,49 @@ def evaluate_cartesian(*fields, pos, interp="CIC"):
         Fields to be interpolated.
     pos : 2-dimensional array of shape `(n_samples, 3)`
         Query positions in box units.
-    interp : str, optional
-        Interpolation method, `NGP` or `CIC`.
+    smooth_scales : (list of) float, optional
+        Smoothing scales in box units. If `None`, no smoothing is performed.
+    verbose : bool, optional
+        Smoothing verbosity flag.
 
     Returns
     -------
-    interp_fields : (list of) 1-dimensional array of shape `(n_samples,).
+    (list of) 1-dimensional array of shape `(n_samples, len(smooth_scales))`
     """
-    assert interp in ["CIC", "NGP"]
-    boxsize = 1.
     pos = force_single_precision(pos)
 
-    nsamples = pos.shape[0]
-    interp_fields = [numpy.full(nsamples, numpy.nan, dtype=numpy.float32)
+    if isinstance(smooth_scales, (int, float)):
+        smooth_scales = [smooth_scales]
+
+    if smooth_scales is None:
+        shape = (pos.shape[0],)
+    else:
+        shape = (pos.shape[0], len(smooth_scales))
+
+    interp_fields = [numpy.full(shape, numpy.nan, dtype=numpy.float32)
                      for __ in range(len(fields))]
 
-    if interp == "CIC":
-        for i, field in enumerate(fields):
-            MASL.CIC_interp(field, boxsize, pos, interp_fields[i])
-    else:
-        pos = numpy.floor(pos * fields[0].shape[0]).astype(numpy.int32)
-        for i, field in enumerate(fields):
-            for j in range(nsamples):
-                interp_fields[i][j] = field[pos[j, 0], pos[j, 1], pos[j, 2]]
+    for i, field in enumerate(fields):
+        if smooth_scales is None:
+            MASL.CIC_interp(field, 1., pos, interp_fields[i])
+        else:
+            desc = f"Smoothing and interpolating field {i + 1}/{len(fields)}"
+            iterator = tqdm(smooth_scales, desc=desc, disable=not verbose)
+
+            for j, scale in enumerate(iterator):
+                if not scale > 0:
+                    fsmooth = numpy.copy(field)
+                else:
+                    fsmooth = smoothen_field(field, scale, 1., make_copy=True)
+                MASL.CIC_interp(fsmooth, 1., pos, interp_fields[i][:, j])
 
     if len(fields) == 1:
         return interp_fields[0]
+
     return interp_fields
 
 
-def evaluate_sky(*fields, pos, box):
+def evaluate_sky(*fields, pos, box, smooth_scales=None, verbose=False):
     """
     Evaluate a scalar field(s) at radial distance `Mpc / h`, right ascensions
     [0, 360) deg and declinations [-90, 90] deg.
@@ -76,17 +89,25 @@ def evaluate_sky(*fields, pos, box):
         Query spherical coordinates.
     box : :py:class:`csiborgtools.read.CSiBORGBox`
         The simulation box information and transformations.
+    smooth_scales : (list of) float, optional
+        Smoothing scales in `Mpc / h`. If `None`, no smoothing is performed.
+    verbose : bool, optional
+        Smoothing verbosity flag.
 
     Returns
     -------
-    interp_fields : (list of) 1-dimensional array of shape `(n_samples,).
+    (list of) 1-dimensional array of shape `(n_samples, len(smooth_scales))`
     """
     pos = force_single_precision(pos)
 
     pos[:, 0] = box.mpc2box(pos[:, 0])
     cart_pos = radec_to_cartesian(pos) + 0.5
 
-    return evaluate_cartesian(*fields, pos=cart_pos)
+    if smooth_scales is not None:
+        smooth_scales = box.mpc2box(smooth_scales)
+
+    return evaluate_cartesian(*fields, pos=cart_pos,
+                              smooth_scales=smooth_scales, verbose=verbose)
 
 
 def observer_vobs(velocity_field):
