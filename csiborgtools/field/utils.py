@@ -29,12 +29,16 @@ def force_single_precision(x):
     return x
 
 
-def smoothen_field(field, smooth_scale, boxsize, threads=1):
+def smoothen_field(field, smooth_scale, boxsize, threads=1, make_copy=False):
     """
     Smooth a field with a Gaussian filter.
     """
     W_k = SL.FT_filter(boxsize, smooth_scale, field.shape[0], "Gaussian",
                        threads)
+
+    if make_copy:
+        field = numpy.copy(field)
+
     return SL.field_smoothing(field, W_k, threads)
 
 
