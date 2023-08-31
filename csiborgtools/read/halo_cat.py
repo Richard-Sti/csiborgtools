@@ -24,16 +24,15 @@ from itertools import product
 from math import floor
 
 import numpy
-
 from readfof import FoF_catalog
 from sklearn.neighbors import NearestNeighbors
 
+from ..utils import (cartesian_to_radec, periodic_distance_two_points,
+                     radec_to_cartesian, real2redshift)
 from .box_units import CSiBORGBox, QuijoteBox
 from .paths import Paths
 from .readsim import CSiBORGReader
 from .utils import add_columns, cols_to_structured, flip_cols
-from ..utils import (periodic_distance_two_points, real2redshift,
-                     cartesian_to_radec, radec_to_cartesian)
 
 
 class BaseCatalogue(ABC):
