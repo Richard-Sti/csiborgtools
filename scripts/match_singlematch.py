@@ -28,14 +28,12 @@ import csiborgtools
 
 def pair_match_max(nsim0, nsimx, simname, min_logmass, mult, verbose):
     """
-    Match a pair of simulations using the method of [1].
+    Match a pair of simulations using the Max method.
 
     Parameters
     ----------
-    nsim0 : int
-        The reference simulation IC index.
-    nsimx : int
-        The cross simulation IC index.
+    nsim0, nsimx : int
+        The reference and cross simulation IC index.
     simname : str
         Simulation name.
     min_logmass : float
@@ -44,17 +42,6 @@ def pair_match_max(nsim0, nsimx, simname, min_logmass, mult, verbose):
         Multiplicative factor for search radius.
     verbose : bool
         Verbosity flag.
-
-    Returns
-    -------
-    None
-
-    References
-    ----------
-    [1] Maxwell L Hutt, Harry Desmond, Julien Devriendt, Adrianne Slyz; The
-    effect of local Universe constraints on halo abundance and clustering;
-    Monthly Notices of the Royal Astronomical Society, Volume 516, Issue 3,
-    November 2022, Pages 3592–3601, https://doi.org/10.1093/mnras/stac2407
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 

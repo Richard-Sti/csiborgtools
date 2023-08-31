@@ -42,13 +42,6 @@ def copy_membership(nsim, verbose=True):
     """
     Copy the FoF particle halo membership to the CSiBORG directory and write it
     as a NumPy array instead of a text file.
-
-    Parameters
-    ----------
-    nsim : int
-        IC realisation index.
-    verbose : bool, optional
-        Verbosity flag.
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     fpath = join("/mnt/extraspace/jeg/greenwhale/Constrained_Sims",

@@ -76,19 +76,6 @@ def main(nsim, simname, verbose):
     into a HDF5 file. Stores the first and last index of each halo in the
     particle array for fast slicing of the array to acces particles of a single
     halo.
-
-    Parameters
-    ----------
-    nsim : int
-        IC realisation index.
-    simname : str
-        Simulation name.
-    verbose : bool
-        Verbosity flag.
-
-    Returns
-    -------
-    None
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     if simname == "csiborg":

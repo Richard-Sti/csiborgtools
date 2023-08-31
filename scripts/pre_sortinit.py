@@ -44,15 +44,6 @@ def _main(nsim, simname, verbose):
     """
     Sort the initial snapshot particles according to their final snapshot
     ordering and dump them into a HDF5 file.
-
-    Parameters
-    ----------
-    nsim : int
-        IC realisation index.
-    simname : str
-        Simulation name.
-    verbose : bool
-        Verbosity flag.
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     if simname == "csiborg":
