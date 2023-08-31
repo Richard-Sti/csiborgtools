@@ -62,7 +62,7 @@ def open_cats(nsims, simname):
 
 def read_dist(simname, run, kind, kwargs):
     paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
-    reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
+    reader = csiborgtools.summary.NearestNeighbourReader(**kwargs, paths=paths)
 
     fpath = paths.cross_nearest(simname, run, "tot_counts", nsim=0, nobs=0)
     counts = numpy.load(fpath)["tot_counts"]
@@ -102,7 +102,7 @@ def plot_dist(run, kind, kwargs, runs_to_mass, pulled_cdf=False, r200=None):
     """
     assert kind in ["pdf", "cdf"]
     print(f"Plotting the {kind} for {run}...", flush=True)
-    reader = csiborgtools.read.NearestNeighbourReader(
+    reader = csiborgtools.summary.NearestNeighbourReader(
         **kwargs, paths=csiborgtools.read.Paths(**kwargs["paths_kind"]))
     raddist = reader.bin_centres("radial")
     r = reader.bin_centres("neighbour")
@@ -241,7 +241,7 @@ def plot_cdf_diff(runs, kwargs, pulled_cdf, runs_to_mass):
     """
     print("Plotting the CDF difference...", flush=True)
     paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
-    reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
+    reader = csiborgtools.summary.NearestNeighbourReader(**kwargs, paths=paths)
     r = reader.bin_centres("neighbour")
     runs_to_mass = [numpy.mean(runs_to_mass[run]) for run in runs]
 
@@ -320,7 +320,7 @@ def make_kl(simname, run, nsim, nobs, kwargs):
         of each halo in the reference simulation.
     """
     paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
-    reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
+    reader = csiborgtools.summary.NearestNeighbourReader(**kwargs, paths=paths)
     # This is the reference PDF. Must be Quijote!
     pdf = read_dist("quijote", run, "pdf", kwargs)
     return reader.kl_divergence(simname, run, nsim, pdf, nobs=nobs)
@@ -352,7 +352,7 @@ def make_ks(simname, run, nsim, nobs, kwargs):
         each halo in the reference simulation.
     """
     paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
-    reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
+    reader = csiborgtools.summary.NearestNeighbourReader(**kwargs, paths=paths)
     # This is the reference CDF. Must be Quijote!
     cdf = read_dist("quijote", run, "cdf", kwargs)
     return reader.ks_significance(simname, run, nsim, cdf, nobs=nobs)
@@ -551,7 +551,7 @@ def plot_significance_vs_mass(simname, runs, nsim, nobs, kind, kwargs,
     print(f"Plotting {kind} significance vs mass.")
     assert kind in ["kl", "ks"]
     paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
-    reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
+    reader = csiborgtools.summary.NearestNeighbourReader(**kwargs, paths=paths)
 
     with plt.style.context(plt_utils.mplstyle):
         plt.figure()
@@ -627,7 +627,7 @@ def plot_kl_vs_ks(simname, runs, nsim, nobs, kwargs, runs_to_mass,
     None
     """
     paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
-    reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
+    reader = csiborgtools.summary.NearestNeighbourReader(**kwargs, paths=paths)
 
     xs, ys, cs = [], [], []
     for run in runs:
@@ -697,7 +697,7 @@ def plot_kl_vs_overlap(runs, nsim, kwargs, runs_to_mass, plot_std=True,
     None
     """
     paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
-    nn_reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
+    nn_reader = csiborgtools.summary.NearestNeighbourReader(**kwargs, paths=paths)
 
     xs, ys1, ys2, cs = [], [], [], []
     for run in runs:

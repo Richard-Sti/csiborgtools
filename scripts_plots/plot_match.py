@@ -64,7 +64,8 @@ def get_overlap_summary(nsim0, simname, min_logmass, smoothed):
     cat0 = open_cat(nsim0, simname)
     catxs = open_cats(nsimxs, simname)
 
-    reader = csiborgtools.read.NPairsOverlap(cat0, catxs, paths, min_logmass)
+    reader = csiborgtools.summary.NPairsOverlap(cat0, catxs, paths,
+                                                min_logmass)
     mass0 = reader.cat0(MASS_KINDS[simname])
     mask = mass0 > 10**min_logmass
 
@@ -85,7 +86,8 @@ def get_expected_mass(nsim0, simname, min_overlap, min_logmass, smoothed):
     cat0 = open_cat(nsim0, simname)
     catxs = open_cats(nsimxs, simname)
 
-    reader = csiborgtools.read.NPairsOverlap(cat0, catxs, paths, min_logmass)
+    reader = csiborgtools.summary.NPairsOverlap(cat0, catxs, paths,
+                                                min_logmass)
     mass0 = reader.cat0(MASS_KINDS[simname])
     mask = mass0 > 10**min_logmass
     mu, std = reader.counterpart_mass(
@@ -115,7 +117,8 @@ def get_mtot_vs_all_pairoverlap(nsim0, simname, mass_kind, min_logmass,
     cat0 = open_cat(nsim0, simname)
     catxs = open_cats(nsimxs, simname)
 
-    reader = csiborgtools.read.NPairsOverlap(cat0, catxs, paths, min_logmass)
+    reader = csiborgtools.summary.NPairsOverlap(cat0, catxs, paths,
+                                                min_logmass)
 
     x = [None] * len(catxs)
     y = [None] * len(catxs)
@@ -193,7 +196,8 @@ def get_mtot_vs_maxpairoverlap(nsim0, simname, mass_kind, min_logmass,
             return 0
         return numpy.nanmax(y_)
 
-    reader = csiborgtools.read.NPairsOverlap(cat0, catxs, paths, min_logmass)
+    reader = csiborgtools.summary.NPairsOverlap(cat0, catxs, paths,
+                                                min_logmass)
 
     x = [None] * len(catxs)
     y = [None] * len(catxs)
@@ -266,7 +270,8 @@ def get_mtot_vs_maxpairoverlap_consistency(nsim0, simname, mass_kind,
     cat0 = open_cat(nsim0, simname)
     catxs = open_cats(nsimxs, simname)
 
-    reader = csiborgtools.read.NPairsOverlap(cat0, catxs, paths, min_logmass)
+    reader = csiborgtools.summary.NPairsOverlap(cat0, catxs, paths,
+                                                min_logmass)
 
     x = numpy.log10(cat0[mass_kind])
     mask = x > min_logmass
@@ -534,12 +539,12 @@ def get_mass_vs_separation(nsim0, nsimx, simname, min_logmass, boxsize,
     cat0 = open_cat(nsim0, simname)
     catx = open_cat(nsimx, simname)
 
-    reader = csiborgtools.read.PairOverlap(cat0, catx, paths, min_logmass)
+    reader = csiborgtools.summary.PairOverlap(cat0, catx, paths, min_logmass)
 
     mass = numpy.log10(reader.cat0(MASS_KINDS[simname]))
     dist = reader.dist(in_initial=False, boxsize=boxsize, norm_kind="r200c")
     overlap = reader.overlap(smoothed)
-    dist = csiborgtools.read.weighted_stats(dist, overlap, min_weight=0)
+    dist = csiborgtools.summary.weighted_stats(dist, overlap, min_weight=0)
 
     mask = numpy.isfinite(dist[:, 0])
     mass = mass[mask]
@@ -618,7 +623,7 @@ def get_mass_vs_max_overlap_separation(nsim0, nsimx, simname, min_logmass,
     cat0 = open_cat(nsim0, simname)
     catx = open_cat(nsimx, simname)
 
-    reader = csiborgtools.read.PairOverlap(cat0, catx, paths, min_logmass)
+    reader = csiborgtools.summary.PairOverlap(cat0, catx, paths, min_logmass)
 
     mass = numpy.log10(reader.cat0(MASS_KINDS[simname]))
     dist = reader.dist(in_initial=False, boxsize=boxsize, norm_kind="r200c")
@@ -697,7 +702,8 @@ def get_property_maxoverlap(nsim0, simname, min_logmass, key, min_overlap,
     cat0 = open_cat(nsim0, simname)
     catxs = open_cats(nsimxs, simname)
 
-    reader = csiborgtools.read.NPairsOverlap(cat0, catxs, paths, min_logmass)
+    reader = csiborgtools.summary.NPairsOverlap(cat0, catxs, paths,
+                                                min_logmass)
     mass0 = reader.cat0(MASS_KINDS[simname])
     mask = mass0 > 10**min_logmass
 
@@ -1044,7 +1050,7 @@ def matching_max_vs_overlap(simname, nsim0, min_logmass):
 #     None
 #     """
 #     paths = csiborgtools.read.Paths(**kwargs["paths_kind"])
-#     nn_reader = csiborgtools.read.NearestNeighbourReader(**kwargs, paths=paths)
+#     nn_reader = csiborgtools.summary.NearestNeighbourReader(**kwargs, paths=paths)
 #
 #     xs, ys1, ys2, cs = [], [], [], []
 #     for run in runs:

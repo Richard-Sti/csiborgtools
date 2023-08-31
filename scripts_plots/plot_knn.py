@@ -49,7 +49,7 @@ def plot_knn(runname):
     print(f"Plotting kNN CDF for {runname}.")
     cols = plt.rcParams["axes.prop_cycle"].by_key()["color"]
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    reader = csiborgtools.read.kNNCDFReader(paths)
+    reader = csiborgtools.summary.kNNCDFReader(paths)
 
     with plt.style.context(plt_utils.mplstyle):
         plt.figure()

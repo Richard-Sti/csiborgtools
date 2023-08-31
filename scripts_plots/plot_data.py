@@ -262,12 +262,13 @@ def plot_hmf_quijote_full(pdf=False):
         plt.close()
 
 
-def load_field(kind, nsim, grid, MAS, in_rsp=False):
+def load_field(kind, nsim, grid, MAS, in_rsp=False, smooth_scale=None):
     r"""
     Load a single field.
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    return numpy.load(paths.field(kind, MAS, grid, nsim, in_rsp=in_rsp))
+    return numpy.load(paths.field(kind, MAS, grid, nsim, in_rsp=in_rsp,
+                                  smooth_scale=smooth_scale))
 
 
 ###############################################################################
@@ -296,7 +297,8 @@ def plot_projected_field(kind, nsim, grid, in_rsp, smooth_scale, MAS="PCS",
         field = File(paths.borg_mcmc(nsim), 'r')
         field = field["scalars"]["BORG_final_density"][...]
     else:
-        field = load_field(kind, nsim, grid, MAS=MAS, in_rsp=in_rsp)
+        field = load_field(kind, nsim, grid, MAS=MAS, in_rsp=in_rsp,
+                           smooth_scale=smooth_scale)
 
     if kind == "velocity":
         field = field[vel_component, ...]
@@ -570,7 +572,7 @@ if __name__ == "__main__":
     if True:
         kind = "environment"
         grid = 512
-        smooth_scale = 0
+        smooth_scale = 0.5
         # plot_projected_field("overdensity", 7444, grid, in_rsp=True,
         #                      highres_only=False)
         for in_rsp in [False]:
