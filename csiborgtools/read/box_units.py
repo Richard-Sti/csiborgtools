@@ -22,7 +22,6 @@ from astropy.cosmology import LambdaCDM
 
 from .readsim import CSiBORGReader, QuijoteReader
 
-
 ###############################################################################
 #                              Base box                                       #
 ###############################################################################
