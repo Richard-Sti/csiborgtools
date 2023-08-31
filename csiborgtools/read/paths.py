@@ -66,7 +66,7 @@ class Paths:
 
         Returns
         -------
-        path : str
+        str
         """
         if self._srcdir is None:
             raise ValueError("`srcdir` is not set!")
@@ -86,7 +86,7 @@ class Paths:
 
         Returns
         -------
-        path : str
+        str
         """
         if self._borg_dir is None:
             raise ValueError("`borg_dir` is not set!")
@@ -106,7 +106,7 @@ class Paths:
 
         Returns
         -------
-        path : str
+        str
         """
         if self._quijote_dir is None:
             raise ValueError("`quijote_dir` is not set!")
@@ -126,7 +126,7 @@ class Paths:
 
         Returns
         -------
-        path : str
+        str
         """
         if self._postdir is None:
             raise ValueError("`postdir` is not set!")
@@ -146,7 +146,7 @@ class Paths:
 
         Returns
         -------
-        path : str
+        str
         """
         fpath = join(self.postdir, "temp")
         try_create_directory(fpath)
@@ -186,7 +186,7 @@ class Paths:
 
         Returns
         -------
-        path : str
+        str
         """
         return join(self.borg_dir, "mcmc", f"mcmc_{nsim}.h5")
 
@@ -231,7 +231,7 @@ class Paths:
 
         Returns
         -------
-        path : str
+        str
         """
         if simname == "csiborg":
             fdir = join(self.postdir, "FoF_membership", )
@@ -258,7 +258,7 @@ class Paths:
 
         Returns
         -------
-        path : str
+        str
         """
         fdir = join(self.postdir, "mmain")
         try_create_directory(fdir)
@@ -281,7 +281,7 @@ class Paths:
 
         Returns
         -------
-        path : str
+        str
         """
         assert kind in ["particles", "fit"]
         ftype = "npy" if kind == "fit" else "h5"
@@ -353,7 +353,7 @@ class Paths:
 
         Returns
         -------
-        path : str
+        str
         """
         if simname == "csiborg":
             fname = "ramses_out_{}"
@@ -411,7 +411,7 @@ class Paths:
 
         Returns
         -------
-        snappath : str
+        snapstr
         """
         simpath = self.snapshots(nsim, simname, tonew=nsnap == 1)
         if simname == "csiborg":
@@ -436,7 +436,7 @@ class Paths:
 
         Returns
         -------
-        path : str
+        str
         """
         if simname == "csiborg":
             fdir = join(self.postdir, "particles")
@@ -464,7 +464,7 @@ class Paths:
 
         Returns
         -------
-        path : str
+        str
         """
         if simname == "csiborg":
             fdir = join(self.postdir, "structfit")
@@ -497,7 +497,7 @@ class Paths:
 
         Returns
         -------
-        path : str
+        str
         """
         if simname == "csiborg":
             fdir = join(self.postdir, "overlap")
@@ -536,7 +536,7 @@ class Paths:
 
         Returns
         -------
-        path : str
+        str
 
         References
         ----------
@@ -581,7 +581,7 @@ class Paths:
 
         Returns
         -------
-        path : str
+        str
         """
         assert kind in ["density", "velocity", "potential", "radvel",
                         "environment"]
@@ -610,7 +610,7 @@ class Paths:
 
         Returns
         -------
-        path : str
+        str
         """
         fdir = join(self.postdir, "environment")
         try_create_directory(fdir)
@@ -634,7 +634,7 @@ class Paths:
 
         Returns
         -------
-        path : str
+        str
         """
         fdir = join(self.postdir, "HMF")
         try_create_directory(fdir)
@@ -664,7 +664,7 @@ class Paths:
 
         Returns
         -------
-        path : str
+        str
         """
         assert simname in ["csiborg", "quijote"]
         assert kind in ["dist", "bin_dist", "tot_counts"]
@@ -700,7 +700,7 @@ class Paths:
 
         Returns
         -------
-        path : str
+        str
         """
         assert simname in ["csiborg", "quijote"]
         fdir = join(self.postdir, "knn", "auto")
@@ -733,7 +733,7 @@ class Paths:
 
         Returns
         -------
-        path : str
+        str
         """
         fdir = join(self.postdir, "knn", "cross")
         try_create_directory(fdir)
@@ -764,7 +764,7 @@ class Paths:
 
         Returns
         -------
-        path : str
+        str
         """
         fdir = join(self.postdir, "tpcf", "auto")
         try_create_directory(fdir)
