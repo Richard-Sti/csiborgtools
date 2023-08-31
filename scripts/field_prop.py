@@ -191,6 +191,10 @@ def environment_field(nsim, parser_args, to_save=True):
     density_gen = csiborgtools.field.DensityField(box, parser_args.MAS)
     rho = density_gen.overdensity_field(rho)
 
+    if parser_args.smooth_scale > 0.0:
+        rho = csiborgtools.field.smoothen_field(
+            rho, parser_args.smooth_scale, box.box2mpc(1.))
+
     gen = csiborgtools.field.TidalTensorField(box, parser_args.MAS)
     field = gen(rho)
 
@@ -221,7 +225,7 @@ def environment_field(nsim, parser_args, to_save=True):
 
     if to_save:
         fout = paths.field("environment", parser_args.MAS, parser_args.grid,
-                           nsim, parser_args.in_rsp)
+                           nsim, parser_args.in_rsp, parser_args.smooth_scale)
         print(f"{datetime.now()}: saving output to `{fout}`.")
         numpy.save(fout, env)
     return env
@@ -245,6 +249,8 @@ if __name__ == "__main__":
     parser.add_argument("--grid", type=int, help="Grid resolution.")
     parser.add_argument("--in_rsp", type=lambda x: bool(strtobool(x)),
                         help="Calculate in RSP?")
+    parser.add_argument("--smooth_scale", type=float, default=0.0,
+                        help="Smoothing scale in Mpc / h. Only used for the environment field.")  # noqa
     parser.add_argument("--verbose", type=lambda x: bool(strtobool(x)),
                         help="Verbosity flag for reading in particles.")
     parser.add_argument("--simname", type=str, default="csiborg",
