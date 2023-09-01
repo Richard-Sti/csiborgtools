@@ -77,8 +77,6 @@ if __name__ == "__main__":
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsims = get_nsims(args, paths)
 
-    h5_to_ascii(nsims[0], paths)
-
     def main(nsim):
         h5_to_ascii(nsim, paths, verbose=MPI.COMM_WORLD.Get_size() == 1)
 
