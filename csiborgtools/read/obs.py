@@ -324,7 +324,7 @@ class FitsSurvey(ABC):
         -------
         keys : list of str
         """
-        return self.routine_keys + self.fits_keys
+        return self.routine_keys + self.fits_keys + ["INDEX"]
 
     def make_mask(self, steps):
         """
@@ -357,20 +357,27 @@ class FitsSurvey(ABC):
         return out
 
     def __getitem__(self, key):
+        if key == "INDEX":
+            mask = self.selection_mask
+            if mask is None:
+                return numpy.arange(self.size)
+            else:
+                return numpy.arange(mask.size)[mask]
+
         # Check duplicates
         if key in self.routine_keys and key in self.fits_keys:
-            warn("Key `{}` found in both `routine_keys` and `fits_keys`. "
-                 "Returning `routine_keys` value.".format(key), stacklevel=1)
+            warn(f"Key `{key}` found in both `routine_keys` and `fits_keys`. "
+                 "Returning `routine_keys` value.")
 
         if key in self.routine_keys:
             func, args = self.routines[key]
             out = func(*args)
         elif key in self.fits_keys:
-            warn("Returning a FITS property. Be careful about little h!",
-                 stacklevel=1)
+            warn(f"Returning a FITS property `{key}`. "
+                 "Be careful about little h!")
             out = self.get_fitsitem(key)
         else:
-            raise KeyError("Unrecognised key `{}`.".format(key))
+            raise KeyError(f"Unrecognised key `{key}`.")
 
         if self.selection_mask is None:
             return out
@@ -538,6 +545,7 @@ class MCXCClusters(FitsSurvey):
     def _lum(self, key):
         """Get luminosity, puts back units to be in ergs/s."""
         return self.get_fitsitem(key) * 1e44 * (self._hdata / self.h)**2
+
 
 ###############################################################################
 #                              SDSS galaxies                                  #
