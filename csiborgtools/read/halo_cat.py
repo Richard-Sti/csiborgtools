@@ -42,6 +42,8 @@ class BaseCatalogue(ABC):
     _data = None
     _paths = None
     _nsim = None
+    _observer_location = None
+    _observer_velocity = None
 
     @property
     def nsim(self):
@@ -240,6 +242,25 @@ class BaseCatalogue(ABC):
         assert obs_pos.shape == (3,)
         self._observer_location = obs_pos
 
+    @property
+    def observer_velocity(self):
+        r"""
+        Velocity of the observer in units :math:`\mathrm{km} / \mathrm{s}`.
+
+        Returns
+        1-dimensional array of shape `(3,)`
+        """
+        if self._observer_velocity is None:
+            raise RuntimeError("`observer_velocity` is not set!")
+        return self._observer_velocity
+
+    @observer_velocity.setter
+    def observer_velocity(self, obs_vel):
+        assert isinstance(obs_vel, (list, tuple, numpy.ndarray))
+        obs_vel = numpy.asanyarray(obs_vel)
+        assert obs_vel.shape == (3,)
+        self._observer_velocity = obs_vel
+
     def position(self, in_initial=False, cartesian=True,
                  subtract_observer=False):
         r"""
@@ -298,7 +319,7 @@ class BaseCatalogue(ABC):
         """
         return numpy.vstack([self["v{}".format(p)] for p in ("x", "y", "z")]).T
 
-    def redshift_space_position(self, cartesian=True, subtract_observer=False):
+    def redshift_space_position(self, cartesian=True):
         """
         Calculates the position of objects in redshift space. Positions can be
         returned  in either Cartesian coordinates (default) or spherical
@@ -317,11 +338,17 @@ class BaseCatalogue(ABC):
         -------
         2-dimensional array of shape `(nobjects, 3)`
         """
-        # Force subtraction of observer if not in Cartesian coordinates
-        subtract_observer = subtract_observer or not cartesian
+        if self.simname == "quijote":
+            raise NotImplementedError("Redshift space positions not "
+                                      "implemented for Quijote.")
+
         rsp = real2redshift(self.position(cartesian=True), self.velocity(),
-                            self.observer_location, self.box, make_copy=False)
-        return rsp if cartesian else cartesian_to_radec(rsp)
+                            self.observer_location, self.observer_velocity,
+                            self.box, make_copy=False)
+        if cartesian:
+            return rsp
+
+        return cartesian_to_radec(rsp - self.observer_location)
 
     def angmomentum(self):
         """
@@ -528,8 +555,6 @@ class CSiBORGHaloCatalogue(BaseCatalogue):
         IC realisation index.
     paths : py:class`csiborgtools.read.Paths`
         Paths object.
-    observer_location : array, optional
-        Observer's location in :math:`\mathrm{Mpc} / h`.
     bounds : dict
         Parameter bounds; keys as names, values as (min, max) tuples. Use
         `dist` for radial distance, `None` for no bound.
@@ -539,14 +564,17 @@ class CSiBORGHaloCatalogue(BaseCatalogue):
         Load initial positions.
     with_lagpatch : bool, optional
         Load halos with a resolved Lagrangian patch.
+    observer_velocity : 1-dimensional array, optional
+        Observer's velocity in :math:`\mathrm{km} / \mathrm{s}`.
     """
 
-    def __init__(self, nsim, paths, observer_location=[338.85, 338.85, 338.85],
-                 bounds={"dist": (0, 155.5)},
-                 load_fitted=True, load_initial=True, with_lagpatch=False):
+    def __init__(self, nsim, paths, bounds={"dist": (0, 155.5)},
+                 load_fitted=True, load_initial=True, with_lagpatch=False,
+                 observer_velocity=None):
         self.nsim = nsim
         self.paths = paths
-        self.observer_location = observer_location
+        self.observer_location = [338.85, 338.85, 338.85]
+        self.observer_velocity = observer_velocity
         reader = CSiBORGReader(paths)
         data = reader.read_fof_halos(self.nsim)
         box = self.box
