@@ -45,7 +45,7 @@ def h5_to_ascii(nsim, paths, chunk_size=50_000, verbose=True):
 
         with open(fname_out, 'w') as out_file:
             # Write the header
-            out_file.write("#px,py,pz\n")
+            out_file.write("#px py pz\n")
 
             # Loop through data in chunks
             for i in trange(0, total_size, chunk_size,
@@ -59,7 +59,7 @@ def h5_to_ascii(nsim, paths, chunk_size=50_000, verbose=True):
                 # Convert to positions Mpc / h
                 data_chunk = data_chunk[:, :3] * boxsize
 
-                chunk_str = "\n".join([f"{x:.4f},{y:.4f},{z:.4f}"
+                chunk_str = "\n".join([f"{x:.4f} {y:.4f} {z:.4f}"
                                        for x, y, z in data_chunk])
                 out_file.write(chunk_str + "\n")
 
