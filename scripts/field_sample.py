@@ -180,6 +180,8 @@ if __name__ == "__main__":
                         help="Field in RSP?")
     parser.add_argument("--nrand", type=int, required=True,
                         help="Number of rand. positions to evaluate the field")
+    parser.add_argument("--simname", type=str, default="csiborg",
+                        choices=["csiborg"], help="Simulation name")
     args = parser.parse_args()
 
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
