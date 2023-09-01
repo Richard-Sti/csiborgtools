@@ -563,7 +563,7 @@ class Paths:
 
     def field(self, kind, MAS, grid, nsim, in_rsp, smooth_scale=None):
         r"""
-        Path to the files containing the calculated density fields in CSiBORG.
+        Path to the files containing the calculated fields in CSiBORG.
 
         Parameters
         ----------
@@ -598,6 +598,50 @@ class Paths:
 
         if smooth_scale is not None:
             fname = fname.replace(".npy", f"_smooth{smooth_scale}.npy")
+
+        return join(fdir, fname)
+
+    def field_interpolated(self, survey, kind, MAS, grid, nsim, in_rsp,
+                           smooth_scale=None):
+        """
+        Path to the files containing the CSiBORG interpolated field for a given
+        survey.
+
+        Parameters
+        ----------
+        survey : str
+            Survey name.
+        kind : str
+            Field type. Must be one of: `density`, `velocity`, `potential`,
+            `radvel`, `environment`.
+        MAS : str
+           Mass-assignment scheme.
+        grid : int
+            Grid size.
+        nsim : int
+            IC realisation index.
+        in_rsp : bool
+            Whether the calculation is performed in redshift space.
+        smooth_scale : float, optional
+            Smoothing scale in Mpc/h.
+
+        Returns
+        -------
+        str
+        """
+        assert kind in ["density", "velocity", "potential", "radvel",
+                        "environment"]
+        fdir = join(self.postdir, "environment_interpolated")
+
+        try_create_directory(fdir)
+
+        if in_rsp:
+            kind = kind + "_rsp"
+
+        fname = f"{survey}_{kind}_{MAS}_{str(nsim).zfill(5)}_grid{grid}.npz"
+
+        if smooth_scale is not None:
+            fname = fname.replace(".npz", f"_smooth{smooth_scale}.npz")
 
         return join(fdir, fname)
 
