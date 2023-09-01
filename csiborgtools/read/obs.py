@@ -698,7 +698,6 @@ class SDSS(FitsSurvey):
         cosmo = FlatLambdaCDM(H0=100 * self.h, Om0=Om0)
         return cosmo.comoving_distance(self.get_fitsitem("Z")).value
 
-
     def _solmass(self, photo):
         """
         Get solar mass of a given photometry. Converts little h.
