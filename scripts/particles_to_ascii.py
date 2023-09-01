@@ -65,7 +65,6 @@ def h5_to_ascii(nsim, paths, chunk_size=50_000, verbose=True):
 
 
 if __name__ == "__main__":
-    # Argument parser
     parser = ArgumentParser()
     parser.add_argument("--nsims", type=int, nargs="+", default=None,
                         help="IC realisations. If `-1` processes all.")
