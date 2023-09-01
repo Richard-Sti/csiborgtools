@@ -572,11 +572,14 @@ if __name__ == "__main__":
     if True:
         kind = "environment"
         grid = 512
-        smooth_scale = 0.5
+        smooth_scale = 8.0
         # plot_projected_field("overdensity", 7444, grid, in_rsp=True,
         #                      highres_only=False)
+        # nsims = [7444 + n * 24 for n in range(101)]
+        nsim = 7444
+
         for in_rsp in [False]:
-            plot_projected_field(kind, 7444, grid, in_rsp=in_rsp,
+            plot_projected_field(kind, nsim, grid, in_rsp=in_rsp,
                                  smooth_scale=smooth_scale, slice_find=0.5,
                                  MAS="PCS", highres_only=True)
 
