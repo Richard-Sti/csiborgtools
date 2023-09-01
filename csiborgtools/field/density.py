@@ -173,7 +173,7 @@ class DensityField(BaseField):
             start = end
 
         # Divide by the cell volume in (kpc / h)^3
-        rho /= self.box.boxsize / grid * 1e3
+        rho /= (self.box.boxsize / grid * 1e3)**3
 
         return rho
 
