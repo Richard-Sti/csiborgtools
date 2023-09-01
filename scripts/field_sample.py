@@ -17,8 +17,11 @@ Sample a CSiBORG field at galaxy positions and save the result to disk.
 """
 from argparse import ArgumentParser
 from distutils.util import strtobool
+from os.path import join
 
 import numpy
+from astropy.cosmology import FlatLambdaCDM
+from h5py import File
 from mpi4py import MPI
 from taskmaster import work_delegation
 from tqdm import tqdm
@@ -54,9 +57,18 @@ def open_galaxy_positions(survey_name, comm):
                 h=1, sel_steps=lambda cls: steps(cls, survey_name))
             pos = numpy.vstack([survey["DIST_UNCORRECTED"],
                                 survey["RA"],
-                                survey["DEC"]]
+                                survey["DEC"]],
                                ).T
             indxs = survey["INDEX"]
+        elif survey_name == "GW170817":
+            samples = File("/mnt/extraspace/rstiskalek/GWLSS/H1L1V1-EXTRACT_POSTERIOR_GW170817-1187008600-400.hdf", 'r')["samples"]  # noqa
+            cosmo = FlatLambdaCDM(H0=100, Om0=0.3175)
+            pos = numpy.vstack([
+                cosmo.comoving_distance(samples["redshift"][:]).value,
+                samples["ra"][:] * 180 / numpy.pi,
+                samples["dec"][:] * 180 / numpy.pi],
+                               ).T
+            indxs = numpy.arange(pos.shape[0])
         else:
             raise NotImplementedError(f"Survey `{survey_name}` not "
                                       "implemented.")
@@ -130,9 +142,17 @@ def main(nsim, parser_args, pos, indxs, paths, verbose):
         field, pos, nrand=parser_args.nrand,
         smooth_scales=parser_args.smooth_scales, verbose=verbose)
 
-    fout = paths.field_interpolated(parser_args.survey, parser_args.kind,
-                                    parser_args.MAS, parser_args.grid, nsim,
-                                    parser_args.in_rsp)
+    if parser_args.survey == "GW170817":
+        kind = parser_args.kind
+        kind = kind + "_rsp" if parser_args.in_rsp else kind
+
+        fout = join(
+            "/mnt/extraspace/rstiskalek/GWLSS/",
+            f"{kind}_{parser_args.MAS}_{parser_args.grid}_{nsim}_H1L1V1-EXTRACT_POSTERIOR_GW170817-1187008600-400.npz")  # noqa
+    else:
+        fout = paths.field_interpolated(parser_args.survey, parser_args.kind,
+                                        parser_args.MAS, parser_args.grid,
+                                        nsim, parser_args.in_rsp)
     if verbose:
         print(f"Saving to ... `{fout}`.")
     numpy.savez(fout, val=val, rand_val=rand_val, indxs=indxs,
@@ -143,7 +163,8 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--nsims", type=int, nargs="+", default=None,
                         help="IC realisations. If `-1` processes all.")
-    parser.add_argument("--survey", type=str, required=True, choices=["SDSS"],
+    parser.add_argument("--survey", type=str, required=True,
+                        choices=["SDSS", "GW170817"],
                         help="Galaxy survey")
     parser.add_argument("--smooth_scales", type=float, nargs="+", default=None,
                         help="Smoothing scales in Mpc / h.")
