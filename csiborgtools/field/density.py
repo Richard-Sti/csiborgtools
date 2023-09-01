@@ -171,6 +171,10 @@ class DensityField(BaseField):
             if end == nparts:
                 break
             start = end
+
+        # Divide by the cell volume in (kpc / h)^3
+        rho /= self.box.boxsize / grid * 1e3
+
         return rho
 
 
