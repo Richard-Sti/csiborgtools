@@ -23,6 +23,7 @@ import numpy
 from astropy import units
 from astropy.coordinates import SkyCoord
 from astropy.io import fits
+from astropy.cosmology import FlatLambdaCDM
 from scipy import constants
 
 from .utils import cols_to_structured
@@ -143,7 +144,7 @@ class TwoMPPGroups(TextSurvey):
     """
     name = "2M++_groups"
 
-    def __init__(self, fpath):
+    def __init__(self, fpath=None):
         if fpath is None:
             fpath = join("/mnt/extraspace/rstiskalek/catalogs",
                          "2M++_group_catalog.dat")
@@ -556,6 +557,8 @@ class SDSS(FitsSurvey):
     h : float, optional
         Little h. By default `h = 1`. The catalogue assumes this value.
         The routine properties should take care of little h conversion.
+    Om0 : float, optional
+        Matter density. By default `Om0 = 0.3175`, matching CSiBORG.
     sel_steps : py:function:
         Steps to mask the survey. Expected to look for example like
         ```
@@ -570,7 +573,7 @@ class SDSS(FitsSurvey):
     """
     name = "SDSS"
 
-    def __init__(self, fpath=None, h=1, sel_steps=None):
+    def __init__(self, fpath=None, h=1, Om0=0.3175, sel_steps=None):
         if fpath is None:
             fpath = "/mnt/extraspace/rstiskalek/catalogs/nsa_v1_0_1.fits"
         self._file = fits.open(fpath, memmap=False)
@@ -603,6 +606,8 @@ class SDSS(FitsSurvey):
                     self.routines.update({key: val})
         # Set DIST routine
         self.routines.update({"DIST": (self._dist, ())})
+        self.routines.update(
+            {"DIST_UNCORRECTED": (self._dist_uncorrected, (Om0,))})
         # Set MASS routines
         for photo in self._photos:
             key = "{}_MASS".format(photo)
@@ -623,8 +628,11 @@ class SDSS(FitsSurvey):
 
     @property
     def size(self):
-        # Here pick some property that is in the catalogue..
-        return self.get_fitsitem("ZDIST").size
+        mask = self.selection_mask
+        if mask is not None:
+            return numpy.sum(mask)
+        else:
+            return self.get_fitsitem("ZDIST").size
 
     def _absmag(self, photo, band):
         """
@@ -673,6 +681,15 @@ class SDSS(FitsSurvey):
         Distance is converted to math:`h != 1` units.
         """
         return self.get_fitsitem("ZDIST") * constants.c * 1e-3 / (100 * self.h)
+
+    def _dist_uncorrected(self, Om0):
+        """
+        Get the comoving distance estimate from `Z`, i.e. redshift uncorrected
+        for peculiar motion in the heliocentric frame.
+        """
+        cosmo = FlatLambdaCDM(H0=100 * self.h, Om0=Om0)
+        return cosmo.comoving_distance(self.get_fitsitem("Z")).value
+
 
     def _solmass(self, photo):
         """
