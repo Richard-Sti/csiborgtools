@@ -23,16 +23,9 @@ from gc import collect
 
 import numpy
 from mpi4py import MPI
-
-try:
-    import csiborgtools
-except ModuleNotFoundError:
-    import sys
-    sys.path.append("../")
-    import csiborgtools
-
 from taskmaster import work_delegation
 
+import csiborgtools
 from utils import get_nsims
 
 ###############################################################################
