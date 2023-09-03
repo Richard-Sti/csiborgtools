@@ -449,6 +449,26 @@ class Paths:
         fname = f"parts_{str(nsim).zfill(5)}.h5"
         return join(fdir, fname)
 
+    def ascii_positions(self, nsim, kind):
+        """
+        Path to ASCII files containing the positions of particles or halos.
+
+        Parameters
+        ----------
+        nsim : int
+            IC realisation index.
+        kind : str
+            Kind of data to extract. Must be one of `particles`,
+            `particles_rsp`, `halos`, `halos_rsp`.
+        """
+        assert kind in ["particles", "particles_rsp", "halos", "halos_rsp"]
+
+        fdir = join(self.postdir, "ascii_positions")
+        try_create_directory(fdir)
+        fname = f"pos_{kind}_{str(nsim).zfill(5)}.txt"
+
+        return join(fdir, fname)
+
     def structfit(self, nsnap, nsim, simname):
         """
         Path to the halo catalogue from `fit_halos.py`.
