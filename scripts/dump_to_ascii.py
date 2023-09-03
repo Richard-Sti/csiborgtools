@@ -15,57 +15,91 @@
 """Convert the HDF5 CSiBORG particle file to an ASCII file."""
 from argparse import ArgumentParser
 
-import csiborgtools
 import h5py
-
+import numpy
 from mpi4py import MPI
-
-from utils import get_nsims
+from taskmaster import work_delegation
 from tqdm import trange
 
-from taskmaster import work_delegation
+import csiborgtools
+from utils import get_nsims
 
 
-def h5_to_ascii(nsim, paths, chunk_size=50_000, verbose=True):
+def positions_to_ascii(positions, output_filename, boxsize=None,
+                       chunk_size=50_000, verbose=True):
     """
-    Convert the HDF5 CSiBORG particle file to an ASCII file. Outputs only
-    particle positions in Mpc / h. Ignores the unequal particle masses.
+    Convert array of positions to an ASCII file. If `boxsize` is given,
+    multiples the positions by it.
     """
-    fname = paths.particles(nsim, args.simname)
-    boxsize = 677.7
+    total_size = len(positions)
 
-    fname_out = fname.replace(".h5", ".txt")
+    if verbose:
+        print(f"Number of rows to write: {total_size}")
 
-    with h5py.File(fname, 'r') as f:
-        dataset = f["particles"]
-        total_size = dataset.shape[0]
+    with open(output_filename, 'w') as out_file:
+        # Write the header
+        out_file.write("#px py pz\n")
 
-        if verbose:
-            print(f"Number of rows to write: {total_size}")
+        # Loop through data in chunks
+        for i in trange(0, total_size, chunk_size,
+                        desc=f"Writing to ... `{output_filename}`",
+                        disable=not verbose):
 
-        with open(fname_out, 'w') as out_file:
-            # Write the header
-            out_file.write("#px py pz\n")
+            end = i + chunk_size
+            if end > total_size:
+                end = total_size
 
-            # Loop through data in chunks
-            for i in trange(0, total_size, chunk_size,
-                            desc=f"Writing to ... `{fname_out}`",
-                            disable=not verbose):
-                end = i + chunk_size
-                if end > total_size:
-                    end = total_size
+            data_chunk = positions[i:end]
+            # Convert to positions Mpc / h
+            data_chunk = data_chunk[:, :3]
 
-                data_chunk = dataset[i:end]
-                # Convert to positions Mpc / h
-                data_chunk = data_chunk[:, :3] * boxsize
+            if boxsize is not None:
+                data_chunk *= boxsize
 
-                chunk_str = "\n".join([f"{x:.4f} {y:.4f} {z:.4f}"
-                                       for x, y, z in data_chunk])
-                out_file.write(chunk_str + "\n")
+            chunk_str = "\n".join([f"{x:.4f} {y:.4f} {z:.4f}"
+                                   for x, y, z in data_chunk])
+            out_file.write(chunk_str + "\n")
+
+
+def extract_positions(nsim, paths, kind):
+    """
+    Extract either the particle or halo positions.
+    """
+    if kind == "particles":
+        fname = paths.particles(nsim, args.simname)
+        return h5py.File(fname, 'r')["particles"]
+
+    if kind == "particles_rsp":
+        raise NotImplementedError("RSP of particles is not implemented yet.")
+
+    fpath = paths.observer_peculiar_velocity("PCS", 512, nsim)
+    vpec_observer = numpy.load(fpath)["observer_vp"][0, :]
+    cat = csiborgtools.read.CSiBORGHaloCatalogue(
+        nsim, paths, load_fitted=True, load_initial=False,
+        observer_velocity=vpec_observer)
+
+    if kind == "halos":
+        return cat.position()
+
+    if kind == "halos_rsp":
+        return cat.redshift_space_position()
+
+    raise ValueError(f"Unknown kind `{kind}`. Allowed values are: "
+                     "`particles`, `particles_rsp`, `halos`, `halos_rsp`.")
+
+
+def main(nsim, paths, kind):
+    boxsize = 677.7 if "particles" in kind else None
+    pos = extract_positions(nsim, paths, kind)
+    output_filename = paths.ascii_positions(nsim, kind)
+    positions_to_ascii(pos, output_filename, boxsize=boxsize)
 
 
 if __name__ == "__main__":
     parser = ArgumentParser()
+    parser.add_argument("--kind", type=str, required=True,
+                        choices=["particles", "particles_rsp", "halos", "halos_rsp"],  # noqa
+                        help="Kind of data to extract.")
     parser.add_argument("--nsims", type=int, nargs="+", default=None,
                         help="IC realisations. If `-1` processes all.")
     parser.add_argument("--simname", type=str, default="csiborg",
@@ -76,7 +110,7 @@ if __name__ == "__main__":
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsims = get_nsims(args, paths)
 
-    def main(nsim):
-        h5_to_ascii(nsim, paths, verbose=MPI.COMM_WORLD.Get_size() == 1)
+    def _main(nsim):
+        main(nsim, paths, args.kind)
 
     work_delegation(main, nsims, MPI.COMM_WORLD)
