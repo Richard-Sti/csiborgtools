@@ -256,6 +256,10 @@ class BaseCatalogue(ABC):
 
     @observer_velocity.setter
     def observer_velocity(self, obs_vel):
+        if obs_vel is None:
+            self._observer_velocity = None
+            return
+
         assert isinstance(obs_vel, (list, tuple, numpy.ndarray))
         obs_vel = numpy.asanyarray(obs_vel)
         assert obs_vel.shape == (3,)
