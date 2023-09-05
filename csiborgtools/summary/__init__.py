@@ -13,9 +13,10 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
-from .knn_summary import kNNCDFReader  # noqa
-from .nearest_neighbour_summary import NearestNeighbourReader  # noqa
-from .overlap_summary import weighted_stats  # noqa
-from .overlap_summary import NPairsOverlap, PairOverlap, get_cross_sims  # noqa
-from .pk_summary import PKReader  # noqa
-from .tpcf_summary import TPCFReader  # noqa
+from .knn_summary import kNNCDFReader                                           # noqa
+from .nearest_neighbour_summary import NearestNeighbourReader                   # noqa
+from .overlap_summary import weighted_stats                                     # noqa
+from .overlap_summary import NPairsOverlap, PairOverlap, get_cross_sims         # noqa
+from .pk_summary import PKReader                                                # noqa
+from .tpcf_summary import TPCFReader                                            # noqa
+from .field_interp import read_interpolated_field                               # noqa
