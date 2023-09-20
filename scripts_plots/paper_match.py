@@ -88,8 +88,8 @@ def get_overlap_summary(nsim0, simname, min_logmass, smoothed):
 def get_mtot_vs_all_pairoverlap(nsim0, simname, mass_kind, min_logmass,
                                 smoothed, nbins):
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    nsimxs = csiborgtools.read.get_cross_sims(simname, nsim0, paths,
-                                              min_logmass, smoothed=smoothed)
+    nsimxs = csiborgtools.summary.get_cross_sims(simname, nsim0, paths,
+                                                 min_logmass, smoothed=smoothed)
     nsimxs = nsimxs
 
     cat0 = open_cat(nsim0, simname)
@@ -165,8 +165,8 @@ def mtot_vs_all_pairoverlap(nsim0, simname, min_logmass, smoothed, nbins,
 def get_mtot_vs_maxpairoverlap(nsim0, simname, mass_kind, min_logmass,
                                smoothed, nbins):
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    nsimxs = csiborgtools.read.get_cross_sims(simname, nsim0, paths,
-                                              min_logmass, smoothed=smoothed)
+    nsimxs = csiborgtools.summary.get_cross_sims(
+        simname, nsim0, paths, min_logmass, smoothed=smoothed)
     cat0 = open_cat(nsim0, simname)
     catxs = open_cats(nsimxs, simname)
 
