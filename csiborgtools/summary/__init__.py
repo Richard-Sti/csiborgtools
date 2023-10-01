@@ -16,7 +16,10 @@
 from .knn_summary import kNNCDFReader                                           # noqa
 from .nearest_neighbour_summary import NearestNeighbourReader                   # noqa
 from .overlap_summary import weighted_stats                                     # noqa
-from .overlap_summary import NPairsOverlap, PairOverlap, get_cross_sims         # noqa
+from .overlap_summary import (NPairsOverlap, PairOverlap, get_cross_sims,       # noqa
+                              max_overlap_agreement, max_overlap_agreements)    # noqa
 from .pk_summary import PKReader                                                # noqa
 from .tpcf_summary import TPCFReader                                            # noqa
-from .field_interp import read_interpolated_field                               # noqa
+from .field_interp import (read_interpolated_field,                             # noqa
+                           bayesian_bootstrap_correlation,                      # noqa
+                           correlate_at_fixed_smoothing)                        # noqa
