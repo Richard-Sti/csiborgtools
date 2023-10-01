@@ -12,10 +12,12 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-from csiborgtools import clustering, field, match, read, summary  # noqa
+from csiborgtools import clustering, field, match, read, summary                 # noqa
 
-from .utils import (center_of_mass, delta2ncells, number_counts,  # noqa
-                    periodic_distance, periodic_distance_two_points)  # noqa
+from .utils import (center_of_mass, delta2ncells, number_counts,                 # noqa
+                    periodic_distance, periodic_distance_two_points,             # noqa
+                    binned_statistic)                                            # noqa
+
 
 # Arguments to csiborgtools.read.Paths.
 paths_glamdring = {"srcdir": "/mnt/extraspace/hdesmond/",
