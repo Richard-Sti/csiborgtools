@@ -20,7 +20,6 @@ from os.path import isfile
 
 import numpy
 from tqdm import tqdm, trange
-from numba import jit
 from sklearn.neighbors import KernelDensity
 
 from ..utils import periodic_distance
@@ -507,6 +506,82 @@ class PairOverlap:
         return self["match_indxs"].size
 
 
+###############################################################################
+#                 Support functions for pair overlaps                         #
+###############################################################################
+
+
+def max_overlap_agreement(cat0, catx, min_logmass, maxdist, paths):
+    r"""
+    Calculate whether for a halo `A` from catalogue `cat0` that has a maximum
+    overlap with halo `B` from catalogue `catx` it is also `B` that has a
+    maximum overlap with `A`.
+
+    Parameters
+    ----------
+    cat0 : instance of :py:class:`csiborgtools.read.BaseCatalogue`
+        Halo catalogue corresponding to the reference simulation.
+    catx : instance of :py:class:`csiborgtools.read.BaseCatalogue`
+        Halo catalogue corresponding to the cross simulation.
+    min_logmass : float
+        Minimum halo mass in :math:`\log_{10} M_\odot / h` to consider.
+    maxdist : float, optional
+        Maximum halo distance in :math:`\mathrm{Mpc} / h` from the centre
+        of the high-resolution region.
+    paths : py:class`csiborgtools.read.Paths`
+        CSiBORG paths object.
+
+    Returns
+    -------
+    agreement : 1-dimensional array of shape `(nhalos, )`
+    """
+    kwargs = {"paths": paths, "min_logmass": min_logmass, "maxdist": maxdist}
+    pair_forward = PairOverlap(cat0, catx, **kwargs)
+    pair_backward = PairOverlap(catx, cat0, **kwargs)
+
+    nhalos = len(pair_forward.cat0())
+    agreement = numpy.full(nhalos, numpy.nan, dtype=numpy.float32)
+
+    for i in range(nhalos):
+        match_indxs_forward = pair_forward["match_indxs"][i]
+
+        if len(match_indxs_forward) == 0:
+            continue
+
+        overlap_forward = pair_forward["smoothed_overlap"][i]
+
+        kmax = match_indxs_forward[numpy.argmax(overlap_forward)]
+        match_indxs_backward = pair_backward["match_indxs"][kmax]
+        overlap_backward = pair_backward["smoothed_overlap"][kmax]
+
+        imatch = match_indxs_backward[numpy.argmax(overlap_backward)]
+        agreement[i] = imatch == i
+
+    return agreement
+
+
+def max_overlap_agreements(cat0, catxs, min_logmass, maxdist, paths,
+                           verbose=True):
+    """
+    Repeat `max_overlap_agreement` for many cross simulations.
+
+    Parameters
+    ----------
+    ...
+
+    Returns
+    -------
+    agreements : 2-dimensional array of shape `(ncatxs, nhalos)`
+    """
+    agreements = [None] * len(catxs)
+    desc = "Calculating maximum overlap agreement"
+    for i, catx in enumerate(tqdm(catxs, desc=desc, disable=not verbose)):
+        agreements[i] = max_overlap_agreement(cat0, catx, min_logmass,
+                                              maxdist, paths)
+
+    return numpy.asanyarray(agreements)
+
+
 def weighted_stats(x, weights, min_weight=0, verbose=False):
     """
     Calculate the weighted mean and standard deviation of `x` using `weights`
@@ -702,8 +777,6 @@ class NPairsOverlap:
                 ys[j] = numpy.log10(ys[j])
             overlaps[j] = overlap[k]
 
-        ys = numpy.concatenate(ys)
-        overlaps = numpy.concatenate(overlaps)
         return ys, overlaps
 
     def expected_property(self, key, from_smoothed, min_logmass,
