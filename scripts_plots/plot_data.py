@@ -66,6 +66,12 @@ def plot_mass_vs_ncells(nsim, pdf=False):
     cat = open_csiborg(nsim)
     mpart = 4.38304044e+09
 
+    x = numpy.log10(cat["totpartmass"])
+    y = numpy.log10(cat["lagpatch_ncells"])
+
+    p = numpy.polyfit(x, y, 1)
+    print("Fitted parameters are: ", p)
+
     with plt.style.context(plt_utils.mplstyle):
         plt.figure()
         plt.scatter(cat["totpartmass"], cat["lagpatch_ncells"], s=0.25,
@@ -105,9 +111,9 @@ def plot_hmf(pdf=False):
             csiborg_counts = numpy.full((len(csiborg_nsims), len(bins) - 1),
                                         numpy.nan, dtype=numpy.float32)
         csiborg_counts[i, :] = data["counts"]
-    # csiborg_counts /= numpy.diff(bins).reshape(1, -1)
+    csiborg_counts /= numpy.diff(bins).reshape(1, -1)
 
-    csiborg5511 = numpy.load(paths.halo_counts("csiborg", 5511))["counts"]
+    # csiborg5511 = numpy.load(paths.halo_counts("csiborg", 5511))["counts"]
     # csiborg5511 /= numpy.diff(data["bins"])
 
     print("Loading Quijote halo counts.", flush=True)
@@ -121,71 +127,85 @@ def plot_hmf(pdf=False):
                 (len(quijote_nsims) * nmax, len(bins) - 1), numpy.nan,
                 dtype=numpy.float32)
         quijote_counts[i * nmax:(i + 1) * nmax, :] = data["counts"]
-    # quijote_counts /= numpy.diff(bins).reshape(1, -1)
+    quijote_counts /= numpy.diff(bins).reshape(1, -1)
 
-    # vol = 155.5**3
-    # csiborg_counts /= vol
-    # quijote_counts /= vol
+    vol = 4 * numpy.pi / 3 * 155.5**3
+    csiborg_counts /= vol
+    quijote_counts /= vol
     # csiborg5511 /= vol
 
     x = 10**(0.5 * (bins[1:] + bins[:-1]))
     # Edit lower limits
-    csiborg_counts[:, x < 1e12] = numpy.nan
-    quijote_counts[:, x < 10**(13.1)] = numpy.nan
+    # csiborg_counts[:, x < 1e12] = numpy.nan
+    # quijote_counts[:, x < 10**(13.1)] = numpy.nan
     # Edit upper limits
     csiborg_counts[:, x > 3e15] = numpy.nan
     quijote_counts[:, x > 3e15] = numpy.nan
-    csiborg5511[x > 3e15] = numpy.nan
+    # csiborg5511[x > 3e15] = numpy.nan
 
     with plt.style.context(plt_utils.mplstyle):
         cols = plt.rcParams["axes.prop_cycle"].by_key()["color"]
-        fig, ax = plt.subplots(nrows=2, sharex=True,
-                               figsize=(3.5, 2.625 * 1.25),
-                               gridspec_kw={"height_ratios": [1, 0.45]})
-        fig.subplots_adjust(hspace=0, wspace=0)
+        fig, ax = plt.subplots(nrows=1, sharex=True,
+                               figsize=(3.5, 2.625))
+        ax = [ax]
+        # fig, ax = plt.subplots(nrows=2, sharex=True,
+        #                        figsize=(3.5, 2.625 * 1.25),
+        #                        gridspec_kw={"height_ratios": [1, 0.25]})
+        # fig.subplots_adjust(hspace=0, wspace=0)
 
         # Upper panel data
         mean_csiborg = numpy.mean(csiborg_counts, axis=0)
         std_csiborg = numpy.std(csiborg_counts, axis=0)
+
+        for i in range(len(csiborg_counts)):
+            ax[0].plot(x, csiborg_counts[i, :], c=cols[0], lw=0.01, zorder=1, alpha=0.1)
+
         ax[0].plot(x, mean_csiborg, label="CSiBORG", c=cols[0])
-        ax[0].fill_between(x, mean_csiborg - std_csiborg,
-                           mean_csiborg + std_csiborg,
-                           alpha=0.5, color=cols[0])
+        # ax[0].fill_between(x, mean_csiborg - std_csiborg,
+        #                    mean_csiborg + std_csiborg,
+        #                    alpha=0.5, color=cols[0])
 
         mean_quijote = numpy.mean(quijote_counts, axis=0)
         std_quijote = numpy.std(quijote_counts, axis=0)
-        ax[0].plot(x, mean_quijote, label="Quijote", c=cols[1])
-        ax[0].fill_between(x, mean_quijote - std_quijote,
-                           mean_quijote + std_quijote, alpha=0.5,
-                           color=cols[1])
 
-        ax[0].plot(x, csiborg5511, label="CSiBORG 5511", c="k", ls="--")
-        std5511 = numpy.sqrt(csiborg5511)
-        ax[0].fill_between(x, csiborg5511 - std_csiborg, csiborg5511 + std5511,
-                           alpha=0.2, color="k")
-        # Lower panel data
-        log_y = numpy.log10(mean_csiborg / mean_quijote)
-        err = numpy.sqrt((std_csiborg / mean_csiborg / numpy.log(10))**2
-                         + (std_quijote / mean_quijote / numpy.log(10))**2)
-        ax[1].plot(x, 10**log_y, c=cols[0])
-        ax[1].fill_between(x, 10**(log_y - err), 10**(log_y + err), alpha=0.5,
-                           color=cols[0])
+        for i in range(len(quijote_counts)):
+            ax[0].plot(x, quijote_counts[i, :], c=cols[1], lw=0.01, zorder=-1, alpha=0.1)
 
-        ax[1].plot(x, csiborg5511 / mean_quijote, c="k", ls="--")
+
+
+        ax[0].plot(x, mean_quijote, label="Quijote", c=cols[1], zorder=0)
+        # ax[0].fill_between(x, mean_quijote - std_quijote,
+        #                    mean_quijote + std_quijote, alpha=0.5,
+        #                    color=cols[1])
+
+        # ax[0].plot(x, csiborg5511, label="CSiBORG 5511", c="k", ls="--")
+        # std5511 = numpy.sqrt(csiborg5511)
+        # ax[0].fill_between(x, csiborg5511 - std_csiborg, csiborg5511 + std5511,
+        #                    alpha=0.2, color="k")
+
+        # # Lower panel data
+        # log_y = numpy.log10(mean_csiborg / mean_quijote)
+        # err = numpy.sqrt((std_csiborg / mean_csiborg / numpy.log(10))**2
+        #                  + (std_quijote / mean_quijote / numpy.log(10))**2)
+        # ax[1].plot(x, 10**log_y, c=cols[0])
+        # ax[1].fill_between(x, 10**(log_y - err), 10**(log_y + err), alpha=0.5,
+        #                    color="k")
+
+        # ax[1].plot(x, csiborg5511 / mean_quijote, c="k", ls="--")
 
         # Labels and accesories
-        ax[1].axhline(1, color="k", ls="--",
-                      lw=0.5 * plt.rcParams["lines.linewidth"], zorder=0)
+        # ax[1].axhline(1, color="k", ls="--",
+        #               lw=0.5 * plt.rcParams["lines.linewidth"], zorder=0)
         # ax[0].set_ylabel(r"$\frac{\mathrm{d}^2 N}{\mathrm{d} V \mathrm{d}\log M_{\rm tot}}~[\mathrm{dex}^{-1} (\mathrm{Mpc} / h)^{-3}]$",  # noqa
         #                  fontsize="small")
-        ax[0].set_ylabel("Counts in bins")
-        ax[1].set_xlabel(r"$M_{\rm tot}~[M_\odot / h]$", fontsize="small")
-        ax[1].set_ylabel(r"$\mathrm{CSiBORG} / \mathrm{Quijote}$",
-                         fontsize="small")
+        ax[0].set_ylabel(r"$\mathrm{HMF}~[\mathrm{dex}^{-1} (\mathrm{Mpc} / h)^{-3}]$")
+        ax[0].set_xlabel(r"$M_{\rm tot}~[M_\odot / h]$", fontsize="small")
+        # ax[1].set_ylabel(r"$\mathrm{CSiBORG} / \mathrm{Quijote}$",
+        #                  fontsize="small")
 
         ax[0].set_xscale("log")
         ax[0].set_yscale("log")
-        ax[1].set_ylim(0.5, 2.0)
+        # ax[1].set_ylim(0.5, 1.5)
         # ax[1].set_yscale("log")
         ax[0].legend(fontsize="small")
 
@@ -556,8 +576,8 @@ if __name__ == "__main__":
     if False:
         plot_mass_vs_ncells(7444, pdf=False)
 
-    if False:
-        plot_hmf(pdf=False)
+    if True:
+        plot_hmf(pdf=True)
 
     if False:
         plot_hmf_quijote_full(pdf=False)
@@ -569,7 +589,7 @@ if __name__ == "__main__":
                               plot_groups=False, dmin=45, dmax=60,
                               plot_halos=5e13, volume_weight=True)
 
-    if True:
+    if False:
         kind = "environment"
         grid = 512
         smooth_scale = 8.0
