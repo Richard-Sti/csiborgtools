@@ -219,3 +219,17 @@ def number_counts(x, bin_edges):
     for i in range(bin_edges.size - 1):
         out[i] = numpy.sum((x >= bin_edges[i]) & (x < bin_edges[i + 1]))
     return out
+
+
+def binned_statistic(x, y, left_edges, bin_width, statistic):
+    """
+    Calculate a binned statistic.
+    """
+    out = numpy.full(left_edges.size, numpy.nan, dtype=x.dtype)
+
+    for i in range(left_edges.size):
+        mask = (x >= left_edges[i]) & (x < left_edges[i] + bin_width)
+
+        if numpy.any(mask):
+            out[i] = statistic(y[mask])
+    return out
