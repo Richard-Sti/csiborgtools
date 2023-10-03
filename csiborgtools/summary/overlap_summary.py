@@ -20,7 +20,6 @@ from os.path import isfile
 
 import numpy
 from tqdm import tqdm, trange
-from sklearn.neighbors import KernelDensity
 
 from ..utils import periodic_distance
 
@@ -29,38 +28,23 @@ from ..utils import periodic_distance
 #                           Utility functions                             #
 ###############################################################################
 
-
-def kde_sklearn(data, weights, x_range, bandwidth=0.2, kernel='tophat'):
+def find_peak(x, weights, shrink=0.95, min_obs=5):
     """
-    Fit a kernel density estimator (KDE) to the data using scikit-learn.
+    Find the peak of a 1D distribution using a shrinking window.
     """
-    # Reshape data for scikit-learn
-    data = data[:, numpy.newaxis]
-    x_range = x_range[:, numpy.newaxis]
+    assert shrink <= 1.
 
-    # Initialize and fit the KDE model
-    kde = KernelDensity(bandwidth=bandwidth, kernel=kernel)
-    kde.fit(data, sample_weight=weights)
+    xmin, xmax = numpy.min(x), numpy.max(x)
+    xpos = (xmax + xmin) / 2
+    rad = (xmax - xmin) / 2
 
-    return numpy.exp(kde.score_samples(x_range))
+    while True:
+        mask = numpy.abs(x - xpos) < rad
+        if mask.sum() < min_obs:
+            return xpos
 
-
-def compute_kde_mode(x_eval, kde_values):
-    half_max = 0.75 * numpy.max(kde_values)
-
-    xmax = x_eval[numpy.argmax(kde_values)]
-
-    # Find the crossing points
-    indices = numpy.where(kde_values > half_max)[0]
-    if len(indices) < 2:
-        raise ValueError("Couldn't determine FWHM."
-                         "Ensure a clear peak exists in the KDE.")
-
-    # Compute the FWHM
-    upper_limit = x_eval[indices[-1]]
-    lower_limit = x_eval[indices[0]]
-
-    return xmax, upper_limit, lower_limit
+        xpos = numpy.average(x[mask], weights=weights[mask])
+        rad *= shrink
 
 
 ###############################################################################
@@ -301,28 +285,6 @@ class PairOverlap:
         for i in range(len(overlap)):
             if len(overlap[i]) > 0:
                 out[i] = numpy.sum(overlap[i])
-        return out
-
-    def prob_nomatch(self, from_smoothed):
-        """
-        Probability of no match for each halo in the reference simulation with
-        the cross simulation. Defined as a product of 1 - overlap with other
-        halos.
-
-        Parameters
-        ----------
-        from_smoothed : bool
-            Whether to use the smoothed overlap or not.
-
-        Returns
-        -------
-        prob_nomatch : 1-dimensional array of shape `(nhalos, )`
-        """
-        overlap = self.overlap(from_smoothed)
-        out = numpy.ones(len(overlap), dtype=numpy.float32)
-        for i in range(len(overlap)):
-            if len(overlap[i]) > 0:
-                out[i] = numpy.product(numpy.subtract(1, overlap[i]))
         return out
 
     def dist(self, in_initial, boxsize, norm_kind=None):
@@ -740,31 +702,6 @@ class NPairsOverlap:
             out[i] = pair.summed_overlap(from_smoothed)
         return numpy.vstack(out).T
 
-    def prob_nomatch(self, from_smoothed, verbose=True):
-        """
-        Probability of no match for each halo in the reference simulation with
-        the cross simulation.
-
-        Parameters
-        ----------
-        from_smoothed : bool
-            Whether to use the smoothed overlap or not.
-        verbose : bool, optional
-            Verbosity flag.
-
-        Returns
-        -------
-        prob_nomatch : 2-dimensional array of shape `(nhalos, ncatxs)`
-        """
-        iterator = tqdm(self.pairs,
-                        desc="Calculating probability of no match",
-                        disable=not verbose
-                        )
-        out = [None] * len(self)
-        for i, pair in enumerate(iterator):
-            out[i] = pair.prob_nomatch(from_smoothed)
-        return numpy.vstack(out).T
-
     def expected_property_single(self, k, key, from_smoothed,  in_log=True):
         ys = [None] * len(self)
         overlaps = [None] * len(self)
@@ -806,16 +743,13 @@ class NPairsOverlap:
         -------
         mean_expected : 1-dimensional array of shape `(nhalos, )`
             Expected property from all cross simulations.
-        upper_expected : 1-dimensional array of shape `(nhalos, )`
-            Upper bound of the expected property from all cross simulations.
-        lower_expected : 1-dimensional array of shape `(nhalos, )`
-            Lower bound of the expected property from all cross simulations.
+        std_expected : 1-dimensional array of shape `(nhalos, )`
+            Standard deviation of the expected property.
         """
         log_mass0 = numpy.log10(self.cat0(mass_kind))
         ntot = len(log_mass0)
         mean_expected = numpy.full(ntot, numpy.nan, dtype=numpy.float32)
-        lower_expected = numpy.full(ntot, numpy.nan, dtype=numpy.float32)
-        upper_expected = numpy.full(ntot, numpy.nan, dtype=numpy.float32)
+        std_expected = numpy.full(ntot, numpy.nan, dtype=numpy.float32)
 
         indxs = numpy.where(log_mass0 > min_logmass)[0]
         for i in tqdm(indxs, disable=not verbose,
@@ -837,26 +771,16 @@ class NPairsOverlap:
             if len(ys) <= 1:
                 continue
 
-            mask = ~numpy.isnan(ys)
+            mask = numpy.isfinite(ys) & numpy.isfinite(overlaps)
+
             ys = ys[mask]
             overlaps = overlaps[mask]
 
-            ys_min, ys_max = numpy.min(ys), numpy.max(ys)
-            ys_std = numpy.std(ys)
+            mean_expected[i] = find_peak(ys, weights=overlaps)
+            std_expected[i] = numpy.average((ys - mean_expected[i])**2,
+                                            weights=overlaps)**0.5
 
-            x_range = numpy.arange(ys_min - 10 * ys_std, ys_max + 10 * ys_std,
-                                   0.01)
-
-            kde_vals = kde_sklearn(ys, weights=overlaps, x_range=x_range,
-                                   bandwidth="scott", kernel='gaussian')
-
-            xmax, right, left = compute_kde_mode(x_range, kde_vals)
-
-            mean_expected[i] = xmax
-            upper_expected[i] = right
-            lower_expected[i] = left
-
-        return mean_expected, upper_expected, lower_expected
+        return mean_expected, std_expected
 
     @property
     def pairs(self):

@@ -17,7 +17,8 @@ from .knn_summary import kNNCDFReader                                           
 from .nearest_neighbour_summary import NearestNeighbourReader                   # noqa
 from .overlap_summary import weighted_stats                                     # noqa
 from .overlap_summary import (NPairsOverlap, PairOverlap, get_cross_sims,       # noqa
-                              max_overlap_agreement, max_overlap_agreements)    # noqa
+                              max_overlap_agreement, max_overlap_agreements,    # noqa
+                              find_peak)                                        # noqa
 from .pk_summary import PKReader                                                # noqa
 from .tpcf_summary import TPCFReader                                            # noqa
 from .field_interp import (read_interpolated_field,                             # noqa
