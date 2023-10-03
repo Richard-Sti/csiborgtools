@@ -641,53 +641,36 @@ def get_expected_mass(nsim0, simname, min_logmass, smoothed):
     mass0 = reader.cat0(MASS_KINDS[simname])
     mask = mass0 > 10**min_logmass
 
-    mean_expected, upper_expected, lower_expected = reader.expected_property(
+    mean_expected, std_expected = reader.expected_property(
         MASS_KINDS[simname], smoothed, min_logmass)
 
     return {"mass0": mass0[mask],
             "mu": mean_expected[mask],
-            "lower": lower_expected[mask],
-            "upper": upper_expected[mask],
-            "prob_nomatch": reader.prob_nomatch(smoothed)[mask],
+            "std": std_expected[mask],
+            "prob_match": reader.summed_overlap(smoothed)[mask],
             }
 
 
-def mtot_vs_expected_mass(nsim0, simname, min_logmass, smoothed, nbins,
-                          max_prob_nomatch=1, ext="png"):
+def mtot_vs_expected_mass(nsim0, simname, min_logmass, smoothed, ext="png"):
     x = get_expected_mass(nsim0, simname, min_logmass, smoothed)
 
     mass = x["mass0"]
-    print(mass.shape)
     mu = x["mu"]
-    std = (x["upper"] - x["lower"]) / 2
-    prob_nomatch = x["prob_nomatch"]
+    std = x["std"]
+    prob_match = x["prob_match"]
 
     mass = numpy.log10(mass)
-    prob_nomatch = numpy.nanmedian(prob_nomatch, axis=1)
-
+    prob_match = numpy.nanmean(prob_match, axis=1)
     mask = numpy.isfinite(mass) & numpy.isfinite(mu) & numpy.isfinite(std)
-    mask &= (prob_nomatch <= max_prob_nomatch)
-
-    xbins = numpy.linspace(*numpy.percentile(mass[mask], [0, 100]), nbins)
 
     with plt.style.context(plt_utils.mplstyle):
         fig, axs = plt.subplots(ncols=3, figsize=(3.5 * 2, 2.625))
 
         im0 = axs[0].hexbin(mass[mask], mu[mask], mincnt=1, bins="log",
                             gridsize=30,)
-        # y_median, yerr = plt_utils.compute_error_bars(mass[mask], mu[mask],
-        #                                               xbins, sigma=2)
-        # axs[0].errorbar(0.5 * (xbins[1:] + xbins[:-1]), y_median, yerr=yerr,
-        #                 color='red', ls='dashed', capsize=3)
-
         im1 = axs[1].hexbin(mass[mask], std[mask], mincnt=1, bins="log",
                             gridsize=30)
-        # y_median, yerr = plt_utils.compute_error_bars(mass[mask], std[mask],
-        #                                               xbins, sigma=2)
-        # axs[1].errorbar(0.5 * (xbins[1:] + xbins[:-1]), y_median, yerr=yerr,
-        #                 color='red', ls='dashed', capsize=3)
-
-        im2 = axs[2].hexbin(1 - prob_nomatch[mask], mu[mask] - mass[mask],
+        im2 = axs[2].hexbin(prob_match[mask], mu[mask] - mass[mask],
                             gridsize=30, C=mass[mask],
                             reduce_C_function=numpy.nanmedian)
 
@@ -696,13 +679,11 @@ def mtot_vs_expected_mass(nsim0, simname, min_logmass, smoothed, nbins,
         axs[0].set_ylabel(r"$\log M_{\rm tot, exp} ~ [M_\odot / h]$")
         axs[1].set_xlabel(r"$\log M_{\rm tot, ref} ~ [M_\odot / h]$")
         axs[1].set_ylabel(r"$\sigma_{\log M_{\rm tot, exp}}$")
-        axs[2].set_xlabel(r"Median prob. of match")
+        axs[2].set_xlabel(r"$\langle \sum_{b \in \mathcal{B}} \mathcal{O}_{a b}\rangle_{\mathcal{B}}$") # noqa
         axs[2].set_ylabel(r"$\log (M_{\rm tot, exp} / M_{\rm tot, ref})$")
 
-        t = numpy.linspace(*numpy.percentile(mass[mask], [0, 100]), 1000)
-        axs[0].plot(t, t, color="blue", linestyle="--")
-        axs[0].plot(t, t + 0.2, color="blue", linestyle="--", alpha=0.5)
-        axs[0].plot(t, t - 0.2, color="blue", linestyle="--", alpha=0.5)
+        z = numpy.nanmean(mass[mask])
+        axs[0].axline((z, z), slope=1, color='red', linestyle='--')
 
         ims = [im0, im1, im2]
         labels = ["Bin counts", "Bin counts",
@@ -716,10 +697,7 @@ def mtot_vs_expected_mass(nsim0, simname, min_logmass, smoothed, nbins,
             axins.xaxis.set_label_position("top")
 
         fig.tight_layout()
-        fout = join(
-            plt_utils.fout,
-            f"mass_vs_expmass_{nsim0}_{simname}_{max_prob_nomatch}.{ext}"
-            )
+        fout = join(plt_utils.fout, f"mass_vs_expmass_{nsim0}_{simname}.{ext}")
         print(f"Saving to `{fout}`.")
         fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
@@ -1125,12 +1103,11 @@ if __name__ == "__main__":
     #         mtot_vs_summedpairoverlap(0, "quijote", min_logmass, smoothed,
     #                                   nbins, ext)
 
-    # if True:
-    #     mtot_vs_expected_mass(7444, "csiborg", min_logmass, smoothed, nbins,
-    #                           max_prob_nomatch=1, ext=ext)
-    #     # if plot_quijote:
-    #     #     mtot_vs_expected_mass(0, "quijote", min_logmass, smoothed, nbins,
-    #     #                           max_prob_nomatch=1, ext=ext)
+    if True:
+        mtot_vs_expected_mass(7444, "csiborg", min_logmass, smoothed, ext=ext)
+        # if plot_quijote:
+        #     mtot_vs_expected_mass(0, "quijote", min_logmass, smoothed, nbins,
+        #                           max_prob_nomatch=1, ext=ext)
 
     # if True:
     #     key = "lambda200c"
