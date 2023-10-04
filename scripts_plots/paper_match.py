@@ -939,7 +939,6 @@ def matching_max_vs_overlap(min_logmass):
         fig, axs = plt.subplots(ncols=1, figsize=(3.5, 2.625))
         axs = [axs]
         ax2 = axs[0].twinx()
-        print(axs)
         cols = plt.rcParams["axes.prop_cycle"].by_key()["color"]
         for n, mult in enumerate([2.5, 5., 7.5]):
 
@@ -961,7 +960,6 @@ def matching_max_vs_overlap(min_logmass):
                 nbins = len(left_edges)
                 y = numpy.full((nbins, nsims), numpy.nan)
                 y2 = numpy.full(nbins, numpy.nan)
-                y2err = numpy.full(nbins, numpy.nan)
                 for i in range(nbins):
                     m = mass0 > left_edges[i]
                     for j in range(nsims):
@@ -969,47 +967,23 @@ def matching_max_vs_overlap(min_logmass):
                         y[i, j] /= numpy.sum(success[m, j])
 
                     y2[i] = success[m, 0].mean()
-                    # y2[i] = numpy.mean(
-                    #     numpy.sum(success[m, :], axis=1) / nsims)
-                    # y2err[i] = numpy.std(
-                    #     numpy.sum(success[m, :], axis=1) / nsims)
                 return y, y2
 
             offset = numpy.random.normal(0, 0.015)
 
             y1_csiborg, y2_csiborg = make_y1_y2("csiborg")
-            # y1_quijote, y2_quijote = make_y1_y2("quijote")
 
             ysummary = numpy.percentile(y1_csiborg, [16, 50, 84], axis=1)
             axs[0].plot(left_edges + offset, ysummary[1], c=cols[n],
                         label=r"${}~R_{{\rm 200c}}$".format(mult))
-            # axs[0].errorbar(
-            #     left_edges + offset, ysummary[1],
-            #     yerr=[ysummary[1] - ysummary[0], ysummary[2] - ysummary[1]],
-            #     capsize=4, c=cols[n],
-            #     label=r"${}~R_{{\rm 200c}}$".format(mult), errorevery=2)
-
-            # ysummary = numpy.percentile(y1_quijote, [16, 50, 84], axis=1)
-            # axs[0].plot(left_edges + offset, ysummary[1], c=cols[n], ls="--")
-            # # axs[0].errorbar(
-            # #     left_edges + offset, ysummary[1],
-            # #     yerr=[ysummary[1] - ysummary[0], ysummary[2] - ysummary[1]],
-            # #     capsize=4, c=cols[n], ls="--", errorevery=2)
-
-            # axs[1].plot(left_edges + offset, y2_csiborg, c=cols[n])
             ax2.plot(left_edges + offset, y2_csiborg, c=cols[n], ls="dotted", zorder=0)
-            # axs[1].plot(left_edges + offset, y2_quijote, c=cols[n], ls="--")
 
-        # axs[0].legend(ncols=2, fontsize="small", loc="upper left")
         axs[0].legend(ncols=1, loc="upper left")
         for i in range(1):
             axs[i].set_xlabel(r"$\log M_{\rm tot, min} ~ [M_\odot / h]$")
 
-        # axs[1].set_ylim(0)
         axs[0].set_ylabel(r"$f_{\rm agreement}$")
         ax2.set_ylabel(r"$f_{\rm match}$")
-        # axs[1].set_ylabel(r"$f_{\rm match}$")
-        # axs[1].set_yscale("log")
 
         fig.tight_layout()
         fout = join(plt_utils.fout,
