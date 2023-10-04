@@ -553,32 +553,26 @@ def get_mass_vs_separation(nsim0, nsimx, simname, min_logmass, boxsize,
     mass = numpy.log10(reader.cat0(MASS_KINDS[simname]))
     dist = reader.dist(in_initial=False, boxsize=boxsize, norm_kind="r200c")
     overlap = reader.overlap(smoothed)
-    mu, std = csiborgtools.summary.weighted_stats(dist, overlap, min_weight=0)
-    print("dist is ", dist)
-    print("mu is ", mu)
+    mu, __ = csiborgtools.summary.weighted_stats(dist, overlap, min_weight=0)
 
-    dist = numpy.concatenate(dist)
-    mask = numpy.isfinite(dist)
-    mass = mass[mask]
-    mu = mu[mask]
-    mu = numpy.log10(mu)
+    mask = numpy.isfinite(mass) & numpy.isfinite(mu)
 
-    return mass, mu
+    return mass[mask], mu[mask]
 
 
 def mass_vs_separation(nsim0, nsimx, simname, min_logmass, nbins, smoothed,
-                       boxsize, plot_std):
-    assert plot_std == False, "Not implemented."
+                       boxsize):
     mass, dist = get_mass_vs_separation(nsim0, nsimx, simname, min_logmass,
                                         boxsize, smoothed)
+    dist = numpy.log10(dist)
     xbins = numpy.linspace(numpy.nanmin(mass), numpy.nanmax(mass), nbins)
-    y = dist
 
     with plt.style.context(plt_utils.mplstyle):
         fig, ax = plt.subplots()
 
-        cx = ax.hexbin(mass, y, mincnt=1, bins="log", gridsize=50)
-        y_median, yerr = plt_utils.compute_error_bars(mass, y, xbins, sigma=2)
+        cx = ax.hexbin(mass, dist, mincnt=0, bins="log", gridsize=50)
+        y_median, yerr = plt_utils.compute_error_bars(mass, dist, xbins,
+                                                      sigma=1)
         ax.errorbar(0.5 * (xbins[1:] + xbins[:-1]), y_median, yerr=yerr,
                     color='red', ls='dashed', capsize=3,
                     label="CSiBORG" if simname == "csiborg" else None)
@@ -586,37 +580,24 @@ def mass_vs_separation(nsim0, nsimx, simname, min_logmass, nbins, smoothed,
         if simname == "csiborg":
             mass_quijote, dist_quijote = get_mass_vs_separation(
                 0, 1, "quijote", min_logmass, boxsize, smoothed)
+            dist_quijote = numpy.log10(dist_quijote)
             xbins_quijote = numpy.linspace(numpy.nanmin(mass_quijote),
                                            numpy.nanmax(mass_quijote), nbins)
-            if not plot_std:
-                y_quijote = dist_quijote[:, 0]
-            else:
-                y_quijote = dist_quijote[:, 1]
-            print(mass_quijote)
-            print(y_quijote)
             y_median_quijote, yerr_quijote = plt_utils.compute_error_bars(
-                mass_quijote, y_quijote, xbins_quijote, sigma=2)
+                mass_quijote, dist_quijote, xbins_quijote, sigma=1)
             ax.errorbar(0.5 * (xbins_quijote[1:] + xbins_quijote[:-1]),
-                        y_median_quijote, yerr=yerr_quijote, color='blue',
-                        ls='dashed',
-                        capsize=3, label="Quijote")
-            ax.legend(fontsize="small", loc="upper left")
+                        y_median_quijote, yerr=yerr_quijote,
+                        color='sandybrown', ls='dashed', capsize=3,
+                        label="Quijote")
+            ax.legend()
 
-        if not plot_std:
-            ax.set_ylabel(r"$\log \langle \Delta R / R_{\rm 200c}\rangle$")
-        else:
-            ax.set_ylabel(
-                r"$\delta \log \langle \Delta R / R_{\rm 200c}\rangle$")
-
-        fig.colorbar(cx, label="Bin counts")
+        fig.colorbar(cx, label="Bin counts", pad=0)
         ax.set_xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
         ax.set_ylabel(r"$\log \langle \Delta R / R_{\rm 200c}\rangle$")
 
         fig.tight_layout()
         fout = join(plt_utils.fout,
                     f"mass_vs_sep_{simname}_{nsim0}_{nsimx}.{ext}")
-        if plot_std:
-            fout = fout.replace(f".{ext}", f"_std.{ext}")
         print(f"Saving to `{fout}`.")
         fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
@@ -949,7 +930,6 @@ def matching_max_vs_overlap(min_logmass):
                                                 nsim0, min_logmass, mult=mult)
 
                 mask = numpy.all(numpy.isfinite(x["max_overlap"]), axis=1)
-                # x["max_overlap"][mask, :] = numpy.nan
                 x["success"][~mask, :] = False
 
                 mass0 = numpy.log10(x["mass0"])
@@ -976,7 +956,8 @@ def matching_max_vs_overlap(min_logmass):
             ysummary = numpy.percentile(y1_csiborg, [16, 50, 84], axis=1)
             axs[0].plot(left_edges + offset, ysummary[1], c=cols[n],
                         label=r"${}~R_{{\rm 200c}}$".format(mult))
-            ax2.plot(left_edges + offset, y2_csiborg, c=cols[n], ls="dotted", zorder=0)
+            ax2.plot(left_edges + offset, y2_csiborg, c=cols[n], ls="dotted",
+                     zorder=0)
 
         axs[0].legend(ncols=1, loc="upper left")
         for i in range(1):
@@ -1055,17 +1036,17 @@ if __name__ == "__main__":
         #     mtot_vs_expected_key(0, "quijote", min_logmass, key, smoothed,
         #                          nbins)
 
-    if False:
-        mass_vs_separation(7444, 7444 + 24, "csiborg", min_logmass, nbins,
-                           smoothed, boxsize=677.7, plot_std=False)
-        if plot_quijote:
-            mass_vs_separation(0, 1, "quijote", min_logmass, nbins,
-                               smoothed, boxsize=1000, plot_std=False)
+    if True:
+        mass_vs_separation(7444, 7444 + 24 * 60, "csiborg", min_logmass, nbins,
+                           smoothed, boxsize=677.7)
+        # if plot_quijote:
+        #     mass_vs_separation(0, 1, "quijote", min_logmass, nbins,
+        #                        smoothed, boxsize=1000, plot_std=False)
 
     if False:
         matching_max_vs_overlap(min_logmass)
 
-    if True:
+    if False:
         # mtot_vs_expected_single("max", 7444, "csiborg", min_logmass,
         #                         "totpartmass", True, True)
         mtot_vs_expected_single("maxmass", 7444, "csiborg", min_logmass,
