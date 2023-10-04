@@ -754,31 +754,28 @@ class NPairsOverlap:
         indxs = numpy.where(log_mass0 > min_logmass)[0]
         for i in tqdm(indxs, disable=not verbose,
                       desc="Calculating expectation"):
-            ys = [None] * len(self)
-            overlaps = [None] * len(self)
+            ys = numpy.full(len(self), numpy.nan, dtype=numpy.float32)
+            weights = numpy.full(len(self), numpy.nan, dtype=numpy.float32)
             for j, pair in enumerate(self):
                 overlap = pair.overlap(from_smoothed)
-                match_indxs = pair["match_indxs"]
+                if len(overlap[i]) == 0:
+                    continue
 
-                ys[j] = pair.catx(key)[match_indxs[i]]
+                k = numpy.argmax(overlap[i])
+                ys[j] = pair.catx(key)[pair["match_indxs"][i][k]]
+                weights[j] = overlap[i][k]
+
                 if in_log:
                     ys[j] = numpy.log10(ys[j])
-                overlaps[j] = overlap[i]
 
-            ys = numpy.concatenate(ys)
-            overlaps = numpy.concatenate(overlaps)
-
-            if len(ys) <= 1:
+            mask = numpy.isfinite(ys) & numpy.isfinite(weights)
+            if numpy.sum(mask) <= 2:
                 continue
 
-            mask = numpy.isfinite(ys) & numpy.isfinite(overlaps)
-
-            ys = ys[mask]
-            overlaps = overlaps[mask]
-
-            mean_expected[i] = find_peak(ys, weights=overlaps)
-            std_expected[i] = numpy.average((ys - mean_expected[i])**2,
-                                            weights=overlaps)**0.5
+            mean_expected[i] = find_peak(ys[mask], weights=weights[mask])
+            std_expected[i] = numpy.average((ys[mask] - mean_expected[i])**2,
+                                            weights=weights[mask])**0.5
+            print(log_mass0[i], mean_expected[i], std_expected[i])
 
         return mean_expected, std_expected
 
