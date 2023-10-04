@@ -557,34 +557,44 @@ def mtot_vs_summedpairoverlap(nsim0, simname, min_logmass, smoothed, nbins,
 # --------------------------------------------------------------------------- #
 
 @cache_to_disk(120)
-def get_mass_vs_separation(nsim0, nsimx, simname, min_logmass, boxsize,
+def get_mass_vs_separation(nsim0, simname, min_logmass, boxsize,
                            smoothed):
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-
+    nsimxs = csiborgtools.summary.get_cross_sims(
+        simname, nsim0, paths, min_logmass, smoothed=smoothed)
     cat0 = open_cat(nsim0, simname)
-    catx = open_cat(nsimx, simname)
+    catxs = open_cats(nsimxs, simname)
 
-    reader = csiborgtools.summary.PairOverlap(cat0, catx, paths, min_logmass)
+    reader = csiborgtools.summary.NPairsOverlap(
+        cat0, catxs, paths, min_logmass)
 
     mass = numpy.log10(reader.cat0(MASS_KINDS[simname]))
-    dist = reader.dist(in_initial=False, boxsize=boxsize, norm_kind="r200c")
-    overlap = reader.overlap(smoothed)
-    mu, __ = csiborgtools.summary.weighted_stats(dist, overlap, min_weight=0)
+    mus = numpy.zeros((len(catxs), len(mass)))
+    for i in trange(len(catxs), desc="Stacking catalogues"):
+        dist = reader[i].dist(in_initial=False, boxsize=boxsize,
+                              norm_kind=None)
+        overlap = reader[i].overlap(smoothed)
+        mus[i], __ = csiborgtools.summary.weighted_stats(dist, overlap)
 
-    mask = numpy.isfinite(mass) & numpy.isfinite(mu)
-
-    return mass[mask], mu[mask]
+    return mass, mus
 
 
-def mass_vs_separation(nsim0, nsimx, simname, min_logmass, nbins, smoothed,
+def mass_vs_separation(nsim0, simname, min_logmass, nbins, smoothed,
                        boxsize):
-    mass, dist = get_mass_vs_separation(nsim0, nsimx, simname, min_logmass,
-                                        boxsize, smoothed)
-    dist = numpy.log10(dist)
+    mass, dist = get_mass_vs_separation(
+        nsim0, simname, min_logmass, boxsize, smoothed)
+
+    dist = numpy.nanmean(dist, axis=0)
+    mask = numpy.isfinite(mass) & numpy.isfinite(dist)
+
+    mass = mass[mask]
+    dist = dist[mask]
+
     xbins = numpy.linspace(numpy.nanmin(mass), numpy.nanmax(mass), nbins)
 
     with plt.style.context(plt_utils.mplstyle):
         fig, ax = plt.subplots()
+        plt.rcParams["axes.grid"] = False
 
         cx = ax.hexbin(mass, dist, mincnt=0, bins="log", gridsize=50)
         y_median, yerr = plt_utils.compute_error_bars(mass, dist, xbins,
@@ -595,8 +605,13 @@ def mass_vs_separation(nsim0, nsimx, simname, min_logmass, nbins, smoothed,
 
         if simname == "csiborg":
             mass_quijote, dist_quijote = get_mass_vs_separation(
-                0, 1, "quijote", min_logmass, boxsize, smoothed)
-            dist_quijote = numpy.log10(dist_quijote)
+                0, "quijote", min_logmass, boxsize, smoothed)
+            dist_quijote = numpy.nanmean(dist_quijote, axis=0)
+            mask = numpy.isfinite(mass_quijote) & numpy.isfinite(dist_quijote)
+            mass_quijote = mass_quijote[mask]
+            dist_quijote = dist_quijote[mask]
+
+            # dist_quijote = numpy.log10(dist_quijote)
             xbins_quijote = numpy.linspace(numpy.nanmin(mass_quijote),
                                            numpy.nanmax(mass_quijote), nbins)
             y_median_quijote, yerr_quijote = plt_utils.compute_error_bars(
@@ -609,11 +624,10 @@ def mass_vs_separation(nsim0, nsimx, simname, min_logmass, nbins, smoothed,
 
         fig.colorbar(cx, label="Bin counts", pad=0)
         ax.set_xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
-        ax.set_ylabel(r"$\log \langle \Delta R / R_{\rm 200c}\rangle$")
+        ax.set_ylabel(r"$\langle \Delta R / R_{\rm 200c}\rangle_{\mathcal{B}}$")  # noqa
 
         fig.tight_layout()
-        fout = join(plt_utils.fout,
-                    f"mass_vs_sep_{simname}_{nsim0}_{nsimx}.{ext}")
+        fout = join(plt_utils.fout, f"mass_vs_sep_{simname}_{nsim0}.{ext}")
         print(f"Saving to `{fout}`.")
         fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
@@ -765,7 +779,9 @@ def mtot_vs_expected_key(nsim0, simname, min_logmass, key, smoothed,
 
     mask = numpy.isfinite(prop0) & numpy.isfinite(mu) & numpy.isfinite(std)
     if min_logmass_run is not None:
-        mask &= mass0 > min_logmass_run
+        mask &= mass0 > 14.9
+    mask &= prop0 > 0.4
+
     mass0 = mass0[mask]
     prop0 = prop0[mask]
     mu = mu[mask]
@@ -791,7 +807,7 @@ def mtot_vs_expected_key(nsim0, simname, min_logmass, key, smoothed,
     with plt.style.context(plt_utils.mplstyle):
         fig, ax = plt.subplots(figsize=(3.5, 2.625))
 
-        ax.errorbar(prop0, mu, yerr=std, capsize=3, ls="none")
+        ax.errorbar(prop0, mu, yerr=std, capsize=3, ls="none", marker="o")
 
         z = numpy.nanmean(prop0)
         ax.axline((z, z), slope=1, color='red', linestyle='--')
@@ -850,29 +866,36 @@ def get_expected_single(k, nsim0, simname, min_logmass, key, smoothed, in_log):
         ks = numpy.argsort(numpy.abs(log_massx - log_mass0))[:15]
         control[j] = reader[j].catx(key)[ks]
 
-    if in_log:
-        x0 = numpy.log10(x0)
-
     return x0[k], xcross, overlaps, control
 
 
-def mtot_vs_expected_single(k, nsim0, simname, min_logmass, key, smoothed,
-                            in_log):
+def mtot_vs_expected_single(k, nsim0, simname, min_logmass, key, smoothed):
     x0, xcross, overlaps, control = get_expected_single(
-        k, nsim0, simname, min_logmass, key, smoothed, in_log)
-    xcross = numpy.concatenate(xcross)
-    overlaps = numpy.concatenate(overlaps)
+        k, nsim0, simname, min_logmass, key, smoothed, False)
+
+    mus = numpy.full(len(xcross), numpy.nan)
+    weights = numpy.full(len(xcross), numpy.nan)
+    for i in range(len(xcross)):
+        if len(xcross[i]) == 0:
+            continue
+        n = numpy.argmax(overlaps[i])
+        mus[i] = xcross[i][n]
+        weights[i] = overlaps[i][n]
+
     control = numpy.concatenate(control)
+    if key == "lambda200c" or key == "totpartmass":
+        mus = numpy.log10(mus)
+        control = numpy.log10(control)
+        x0 = numpy.log10(x0)
 
     with plt.style.context("science"):
         plt.figure()
-        plt.hist(xcross, bins=40, histtype="step", density=1,
-                 label="Unweighted")
-        plt.hist(xcross, weights=overlaps, bins=40, density=1, histtype="step",
-                 label="Weighted")
-        m = numpy.isfinite(xcross) & numpy.isfinite(overlaps)
-        peak = csiborgtools.summary.find_peak(xcross[m], overlaps[m])
-        plt.axvline(peak, color="forestgreen", ls="--")
+        plt.hist(mus, weights=weights, bins=40, histtype="step", density=1,
+                 label="Matched")
+
+        m = numpy.isfinite(mus) & numpy.isfinite(weights)
+        peak = csiborgtools.summary.find_peak(mus[m], weights[m])
+        plt.axvline(peak, color="mediumblue", ls="--")
         plt.axvline(x0, color="red", ls="--")
 
         if key != "totpartmass":
@@ -884,7 +907,7 @@ def mtot_vs_expected_single(k, nsim0, simname, min_logmass, key, smoothed,
         elif key == "lambda200c":
             plt.xlabel(r"$\log \lambda_{\rm 200c}$")
         elif key == "conc":
-            plt.xlabel(r"$\log c$")
+            plt.xlabel(r"$c$")
 
         plt.ylabel("Normalized counts")
         plt.legend()
@@ -1034,7 +1057,7 @@ if __name__ == "__main__":
     if False:
         summed_to_max_overlap(min_logmass, smoothed, nbins, ext=ext)
 
-    if True:
+    if False:
         mtot_vs_summedpairoverlap(7444, "csiborg", min_logmass, smoothed,
                                   nbins, ext)
         if plot_quijote:
@@ -1047,16 +1070,16 @@ if __name__ == "__main__":
         #     mtot_vs_expected_mass(0, "quijote", min_logmass, smoothed, nbins,
         #                           max_prob_nomatch=1, ext=ext)
 
-    if False:
+    if True:
         key = "conc"
-        mtot_vs_expected_key(7444, "csiborg", min_logmass, key, smoothed, 14.)
+        mtot_vs_expected_key(7444, "csiborg", min_logmass, key, smoothed, 15)
         # if plot_quijote:
         #     mtot_vs_expected_key(0, "quijote", min_logmass, key, smoothed,
         #                          nbins)
 
     if False:
-        mass_vs_separation(7444, 7444 + 24 * 60, "csiborg", min_logmass, nbins,
-                           smoothed, boxsize=677.7)
+        mass_vs_separation(7444, "csiborg", min_logmass, nbins, smoothed,
+                           boxsize=677.7)
         # if plot_quijote:
         #     mass_vs_separation(0, 1, "quijote", min_logmass, nbins,
         #                        smoothed, boxsize=1000, plot_std=False)
@@ -1065,10 +1088,11 @@ if __name__ == "__main__":
         matching_max_vs_overlap(min_logmass)
 
     if False:
-        # mtot_vs_expected_single("max", 7444, "csiborg", min_logmass,
-        #                         "totpartmass", True, True)
-        mtot_vs_expected_single("maxmass", 7444, "csiborg", min_logmass,
-                                "lambda200c", True, True)
+        mtot_vs_expected_single("max", 7444, "csiborg", min_logmass,
+                                "totpartmass", True)
+        # for n in [0]:
+        #     mtot_vs_expected_single("maxmass", 7444 + n * 24, "csiborg", min_logmass,
+        #                             "lambda200c", True)
         # if plot_quijote:
         #     mtot_vs_expected_single("max", 0, "quijote", min_logmass,
         #                             "totpartmass", True, True)
