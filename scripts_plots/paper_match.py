@@ -22,6 +22,8 @@ from cache_to_disk import cache_to_disk, delete_disk_caches_for_function
 from scipy.stats import kendalltau, binned_statistic, norm
 from tqdm import tqdm, trange
 from scipy.signal import savgol_filter
+from sklearn.metrics import r2_score
+
 
 import csiborgtools
 import plt_utils
@@ -723,113 +725,87 @@ def get_expected_key(nsim0, simname, min_logmass, key, smoothed):
     mass0 = reader.cat0(MASS_KINDS[simname])
     mask = mass0 > 10**min_logmass
 
-    mean_expected, upper_expected, lower_expected = reader.expected_property(
-        key, smoothed, min_logmass)
+    mean_expected, std_expected = reader.expected_property(key, smoothed,
+                                                           min_logmass)
+
+    log_mass0 = numpy.log10(mass0)
+    control = numpy.full(len(log_mass0), numpy.nan)
+    for i in trange(len(log_mass0), desc="Control"):
+        if not mask[i]:
+            continue
+
+        control_ = [None] * len(catxs)
+        for j in range(len(catxs)):
+            log_massx = numpy.log10(reader[j].catx(MASS_KINDS[simname]))
+            ks = numpy.argsort(numpy.abs(log_massx - log_mass0[i]))[:15]
+            control_[j] = reader[j].catx(key)[ks]
+
+        control[i] = numpy.nanmean(numpy.concatenate(control_))
 
     return {"mass0": mass0[mask],
             "prop0": reader.cat0(key)[mask],
             "mu": mean_expected[mask],
-            "lower": lower_expected[mask],
-            "upper": upper_expected[mask],
-            "prob_nomatch": reader.prob_nomatch(smoothed)[mask],
+            "std": std_expected[mask],
+            "control": control[mask],
+            "prob_match": reader.summed_overlap(smoothed)[mask],
             }
 
 
-def mtot_vs_expected_key(nsim0, simname, min_logmass, key, smoothed, nbins):
+def mtot_vs_expected_key(nsim0, simname, min_logmass, key, smoothed,
+                         min_logmass_run=None):
     mass_kind = MASS_KINDS[simname]
     assert key != mass_kind
 
     x = get_expected_key(nsim0, simname, min_logmass, key, smoothed)
-    mass0 = x["mass0"]
-    prop0 = x["prop0"]
+    mass0 = numpy.log10(x["mass0"])
+    prop0 = numpy.log10(x["prop0"])
     mu = x["mu"]
-    std = (x["upper"] - x["lower"]) / 2
-    prob_nomatch = x["prob_nomatch"]
-
-    xlabels = {"lambda200c": r"\log \lambda_{\rm 200c}"}
-    key_label = xlabels.get(key, key)
-
-    mass0 = numpy.log10(mass0)
-    prop0 = numpy.log10(prop0)
-
-    # mu = numpy.nanmean(stat, axis=1)
-    # std = numpy.nanstd(numpy.log10(stat), axis=1)
-    # mu = numpy.log10(mu)
+    std = x["std"]
+    prob_match = numpy.nanmean(x["prob_match"], axis=1)
+    control = numpy.log10(x["control"])
 
     mask = numpy.isfinite(prop0) & numpy.isfinite(mu) & numpy.isfinite(std)
-    xbins = numpy.linspace(*numpy.percentile(mass0[mask], [0, 100]), nbins)
+    if min_logmass_run is not None:
+        mask &= mass0 > min_logmass_run
+    mass0 = mass0[mask]
+    prop0 = prop0[mask]
+    mu = mu[mask]
+    std = std[mask]
+    control = control[mask]
+    prob_match = prob_match[mask]
+
+    def rmse(x, y, sample_weight=None):
+        return numpy.sqrt(numpy.average((x - y)**2, weights=sample_weight))
+
+    print("Unweigted R2         = ", r2_score(prop0, mu))
+    print("Err Weighted R2      = ", r2_score(prop0, mu, sample_weight=1 / std**2))  # noqa
+    print("Pmatch R2            = ", r2_score(prop0, mu, sample_weight=prob_match))  # noqa
+    print("Control R2           = ", r2_score(prop0, control))
+
+    print()
+
+    print("Unweigted RMSE       = ", rmse(prop0, mu))
+    print("Err Weighted RMSE    = ", rmse(prop0, mu, 1 / std**2))
+    print("Pmatch RMSE          = ", rmse(prop0, mu, prob_match))
+    print("Control RMSE         = ", rmse(prop0, control))
 
     with plt.style.context(plt_utils.mplstyle):
-        fig, axs = plt.subplots(ncols=3, figsize=(3.5 * 2, 2.625))
+        fig, ax = plt.subplots(figsize=(3.5, 2.625))
 
-        im0 = axs[0].hexbin(mass0, mu - prop0, mincnt=1, bins="log",
-                            gridsize=30)
+        ax.errorbar(prop0, mu, yerr=std, capsize=3, ls="none")
 
-        # y_median, yerr = plt_utils.compute_error_bars(
-        #     mass0[mask], mu[mask] - prop0[mask], xbins, sigma=2)
-        # axs[0].errorbar(0.5 * (xbins[1:] + xbins[:-1]), y_median, yerr=yerr,
-        #                 color='red', ls='dashed', capsize=3)
-
-        im1 = axs[1].hexbin(mass0, std, mincnt=1, bins="log", gridsize=30)
-        # y_median, yerr = plt_utils.compute_error_bars(
-        #     mass0[mask], std[mask], xbins, sigma=2)
-        # axs[1].errorbar(0.5 * (xbins[1:] + xbins[:-1]), y_median, yerr=yerr,
-        #                 color='red', ls='dashed', capsize=3)
-
-        # if key == "lambda200c":
-        #     axs[0].axhline(-0.46332417, color="violet", linestyle="--")
-        #     axs[0].axhline(+0.58750349, color="violet", linestyle="--")
-        #     # axs[1].axhline(0.26309842, color="violet", linestyle="--")
-
-        # if key == "conc":
-        #     x_ = numpy.array([13.37577211, 13.62729724, 13.87882238, 14.13034752, 14.38187265, 14.63339779, 14.88492293, 15.13644807, 15.3879732])  # noqa
-        #     yerr_ = 1 * numpy.array([0.17946734, 0.20949572, 0.21856549, 0.2001923 , 0.19134766, 0.16186188, 0.16695528, 0.23876699, 0.17740743])   # noqa
-        #     axs[1].plot(x_, yerr_, color="violet", linestyle="--")
-
-        im2 = axs[2].hexbin(prop0, mu, mincnt=1, bins="log", gridsize=30)
-        m = numpy.isfinite(prop0) & numpy.isfinite(mu)
-        print("True to expectation corr: ", kendalltau(prop0[m], mu[m]))
-
-        axs[0].set_xlabel(r"$\log M_{\rm tot, ref} ~ [M_\odot / h]$")
-        if key == "lambda200c":
-            axs[0].set_ylabel(r"$\log (\lambda_{\rm 200c, match} / \lambda_{\rm 200c, ref})$")  # noqa
-        elif key == "conc":
-            axs[0].set_ylabel(r"$\log (c_{\rm 200c, match} / c_{\rm 200c, ref})$")  # noqa
-        else:
-            axs[0].set_ylabel(r"True - max. overlap mean of ${}$"
-                              .format(key_label))
-
-        axs[1].set_xlabel(r"$\log M_{\rm tot, ref} ~ [M_\odot / h]$")
-        if key == "lambda200c":
-            axs[1].set_ylabel(r"$\sigma_{\lambda_{\rm 200c, match}}$")
-        elif key == "conc":
-            axs[1].set_ylabel(r"$\sigma_{c_{\rm 200c, match}}$")
-        else:
-            axs[1].set_ylabel(r"Max. overlap std. of ${}$".format(key_label))
+        z = numpy.nanmean(prop0)
+        ax.axline((z, z), slope=1, color='red', linestyle='--')
 
         if key == "lambda200c":
-            axs[2].set_xlabel(r"$\log \lambda_{\rm 200c, ref}$")
-            axs[2].set_ylabel(r"$\log \lambda_{\rm 200c, match}$")
+            ax.axhline(numpy.median(control), color="red", ls="--", zorder=0)
+
+        if key == "lambda200c":
+            ax.set_xlabel(r"$\log \lambda_{\rm 200c, ref}$")
+            ax.set_ylabel(r"$\log \lambda_{\rm 200c, exp}$")
         elif key == "conc":
-            axs[2].set_xlabel(r"$\log c_{\rm 200c, ref}$")
-            axs[2].set_ylabel(r"$\log c_{\rm 200c, match}$")
-        else:
-            axs[2].set_xlabel(r"${}$".format(key_label))
-            axs[2].set_ylabel(r"Max. overlap mean of ${}$".format(key_label))
-
-        t = numpy.linspace(*numpy.percentile(prop0[m], [5, 95]), 1000)
-        axs[2].plot(t, t, color="blue", linestyle="--")
-        axs[2].plot(t, t + 0.2, color="blue", linestyle="--", alpha=0.5)
-        axs[2].plot(t, t - 0.2, color="blue", linestyle="--", alpha=0.5)
-
-        ims = [im0, im1, im2]
-        for i in range(3):
-            axins = axs[i].inset_axes([0.0, 1.0, 1.0, 0.05])
-            fig.colorbar(ims[i], cax=axins, orientation="horizontal",
-                         label="Bin counts")
-            axins.xaxis.tick_top()
-            axins.xaxis.set_tick_params(labeltop=True)
-            axins.xaxis.set_label_position("top")
+            ax.set_xlabel(r"$\log c_{\rm 200c, ref}$")
+            ax.set_ylabel(r"$\log c_{\rm 200c, exp}$")
 
         fig.tight_layout()
         fout = join(plt_utils.fout, f"max_{key}_{simname}_{nsim0}.{ext}")
@@ -868,28 +844,41 @@ def get_expected_single(k, nsim0, simname, min_logmass, key, smoothed, in_log):
     xcross, overlaps = reader.expected_property_single(k, key, smoothed,
                                                        in_log)
 
+    control = [None] * len(catxs)
+    log_mass0 = numpy.log10(reader.cat0(MASS_KINDS[simname])[k])
+    for j in range(len(catxs)):
+        log_massx = numpy.log10(reader[j].catx(MASS_KINDS[simname]))
+        ks = numpy.argsort(numpy.abs(log_massx - log_mass0))[:15]
+        control[j] = reader[j].catx(key)[ks]
+
     if in_log:
         x0 = numpy.log10(x0)
 
-    return x0[k], xcross, overlaps
+    return x0[k], xcross, overlaps, control
 
 
 def mtot_vs_expected_single(k, nsim0, simname, min_logmass, key, smoothed,
                             in_log):
-    x0, xcross, overlaps = get_expected_single(k, nsim0, simname, min_logmass,
-                                               key, smoothed, in_log)
+    x0, xcross, overlaps, control = get_expected_single(
+        k, nsim0, simname, min_logmass, key, smoothed, in_log)
     xcross = numpy.concatenate(xcross)
     overlaps = numpy.concatenate(overlaps)
+    control = numpy.concatenate(control)
 
     with plt.style.context("science"):
         plt.figure()
-        plt.hist(xcross, bins=30, histtype="step", density=1,
+        plt.hist(xcross, bins=40, histtype="step", density=1,
                  label="Unweighted")
-
-        plt.hist(xcross, weights=overlaps, bins=30, density=1, histtype="step",
+        plt.hist(xcross, weights=overlaps, bins=40, density=1, histtype="step",
                  label="Weighted")
+        m = numpy.isfinite(xcross) & numpy.isfinite(overlaps)
+        peak = csiborgtools.summary.find_peak(xcross[m], overlaps[m])
+        plt.axvline(peak, color="forestgreen", ls="--")
+        plt.axvline(x0, color="red", ls="--")
 
-        plt.axvline(x0, color="red", ls="--", label="Ref. halo")
+        if key != "totpartmass":
+            plt.hist(control, bins=40, histtype="step", density=1,
+                     label="Control")
 
         if key == "totpartmass" or key == "fof_totpartmass":
             plt.xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
@@ -898,32 +887,8 @@ def mtot_vs_expected_single(k, nsim0, simname, min_logmass, key, smoothed,
         elif key == "conc":
             plt.xlabel(r"$\log c$")
 
-        if key == "lambda200c":
-            cat0 = open_cat(nsim0, simname)
-            z = numpy.log10(cat0["lambda200c"])
-            z = z[numpy.isfinite(z)]
-            plt.hist(z, bins="auto", histtype="step", density=1,
-                     label="Catalogue")
-
-        if key == "totpartmass":
-            cat0 = open_cat(nsim0, simname)
-            z = numpy.log10(cat0["totpartmass"])
-            z = z[numpy.isfinite(z)]
-            z = z[z > 13.25]
-            plt.hist(z, bins="auto", histtype="step", density=1,
-                     label="HMF")
-
-        if key == "conc":
-            cat0 = open_cat(nsim0, simname)
-            z = numpy.log10(cat0["conc"])
-            z = z[cat0["totpartmass"] > 10**14]
-            z = z[numpy.isfinite(z)]
-            plt.hist(z, bins="auto", histtype="step", density=1,
-                     label="Catalogue")
-
         plt.ylabel("Normalized counts")
-        plt.legend(handlelength=1.5, loc="upper left",
-                   ncols=2 if key == "totpartmass" else 1)
+        plt.legend()
 
         plt.tight_layout()
         fout = join(
@@ -966,7 +931,7 @@ def get_matching_max_vs_overlap(simname, nsim0, min_logmass, mult):
             "match_overlap": match_overlap, "success": success}
 
 
-def mcatching_max_vs_overlap(min_logmass):
+def matching_max_vs_overlap(min_logmass):
     left_edges = numpy.arange(min_logmass, 15, 0.1)
 
     with plt.style.context("science"):
@@ -1103,19 +1068,18 @@ if __name__ == "__main__":
     #         mtot_vs_summedpairoverlap(0, "quijote", min_logmass, smoothed,
     #                                   nbins, ext)
 
-    if True:
+    if False:
         mtot_vs_expected_mass(7444, "csiborg", min_logmass, smoothed, ext=ext)
         # if plot_quijote:
         #     mtot_vs_expected_mass(0, "quijote", min_logmass, smoothed, nbins,
         #                           max_prob_nomatch=1, ext=ext)
 
-    # if True:
-    #     key = "lambda200c"
-    #     mtot_vs_expected_key(7444, "csiborg", min_logmass, key, smoothed,
-    #                          nbins)
-    #     # if plot_quijote:
-    #     #     mtot_vs_expected_key(0, "quijote", min_logmass, key, smoothed,
-    #     #                          nbins)
+    if False:
+        key = "conc"
+        mtot_vs_expected_key(7444, "csiborg", min_logmass, key, smoothed, 14.)
+        # if plot_quijote:
+        #     mtot_vs_expected_key(0, "quijote", min_logmass, key, smoothed,
+        #                          nbins)
 
     if False:
         mass_vs_separation(7444, 7444 + 24, "csiborg", min_logmass, nbins,
@@ -1127,14 +1091,14 @@ if __name__ == "__main__":
     if False:
         matching_max_vs_overlap(min_logmass)
 
-    if False:
+    if True:
         # mtot_vs_expected_single("max", 7444, "csiborg", min_logmass,
         #                         "totpartmass", True, True)
-        mtot_vs_expected_single("maxmass", 7444 + 24 * 30, "csiborg", min_logmass,
-                                "conc", True, True)
+        mtot_vs_expected_single("maxmass", 7444, "csiborg", min_logmass,
+                                "lambda200c", True, True)
         # if plot_quijote:
         #     mtot_vs_expected_single("max", 0, "quijote", min_logmass,
         #                             "totpartmass", True, True)
 
-    if True:
+    if False:
         maximum_overlap_agreement(7444, "csiborg", min_logmass, smoothed)
