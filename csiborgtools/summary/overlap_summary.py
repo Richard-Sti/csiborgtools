@@ -705,14 +705,15 @@ class NPairsOverlap:
     def expected_property_single(self, k, key, from_smoothed,  in_log=True):
         ys = [None] * len(self)
         overlaps = [None] * len(self)
-        for j, pair in enumerate(self):
+        for i, pair in enumerate(self):
             overlap = pair.overlap(from_smoothed)
             match_indxs = pair["match_indxs"]
+            j = numpy.argmax(overlap[k])
 
-            ys[j] = pair.catx(key)[match_indxs[k]]
+            ys[i] = pair.catx(key)[match_indxs[k][j]]
             if in_log:
-                ys[j] = numpy.log10(ys[j])
-            overlaps[j] = overlap[k]
+                ys[i] = numpy.log10(ys[i])
+            overlaps[i] = overlap[k][j]
 
         return ys, overlaps
 
