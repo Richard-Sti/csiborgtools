@@ -136,8 +136,8 @@ def plot_hmf(pdf=False):
 
     x = 10**(0.5 * (bins[1:] + bins[:-1]))
     # Edit lower limits
-    # csiborg_counts[:, x < 1e12] = numpy.nan
-    # quijote_counts[:, x < 10**(13.1)] = numpy.nan
+    csiborg_counts[:, x < 10**13.1] = numpy.nan
+    quijote_counts[:, x < 10**(13.1)] = numpy.nan
     # Edit upper limits
     csiborg_counts[:, x > 3e15] = numpy.nan
     quijote_counts[:, x > 3e15] = numpy.nan
@@ -158,9 +158,9 @@ def plot_hmf(pdf=False):
         std_csiborg = numpy.std(csiborg_counts, axis=0)
 
         for i in range(len(csiborg_counts)):
-            ax[0].plot(x, csiborg_counts[i, :], c=cols[0], lw=0.01, zorder=1, alpha=0.1)
+            ax[0].plot(x, csiborg_counts[i, :], c="cornflowerblue", lw=0.5, zorder=0)
 
-        ax[0].plot(x, mean_csiborg, label="CSiBORG", c=cols[0])
+        ax[0].plot(x, mean_csiborg, label="CSiBORG", c="mediumblue", zorder=1)
         # ax[0].fill_between(x, mean_csiborg - std_csiborg,
         #                    mean_csiborg + std_csiborg,
         #                    alpha=0.5, color=cols[0])
@@ -169,11 +169,11 @@ def plot_hmf(pdf=False):
         std_quijote = numpy.std(quijote_counts, axis=0)
 
         for i in range(len(quijote_counts)):
-            ax[0].plot(x, quijote_counts[i, :], c=cols[1], lw=0.01, zorder=-1, alpha=0.1)
+            ax[0].plot(x, quijote_counts[i, :], c="palegreen", lw=0.5, zorder=-1)
 
 
 
-        ax[0].plot(x, mean_quijote, label="Quijote", c=cols[1], zorder=0)
+        ax[0].plot(x, mean_quijote, label="Quijote", c="darkgreen", zorder=1)
         # ax[0].fill_between(x, mean_quijote - std_quijote,
         #                    mean_quijote + std_quijote, alpha=0.5,
         #                    color=cols[1])
@@ -198,6 +198,8 @@ def plot_hmf(pdf=False):
         #               lw=0.5 * plt.rcParams["lines.linewidth"], zorder=0)
         # ax[0].set_ylabel(r"$\frac{\mathrm{d}^2 N}{\mathrm{d} V \mathrm{d}\log M_{\rm tot}}~[\mathrm{dex}^{-1} (\mathrm{Mpc} / h)^{-3}]$",  # noqa
         #                  fontsize="small")
+        m = numpy.isfinite(mean_quijote)
+        ax[0].set_xlim(x[m].min(), x[m].max())
         ax[0].set_ylabel(r"$\mathrm{HMF}~[\mathrm{dex}^{-1} (\mathrm{Mpc} / h)^{-3}]$")
         ax[0].set_xlabel(r"$M_{\rm tot}~[M_\odot / h]$", fontsize="small")
         # ax[1].set_ylabel(r"$\mathrm{CSiBORG} / \mathrm{Quijote}$",
@@ -207,7 +209,7 @@ def plot_hmf(pdf=False):
         ax[0].set_yscale("log")
         # ax[1].set_ylim(0.5, 1.5)
         # ax[1].set_yscale("log")
-        ax[0].legend(fontsize="small")
+        ax[0].legend()
 
         fig.tight_layout(h_pad=0, w_pad=0)
         for ext in ["png"] if pdf is False else ["png", "pdf"]:
