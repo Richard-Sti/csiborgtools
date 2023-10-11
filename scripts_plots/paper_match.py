@@ -1024,6 +1024,111 @@ def mtot_vs_expected_single_panel(k, nsim0, simname, min_logmass, smoothed):
 
 # --------------------------------------------------------------------------- #
 ###############################################################################
+#                        Concentration reconstruction                         #
+###############################################################################
+# --------------------------------------------------------------------------- #
+
+
+@cache_to_disk(120)
+def get_expected_many_topmass(kmax, nsim0, simname, min_logmass, key, smoothed,
+                              in_log):
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    nsimxs = csiborgtools.summary.get_cross_sims(
+        simname, nsim0, paths, min_logmass, smoothed=smoothed)
+
+    cat0 = open_cat(nsim0, simname)
+    catxs = open_cats(nsimxs, simname)
+
+    reader = csiborgtools.summary.NPairsOverlap(cat0, catxs, paths,
+                                                min_logmass)
+
+    log_mass0 = numpy.log10(reader.cat0(MASS_KINDS[simname]))
+    x0 = reader.cat0(key)
+
+    out_mass = numpy.full((kmax), numpy.nan)
+    out_true = numpy.full((kmax), numpy.nan)
+    out_matched = numpy.full((kmax, len(nsimxs), 2), numpy.nan)
+    out_control = numpy.full((kmax, len(nsimxs)), numpy.nan)
+
+    for k0 in trange(kmax, desc="Looping over top masses"):
+        k = numpy.argsort(log_mass0)[::-1][k0]
+        xcross, overlaps = reader.expected_property_single(k, key, smoothed,
+                                                           in_log)
+        out_matched[k0, :, 0] = xcross
+        out_matched[k0, :, 1] = overlaps
+
+        out_mass[k0] = log_mass0[k]
+        out_true[k0] = x0[k]
+
+        for j in range(len(catxs)):
+            log_massx = numpy.log10(reader[j].catx(MASS_KINDS[simname]))
+            ks = numpy.argsort(numpy.abs(log_massx - log_mass0[k]))[:15]
+            out_control[k0, j] = numpy.nanmean(reader[j].catx(key)[ks])
+
+    return out_mass, out_true, out_matched, out_control
+
+
+def expected_in_tolerance(kmax, nsim0, simname, min_logmass, key, smoothed):
+    out_mass, out_true, out_matched, out_control = get_expected_many_topmass(
+        kmax, nsim0, simname, min_logmass, key, smoothed, False)
+
+    if key == "lambda200c" or key == "totpartmass":
+        out_true = numpy.log10(out_true)
+        out_matched[..., 0] = numpy.log10(out_matched[..., 0])
+        out_control = numpy.log10(out_control)
+
+    tolerances = [0.1, 0.3, 0.5]
+
+    in_tolerance = numpy.full((kmax, len(tolerances)), numpy.nan)
+    for k in range(kmax):
+        frac_diff = (out_matched[k, :, 0] - out_true[k]) / out_true[k]
+        frac_diff = numpy.abs(frac_diff)
+        for j, tol in enumerate(tolerances):
+            in_tolerance[k, j] = numpy.sum(frac_diff < tol)
+
+    left_edges = numpy.arange(numpy.nanmin(out_mass), numpy.nanmax(out_mass),
+                              0.01)
+    bw = 0.2
+    x = left_edges + 0.5 * bw
+    nsimx = out_matched.shape[1]
+
+    with plt.style.context("science"):
+        cols = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+        plt.figure()
+
+        for j, tol in enumerate(tolerances):
+
+            med = csiborgtools.binned_statistic(out_mass, in_tolerance[:, j],
+                                                left_edges, bw, numpy.median)
+            lower = csiborgtools.binned_statistic(
+                out_mass, in_tolerance[:, j], left_edges, bw,
+                lambda x: numpy.percentile(x, 16))
+            upper = csiborgtools.binned_statistic(
+                out_mass, in_tolerance[:, j], left_edges, bw,
+                lambda x: numpy.percentile(x, 84))
+            lower /= nsimx
+            upper /= nsimx
+            med /= nsimx
+
+            plt.plot(x, med, label=r"${} \%$".format(int(tol * 100)),)
+            plt.fill_between(x, lower, upper, alpha=0.2)
+
+        plt.xlim(x.min(), x.max())
+        plt.ylim(0, 1)
+        plt.xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
+        plt.ylabel(r"$f_{\rm in~tolerance}$")
+        plt.legend(ncols=3)
+
+        plt.tight_layout()
+        fout = join(
+            plt_utils.fout,
+            f"expected_tolerance_{key}_{nsim0}_{simname}_{min_logmass}.png")
+        print(f"Saving to `{fout}`.")
+        plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
+        plt.close()
+
+# --------------------------------------------------------------------------- #
+###############################################################################
 #                      Max's matching vs overlap success                      #
 ###############################################################################
 # --------------------------------------------------------------------------- #
@@ -1134,6 +1239,7 @@ if __name__ == "__main__":
         # "get_expected_mass",
         # "get_expected_key",
         # "get_expected_single",
+        # "get_expected_many_topmass",
         ]
     for func in funcs:
         print(f"Cleaning up cache for `{func}`.")
@@ -1201,6 +1307,10 @@ if __name__ == "__main__":
         #     mtot_vs_expected_single("max", 0, "quijote", min_logmass,
         #                             "totpartmass", True, True)
 
-    if True:
+    if False:
         mtot_vs_expected_single_panel("maxmass__0", 7444, "csiborg",
                                       min_logmass, True)
+
+    if True:
+        kmax = 100
+        expected_in_tolerance(kmax, 7444, "csiborg", min_logmass, "conc", True)
