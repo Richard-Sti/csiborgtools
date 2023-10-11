@@ -19,11 +19,9 @@ import matplotlib.pyplot as plt
 import numpy
 import scienceplots  # noqa
 from cache_to_disk import cache_to_disk, delete_disk_caches_for_function
-from scipy.stats import kendalltau, binned_statistic, norm
-from tqdm import tqdm, trange
-from scipy.signal import savgol_filter
+from scipy.stats import norm
 from sklearn.metrics import r2_score
-
+from tqdm import tqdm, trange
 
 import csiborgtools
 import plt_utils
@@ -335,6 +333,8 @@ def mtot_vs_maxpairoverlap_fraction(min_logmass, smoothed, nbins, ext="png"):
 
         plt.xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
         plt.ylabel(r"$f_{\rm significant}$")
+
+        plt.xlim(numpy.nanmin(x), numpy.nanmax(x))
 
         plt.tight_layout()
         fout = join(plt_utils.fout, f"mass_vs_max_pair_overlap_fraction.{ext}")
@@ -738,22 +738,23 @@ def get_expected_key(nsim0, simname, min_logmass, key, smoothed):
     mass0 = reader.cat0(MASS_KINDS[simname])
     mask = mass0 > 10**min_logmass
 
-    mean_expected, std_expected = reader.expected_property(key, smoothed,
-                                                           min_logmass)
+    in_log = False if key == "conc" else True
+    mean_expected, std_expected = reader.expected_property(
+        key, smoothed, min_logmass, in_log=in_log)
 
     log_mass0 = numpy.log10(mass0)
     control = numpy.full(len(log_mass0), numpy.nan)
-    for i in trange(len(log_mass0), desc="Control"):
-        if not mask[i]:
-            continue
+    # for i in trange(len(log_mass0), desc="Control"):
+    #     if not mask[i]:
+    #         continue
 
-        control_ = [None] * len(catxs)
-        for j in range(len(catxs)):
-            log_massx = numpy.log10(reader[j].catx(MASS_KINDS[simname]))
-            ks = numpy.argsort(numpy.abs(log_massx - log_mass0[i]))[:15]
-            control_[j] = reader[j].catx(key)[ks]
+    #     control_ = [None] * len(catxs)
+    #     for j in range(len(catxs)):
+    #         log_massx = numpy.log10(reader[j].catx(MASS_KINDS[simname]))
+    #         ks = numpy.argsort(numpy.abs(log_massx - log_mass0[i]))[:15]
+    #         control_[j] = reader[j].catx(key)[ks]
 
-        control[i] = numpy.nanmean(numpy.concatenate(control_))
+    #     control[i] = numpy.nanmean(numpy.concatenate(control_))
 
     return {"mass0": mass0[mask],
             "prop0": reader.cat0(key)[mask],
@@ -771,15 +772,20 @@ def mtot_vs_expected_key(nsim0, simname, min_logmass, key, smoothed,
 
     x = get_expected_key(nsim0, simname, min_logmass, key, smoothed)
     mass0 = numpy.log10(x["mass0"])
-    prop0 = numpy.log10(x["prop0"])
+    prop0 = x["prop0"]
     mu = x["mu"]
     std = x["std"]
     prob_match = numpy.nanmean(x["prob_match"], axis=1)
-    control = numpy.log10(x["control"])
+    control = x["control"]
+
+    print("prop0 ", prop0)
+    print("mu    ", mu)
+    print("std   ", std)
+    print("control", control)
 
     mask = numpy.isfinite(prop0) & numpy.isfinite(mu) & numpy.isfinite(std)
     if min_logmass_run is not None:
-        mask &= mass0 > 14.9
+        mask &= mass0 > 15
     mask &= prop0 > 0.4
 
     mass0 = mass0[mask]
@@ -795,14 +801,12 @@ def mtot_vs_expected_key(nsim0, simname, min_logmass, key, smoothed,
     print("Unweigted R2         = ", r2_score(prop0, mu))
     print("Err Weighted R2      = ", r2_score(prop0, mu, sample_weight=1 / std**2))  # noqa
     print("Pmatch R2            = ", r2_score(prop0, mu, sample_weight=prob_match))  # noqa
-    print("Control R2           = ", r2_score(prop0, control))
 
     print()
 
     print("Unweigted RMSE       = ", rmse(prop0, mu))
     print("Err Weighted RMSE    = ", rmse(prop0, mu, 1 / std**2))
     print("Pmatch RMSE          = ", rmse(prop0, mu, prob_match))
-    print("Control RMSE         = ", rmse(prop0, control))
 
     with plt.style.context(plt_utils.mplstyle):
         fig, ax = plt.subplots(figsize=(3.5, 2.625))
@@ -810,17 +814,19 @@ def mtot_vs_expected_key(nsim0, simname, min_logmass, key, smoothed,
         ax.errorbar(prop0, mu, yerr=std, capsize=3, ls="none", marker="o")
 
         z = numpy.nanmean(prop0)
-        ax.axline((z, z), slope=1, color='red', linestyle='--')
+        ax.axline((z, z), slope=1, color='red', linestyle='--', label=r"$1-1$")
 
-        if key == "lambda200c":
-            ax.axhline(numpy.median(control), color="red", ls="--", zorder=0)
+        ax.legend()
+
+        # if key == "lambda200c":
+        #     ax.axhline(numpy.median(control), color="red", ls="--", zorder=0)
 
         if key == "lambda200c":
             ax.set_xlabel(r"$\log \lambda_{\rm 200c, ref}$")
             ax.set_ylabel(r"$\log \lambda_{\rm 200c, exp}$")
         elif key == "conc":
-            ax.set_xlabel(r"$\log c_{\rm 200c, ref}$")
-            ax.set_ylabel(r"$\log c_{\rm 200c, exp}$")
+            ax.set_xlabel(r"$c_{\rm 200c, ref}$")
+            ax.set_ylabel(r"$c_{\rm 200c, exp}$")
 
         fig.tight_layout()
         fout = join(plt_utils.fout, f"max_{key}_{simname}_{nsim0}.{ext}")
@@ -837,7 +843,8 @@ def mtot_vs_expected_key(nsim0, simname, min_logmass, key, smoothed,
 
 
 @cache_to_disk(120)
-def get_expected_single(k, nsim0, simname, min_logmass, key, smoothed, in_log):
+def get_expected_single(k, nsim0, simname, min_logmass, key, smoothed,
+                        in_log):
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsimxs = csiborgtools.summary.get_cross_sims(
         simname, nsim0, paths, min_logmass, smoothed=smoothed)
@@ -850,8 +857,10 @@ def get_expected_single(k, nsim0, simname, min_logmass, key, smoothed, in_log):
 
     x0 = reader.cat0(key)
 
-    if k == "maxmass":
-        k = numpy.nanargmax(reader.cat0(MASS_KINDS[simname]))
+    if "maxmass" in k:
+        k0 = int(k.split("__")[1])
+        k = numpy.argsort(reader.cat0(MASS_KINDS[simname]))[::-1][k0]
+        print(f"Doing the {k0}th maximum hass halo with index {k}.")
 
     if k == "max":
         k = numpy.nanargmax(x0)
@@ -866,6 +875,9 @@ def get_expected_single(k, nsim0, simname, min_logmass, key, smoothed, in_log):
         ks = numpy.argsort(numpy.abs(log_massx - log_mass0))[:15]
         control[j] = reader[j].catx(key)[ks]
 
+    xcross = numpy.asanyarray(xcross)
+    overlaps = numpy.asanyarray(overlaps)
+
     return x0[k], xcross, overlaps, control
 
 
@@ -873,34 +885,32 @@ def mtot_vs_expected_single(k, nsim0, simname, min_logmass, key, smoothed):
     x0, xcross, overlaps, control = get_expected_single(
         k, nsim0, simname, min_logmass, key, smoothed, False)
 
-    mus = numpy.full(len(xcross), numpy.nan)
-    weights = numpy.full(len(xcross), numpy.nan)
-    for i in range(len(xcross)):
-        if len(xcross[i]) == 0:
-            continue
-        n = numpy.argmax(overlaps[i])
-        mus[i] = xcross[i][n]
-        weights[i] = overlaps[i][n]
-
     control = numpy.concatenate(control)
+
     if key == "lambda200c" or key == "totpartmass":
-        mus = numpy.log10(mus)
+        xcross = numpy.log10(xcross)
         control = numpy.log10(control)
         x0 = numpy.log10(x0)
 
+    m = numpy.isfinite(xcross) & numpy.isfinite(overlaps)
     with plt.style.context("science"):
+        cols = plt.rcParams["axes.prop_cycle"].by_key()["color"]
         plt.figure()
-        plt.hist(mus, weights=weights, bins=40, histtype="step", density=1,
-                 label="Matched")
+        plt.hist(xcross[m], weights=overlaps[m], bins=30, histtype="step",
+                 density=1, label="Matched", color=cols[0])
 
-        m = numpy.isfinite(mus) & numpy.isfinite(weights)
-        peak = csiborgtools.summary.find_peak(mus[m], weights[m])
+        peak = csiborgtools.summary.find_peak(xcross[m], overlaps[m])
         plt.axvline(peak, color="mediumblue", ls="--")
         plt.axvline(x0, color="red", ls="--")
 
         if key != "totpartmass":
-            plt.hist(control, bins=40, histtype="step", density=1,
-                     label="Control")
+            m = numpy.isfinite(control)
+            plt.hist(control[m], bins=30, histtype="step", density=1,
+                     label="Control", color=cols[1])
+
+            m = numpy.isfinite(control)
+            xmin, xmax = numpy.percentile(control[m], [16, 84])
+            plt.axvspan(xmin, xmax, color=cols[1], alpha=0.1)
 
         if key == "totpartmass" or key == "fof_totpartmass":
             plt.xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
@@ -919,6 +929,98 @@ def mtot_vs_expected_single(k, nsim0, simname, min_logmass, key, smoothed):
         print(f"Saving to `{fout}`.")
         plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
+
+
+def mtot_vs_expected_single_panel(k, nsim0, simname, min_logmass, smoothed):
+    print("Plotting..")
+
+    def local_data(key):
+        x0, xcross, overlaps, control = get_expected_single(
+            k, nsim0, simname, min_logmass, key, smoothed, False)
+
+        control = numpy.concatenate(control)
+        if key == "lambda200c" or key == "totpartmass":
+            xcross = numpy.log10(xcross)
+            control = numpy.log10(control)
+            x0 = numpy.log10(x0)
+
+        m = numpy.isfinite(xcross) & numpy.isfinite(overlaps)
+        return x0, xcross[m], overlaps[m], control
+
+    with plt.style.context("science"):
+        cols = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+        fig, axs = plt.subplots(ncols=3, figsize=(2 * 3.5, 2.625))
+        fig.subplots_adjust(wspace=0.0)
+        nbins = 25
+
+        # TOTAL MASS
+        x0, x, weights, __ = local_data("totpartmass")
+        axs[0].hist(x, weights=weights, bins=nbins, histtype="step", density=1,
+                    label="Matched")
+        axs[0].legend()
+        peak = csiborgtools.summary.find_peak(x, weights)
+        axs[0].axvline(peak, color="mediumblue", ls="--")
+        axs[0].axvline(x0, color="red", ls="--")
+        std = numpy.average((x - peak)**2, weights=weights)**0.5
+        xmin, xmax = peak - std, peak + std
+        axs[0].axvspan(xmin, xmax, color=cols[0], alpha=0.2)
+
+        # SPIN
+        x0, x, weights, control = local_data("lambda200c")
+        axs[1].hist(x, weights=weights, bins=nbins, histtype="step", density=1,
+                    color=cols[0])
+        axs[1].hist(control, bins=nbins, histtype="step", density=1,
+                    color=cols[1], label="Control")
+        axs[1].legend()
+        xmin, xmax = numpy.percentile(control, [16, 84])
+        axs[1].axvspan(xmin, xmax, color=cols[1], alpha=0.1)
+        peak = csiborgtools.summary.find_peak(x, weights)
+        axs[1].axvline(peak, color="mediumblue", ls="--")
+        axs[1].axvline(x0, color="red", ls="--")
+        axs[1].set_yticklabels([])
+        m = numpy.isfinite(control)
+        xmin, mu, xmax = numpy.percentile(control[m], [16, 50, 84])
+        axs[1].axvspan(xmin, xmax, color=cols[1], alpha=0.2)
+        axs[1].axvline(mu, color=cols[1], ls="--")
+        std = numpy.average((x - peak)**2, weights=weights)**0.5
+        xmin, xmax = peak - std, peak + std
+        axs[1].axvspan(xmin, xmax, color=cols[0], alpha=0.2)
+
+        # CONCENTRATION
+        x0, x, weights, control = local_data("conc")
+        axs[2].hist(x, weights=weights, bins=nbins, histtype="step", density=1,
+                    color=cols[0])
+        axs[2].hist(control, bins=nbins, histtype="step", density=1,
+                    color=cols[1])
+        xmin, xmax = numpy.percentile(control, [16, 84])
+        axs[2].axvspan(xmin, xmax, color=cols[1], alpha=0.1)
+        peak = csiborgtools.summary.find_peak(x, weights)
+        axs[2].axvline(peak, color="mediumblue", ls="--")
+        axs[2].axvline(x0, color="red", ls="--")
+        axs[2].set_yticklabels([])
+        m = numpy.isfinite(control)
+        xmin, mu, xmax = numpy.percentile(control[m], [16, 50, 84])
+        axs[2].axvspan(xmin, xmax, color=cols[1], alpha=0.2)
+        axs[2].axvline(mu, color=cols[1], ls="--")
+        std = numpy.average((x - peak)**2, weights=weights)**0.5
+        xmin, xmax = peak - std, peak + std
+        axs[2].axvspan(xmin, xmax, color=cols[0], alpha=0.2)
+
+
+        axs[0].set_xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
+        axs[1].set_xlabel(r"$\log \lambda_{\rm 200c}$")
+        axs[2].set_xlabel(r"$c$")
+
+        axs[0].set_ylabel("Normalized counts")
+
+        fig.tight_layout(h_pad=0, w_pad=0)
+        fout = join(
+            plt_utils.fout,
+            f"expected_single_{k}_panel_{nsim0}_{simname}_{min_logmass}.pdf")
+        print(f"Saving to `{fout}`.")
+        plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
+        plt.close()
+
 
 # --------------------------------------------------------------------------- #
 ###############################################################################
@@ -1070,7 +1172,7 @@ if __name__ == "__main__":
         #     mtot_vs_expected_mass(0, "quijote", min_logmass, smoothed, nbins,
         #                           max_prob_nomatch=1, ext=ext)
 
-    if True:
+    if False:
         key = "conc"
         mtot_vs_expected_key(7444, "csiborg", min_logmass, key, smoothed, 15)
         # if plot_quijote:
@@ -1088,12 +1190,17 @@ if __name__ == "__main__":
         matching_max_vs_overlap(min_logmass)
 
     if False:
-        mtot_vs_expected_single("max", 7444, "csiborg", min_logmass,
-                                "totpartmass", True)
-        # for n in [0]:
-        #     mtot_vs_expected_single("maxmass", 7444 + n * 24, "csiborg", min_logmass,
-        #                             "lambda200c", True)
+        # mtot_vs_expected_single("max", 7444, "csiborg", min_logmass,
+        #                         "totpartmass", True)
+        # mtot_vs_expected_single("maxmass__0", 7444, "csiborg",
+        #                         min_logmass, "lambda200c", True)
+        for i in range(25):
+            mtot_vs_expected_single(f"maxmass__{i}", 7444, "csiborg",
+                                    min_logmass, "conc", True)
         # if plot_quijote:
         #     mtot_vs_expected_single("max", 0, "quijote", min_logmass,
         #                             "totpartmass", True, True)
 
+    if True:
+        mtot_vs_expected_single_panel("maxmass__0", 7444, "csiborg",
+                                      min_logmass, True)
