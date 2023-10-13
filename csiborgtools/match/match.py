@@ -660,19 +660,12 @@ class ParticleOverlap(BaseMatcher):
 
 
 def pos2cell(pos, ncells):
-    """
-    Convert position to cell number if there are `ncells` cells along the axis.
-    """
     if pos.dtype.char in numpy.typecodes["AllInteger"]:
         return pos
     return numpy.floor(pos * ncells).astype(numpy.int32)
 
 
 def read_nshift(smooth_kwargs):
-    """
-    Determine the number of cells to pad the density field if smoothing is
-    applied. Defaults to the ceiling of three times the smoothing scale.
-    """
     return 0 if smooth_kwargs is None else ceil(3 * smooth_kwargs["sigma"])
 
 
@@ -774,33 +767,26 @@ def get_halo_cell_limits(pos, ncells, nshift=0):
     return mins, maxs
 
 
-@jit(nopython=True)
+@jit(nopython=True, boundscheck=False)
 def calculate_overlap(delta1, delta2, cellmins, delta_bckg, box_size,
                       bckg_halfsize):
-    r"""
-    Overlap between two halos whose density fields are evaluated on the
-    same grid. This is a JIT implementation, hence it is outside of the main
-    class.
+    """
+    Calculate overlap between two halos' density fields on the same grid.
 
     Parameters
     ----------
-    delta1: 3-dimensional array
-        Density field of the first halo.
-    delta2 : 3-dimensional array
-        Density field of the second halo.
-    cellmins : len-3 tuple
-        Tuple of lower cell ID in the full box.
-    delta_bckg : 3-dimensional array
-        Summed background density field of the reference and cross simulations
-        calculated with particles assigned to halos at the final snapshot.
-        Calculated on a grid determined by `bckg_halfsize`.
+    delta1, delta2 : 3D array
+        Density fields of the first and second halos, respectively.
+    cellmins : tuple (len=3)
+        Lower cell ID in the full box.
+    delta_bckg : 3D array
+        Combined background density field of reference and cross simulations
+        on `bckg_halfsize` grid.
     box_size : int
-        Number of cells in the box.
+        Cell count in the box.
     bckg_halfsize : int
-        Background half-size for density field calculation. This is the
-        grid distance from the center of the box to each side over which to
-        evaluate the background density field. Must be less than or equal to
-        half the box size.
+        Grid distance from box center for background density.
+        ≤ 0.5 * box_size.
 
     Returns
     -------
@@ -834,39 +820,29 @@ def calculate_overlap(delta1, delta2, cellmins, delta_bckg, box_size,
     return intersect / (totmass - intersect)
 
 
-@jit(nopython=True)
+@jit(nopython=True, boundscheck=False)
 def calculate_overlap_indxs(delta1, delta2, cellmins, delta_bckg, nonzero,
                             mass1, mass2, box_size, bckg_halfsize):
-    r"""
-    Overlap between two haloes whose density fields are evaluated on the
-    same grid and `nonzero1` enumerates the non-zero cells of `delta1.  This is
-    a JIT implementation, hence it is outside of the main class.
+    """
+    Calculate overlap of two halos' density fields on the same grid.
 
     Parameters
     ----------
-    delta1: 3-dimensional array
-        Density field of the first halo.
-    delta2 : 3-dimensional array
-        Density field of the second halo.
-    cellmins : len-3 tuple
-        Tuple of lower cell ID in the full box.
-    delta_bckg : 3-dimensional array
-        Summed background density field of the reference and cross simulations
-        calculated with particles assigned to halos at the final snapshot.
-        Calculated on a grid determined by `bckg_halfsize`.
-    nonzero : 2-dimensional array of shape `(n_cells, 3)`
-        Indices of cells that are non-zero of the lower mass halo. Expected to
-        be precomputed from `fill_delta_indxs`.
-    mass1, mass2 : floats, optional
-        Total masses of the two haloes, respectively. Optional. If not provided
-        calculcated directly from the density field.
+    delta1, delta2 : 3D array
+        Density fields of the first and second halos, respectively.
+    cellmins : tuple (len=3)
+        Lower cell ID in the full box.
+    delta_bckg : 3D array
+        Combined background density from reference and cross simulations
+        on `bckg_halfsize` grid.
+    nonzero : 2D array (shape: (n_cells, 3))
+        Non-zero cells for the lower mass halo (from `fill_delta_indxs`).
+    mass1, mass2 : float, optional
+        Halos' total masses. Calculated from density if not provided.
     box_size : int
-        Number of cells in the box.
+        Cell count in the box.
     bckg_halfsize : int
-        Background half-size for density field calculation. This is the
-        grid distance from the center of the box to each side over which to
-        evaluate the background density field. Must be less than or equal to
-        half the box size.
+        Grid distance from box center for background density; ≤ 0.5 * box_size.
 
     Returns
     -------
