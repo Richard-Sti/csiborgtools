@@ -18,6 +18,7 @@ of particles in the simulation snapshot.
 """
 from argparse import ArgumentParser
 from datetime import datetime
+from glob import iglob
 
 import h5py
 import numpy
@@ -44,7 +45,7 @@ def sort_particle_membership(nsim, nsnap, method):
     print(f"{datetime.now()}:   starting simulation {nsim}, snapshot {nsnap} and method {method}.")  # noqa
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 
-    fpath = f"/mnt/extraspace/rstiskalek/CSiBORG/halo_maker/ramses_{nsim}/output_{str(nsnap).zfill(5)}/{method}/particle_membership"  # noqa
+    fpath = next(iglob(f"/mnt/extraspace/rstiskalek/CSiBORG/halo_maker/ramses_{nsim}/output_{str(nsnap).zfill(5)}/**/*particle_membership*", recursive=True), None)  # noqa
     print(f"{datetime.now()}:   loading particle membership `{fpath}`.")
     # Columns are halo ID, particle ID
     membership = numpy.genfromtxt(fpath, dtype=int)
@@ -78,7 +79,7 @@ def sort_particle_membership(nsim, nsnap, method):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--method", type="str", required=True,
+    parser.add_argument("--method", type=str, required=True,
                         help="HaloMaker method")
     parser.add_argument("--nsim", type=int, required=False, default=None,
                         help="IC index. If not set process all.")
@@ -90,7 +91,8 @@ if __name__ == "__main__":
     else:
         ics = [args.nsim]
 
-    snaps = numpy.array([paths.get_snapshots(nsim, "csiborg") for nsim in ics])
+    snaps = numpy.array([max(paths.get_snapshots(nsim, "csiborg"))
+                         for nsim in ics])
 
     def main(n):
         sort_particle_membership(ics[n], snaps[n], args.method)
