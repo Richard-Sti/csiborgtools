@@ -29,15 +29,8 @@ import numpy
 from mpi4py import MPI
 from taskmaster import work_delegation
 
+import csiborgtools
 from utils import get_nsims
-
-try:
-    import csiborgtools
-except ModuleNotFoundError:
-    import sys
-
-    sys.path.append("../")
-    import csiborgtools
 
 
 def _main(nsim, simname, verbose):
@@ -51,9 +44,7 @@ def _main(nsim, simname, verbose):
     else:
         partreader = csiborgtools.read.QuijoteReader(paths)
 
-    if verbose:
-        print(f"{datetime.now()}: reading and processing simulation `{nsim}`.",
-              flush=True)
+    print(f"{datetime.now()}:   processing simulation `{nsim}`.", flush=True)
     # We first load the particle IDs in the final snapshot.
     pidf = csiborgtools.read.read_h5(paths.particles(nsim, simname))
     pidf = pidf["particle_ids"]
