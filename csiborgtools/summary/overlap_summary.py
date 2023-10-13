@@ -707,6 +707,10 @@ class NPairsOverlap:
         overlaps = [None] * len(self)
         for i, pair in enumerate(self):
             overlap = pair.overlap(from_smoothed)
+            if len(overlap[k]) == 0:
+                ys[i] = numpy.nan
+                overlaps[i] = numpy.nan
+                continue
             match_indxs = pair["match_indxs"]
             j = numpy.argmax(overlap[k])
 
