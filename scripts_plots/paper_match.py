@@ -22,6 +22,8 @@ from cache_to_disk import cache_to_disk, delete_disk_caches_for_function
 from scipy.stats import norm
 from sklearn.metrics import r2_score
 from tqdm import tqdm, trange
+from astropy import units as u
+from astropy.coordinates import SkyCoord
 
 import csiborgtools
 import plt_utils
@@ -129,7 +131,8 @@ def mtot_vs_all_pairoverlap(nsim0, simname, min_logmass, smoothed, nbins,
         y_median, yerr = plt_utils.compute_error_bars(x, y, xbins, sigma=sigma)
         plt.errorbar(0.5 * (xbins[1:] + xbins[:-1]), y_median, yerr=yerr,
                      color='red', ls='dashed', capsize=3,
-                     label="CSiBORG" if simname == "csiborg" else None)
+                     label="CSiBORG" if simname == "csiborg" else None,
+                     fmt="o", ms=3)
 
         if simname == "csiborg":
             x_quijote, y_quijote, xbins_quijote = get_mtot_vs_all_pairoverlap(
@@ -139,7 +142,7 @@ def mtot_vs_all_pairoverlap(nsim0, simname, min_logmass, smoothed, nbins,
             plt.errorbar(0.5 * (xbins[1:] + xbins[:-1]) + 0.01,
                          y_median_quijote, yerr=yerr_quijote,
                          color='sandybrown', ls='dashed', capsize=3,
-                         label="Quijote")
+                         label="Quijote", fmt="o", ms=3)
             plt.legend(loc="upper left", ncols=2, columnspacing=1.0)
 
         plt.colorbar(hb, label="Counts in bins", pad=0)
@@ -210,7 +213,8 @@ def mtot_vs_maxpairoverlap(nsim0, simname, mass_kind, min_logmass, smoothed,
         y_median, yerr = plt_utils.compute_error_bars(x, y, xbins, sigma=1)
         plt.errorbar(0.5 * (xbins[1:] + xbins[:-1]), y_median, yerr=yerr,
                      color='red', ls='dashed', capsize=3,
-                     label="CSiBORG" if simname == "csiborg" else None)
+                     label="CSiBORG" if simname == "csiborg" else None,
+                     fmt="o", ms=3)
 
         if simname == "csiborg":
             x_quijote, y_quijote, xbins_quijote = get_mtot_vs_all_pairoverlap(
@@ -220,7 +224,7 @@ def mtot_vs_maxpairoverlap(nsim0, simname, mass_kind, min_logmass, smoothed,
             plt.errorbar(0.5 * (xbins[1:] + xbins[:-1]) + 0.01,
                          y_median_quijote, yerr=yerr_quijote,
                          color='sandybrown', ls='dashed', capsize=3,
-                         label="Quijote")
+                         label="Quijote", fmt="o", ms=3)
 
         plt.colorbar(label="Counts in bins", pad=0)
         plt.xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
@@ -246,7 +250,8 @@ def mtot_vs_maxpairoverlap_statistic(nsim0, simname, mass_kind, min_logmass,
         y_median, yerr = plt_utils.compute_error_bars(x, y, xbins, sigma=2)
         plt.errorbar(0.5 * (xbins[1:] + xbins[:-1]), y_median, yerr=yerr,
                      color='red', ls='dashed', capsize=3,
-                     label="CSiBORG" if simname == "csiborg" else None)
+                     label="CSiBORG" if simname == "csiborg" else None,
+                     fmt="o", ms=3)
 
         if simname == "csiborg":
             x_quijote, y_quijote, xbins_quijote = get_mtot_vs_all_pairoverlap(
@@ -256,7 +261,7 @@ def mtot_vs_maxpairoverlap_statistic(nsim0, simname, mass_kind, min_logmass,
             plt.errorbar(0.5 * (xbins[1:] + xbins[:-1]) + 0.01,
                          y_median_quijote, yerr=yerr_quijote,
                          color='blue', ls='dashed', capsize=3,
-                         label="Quijote")
+                         label="Quijote", fmt="o", ms=3)
             plt.legend(ncol=2, fontsize="small")
 
         # plt.colorbar(label="Counts in bins", pad=0)
@@ -425,8 +430,9 @@ def maximum_overlap_agreement(nsim0, simname, min_logmass, smoothed):
         ymed, yerr = plt_utils.compute_error_bars(totpartmass[mask], y[mask],
                                                   mass_bins, sigma=1)
         plt.errorbar(0.5 * (mass_bins[1:] + mass_bins[:-1]), ymed, yerr=yerr,
-                     capsize=3, c="red")
+                     capsize=3, c="red", ls="--", lw=0.5, fmt="o", ms=3)
 
+        plt.xlim(numpy.nanmin(totpartmass[mask]))
         plt.xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
         plt.ylabel(r"$f_{\rm sym}$")
         plt.tight_layout()
@@ -446,10 +452,11 @@ def maximum_overlap_agreement(nsim0, simname, min_logmass, smoothed):
         ymed, yerr = plt_utils.compute_error_bars(
             mean_max_overlap[mask], y[mask], bins, sigma=1)
 
-        plt.errorbar(0.5 * (bins[1:] + bins[:-1]), ymed, yerr=yerr, capsize=3,
-                     c="red")
+        plt.errorbar(0.5 * (bins[1:] + bins[:-1]), ymed, yerr=yerr,
+                     capsize=3, c="red", ls="--", lw=0.5, fmt="o", ms=3)
         plt.xlabel(r"$\langle \max_{b \in \mathcal{B}} \mathcal{O}_{a b}\rangle_{\mathcal{B}}$")  # noqa
         plt.ylabel(r"$f_{\rm sym}$")
+        plt.xlim(numpy.nanmin(mean_max_overlap[mask]))
 
         # plt.xscale("log")
         plt.tight_layout()
@@ -482,7 +489,8 @@ def mtot_vs_summedpairoverlap(nsim0, simname, min_logmass, smoothed, nbins,
         y_median, yerr = plt_utils.compute_error_bars(
             mass0, mean_overlap, xbins, sigma=1)
         plt.errorbar(0.5 * (xbins[1:] + xbins[:-1]), y_median, yerr=yerr,
-                     color='red', ls='dashed', capsize=3, label="CSiBORG")
+                     color='red', ls='dashed', capsize=3, label="CSiBORG",
+                     fmt="o", ms=3)
 
         if simname == "csiborg":
             x_quijote = get_overlap_summary(0, "quijote", min_logmass,
@@ -498,7 +506,7 @@ def mtot_vs_summedpairoverlap(nsim0, simname, min_logmass, smoothed, nbins,
             plt.errorbar(0.5 * (xbins[1:] + xbins[:-1]) + 0.01,
                          y_median_quijote, yerr=yerr_quijote,
                          color='sandybrown', ls='dashed', capsize=3,
-                         label="Quijote")
+                         label="Quijote", fmt="o", ms=3)
             plt.legend()
 
         plt.xlim(numpy.min(mass0))
@@ -520,7 +528,7 @@ def mtot_vs_summedpairoverlap(nsim0, simname, min_logmass, smoothed, nbins,
         y_median, yerr = plt_utils.compute_error_bars(
             mass0, std_overlap, xbins, sigma=2)
         plt.errorbar(0.5 * (xbins[1:] + xbins[:-1]), y_median, yerr=yerr,
-                     color='red', ls='dashed', capsize=3)
+                     color='red', ls='dashed', capsize=3, fmt="o", ms=3)
 
         if simname == "csiborg":
             x_quijote = get_overlap_summary(0, "quijote", min_logmass,
@@ -537,7 +545,8 @@ def mtot_vs_summedpairoverlap(nsim0, simname, min_logmass, smoothed, nbins,
                 mass0_quijote, std_overlap_quijote, xbins_quijote, sigma=2)
             plt.errorbar(0.5 * (xbins[1:] + xbins[:-1]) + 0.01,
                          y_median_quijote, yerr=yerr_quijote,
-                         color='sandybrown', ls='dashed', capsize=3)
+                         color='sandybrown', ls='dashed', capsize=3,
+                         fmt="o", ms=3)
 
         plt.colorbar(label=r"Counts in bins", pad=0)
         plt.xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
@@ -601,7 +610,9 @@ def mass_vs_separation(nsim0, simname, min_logmass, nbins, smoothed,
                                                       sigma=1)
         ax.errorbar(0.5 * (xbins[1:] + xbins[:-1]), y_median, yerr=yerr,
                     color='red', ls='dashed', capsize=3,
-                    label="CSiBORG" if simname == "csiborg" else None)
+                    label="CSiBORG" if simname == "csiborg" else None,
+                    fmt="o", ms=3)
+        ax.set_xlim(numpy.nanmin(mass))
 
         if simname == "csiborg":
             mass_quijote, dist_quijote = get_mass_vs_separation(
@@ -614,17 +625,19 @@ def mass_vs_separation(nsim0, simname, min_logmass, nbins, smoothed,
             # dist_quijote = numpy.log10(dist_quijote)
             xbins_quijote = numpy.linspace(numpy.nanmin(mass_quijote),
                                            numpy.nanmax(mass_quijote), nbins)
+            xbins_quijote = xbins_quijote[:-1]
             y_median_quijote, yerr_quijote = plt_utils.compute_error_bars(
                 mass_quijote, dist_quijote, xbins_quijote, sigma=1)
             ax.errorbar(0.5 * (xbins_quijote[1:] + xbins_quijote[:-1]),
                         y_median_quijote, yerr=yerr_quijote,
                         color='sandybrown', ls='dashed', capsize=3,
-                        label="Quijote")
-            ax.legend()
+                        label="Quijote", fmt="o", ms=3)
+            ax.legend(ncols=2)
 
         fig.colorbar(cx, label="Bin counts", pad=0)
         ax.set_xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
         ax.set_ylabel(r"$\langle \Delta R / R_{\rm 200c}\rangle_{\mathcal{B}}$")  # noqa
+        ax.set_ylabel(r"$\langle \Delta R \rangle_{\mathcal{B}} ~ [\mathrm{Mpc} / h]$")  # noqa
 
         fig.tight_layout()
         fout = join(plt_utils.fout, f"mass_vs_sep_{simname}_{nsim0}.{ext}")
@@ -1006,7 +1019,6 @@ def mtot_vs_expected_single_panel(k, nsim0, simname, min_logmass, smoothed):
         xmin, xmax = peak - std, peak + std
         axs[2].axvspan(xmin, xmax, color=cols[0], alpha=0.2)
 
-
         axs[0].set_xlabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
         axs[1].set_xlabel(r"$\log \lambda_{\rm 200c}$")
         axs[2].set_xlabel(r"$c$")
@@ -1093,7 +1105,6 @@ def expected_in_tolerance(kmax, nsim0, simname, min_logmass, key, smoothed):
     nsimx = out_matched.shape[1]
 
     with plt.style.context("science"):
-        cols = plt.rcParams["axes.prop_cycle"].by_key()["color"]
         plt.figure()
 
         for j, tol in enumerate(tolerances):
@@ -1126,6 +1137,198 @@ def expected_in_tolerance(kmax, nsim0, simname, min_logmass, key, smoothed):
         print(f"Saving to `{fout}`.")
         plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
+
+
+# --------------------------------------------------------------------------- #
+###############################################################################
+#                        Concentration reconstruction                         #
+###############################################################################
+# --------------------------------------------------------------------------- #
+
+
+@cache_to_disk(120)
+def get_max_overlap_velocity(kmax, nsim0, simname, min_logmass, smoothed):
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    nsimxs = csiborgtools.summary.get_cross_sims(
+        simname, nsim0, paths, min_logmass, smoothed=smoothed)
+
+    cat0 = open_cat(nsim0, simname)
+    catxs = open_cats(nsimxs, simname)
+
+    reader = csiborgtools.summary.NPairsOverlap(cat0, catxs, paths,
+                                                min_logmass)
+
+    log_mass0 = numpy.log10(reader.cat0(MASS_KINDS[simname]))
+    vx, vy, vz = reader.cat0("vx"), reader.cat0("vy"), reader.cat0("vz")
+
+    out_mass = numpy.full((kmax), numpy.nan)
+    out_true = numpy.full((kmax, 3), numpy.nan)
+    out_matched = numpy.full((kmax, len(nsimxs), 4), numpy.nan)
+
+    for k0 in trange(kmax, desc="Looping over top masses"):
+        k = numpy.argsort(log_mass0)[::-1][k0]
+        for i, key in enumerate(["vx", "vy", "vz"]):
+            vel, overlaps = reader.expected_property_single(k, key, smoothed,
+                                                            in_log=False)
+            out_matched[k0, :, i] = vel
+        out_matched[k0, :, -1] = overlaps
+
+        out_mass[k0] = log_mass0[k]
+        out_true[k0, 0] = vx[k]
+        out_true[k0, 1] = vy[k]
+        out_true[k0, 2] = vz[k]
+
+    return out_mass, out_true, out_matched
+
+
+def expected_in_velocity(kmax, nsim0, simname, min_logmass, smoothed):
+    cat0 = open_cat(nsim0, simname)
+    pos = cat0.position(cartesian=False)
+
+    if kmax == -1:
+        kmax = numpy.sum(numpy.log10(cat0[MASS_KINDS[simname]]) > min_logmass) - 1  # noqa
+        print(f"Selected kmax = -1, so doing {kmax}.")
+
+    out_mass, out_true, out_matched = get_max_overlap_velocity(
+        kmax, nsim0, simname, min_logmass, smoothed)
+    __, out_true_conc, out_matched_conc, out_control_conc = get_expected_many_topmass(kmax, nsim0, simname, min_logmass, "conc", smoothed, False)  # noqa
+    __, out_true_mass, out_matched_mass, out_control_mass = get_expected_many_topmass(kmax, nsim0, simname, min_logmass, "totpartmass", smoothed, False)  # noqa
+    clusters = {
+        'Virgo': {'l': 283.8, 'b': 74.5, 'distance_mpc': 17},
+        'Fornax': {'l': 236.8, 'b': -53.6, 'distance_mpc': 19},
+        'Coma': {'l': 58.1, 'b': 87.9, 'distance_mpc': 98},
+        'Perseus': {'l': 150.6, 'b': -13.3, 'distance_mpc': 73},
+        'Hydra': {'l': 269.1, 'b': 26.5, 'distance_mpc': 49},
+        'Centaurus': {'l': 302.4, 'b': 21.6, 'distance_mpc': 52}
+        }
+
+    nsimx = out_matched.shape[1]
+    # Calculate the cosine similarity between the true and expected velocity
+    # and the difference in velocity.
+    yalign = numpy.full((kmax, nsimx), numpy.nan)
+    ydiff = numpy.full((kmax, nsimx), numpy.nan)
+    w = numpy.full((kmax, nsimx), numpy.nan)
+    for k in range(kmax):
+        yalign[k] = csiborgtools.utils.cosine_similarity(out_true[k],
+                                                         out_matched[k, :, :3])
+        ydiff[k] = numpy.sum(
+            (out_true[k] - out_matched[k, :, :3])**2, axis=1)**0.5
+        w[k] = out_matched[k, :, -1]
+
+    for k in range(0):
+        k0 = numpy.argsort(cat0["totpartmass"])[::-1][k]
+        with plt.style.context("science"):
+            fig, axs = plt.subplots(nrows=3, ncols=3,
+                                    figsize=(2 * 3.5, 2 * 2.625))
+            fig.subplots_adjust(wspace=0., hspace=0.0)
+
+            # Maximum overlap histogram
+            axs[0, 0].hist(w[k], bins="auto", histtype="step", density=1)
+            axs[0, 0].set_xlabel(r"$\max_{b \in \mathcal{B}} \mathcal{O}_{a b}$")  # noqa
+            axs[0, 0].set_ylabel(r"Normalized counts")
+            axs[0, 0].set_xlim(0.01, 1)
+            # Cosine similarity alignment
+            axs[0, 1].hist(yalign[k], weights=w[k], bins=20, histtype="step",
+                           density=1)
+            axs[0, 1].set_xlabel(r"$\cos \theta$")
+            axs[0, 1].set_xlim(-1, 1)
+            axs[0, 1].set_ylabel(r"Normalized counts")
+            # Absolute difference in velocity
+            axs[0, 2].hist(ydiff[k], weights=w[k], bins=20, histtype="step",
+                           density=1)
+            axs[0, 2].set_xlabel(r"$|\Delta \textbf{v}|~[\mathrm{km} / \mathrm{s}]$")  # noqa
+            axs[0, 2].set_xlim(0)
+            axs[0, 2].set_ylabel(r"Normalized counts")
+            # Max overlap vs mass
+            axs[1, 0].scatter(w[k], numpy.log10(out_matched_mass[k, :, 0]),
+                              s=3)
+            axs[1, 0].axhline(out_mass[k], color="red", ls="--")
+            axs[1, 0].axhline(
+                numpy.average(numpy.log10(out_matched_mass[k, :, 0]),
+                              weights=w[k]),
+                color="blue", ls="--")
+            axs[1, 0].set_xlabel(r"$\max_{b \in \mathcal{B}} \mathcal{O}_{a b}$")  # noqa
+            axs[1, 0].set_ylabel(r"$\log M_{\rm tot} ~ [M_\odot / h]$")
+            # Max overlap vs concentration
+            axs[1, 1].scatter(w[k], out_matched_conc[k, :, 0], s=3)
+            axs[1, 1].axhline(out_true_conc[k], color="red", ls="--")
+            axs[1, 1].set_xlabel(r"$\max_{b \in \mathcal{B}} \mathcal{O}_{a b}$")  # noqa
+            axs[1, 1].set_ylabel(r"$c$")
+            # Alignment vs difference in velocity
+            axs[1, 2].scatter(yalign[k], ydiff[k], s=3)
+            axs[1, 2].set_xlabel(r"$\cos \theta$")
+            axs[1, 2].set_ylabel(r"$|\Delta \textbf{v}|~[\mathrm{km} / \mathrm{s}]$")  # noqa
+            axs[1, 2].set_ylim(0.01)
+            # Sky positions
+            c = SkyCoord(ra=pos[k0, 1] * u.degree, dec=pos[k0, 2] * u.degree,
+                         frame='icrs')
+            axs[2, 0].scatter(c.galactic.l, c.galactic.b, s=3, zorder=1,
+                              c="red")
+            dist = str(round(pos[k0, 0], 0))
+            axs[2, 0].text(c.galactic.l.to_value(), c.galactic.b.to_value(),
+                           dist, fontsize=6, ha='left',
+                           va='bottom', zorder=0)
+            for cluster in clusters.keys():
+                l, b = clusters[cluster]['l'], clusters[cluster]['b']
+                axs[2, 0].scatter(l, b, c="blue", s=2, zorder=0)
+                dist = round(clusters[cluster]["distance_mpc"], 0)
+                key = f"{cluster} ({dist})"
+                axs[2, 0].text(l, b, key, fontsize=6, ha='right',
+                               va='bottom', zorder=0)
+                axs[2, 0].axhspan(-10, 10, alpha=0.2)
+            axs[2, 0].set_xlabel(r"$l$")
+            axs[2, 0].set_ylabel(r"$b$")
+            # Max overlap vs alignment
+            axs[2, 1].scatter(w[k], yalign[k], s=3)
+            axs[2, 1].set_xlabel(r"$\max_{b \in \mathcal{B}} \mathcal{O}_{a b}$")  # noqa
+            axs[2, 1].set_ylabel(r"$\cos \theta$")
+            # Max overlap vs velocity difference
+            axs[2, 2].scatter(w[k], ydiff[k], s=3)
+            axs[2, 2].set_xlabel(r"$\max_{b \in \mathcal{B}} \mathcal{O}_{a b}$")  # noqa
+            axs[2, 2].set_ylabel(r"$|\Delta \textbf{v}|~[\mathrm{km} / \mathrm{s}]$")  # noqa
+
+            fig.tight_layout()
+            fout = join(
+                plt_utils.fout,
+                f"vel_{k}_{nsim0}_{simname}_{min_logmass}.png")
+            print(f"Saving to `{fout}`.")
+            plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
+            plt.close()
+
+    with plt.style.context("science"):
+        plt.figure()
+
+        x = numpy.asanyarray([numpy.nanmean(w[k]) for k in range(kmax)])
+        y = [csiborgtools.summary.find_peak(yalign[k], w[k])
+             for k in range(kmax)]
+        y = numpy.arccos(y) * 180 / numpy.pi
+        c = numpy.log10(out_true_mass)
+
+        # plt.errorbar(x, y, xerr=[xlower, xupper], fmt="o", ms=3, lw=0.5,)
+        # plt.hexbin(x, y, gridsize=30, mincnt=1, bins="log")
+        plt.scatter(x, y, s=7.5, c=c, rasterized=True)
+
+        plt.ylim(top=90)
+
+        m = numpy.isfinite(x) & numpy.isfinite(y)
+        xbins = numpy.arange(x[m].min(), x[m].max(), 0.1)
+        xcent = 0.5 * (xbins[1:] + xbins[:-1])
+        ymed, yerr = plt_utils.compute_error_bars(x[m], y[m], xbins, sigma=1)
+        plt.errorbar(xcent, ymed, yerr=yerr, fmt="o", ms=3, lw=0.5, c="red",
+                     capsize=3, ls="--")
+
+        plt.colorbar(label=r"$\log M_{\rm tot} ~ [M_\odot / h]$", pad=0)
+        plt.xlabel(r"$\langle \max_{b \in \mathcal{B}} \mathcal{O}_{a b} \rangle_{\mathcal{B}}$")  # noqa
+        plt.ylabel(r"$\theta ~ [\deg]$")
+
+        plt.tight_layout()
+        fout = join(
+            plt_utils.fout,
+            f"stat_vel_agreement_{kmax}_{nsim0}_{simname}_{min_logmass}.pdf")
+        print(f"Saving to `{fout}`.")
+        plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
+        plt.close()
+
 
 # --------------------------------------------------------------------------- #
 ###############################################################################
@@ -1240,6 +1443,7 @@ if __name__ == "__main__":
         # "get_expected_key",
         # "get_expected_single",
         # "get_expected_many_topmass",
+        # "get_max_overlap_velocity",
         ]
     for func in funcs:
         print(f"Cleaning up cache for `{func}`.")
@@ -1285,7 +1489,7 @@ if __name__ == "__main__":
         #     mtot_vs_expected_key(0, "quijote", min_logmass, key, smoothed,
         #                          nbins)
 
-    if False:
+    if True:
         mass_vs_separation(7444, "csiborg", min_logmass, nbins, smoothed,
                            boxsize=677.7)
         # if plot_quijote:
@@ -1311,6 +1515,10 @@ if __name__ == "__main__":
         mtot_vs_expected_single_panel("maxmass__0", 7444, "csiborg",
                                       min_logmass, True)
 
-    if True:
+    if False:
         kmax = 100
         expected_in_tolerance(kmax, 7444, "csiborg", min_logmass, "conc", True)
+
+    if False:
+        kmax = 1000
+        expected_in_velocity(kmax, 7444 + 24 * 30, "csiborg", min_logmass, smoothed)
