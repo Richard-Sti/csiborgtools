@@ -64,7 +64,7 @@ def sort_particle_membership(nsim, nsnap, method):
         hid, pid = membership[i]
         hids[pids_idx[pid]] = hid
 
-    fout = fpath.replace("_membership", "_membership_sorted.h5")
+    fout = fpath + "_sorted.hdf5"
     print(f"{datetime.now()}:   saving the sorted data to ... `{fout}`")
 
     header = """

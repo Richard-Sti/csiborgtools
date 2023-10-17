@@ -25,6 +25,9 @@ from tqdm import tqdm, trange
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 
+from colossus.cosmology import cosmology
+from colossus.halo import concentration
+
 import csiborgtools
 import plt_utils
 
@@ -1193,6 +1196,13 @@ def expected_in_velocity(kmax, nsim0, simname, min_logmass, smoothed):
         kmax, nsim0, simname, min_logmass, smoothed)
     __, out_true_conc, out_matched_conc, out_control_conc = get_expected_many_topmass(kmax, nsim0, simname, min_logmass, "conc", smoothed, False)  # noqa
     __, out_true_mass, out_matched_mass, out_control_mass = get_expected_many_topmass(kmax, nsim0, simname, min_logmass, "totpartmass", smoothed, False)  # noqa
+
+    sep_mass, sep = get_mass_vs_separation(nsim0, simname, min_logmass, 677.7,
+                                           smoothed)
+    m = numpy.argsort(sep_mass)[::-1]
+    sep_mass = sep_mass[m][:kmax]
+    sep = sep[:, m][:, :kmax]
+
     clusters = {
         'Virgo': {'l': 283.8, 'b': 74.5, 'distance_mpc': 17},
         'Fornax': {'l': 236.8, 'b': -53.6, 'distance_mpc': 19},
@@ -1207,19 +1217,21 @@ def expected_in_velocity(kmax, nsim0, simname, min_logmass, smoothed):
     # and the difference in velocity.
     yalign = numpy.full((kmax, nsimx), numpy.nan)
     ydiff = numpy.full((kmax, nsimx), numpy.nan)
+    ymag = numpy.full((kmax, nsimx), numpy.nan)
     w = numpy.full((kmax, nsimx), numpy.nan)
     for k in range(kmax):
         yalign[k] = csiborgtools.utils.cosine_similarity(out_true[k],
                                                          out_matched[k, :, :3])
         ydiff[k] = numpy.sum(
             (out_true[k] - out_matched[k, :, :3])**2, axis=1)**0.5
+        ymag[k] = numpy.linalg.norm(out_matched[k, :, :3], axis=1)
         w[k] = out_matched[k, :, -1]
 
     for k in range(0):
         k0 = numpy.argsort(cat0["totpartmass"])[::-1][k]
         with plt.style.context("science"):
-            fig, axs = plt.subplots(nrows=3, ncols=3,
-                                    figsize=(2 * 3.5, 2 * 2.625))
+            fig, axs = plt.subplots(nrows=4, ncols=3,
+                                    figsize=(2 * 3.5, 2.5 * 2.625))
             fig.subplots_adjust(wspace=0., hspace=0.0)
 
             # Maximum overlap histogram
@@ -1233,10 +1245,11 @@ def expected_in_velocity(kmax, nsim0, simname, min_logmass, smoothed):
             axs[0, 1].set_xlabel(r"$\cos \theta$")
             axs[0, 1].set_xlim(-1, 1)
             axs[0, 1].set_ylabel(r"Normalized counts")
-            # Absolute difference in velocity
-            axs[0, 2].hist(ydiff[k], weights=w[k], bins=20, histtype="step",
+            # Normalized Absolute difference in velocity
+            axs[0, 2].hist(ydiff[k] / numpy.linalg.norm(out_true[k]),
+                           weights=w[k], bins=20, histtype="step",
                            density=1)
-            axs[0, 2].set_xlabel(r"$|\Delta \textbf{v}|~[\mathrm{km} / \mathrm{s}]$")  # noqa
+            axs[0, 2].set_xlabel(r"$|\Delta \textbf{v}| / |\textbf{v}_{\rm ref}|$")  # noqa
             axs[0, 2].set_xlim(0)
             axs[0, 2].set_ylabel(r"Normalized counts")
             # Max overlap vs mass
@@ -1286,6 +1299,20 @@ def expected_in_velocity(kmax, nsim0, simname, min_logmass, smoothed):
             axs[2, 2].scatter(w[k], ydiff[k], s=3)
             axs[2, 2].set_xlabel(r"$\max_{b \in \mathcal{B}} \mathcal{O}_{a b}$")  # noqa
             axs[2, 2].set_ylabel(r"$|\Delta \textbf{v}|~[\mathrm{km} / \mathrm{s}]$")  # noqa
+            # Alignment vs separation
+            axs[3, 0].scatter(yalign[k], sep[:, k], s=3)
+            axs[3, 0].set_xlabel(r"$\cos \theta$")
+            axs[3, 0].set_ylabel(r"$\Delta R ~ [Mpc / h]$")
+            # Separation vs max overlap
+            paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+            axs[3, 1].scatter(sep[:, k], w[k], s=3)
+            axs[3, 1].set_xlabel(r"$\Delta R ~ [Mpc / h]$")
+            axs[3, 1].set_ylabel(r"$\max_{b \in \mathcal{B}} \mathcal{O}_{a b}$")  # noqa
+            # max overlap vs chain index
+            y = numpy.abs(nsim0 - numpy.array(csiborgtools.summary.get_cross_sims(simname, nsim0, paths, min_logmass, smoothed=smoothed)))  # noqa
+            axs[3, 2].scatter(w[k], y, s=3)
+            axs[3, 2].set_xlabel(r"$\max_{b \in \mathcal{B}} \mathcal{O}_{a b}$")  # noqa
+            axs[3, 2].set_ylabel(r"$\Delta N_{\rm chain}$")
 
             fig.tight_layout()
             fout = join(
@@ -1296,32 +1323,58 @@ def expected_in_velocity(kmax, nsim0, simname, min_logmass, smoothed):
             plt.close()
 
     with plt.style.context("science"):
-        plt.figure()
+        fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(3.5, 1.5 * 2.625),
+                                sharex=True)
+        fig.subplots_adjust(wspace=0., hspace=0.0)
 
         x = numpy.asanyarray([numpy.nanmean(w[k]) for k in range(kmax)])
-        y = [csiborgtools.summary.find_peak(yalign[k], w[k])
-             for k in range(kmax)]
-        y = numpy.arccos(y) * 180 / numpy.pi
+        # y = [csiborgtools.summary.find_peak(yalign[k], w[k])
+        #      for k in range(kmax)]
+        y = numpy.asanyarray([numpy.nansum(numpy.arccos(yalign[k]) * w[k]) / numpy.nansum(w[k]) for k in range(kmax)])  # noqa
+        y *= 180 / numpy.pi
         c = numpy.log10(out_true_mass)
 
         # plt.errorbar(x, y, xerr=[xlower, xupper], fmt="o", ms=3, lw=0.5,)
         # plt.hexbin(x, y, gridsize=30, mincnt=1, bins="log")
-        plt.scatter(x, y, s=7.5, c=c, rasterized=True)
+        cax = axs[0].scatter(x, y, s=7.5, c=c, rasterized=True)
+        axins = axs[0].inset_axes([0.0, 1.0, 1.0, 0.05])
+        fig.colorbar(cax, cax=axins, orientation="horizontal",
+                     label=r"$\log M_{\rm tot} ~ [M_\odot / h]$")
+        axins.xaxis.tick_top()
+        axins.xaxis.set_tick_params(labeltop=True)
+        axins.xaxis.set_label_position("top")
+       #  fig.colorbar(cax, ax=axs[0], pad=0,
+                     # )
+        # axs[0].set_colorbar(label=r"$\log M_{\rm tot} ~ [M_\odot / h]$", pad=0)
 
-        plt.ylim(top=90)
+        # plt.ylim(top=90)
 
         m = numpy.isfinite(x) & numpy.isfinite(y)
         xbins = numpy.arange(x[m].min(), x[m].max(), 0.1)
         xcent = 0.5 * (xbins[1:] + xbins[:-1])
         ymed, yerr = plt_utils.compute_error_bars(x[m], y[m], xbins, sigma=1)
-        plt.errorbar(xcent, ymed, yerr=yerr, fmt="o", ms=3, lw=0.5, c="red",
-                     capsize=3, ls="--")
+        axs[0].errorbar(xcent, ymed, yerr=yerr, fmt="o", ms=3, lw=0.5, c="red",
+                        capsize=3, ls="--")
 
-        plt.colorbar(label=r"$\log M_{\rm tot} ~ [M_\odot / h]$", pad=0)
-        plt.xlabel(r"$\langle \max_{b \in \mathcal{B}} \mathcal{O}_{a b} \rangle_{\mathcal{B}}$")  # noqa
-        plt.ylabel(r"$\theta ~ [\deg]$")
+        y = numpy.asanyarray([numpy.nansum(ymag[k] * w[k]) / numpy.nansum(w[k]) / numpy.linalg.norm(out_true[k]) for k in range(kmax)])   # noqa
 
-        plt.tight_layout()
+        m = y < 3
+
+        axs[1].scatter(x[m], y[m], s=7.5, c=c[m], rasterized=True)
+        m = numpy.isfinite(x) & numpy.isfinite(y)
+        xbins = numpy.arange(x[m].min(), x[m].max(), 0.1)
+        xcent = 0.5 * (xbins[1:] + xbins[:-1])
+        ymed, yerr = plt_utils.compute_error_bars(x[m], y[m], xbins, sigma=1)
+        axs[1].errorbar(xcent, ymed, yerr=yerr, fmt="o", ms=3, lw=0.5, c="red",
+                        capsize=3, ls="--")
+
+        label = r"$\langle |\textbf{v}_{\mathcal{B}}| \rangle_{\mathcal{B}} / |\textbf{v}_{\rm ref}|$"
+        axs[1].set_ylabel(label)
+
+        axs[0].set_ylabel(r"$\langle \theta \rangle_{\mathcal{B}} ~ [\deg]$")
+        axs[1].set_xlabel(r"$\langle \max_{b \in \mathcal{B}} \mathcal{O}_{a b} \rangle_{\mathcal{B}}$")  # noqa
+
+        fig.tight_layout(w_pad=0, h_pad=0)
         fout = join(
             plt_utils.fout,
             f"stat_vel_agreement_{kmax}_{nsim0}_{simname}_{min_logmass}.pdf")
@@ -1410,6 +1463,7 @@ def matching_max_vs_overlap(min_logmass):
             ax2.plot(left_edges + offset, y2_csiborg, c=cols[n], ls="dotted",
                      zorder=0)
 
+        axs[0].set_xlim(left_edges.min(), left_edges.max())
         axs[0].legend(ncols=1, loc="upper left")
         for i in range(1):
             axs[i].set_xlabel(r"$\log M_{\rm tot, min} ~ [M_\odot / h]$")
@@ -1422,6 +1476,56 @@ def matching_max_vs_overlap(min_logmass):
                     f"matching_max_agreement_{min_logmass}.pdf")
         print(f"Saving to `{fout}`.")
         fig.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
+        plt.close()
+
+
+# --------------------------------------------------------------------------- #
+###############################################################################
+#                      Mass-concentration relation                            #
+###############################################################################
+# --------------------------------------------------------------------------- #
+
+
+@cache_to_disk(120)
+def get_mass_concentration(nsim, simname):
+    cat = open_cat(nsim, simname)
+    mass = cat["m200c"]
+    conc = cat["conc"]
+    return mass, conc
+
+
+def mass_concentration(ext="pdf"):
+
+    cosmology.setCosmology('WMAP5')
+    xrange = numpy.linspace(12, 15, 100)
+    cvir = concentration.concentration(10**xrange, '200c', 0.0,
+                                       model='diemer19')
+
+    with plt.style.context("science"):
+        plt.figure()
+
+        for nsim in tqdm([7444 + n * 24 for n in (0, 10, 20, 30, 40, 50, 60, 70, 80)]):  # noqa
+            x, y = get_mass_concentration(nsim, "csiborg")
+            m = numpy.isfinite(x) & numpy.isfinite(y)
+            x = x[m]
+            y = y[m]
+            x = numpy.log10(x)
+
+            xbins = numpy.arange(12, 15, 0.2)
+            xcent = 0.5 * (xbins[1:] + xbins[:-1])
+            ymed, yerr = plt_utils.compute_error_bars(x, y, xbins, 1)
+            plt.plot(xcent, ymed, c="black", lw=0.5)
+            # plt.errorbar(xcent, ymed, yerr=yerr, fmt="o", ms=3, lw=0.5,
+            #              c="red", capsize=3)
+
+        plt.plot(xrange, cvir, c="blue", lw=1, label="Diemer+19")
+        plt.yscale("log")
+        plt.legend()
+
+        plt.tight_layout()
+        fout = join(plt_utils.fout, "mass_concentration.png")
+        print(f"Saving to `{fout}`.")
+        plt.savefig(fout, dpi=plt_utils.dpi, bbox_inches="tight")
         plt.close()
 
 
@@ -1444,6 +1548,7 @@ if __name__ == "__main__":
         # "get_expected_single",
         # "get_expected_many_topmass",
         # "get_max_overlap_velocity",
+        # "get_mass_concentration",
         ]
     for func in funcs:
         print(f"Cleaning up cache for `{func}`.")
@@ -1489,14 +1594,14 @@ if __name__ == "__main__":
         #     mtot_vs_expected_key(0, "quijote", min_logmass, key, smoothed,
         #                          nbins)
 
-    if True:
+    if False:
         mass_vs_separation(7444, "csiborg", min_logmass, nbins, smoothed,
                            boxsize=677.7)
         # if plot_quijote:
         #     mass_vs_separation(0, 1, "quijote", min_logmass, nbins,
         #                        smoothed, boxsize=1000, plot_std=False)
 
-    if False:
+    if True:
         matching_max_vs_overlap(min_logmass)
 
     if False:
@@ -1522,3 +1627,6 @@ if __name__ == "__main__":
     if False:
         kmax = 1000
         expected_in_velocity(kmax, 7444 + 24 * 30, "csiborg", min_logmass, smoothed)
+
+    if False:
+        mass_concentration()
