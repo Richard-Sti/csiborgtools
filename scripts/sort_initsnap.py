@@ -74,11 +74,11 @@ def process_snapshot(nsim, simname, halo_finder, verbose):
     # Right away we dump the halo IDs to a HDF5 file and clear up memory.
     fprint(f"loading PIDs of IC {nsim}.", verbose)
     hids = partreader.read_halo_id(nsnap, nsim, halo_finder, verbose)
-    fprint("sorting PIDs of IC {nsim}.")
+    fprint(f"sorting PIDs of IC {nsim}.")
     sort_indxs = numpy.argsort(hids).astype(numpy.uint64)
 
     # Dump halo IDs
-    fprint("Loading and dumping halo IDs", verbose)
+    fprint("loading and dumping halo IDs", verbose)
     with h5py.File(fname, "w") as f:
         group = f.create_group("snapshot_final")
         group.attrs["header"] = "Snapshot data at z = 0."
@@ -89,7 +89,7 @@ def process_snapshot(nsim, simname, halo_finder, verbose):
     collect()
 
     # Dump particle positions
-    fprint("Loading and dumping particle positions", verbose)
+    fprint("loading and dumping particle positions", verbose)
     pos = partreader.read_snapshot(nsnap, nsim, "pos")[sort_indxs]
     with h5py.File(fname, "r+") as f:
         dset = f["snapshot_final"].create_dataset("pos", data=pos)
@@ -110,7 +110,7 @@ def process_snapshot(nsim, simname, halo_finder, verbose):
     collect()
 
     # Dump masses
-    fprint("Loading and dumping particle masses", verbose)
+    fprint("loading and dumping particle masses", verbose)
     mass = partreader.read_snapshot(nsnap, nsim, "mass")[sort_indxs]
     mass = box.box2solarmass(mass) if simname == "csiborg" else mass
     with h5py.File(fname, "r+") as f:
@@ -121,7 +121,7 @@ def process_snapshot(nsim, simname, halo_finder, verbose):
     collect()
 
     # Dump particle IDs
-    fprint("Loading and dumping particle IDs", verbose)
+    fprint("loading and dumping particle IDs", verbose)
     pid = partreader.read_snapshot(nsnap, nsim, "pid")[sort_indxs]
     with h5py.File(fname, "r+") as f:
         dset = f["snapshot_final"].create_dataset("pid", data=pid)
