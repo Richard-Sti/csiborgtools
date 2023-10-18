@@ -15,6 +15,7 @@
 """Collection of stand-off utility functions used in the scripts."""
 import numpy
 from numba import jit
+from datetime import datetime
 
 ###############################################################################
 #                           Positions                                         #
@@ -262,3 +263,9 @@ def binned_statistic(x, y, left_edges, bin_width, statistic):
         if numpy.any(mask):
             out[i] = statistic(y[mask])
     return out
+
+
+def fprint(msg, verbose=True):
+    """Print and flush a message with a timestamp."""
+    if verbose:
+        print(f"{datetime.now()}:   {msg}", flush=True)

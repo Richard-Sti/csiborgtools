@@ -16,7 +16,7 @@ from csiborgtools import clustering, field, match, read, summary                
 
 from .utils import (center_of_mass, delta2ncells, number_counts,                 # noqa
                     periodic_distance, periodic_distance_two_points,             # noqa
-                    binned_statistic, cosine_similarity)                         # noqa
+                    binned_statistic, cosine_similarity, fprint)                 # noqa
 
 
 # Arguments to csiborgtools.read.Paths.
