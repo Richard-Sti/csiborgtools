@@ -141,7 +141,6 @@ class CSiBORGReader(BaseReader):
     ----------
     paths : py:class`csiborgtools.read.Paths`
     """
-
     def __init__(self, paths):
         self.paths = paths
 
@@ -182,9 +181,7 @@ class CSiBORGReader(BaseReader):
         snappath = self.paths.snapshot(nsnap, nsim, "csiborg")
         ncpu = int(self.read_info(nsnap, nsim)["ncpu"])
         nsnap = str(nsnap).zfill(5)
-        if verbose:
-            print("Reading in output `{}` with ncpu = `{}`."
-                  .format(nsnap, ncpu))
+        fprint(f"reading in output `{nsnap}` with ncpu = `{ncpu}`.", verbose)
 
         # First read the headers. Reallocate arrays and fill them.
         nparts = numpy.zeros(ncpu, dtype=int)
@@ -197,7 +194,7 @@ class CSiBORGReader(BaseReader):
             # Read in this order
             ncpuloc = f.read_ints()
             if ncpuloc != ncpu:
-                infopath = join(snappath, "info_{}.txt".format(nsnap))
+                infopath = join(snappath, f"info_{nsnap}.txt")
                 raise ValueError(
                     "`ncpu = {}` of `{}` disagrees with `ncpu = {}` "
                     "of `{}`.".format(ncpu, infopath, ncpuloc, fpath))
@@ -438,10 +435,17 @@ class QuijoteReader(BaseReader):
             return readgadget.read_block(snapshot, "ID  ", ptype)
         elif kind == "pos":
             pos = readgadget.read_block(snapshot, "POS ", ptype) / 1e3  # Mpc/h
+            pos = pos.astype(numpy.float32)
             pos /= info["BoxSize"]  # Box units
+            return pos
         elif kind == "vel":
             vel = readgadget.read_block(snapshot, "VEL ", ptype)
+            vel = vel.astype(numpy.float32)
             vel *= (1 + info["redshift"])  # km / s
+            return vel
+        elif kind == "mass":
+            return numpy.full(info["Nall"], info["PartMass"],
+                              dtype=numpy.float32)
         else:
             raise ValueError(f"Unsupported kind `{kind}`.")
 
@@ -450,7 +454,7 @@ class QuijoteReader(BaseReader):
         if redshift is None:
             raise ValueError(f"Redshift of snapshot {nsnap} is not known.")
         if halo_finder == "FOF":
-            path = self.paths.fof_cat(nsim, "quijote")
+            path = self.paths.fof_cat(nsnap, nsim, "quijote")
             cat = readfof.FoF_catalog(path, nsnap)
             pids = self.read_snapshot(nsnap, nsim, kind="pid")
 
@@ -463,7 +467,7 @@ class QuijoteReader(BaseReader):
             fprint("creating the particle to FoF ID to map.")
             ks = numpy.insert(numpy.cumsum(group_len), 0, 0)
             pid2hid = numpy.full(
-                (group_pids.size, 2), numpy.nan, dtype=numpy.uint32)
+                (group_pids.size, 2), numpy.nan, dtype=numpy.uint64)
             for i, (k0, kf) in enumerate(zip(ks[:-1], ks[1:])):
                 pid2hid[k0:kf, 0] = i + 1
                 pid2hid[k0:kf, 1] = group_pids[k0:kf]
@@ -472,8 +476,8 @@ class QuijoteReader(BaseReader):
             # Create the final array of hids matchign the snapshot array.
             # Unassigned particles have hid 0.
             fprint("creating the final hid array.")
-            hids = numpy.full(pids.size, 0, dtype=numpy.uint32)
-            for i in trange(pids.size) if verbose else range(pids.size):
+            hids = numpy.full(pids.size, 0, dtype=numpy.uint64)
+            for i in trange(pids.size, disable=not verbose):
                 hids[i] = pid2hid.get(pids[i], 0)
 
             return hids
