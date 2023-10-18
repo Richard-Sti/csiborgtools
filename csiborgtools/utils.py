@@ -88,7 +88,7 @@ def periodic_distance_two_points(p1, p2, boxsize):
     return dist**0.5
 
 
-@jit(nopython=True)
+@jit(nopython=True, boundscheck=False)
 def periodic_wrap_grid(pos, boxsize=1):
     """Wrap positions in a periodic box."""
     for n in range(pos.shape[0]):
