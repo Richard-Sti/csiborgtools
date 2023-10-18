@@ -28,80 +28,39 @@ from .readsim import CSiBORGReader, QuijoteReader
 
 
 class BaseBox(ABC):
-    """
-    Base class for box units.
-    """
     _name = "box_units"
     _cosmo = None
 
     @property
     def cosmo(self):
-        """
-        The  box cosmology.
-
-        Returns
-        -------
-        cosmo : `astropy.cosmology.LambdaCDM`
-        """
         if self._cosmo is None:
             raise ValueError("Cosmology not set.")
         return self._cosmo
 
     @property
     def H0(self):
-        r"""
-        The Hubble parameter at the time of the snapshot in units of
-        :math:`\mathrm{km} \mathrm{s}^{-1} \mathrm{Mpc}^{-1}`.
-
-        Returns
-        -------
-        H0 : float
-        """
+        r"""Present Hubble parameter in :math:`\mathrm{km} \mathrm{s}^{-1}`"""
         return self.cosmo.H0.value
 
     @property
     def rho_crit0(self):
-        r"""
-        Present-day critical density in :math:`M_\odot h^2 / \mathrm{cMpc}^3`.
-
-        Returns
-        -------
-        rho_crit0 : float
-        """
+        """Present-day critical density in M_sun h^2 / cMpc^3."""
         rho_crit0 = self.cosmo.critical_density0
         return rho_crit0.to_value(units.solMass / units.Mpc**3)
 
     @property
     def h(self):
-        r"""
-        The little 'h' parameter at the time of the snapshot.
-
-        Returns
-        -------
-        h : float
-        """
+        """The little 'h' parameter at the time of the snapshot."""
         return self._h
 
     @property
     def Om0(self):
-        r"""
-        The matter density parameter.
-
-        Returns
-        -------
-        Om0 : float
-        """
+        """The present time matter density parameter."""
         return self.cosmo.Om0
 
     @abstractproperty
     def boxsize(self):
-        """
-        Box size in cMpc.
-
-        Returns
-        -------
-        boxsize : float
-        """
+        """Box size in cMpc."""
         pass
 
     @abstractmethod
@@ -256,7 +215,7 @@ class CSiBORGBox(BaseBox):
 
 class QuijoteBox(BaseBox):
     """
-    Quijote fiducial cosmology box.
+    Quijote cosmology box.
 
     Parameters
     ----------
@@ -289,33 +248,7 @@ class QuijoteBox(BaseBox):
         return length / self.boxsize
 
     def solarmass2box(self, mass):
-        r"""
-        Convert mass from :math:`M_\odot / h` to box units.
-
-        Parameters
-        ----------
-        mass : float
-            Mass in :math:`M_\odot`.
-
-        Returns
-        -------
-        mass : float
-            Mass in box units.
-        """
         return mass / self._info["TotMass"]
 
     def box2solarmass(self, mass):
-        r"""
-        Convert mass from box units to :math:`M_\odot / h`.
-
-        Parameters
-        ----------
-        mass : float
-            Mass in box units.
-
-        Returns
-        -------
-        mass : float
-            Mass in :math:`M_\odot / h`.
-        """
         return mass * self._info["TotMass"]
