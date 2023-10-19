@@ -136,8 +136,9 @@ def process_snapshot(nsim, simname, halo_finder, verbose):
     fprint(f"creating a halo map for IC {nsim}.")
     with h5py.File(fname, "r") as f:
         part_hids = f["snapshot_final"]["halo_ids"][:]
-    # We loop over the unique halo IDs.
+    # We loop over the unique halo IDs and remove the 0 halo ID
     unique_halo_ids = numpy.unique(part_hids)
+    unique_halo_ids = unique_halo_ids[unique_halo_ids != 0]
     halo_map = numpy.full((unique_halo_ids.size, 3), numpy.nan,
                           dtype=numpy.uint64)
     start_loop, niters = 0, unique_halo_ids.size
@@ -197,7 +198,6 @@ def add_initial_snapshot(nsim, simname, halo_finder, verbose):
         partreader = csiborgtools.read.QuijoteReader(paths)
 
     fprint(f"processing simulation `{nsim}`.", verbose)
-    nsnap = max(paths.get_snapshots(nsim, simname))
     if simname == "csiborg":
         nsnap0 = 1
     elif simname == "quijote":
@@ -281,7 +281,7 @@ def calculate_initial(nsim, simname, halo_finder, verbose):
         parts_mass = csiborgtools.read.load_halo_particles(h, mass, hid2map)
 
         # Skip if the halo has no particles or is too small.
-        if parts_pos is None or parts_pos.size < 20:
+        if parts_pos is None or parts_pos.size < 5:
             continue
 
         cm = csiborgtools.center_of_mass(parts_pos, parts_mass, boxsize=1.0)
@@ -341,10 +341,10 @@ def make_phew_halo_catalogue(nsim, find_ultimate_parent, verbose):
 
 def main(nsim, args):
     # Process the final snapshot
-    # process_snapshot(nsim, args.simname, args.halofinder, True)
+    process_snapshot(nsim, args.simname, args.halofinder, True)
 
     # Then add do it the initial snapshot data
-    # add_initial_snapshot(nsim, args.simname, args.halofinder, True)
+    add_initial_snapshot(nsim, args.simname, args.halofinder, True)
 
     # # Calculate the Lagrangian patch size properties
     calculate_initial(nsim, args.simname, args.halofinder, True)
