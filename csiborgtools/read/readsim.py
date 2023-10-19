@@ -522,9 +522,9 @@ class QuijoteReader(BaseReader):
         vel = fof.GroupVel * (1 + self.read_info(nsnap, nsim)["redshift"])
         for i, p in enumerate(["x", "y", "z"]):
             data[p] = pos[:, i]
-            data["fof_v" + p] = vel[:, i]
+            data[f"v{p}"] = vel[:, i]
         data["group_mass"] = fof.GroupMass * 1e10
-        data["fof_npart"] = fof.GroupLen
+        data["npart"] = fof.GroupLen
         # We want to start indexing from 1. Index 0 is reserved for
         # particles unassigned to any FoF group.
         data["index"] = 1 + numpy.arange(data.size, dtype=numpy.int32)
