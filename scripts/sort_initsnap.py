@@ -78,7 +78,7 @@ def process_snapshot(nsim, simname, halo_finder, verbose):
     sort_indxs = numpy.argsort(hids).astype(numpy.uint64)
 
     # Dump halo IDs
-    fprint("loading and dumping halo IDs", verbose)
+    fprint("loading and dumping halo IDs.", verbose)
     with h5py.File(fname, "w") as f:
         group = f.create_group("snapshot_final")
         group.attrs["header"] = "Snapshot data at z = 0."
@@ -89,7 +89,7 @@ def process_snapshot(nsim, simname, halo_finder, verbose):
     collect()
 
     # Dump particle positions
-    fprint("loading and dumping particle positions", verbose)
+    fprint("loading and dumping particle positions.", verbose)
     pos = partreader.read_snapshot(nsnap, nsim, "pos")[sort_indxs]
     with h5py.File(fname, "r+") as f:
         dset = f["snapshot_final"].create_dataset("pos", data=pos)
@@ -99,7 +99,7 @@ def process_snapshot(nsim, simname, halo_finder, verbose):
     collect()
 
     # Dump velocities
-    fprint("Loading and dumping particle velocities", verbose)
+    fprint("Loading and dumping particle velocities.", verbose)
     vel = partreader.read_snapshot(nsnap, nsim, "vel")[sort_indxs]
     vel = box.box2vel(vel) if simname == "csiborg" else vel
     with h5py.File(fname, "r+") as f:
@@ -110,7 +110,7 @@ def process_snapshot(nsim, simname, halo_finder, verbose):
     collect()
 
     # Dump masses
-    fprint("loading and dumping particle masses", verbose)
+    fprint("loading and dumping particle masses.", verbose)
     mass = partreader.read_snapshot(nsnap, nsim, "mass")[sort_indxs]
     mass = box.box2solarmass(mass) if simname == "csiborg" else mass
     with h5py.File(fname, "r+") as f:
@@ -121,7 +121,7 @@ def process_snapshot(nsim, simname, halo_finder, verbose):
     collect()
 
     # Dump particle IDs
-    fprint("loading and dumping particle IDs", verbose)
+    fprint("loading and dumping particle IDs.", verbose)
     pid = partreader.read_snapshot(nsnap, nsim, "pid")[sort_indxs]
     with h5py.File(fname, "r+") as f:
         dset = f["snapshot_final"].create_dataset("pid", data=pid)
@@ -133,7 +133,7 @@ def process_snapshot(nsim, simname, halo_finder, verbose):
     del sort_indxs
     collect()
 
-    fprint(f"creating a halo map for {nsim}.")
+    fprint(f"creating a halo map for IC {nsim}.")
     with h5py.File(fname, "r") as f:
         part_hids = f["snapshot_final"]["halo_ids"][:]
     # We loop over the unique halo IDs.
@@ -178,7 +178,7 @@ def process_snapshot(nsim, simname, halo_finder, verbose):
     with h5py.File(fname, "r+") as f:
         group = f.create_group("halo_catalogue")
         group.attrs["header"] = f"{halo_finder} halo catalogue."
-        group.create_dataset("hid", data=unique_halo_ids)
+        group.create_dataset("index", data=unique_halo_ids)
 
 
 def add_initial_snapshot(nsim, simname, halo_finder, verbose):
@@ -201,6 +201,7 @@ def add_initial_snapshot(nsim, simname, halo_finder, verbose):
     else:
         raise ValueError(f"Unknown simulation `{simname}`.")
 
+    fprint("loading the initial particles.", verbose)
     pid0 = partreader.read_snapshot(nsnap0, nsim, "pid")
     pos = partreader.read_snapshot(nsnap0, nsim, "pos")
 
@@ -226,7 +227,7 @@ def add_initial_snapshot(nsim, simname, halo_finder, verbose):
             pos[mask] -= spacing
 
     fname = paths.processed_output(nsim, simname, halo_finder)
-    fprint(f"dumping particles for `{nsim}` to `{fname}`", verbose)
+    fprint(f"dumping particles for `{nsim}` to `{fname}`.", verbose)
     with h5py.File(fname, "r+") as f:
         group = f.create_group("snapshot_initial")
         group.attrs["header"] = "Initial snapshot data."
@@ -294,8 +295,10 @@ def calculate_initial(nsim, simname, halo_finder, verbose):
 def main(nsim, args):
     # Process the final snapshot
     process_snapshot(nsim, args.simname, args.halofinder, True)
+
     # Then add do it the initial snapshot data
     add_initial_snapshot(nsim, args.simname, args.halofinder, True)
+
     # Calculate the Lagrangian patch size properties
     calculate_initial(nsim, args.simname, args.halofinder, True)
 
