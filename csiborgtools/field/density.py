@@ -33,13 +33,7 @@ class BaseField(ABC):
 
     @property
     def box(self):
-        """
-        Simulation box information and transformations.
-
-        Returns
-        -------
-        :py:class:`csiborgtools.units.CSiBORGBox`
-        """
+        """Simulation box information and transformations."""
         return self._box
 
     @box.setter
@@ -52,13 +46,7 @@ class BaseField(ABC):
 
     @property
     def MAS(self):
-        """
-        Mass-assignment scheme.
-
-        Returns
-        -------
-        str
-        """
+        """Mass-assignment scheme."""
         if self._MAS is None:
             raise ValueError("`MAS` is not set.")
         return self._MAS
@@ -102,7 +90,6 @@ class DensityField(BaseField):
         r"""
         Calculate the overdensity field from the density field.
         Defined as :math:`\rho/ <\rho> - 1`. Overwrites the input array.
-
 
         Parameters
         ----------
