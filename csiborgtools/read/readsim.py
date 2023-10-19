@@ -30,7 +30,7 @@ from tqdm import trange
 
 from ..utils import fprint
 from .paths import Paths
-from .utils import add_columns, cols_to_structured
+from .utils import add_columns, cols_to_structured, flip_cols
 
 
 class BaseReader(ABC):
@@ -161,11 +161,17 @@ class CSiBORGReader(BaseReader):
     def read_snapshot(self, nsnap, nsim, kind):
         sim = pynbody.load(self.paths.snapshot(nsnap, nsim, "csiborg"))
         if kind == "pid":
-            return numpy.array(sim["iord"], dtype=numpy.uint64)
+            x = numpy.array(sim["iord"], dtype=numpy.uint64)
         elif kind in ["pos", "vel", "mass"]:
-            return numpy.array(sim[kind], dtype=numpy.float32)
+            x = numpy.array(sim[kind], dtype=numpy.float32)
         else:
             raise ValueError(f"Unknown kind `{kind}`.")
+
+        # Because of a RAMSES bug x and z are flipped.
+        if x in ["pos", "vel"]:
+            x[:, [0, 2]] = x[:, [2, 0]]
+
+        return x
 
     def read_halo_id(self, nsnap, nsim, halo_finder, verbose=True):
         if halo_finder == "PHEW":
@@ -293,6 +299,8 @@ class CSiBORGReader(BaseReader):
         out["x"] = pos[:, 0] * h + 677.7 / 2
         out["y"] = pos[:, 1] * h + 677.7 / 2
         out["z"] = pos[:, 2] * h + 677.7 / 2
+        # Because of a RAMSES bug x and z are flipped.
+        flip_cols(out, ["x", "z"])
         out["totpartmass"] = totmass * 1e11 * h
         out["m200c"] = m200c * 1e11 * h
         return out
@@ -350,24 +358,22 @@ class CSiBORGReader(BaseReader):
         out['x'] *= 677.7
         out['y'] *= 677.7
         out['z'] *= 677.7
+        # Because of a RAMSES bug x and z are flipped.
+        flip_cols(out, ["x", "z"])
         out["mass_cl"] *= 2.6543271649678946e+19
 
         if find_ultimate_parent:
             ultimate_parent = self.find_parents(out, verbose)
-            is_main = out["index"] == ultimate_parent
 
             summed_mass = numpy.full(out.size, numpy.nan, dtype=numpy.float32)
             for i in range(out.size):
                 mask = [ultimate_parent == out["index"][i]]
                 summed_mass[i] = numpy.sum(out["mass_cl"][mask])
 
-            subfrac = 1 - out["mass_cl"] / summed_mass
-
-            add_columns(
-                out,
-                [ultimate_parent, is_main, summed_mass, subfrac],
-                ["ultimate_parent", "is_main", "summed_mass", "subfrac"]
-                )
+            add_columns(out,
+                        [ultimate_parent, summed_mass],
+                        ["ultimate_parent", "summed_mass"]
+                        )
 
         return out
 
