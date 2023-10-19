@@ -297,7 +297,8 @@ class CSiBORGReader(BaseReader):
         out["m200c"] = m200c * 1e11 * h
         return out
 
-    def read_phew_clumps(self, nsnap, nsim, verbose=True):
+    def read_phew_clumps(self, nsnap, nsim, find_ultimate_parent=True,
+                         verbose=True):
         """
         Read in a PHEW clump file `clump_XXXXX.dat`.
 
@@ -307,6 +308,8 @@ class CSiBORGReader(BaseReader):
             Snapshot index.
         nsim : int
             IC realisation index.
+        find_ultimate_parent : bool, optional
+            Whether to find the ultimate parent halo of every clump.
         verbose : bool, optional
             Verbosity flag.
 
@@ -349,8 +352,23 @@ class CSiBORGReader(BaseReader):
         out['z'] *= 677.7
         out["mass_cl"] *= 2.6543271649678946e+19
 
-        ultimate_parent = self.find_parents(out, True)
-        out = add_columns(out, ultimate_parent, "ultimate_parent")
+        if find_ultimate_parent:
+            ultimate_parent = self.find_parents(out, verbose)
+            is_main = out["index"] == ultimate_parent
+
+            summed_mass = numpy.full(out.size, numpy.nan, dtype=numpy.float32)
+            for i in range(out.size):
+                mask = [ultimate_parent == out["index"][i]]
+                summed_mass[i] = numpy.sum(out["mass_cl"][mask])
+
+            subfrac = 1 - out["mass_cl"] / summed_mass
+
+            add_columns(
+                out,
+                [ultimate_parent, is_main, summed_mass, subfrac],
+                ["ultimate_parent", "is_main", "summed_mass", "subfrac"]
+                )
+
         return out
 
     def find_parents(self, clumparr, verbose=False):
