@@ -27,7 +27,7 @@ import csiborgtools
 from csiborgtools import fprint
 from numba import jit
 from taskmaster import work_delegation
-from tqdm import trange
+from tqdm import trange, tqdm
 from utils import get_nsims
 
 
@@ -173,12 +173,14 @@ def process_snapshot(nsim, simname, halo_finder, verbose):
                 j = hid2pos[cat["index"][i]]
                 x[j] = cat[key][i]
             group.create_dataset(key, data=x)
+        f.close()
 
     # Lastly create the halo catalogue
     with h5py.File(fname, "r+") as f:
         group = f.create_group("halo_catalogue")
         group.attrs["header"] = f"{halo_finder} halo catalogue."
         group.create_dataset("index", data=unique_halo_ids)
+        f.close()
 
 
 def add_initial_snapshot(nsim, simname, halo_finder, verbose):
@@ -187,6 +189,8 @@ def add_initial_snapshot(nsim, simname, halo_finder, verbose):
     add them to the final snapshot's HDF5 file.
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    fname = paths.processed_output(nsim, simname, halo_finder)
+
     if simname == "csiborg":
         partreader = csiborgtools.read.CSiBORGReader(paths)
     else:
@@ -204,14 +208,20 @@ def add_initial_snapshot(nsim, simname, halo_finder, verbose):
     fprint("loading the initial particles.", verbose)
     pid0 = partreader.read_snapshot(nsnap0, nsim, "pid")
     pos = partreader.read_snapshot(nsnap0, nsim, "pos")
+    fprint("sorting the initial particles.", verbose)
 
     # First enforce them to already be sorted and then apply reverse
     # sorting from the final snapshot.
     pos = pos[numpy.argsort(pid0)]
+
     del pid0
     collect()
 
-    pidf = partreader.read_snapshot(nsnap, nsim, "pid")
+    fprint("loading the final particles.", verbose)
+    with h5py.File(fname, "r") as f:
+        pidf = f["snapshot_final/pid"][:]
+        f.close()
+    fprint("sorting the particles according to the final snapshot.", verbose)
     pos = pos[numpy.argsort(numpy.argsort(pidf))]
 
     del pidf
@@ -226,13 +236,16 @@ def add_initial_snapshot(nsim, simname, halo_finder, verbose):
             assert numpy.max(spacing) <= 1e-5
             pos[mask] -= spacing
 
-    fname = paths.processed_output(nsim, simname, halo_finder)
     fprint(f"dumping particles for `{nsim}` to `{fname}`.", verbose)
     with h5py.File(fname, "r+") as f:
+        if "snapshot_initial" in f.keys():
+            del f["snapshot_initial"]
         group = f.create_group("snapshot_initial")
         group.attrs["header"] = "Initial snapshot data."
         dset = group.create_dataset("pos", data=pos)
         dset.attrs["header"] = "DM particle positions in box units."
+
+        f.close()
 
 
 def calculate_initial(nsim, simname, halo_finder, verbose):
@@ -241,12 +254,12 @@ def calculate_initial(nsim, simname, halo_finder, verbose):
 
     fname = paths.processed_output(nsim, simname, halo_finder)
     fprint("loading the particle information.", verbose)
-    with h5py.File(fname, "r") as f:
-        pos = f["snapshot_initial"]["pos"][:]
-        mass = f["snapshot_final"]["mass"][:]
-        hid = f["halo_catalogue"]["hid"][:]
-        hid2map = csiborgtools.read.make_halomap_dict(
-            f["snapshot_final"]["halo_map"][:])
+    f = h5py.File(fname, "r")
+    pos = f["snapshot_initial/pos"]
+    mass = f["snapshot_final/mass"]
+    hid = f["halo_catalogue/index"][:]
+    hid2map = csiborgtools.read.make_halomap_dict(
+        f["snapshot_final/halo_map"][:])
 
     if simname == "csiborg":
         kwargs = {"box_size": 2048, "bckg_halfsize": 512}
@@ -263,6 +276,7 @@ def calculate_initial(nsim, simname, halo_finder, verbose):
         # These are unasigned particles.
         if h == 0:
             continue
+
         parts_pos = csiborgtools.read.load_halo_particles(h, pos, hid2map)
         parts_mass = csiborgtools.read.load_halo_particles(h, mass, hid2map)
 
@@ -278,6 +292,9 @@ def calculate_initial(nsim, simname, halo_finder, verbose):
         lagpatch_size[i] = numpy.percentile(sep, 99)
         lagpatch_ncells[i] = csiborgtools.delta2ncells(delta)
 
+    f.close()
+    collect()
+
     with h5py.File(fname, "r+") as f:
         grp = f["halo_catalogue"]
         dset = grp.create_dataset("lagpatch_pos", data=lagpatch_pos)
@@ -287,20 +304,53 @@ def calculate_initial(nsim, simname, halo_finder, verbose):
         dset.attrs["header"] = "Lagrangian patch size in box units."
 
         dset = grp.create_dataset("lagpatch_ncells", data=lagpatch_ncells)
-        dset.attrs["header"] = f"Lagrangian patch number of cells on a {kwargs['boxsize']}^3 grid."  # noqa
+        dset.attrs["header"] = f"Lagrangian patch number of cells on a {kwargs['box_size']}^3 grid."  # noqa
 
         f.close()
 
 
+def make_phew_halo_catalogue(nsim, find_ultimate_parent, verbose):
+    """
+    Process the PHEW halo catalogue for a CSiBORG simulation at all snapshots.
+    """
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    snapshots = paths.get_snapshots(nsim, "csiborg")[-5:]
+    reader = csiborgtools.read.CSiBORGReader(paths)
+    keys_write = ["index", "x", "y", "z", "mass_cl"]
+
+    if find_ultimate_parent:
+        keys_write += ["ultimate_parent", "summed_mass"]
+
+    # Create some large HDF5 file to store all this.
+    fname = paths.processed_phew(nsim)
+    with h5py.File(fname, "w") as f:
+        f.close()
+
+    for nsnap in tqdm(snapshots, disable=not verbose, desc="Snapshot"):
+        data = reader.read_phew_clumps(nsnap, nsim, find_ultimate_parent=False,
+                                       verbose=False)
+
+        with h5py.File(fname, "r+") as f:
+            grp = f.create_group(str(nsnap))
+            for key in keys_write:
+                grp.create_dataset(key, data=data[key])
+
+            grp.attrs["header"] = f"CSiBORG PHEW clumps at snapshot {nsnap}."
+            f.close()
+
+
 def main(nsim, args):
     # Process the final snapshot
-    process_snapshot(nsim, args.simname, args.halofinder, True)
+    # process_snapshot(nsim, args.simname, args.halofinder, True)
 
     # Then add do it the initial snapshot data
-    add_initial_snapshot(nsim, args.simname, args.halofinder, True)
+    # add_initial_snapshot(nsim, args.simname, args.halofinder, True)
 
-    # Calculate the Lagrangian patch size properties
+    # # Calculate the Lagrangian patch size properties
     calculate_initial(nsim, args.simname, args.halofinder, True)
+
+
+    # make_phew_halo_catalogue(7444, False, True)
 
 
 if __name__ == "__main__":
