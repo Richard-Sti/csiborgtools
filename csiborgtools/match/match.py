@@ -30,21 +30,13 @@ from ..read import load_halo_particles
 
 
 class BaseMatcher(ABC):
-    """
-    Base class for `RealisationsMatcher` and `ParticleOverlap`.
-    """
+    """Base class for `RealisationsMatcher` and `ParticleOverlap`."""
     _box_size = None
     _bckg_halfsize = None
 
     @property
     def box_size(self):
-        """
-        Number of cells in the box.
-
-        Returns
-        -------
-        box_size : int
-        """
+        """Number of cells in the box."""
         if self._box_size is None:
             raise RuntimeError("`box_size` has not been set.")
         return self._box_size
@@ -64,10 +56,6 @@ class BaseMatcher(ABC):
         grid distance from the center of the box to each side over which to
         evaluate the background density field. Must be less than or equal to
         half the box size.
-
-        Returns
-        -------
-        bckg_halfsize : int
         """
         if self._bckg_halfsize is None:
             raise RuntimeError("`bckg_halfsize` has not been set.")
@@ -130,10 +118,6 @@ class RealisationsMatcher(BaseMatcher):
         """
         Multiplier of the sum of the initial Lagrangian patch sizes of a halo
         pair. Determines the range within which neighbors are returned.
-
-        Returns
-        -------
-        nmult : float
         """
         return self._nmult
 
@@ -148,10 +132,6 @@ class RealisationsMatcher(BaseMatcher):
         """
         Tolerance on the absolute logarithmic mass difference of potential
         matches.
-
-        Returns
-        -------
-        float
         """
         return self._dlogmass
 
@@ -166,10 +146,6 @@ class RealisationsMatcher(BaseMatcher):
         """
         Mass kind whose similarity is to be checked. Must be a valid key in the
         halo catalogue.
-
-        Returns
-        -------
-        str
         """
         return self._mass_kind
 
@@ -181,13 +157,7 @@ class RealisationsMatcher(BaseMatcher):
 
     @property
     def overlapper(self):
-        """
-        The overlapper object.
-
-        Returns
-        -------
-        :py:class:`csiborgtools.match.ParticleOverlap`
-        """
+        """The overlapper object."""
         return self._overlapper
 
     def cross(self, cat0, catx, particles0, particlesx, halo_map0, halo_mapx,
