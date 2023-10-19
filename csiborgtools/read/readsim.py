@@ -450,9 +450,6 @@ class QuijoteReader(BaseReader):
             raise ValueError(f"Unsupported kind `{kind}`.")
 
     def read_halo_id(self, nsnap, nsim, halo_finder, verbose=True):
-        redshift = {4: 0.0, 3: 0.5, 2: 1.0, 1: 2.0, 0: 3.0}.get(nsnap, None)
-        if redshift is None:
-            raise ValueError(f"Redshift of snapshot {nsnap} is not known.")
         if halo_finder == "FOF":
             path = self.paths.fof_cat(nsnap, nsim, "quijote")
             cat = readfof.FoF_catalog(path, nsnap)
@@ -505,7 +502,7 @@ class QuijoteReader(BaseReader):
         -------
         structured array
         """
-        fpath = self.paths.fof_cat(nsim, "quijote", False)
+        fpath = self.paths.fof_cat(nsnap, nsim, "quijote", False)
         fof = FoF_catalog(fpath, nsnap, long_ids=False, swap=False,
                           SFR=False, read_IDs=False)
 
@@ -522,7 +519,7 @@ class QuijoteReader(BaseReader):
         data = cols_to_structured(fof.GroupLen.size, cols)
 
         pos = fof.GroupPos / 1e3
-        vel = fof.GroupVel * (1 + self.redshift)
+        vel = fof.GroupVel * (1 + self.read_info(nsnap, nsim)["redshift"])
         for i, p in enumerate(["x", "y", "z"]):
             data[p] = pos[:, i]
             data["fof_v" + p] = vel[:, i]
