@@ -22,79 +22,127 @@ from copy import deepcopy
 from functools import lru_cache
 from itertools import product
 from math import floor
+from h5py import File
+from gc import collect
 
 import numpy
 from readfof import FoF_catalog
 from sklearn.neighbors import NearestNeighbors
 
 from ..utils import (cartesian_to_radec, periodic_distance_two_points,
-                     radec_to_cartesian, real2redshift)
+                     real2redshift)
 from .box_units import CSiBORGBox, QuijoteBox
 from .paths import Paths
-from .readsim import CSiBORGReader
-from .utils import add_columns, cols_to_structured, flip_cols
+# from .readsim import CSiBORGReader
+from .utils import add_columns, cols_to_structured
+from ..utils import fprint
+from .readsim import make_halomap_dict, load_halo_particles
+
+
+###############################################################################
+#                           Base catalogue                                    #
+###############################################################################
 
 
 class BaseCatalogue(ABC):
     """
     Base halo catalogue.
     """
-    _data = None
-    _paths = None
+    _simname = None
     _nsim = None
+    _nsnap = None
+    _catalogue_name = None
+
+    _paths = None
+    _box = None
+
+    _data = None
     _observer_location = None
     _observer_velocity = None
+    _mass_key = None
+
+    _cache = {}
+    _catalogue_length = None
+    _is_closed = None
+
+    _derived_properties = ["cartesian_pos",
+                           "spherical_pos",
+                           "dist",
+                           "cartesian_redshiftspace_pos",
+                           "spherical_redshiftspace_pos",
+                           "redshiftspace_dist",
+                           "cartesian_vel",
+                           "angular_momentum",
+                           "particle_offset"
+                           ]
+
+    def __init__(self, simname, nsim, nsnap, halo_finder, catalogue_name,
+                 paths, mass_key):
+        self.simname = simname
+        self.nsim = nsim
+        self.nsnap = nsnap
+        self.paths = paths
+        self.mass_key = mass_key
+
+        fname = self.paths.processed_output(nsim, simname, halo_finder)
+        fprint(f"opening `{fname}`.")
+        self._data = File(fname, "r")
+        self._is_closed = False
+
+        self.catalogue_name = catalogue_name
+
+    @property
+    def simname(self):
+        """Simulation name."""
+        if self._simname is None:
+            raise RuntimeError("`simname` is not set!")
+        return self._simname
+
+    @simname.setter
+    def simname(self, simname):
+        assert isinstance(simname, str)
+        self._simname = simname
 
     @property
     def nsim(self):
-        """
-        The IC realisation index.
-
-        Returns
-        -------
-        int
-        """
+        """The IC realisation index."""
         if self._nsim is None:
             raise RuntimeError("`nsim` is not set!")
         return self._nsim
 
     @nsim.setter
     def nsim(self, nsim):
-        if not isinstance(nsim, (int, numpy.integer)):
-            raise TypeError("`nsim` must be an integer!")
+        assert isinstance(nsim, (int, numpy.integer))
         self._nsim = nsim
 
-    @abstractproperty
+    @property
     def nsnap(self):
-        """
-        Catalogue's snapshot index.
+        """Catalogue's snapshot index."""
+        if self._nsnap is None:
+            raise RuntimeError("`nsnap` is not set!")
+        return self._nsnap
 
-        Returns
-        -------
-        int
-        """
-        pass
+    @nsnap.setter
+    def nsnap(self, nsnap):
+        assert isinstance(nsnap, (int, numpy.integer))
+        self._nsnap = nsnap
 
-    @abstractproperty
-    def simname(self):
-        """
-        Simulation name.
+    @property
+    def catalogue_name(self):
+        """Name of the halo catalogue."""
+        if self._catalogue_name is None:
+            raise RuntimeError("`catalogue_name` is not set!")
+        return self._catalogue_name
 
-        Returns
-        -------
-        str
-        """
-        pass
+    @catalogue_name.setter
+    def catalogue_name(self, catalogue_name):
+        assert isinstance(catalogue_name, str)
+        assert catalogue_name in self.data.keys()
+        self._catalogue_name = catalogue_name
 
     @property
     def paths(self):
-        """
-        Paths manager.
-
-        Returns
-        -------
-        :py:class:`csiborgtools.read.Paths`
-        """
+        """Paths manager."""
         if self._paths is None:
             raise RuntimeError("`paths` is not set!")
         return self._paths
@@ -105,132 +153,24 @@ class BaseCatalogue(ABC):
         self._paths = paths
 
     @property
-    def data(self):
-        """
-        The catalogue.
+    def box(self):
+        """Box object."""
+        pass
 
-        Returns
-        -------
-        structured array
-        """
+    @box.setter
+    def box(self, box):
+        self._box = box
+
+    @property
+    def data(self):
+        """The HDF5 catalogue."""
         if self._data is None:
             raise RuntimeError("`data` is not set!")
         return self._data
 
-    @abstractproperty
-    def box(self):
-        """
-        Box object.
-
-        Returns
-        -------
-        instance of :py:class:`csiborgtools.units.BoxUnits`
-        """
-        pass
-
-    def load_initial(self, data, paths, simname):
-        """
-        Load initial snapshot fits from the script `fit_init.py`.
-
-        Parameters
-        ----------
-        data : structured array
-            The catalogue to which append the new data.
-        paths : :py:class:`csiborgtools.read.Paths`
-            Paths manager.
-        simname : str
-            Simulation name.
-
-        Returns
-        -------
-        structured array
-        """
-        fits = numpy.load(paths.initmatch(self.nsim, simname, "fit"))
-        X, cols = [], []
-
-        for col in fits.dtype.names:
-            if col == "index":
-                continue
-            cols.append(col + "0" if col in ['x', 'y', 'z'] else col)
-            X.append(fits[col])
-
-        data = add_columns(data, X, cols)
-        for p in ('x0', 'y0', 'z0', 'lagpatch_size'):
-            data[p] = self.box.box2mpc(data[p])
-
-        return data
-
-    def load_fitted(self, data, paths, simname):
-        """
-        Load halo fits from the script `fit_halos.py`.
-
-        Parameters
-        ----------
-        data : structured array
-            The catalogue to which append the new data.
-        paths : :py:class:`csiborgtools.read.Paths`
-            Paths manager.
-        simname : str
-            Simulation name.
-
-        Returns
-        -------
-        structured array
-        """
-        fits = numpy.load(paths.structfit(self.nsnap, self.nsim, simname))
-
-        cols = [col for col in fits.dtype.names if col != "index"]
-        X = [fits[col] for col in cols]
-        data = add_columns(data, X, cols)
-        box = self.box
-
-        data["r200c"] = box.box2mpc(data["r200c"])
-
-        return data
-
-    def filter_data(self, data, bounds):
-        """
-        Filters data based on specified bounds for each key.
-
-        Parameters
-        ----------
-        data : structured array
-            The data to be filtered.
-        bounds : dict
-            A dictionary with keys corresponding to data columns or `dist` and
-            values as a tuple of `(xmin, xmax)`. If `xmin` or `xmax` is `None`,
-            it defaults to negative infinity and positive infinity,
-            respectively.
-
-        Returns
-        -------
-        structured array
-        """
-        for key, (xmin, xmax) in bounds.items():
-            if key == "dist":
-                pos = numpy.vstack([data[p] - self.observer_location[i]
-                                    for i, p in enumerate("xyz")]).T
-                values_to_filter = numpy.linalg.norm(pos, axis=1)
-            else:
-                values_to_filter = data[key]
-
-            min_bound = xmin if xmin is not None else -numpy.inf
-            max_bound = xmax if xmax is not None else numpy.inf
-
-            data = data[(values_to_filter > min_bound)
-                        & (values_to_filter <= max_bound)]
-
-        return data
-
     @property
     def observer_location(self):
-        r"""
-        Location of the observer in units :math:`\mathrm{Mpc} / h`.
-
-        Returns
-        -------
-        1-dimensional array of shape `(3,)`
-        """
+        """Observer location."""
         if self._observer_location is None:
             raise RuntimeError("`observer_location` is not set!")
         return self._observer_location
@@ -244,12 +184,7 @@ class BaseCatalogue(ABC):
 
     @property
     def observer_velocity(self):
-        r"""
-        Velocity of the observer in units :math:`\mathrm{km} / \mathrm{s}`.
-
-        Returns
-        1-dimensional array of shape `(3,)`
-        """
+        """Observer velocity."""
         if self._observer_velocity is None:
             raise RuntimeError("`observer_velocity` is not set!")
         return self._observer_velocity
@@ -265,280 +200,309 @@ class BaseCatalogue(ABC):
         assert obs_vel.shape == (3,)
         self._observer_velocity = obs_vel
 
-    def position(self, in_initial=False, cartesian=True,
-                 subtract_observer=False):
-        r"""
-        Return position components (Cartesian or RA/DEC).
+    @property
+    def mass_key(self):
+        """Mass key of this catalogue."""
+        if self._mass_key is None:
+            raise RuntimeError("`mass_key` is not set!")
+        return self._mass_key
+
+    @mass_key.setter
+    def mass_key(self, mass_key):
+        if mass_key is None:
+            self._mass_key = None
+            return
+
+        if mass_key not in self.data[self.catalogue_name].keys():
+            raise ValueError(f"Mass key '{mass_key}' is not available.")
+
+        self._mass_key = mass_key
+
+    def halo_particles(self, hid, kind, in_initial=False):
+        """
+        Load particle information for a given halo. If the halo ID is invalid,
+        returns `None`.
 
         Parameters
         ----------
+        hid : int
+            Halo ID.
+        kind : str
+            Must be position or velocity, i.e. either 'pos' or 'vel'.
         in_initial : bool, optional
-            If True, return positions from the initial snapshot, otherwise the
-            final snapshot.
-        cartesian : bool, optional
-            If True, return Cartesian positions. Otherwise, return dist/RA/DEC
-            centered at the observer.
-        subtract_observer : bool, optional
-            If True, subtract the observer's location from the returned
-            positions. This is only relevant if `cartesian` is True.
+            Whether to load the initial or final snapshot.
 
         Returns
         -------
-        ndarray, shape `(nobjects, 3)`
+        out : 2-dimensional array
         """
-        suffix = '0' if in_initial else ''
-        component_keys = [f"{comp}{suffix}" for comp in ('x', 'y', 'z')]
+        if hid == 0:
+            raise ValueError("ID 0 is reserved for unassigned particles.")
 
-        pos = numpy.vstack([self[key] for key in component_keys]).T
+        if kind not in ["pos", "vel"]:
+            raise ValueError("`kind` must be either 'pos' or 'vel'.")
 
-        if subtract_observer or not cartesian:
-            pos -= self.observer_location
-
-        return cartesian_to_radec(pos) if not cartesian else pos
-
-    def radial_distance(self, in_initial=False):
-        r"""
-        Distance of haloes from the observer in :math:`\mathrm{cMpc}`.
-
-        Parameters
-        ----------
-        in_initial : bool, optional
-            Whether to calculate in the initial snapshot.
-
-        Returns
-        -------
-        1-dimensional array of shape `(nobjects,)`
-        """
-        pos = self.position(in_initial=in_initial, cartesian=True,
-                            subtract_observer=True)
-        return numpy.linalg.norm(pos, axis=1)
-
-    def velocity(self):
-        r"""
-        Return Cartesian velocity in :math:`\mathrm{km} / \mathrm{s}`.
-
-        Returns
-        -------
-        vel : 2-dimensional array of shape `(nobjects, 3)`
-        """
-        return numpy.vstack([self["v{}".format(p)] for p in ("x", "y", "z")]).T
-
-    def redshift_space_position(self, cartesian=True):
-        """
-        Calculates the position of objects in redshift space. Positions can be
-        returned  in either Cartesian coordinates (default) or spherical
-        coordinates (dist/RA/dec).
-
-        Parameters
-        ----------
-        cartesian : bool, optional
-            Returns position in Cartesian coordinates if True, else in
-            spherical coordinates.
-        subtract_observer : bool, optional
-            If True, subtract the observer's location from the returned
-            positions.
-
-        Returns
-        -------
-        2-dimensional array of shape `(nobjects, 3)`
-        """
-        if self.simname == "quijote":
-            raise NotImplementedError("Redshift space positions not "
-                                      "implemented for Quijote.")
-
-        rsp = real2redshift(self.position(cartesian=True), self.velocity(),
-                            self.observer_location, self.observer_velocity,
-                            self.box, make_copy=False)
-        if cartesian:
-            return rsp
-
-        return cartesian_to_radec(rsp - self.observer_location)
-
-    def angmomentum(self):
-        """
-        Cartesian angular momentum components of halos in the box coordinate
-        system. Likely in box units.
-
-        Returns
-        -------
-        2-dimensional array of shape `(nobjects, 3)`
-        """
-        return numpy.vstack([self["L{}".format(p)] for p in ("x", "y", "z")]).T
+        key = f"snapshot_{'initial' if in_initial else 'final'}/{kind}"
+        return load_halo_particles(hid, self[key], self["particle_offset"])
 
     @lru_cache(maxsize=2)
-    def knn(self, in_initial, subtract_observer, periodic):
+    def knn(self, in_initial):
         r"""
-        kNN object for catalogue objects with caching. Positions are centered
-        on the observer.
+        Periodic kNN object in real space in Cartesian coordinates trained on
+        `self["cartesian_pos"]`.
 
         Parameters
         ----------
         in_initial : bool
             Whether to define the kNN on the initial or final snapshot.
-        subtract_observer : bool
-            Whether to subtract the observer's location from the positions.
-        periodic : bool
-            Whether to use periodic boundary conditions.
 
         Returns
         -------
         :py:class:`sklearn.neighbors.NearestNeighbors`
         """
-        if subtract_observer and periodic:
-            raise ValueError("Subtracting observer is not supported for "
-                             "periodic boundary conditions.")
-
-        pos = self.position(in_initial=in_initial,
-                            subtract_observer=subtract_observer)
-
-        if periodic:
-            L = self.box.boxsize
-            knn = NearestNeighbors(
-                metric=lambda a, b: periodic_distance_two_points(a, b, L))
-        else:
-            knn = NearestNeighbors()
-
+        # TODO improve the caching
+        pos = self["lagpatch_pos"] if in_initial else self["cartesian_pos"]
+        L = self.box.boxsize
+        knn = NearestNeighbors(
+            metric=lambda a, b: periodic_distance_two_points(a, b, L))
         knn.fit(pos)
         return knn
 
-    def nearest_neighbours(self, X, radius, in_initial, knearest=False,
-                           return_mass=False, mass_key=None):
-        r"""
-        Return nearest neighbours within `radius` of `X` in a given snapshot.
+#     def nearest_neighbours(self, X, radius, in_initial, knearest=False,
+#                            return_mass=False):
+#         r"""
+#         Return nearest neighbours within `radius` of `X` from this catalogue.
+#
+#         Parameters
+#         ----------
+#         X : 2-dimensional array, shape `(n_queries, 3)`
+#             Query positions.
+#         radius : float or int
+#             Limiting distance or number of neighbours, depending on `knearest`.
+#         in_initial : bool
+#             Find nearest neighbours in the initial or final snapshot.
+#         knearest : bool, optional
+#             If True, `radius` is the number of neighbours to return.
+#         return_mass : bool, optional
+#             Return masses of the nearest neighbours.
+#
+#         Returns
+#         -------
+#         dist : list of arrays
+#             Distances to the nearest neighbours for each query.
+#         indxs : list of arrays
+#             Indices of nearest neighbours for each query.
+#         mass (optional): list of arrays
+#             Masses of the nearest neighbours for each query.
+#         """
+#         if X.shape != (len(X), 3):
+#             raise ValueError("`X` must be of shape `(n_samples, 3)`.")
+#         if knearest and not isinstance(radius, int):
+#             raise ValueError("`radius` must be an integer if `knearest`.")
+#         # if return_mass and not mass_key:
+#         #     raise ValueError("`mass_key` must be provided if `return_mass`.")
+#
+#         knn = self.knn(in_initial, subtract_observer=False, periodic=True)
+#
+#         if knearest:
+#             dist, indxs = knn.kneighbors(X, radius)
+#         else:
+#             dist, indxs = knn.radius_neighbors(X, radius, sort_results=True)
+#
+#         if not return_mass:
+#             return dist, indxs
+#
+#         mass = [self[self.mass_key][indx] for indx in indxs]
+#         return dist, indxs, mass
 
-        Parameters
-        ----------
-        X : 2D array, shape `(n_queries, 3)`
-            Query positions in :math:`\mathrm{cMpc} / h`. Expected to be
-            centered on the observer.
-        radius : float or int
-            Limiting distance or number of neighbours, depending on `knearest`.
-        in_initial : bool
-            Use the initial or final snapshot for kNN.
-        knearest : bool, optional
-            If True, `radius` is the number of neighbours to return.
-        return_mass : bool, optional
-            Return masses of the nearest neighbours.
-        mass_key : str, optional
-            Mass column key. Required if `return_mass` is True.
+#     def angular_neighbours(self, X, ang_radius, in_rsp, rad_tolerance=None):
+#         r"""
+#         Find nearest neighbours within `ang_radius` of query points `X` in the
+#         final snaphot. Optionally applies radial distance tolerance, which is
+#         expected to be in :math:`\mathrm{cMpc} / h`.
+#
+#         Parameters
+#         ----------
+#         X : 2-dimensional array of shape `(n_queries, 2)` or `(n_queries, 3)`
+#             Query positions. Either RA/dec in degrees or dist/RA/dec with
+#             distance in :math:`\mathrm{cMpc} / h`.
+#         in_rsp : bool
+#             If True, use redshift space positions of haloes.
+#         ang_radius : float
+#             Angular radius in degrees.
+#         rad_tolerance : float, optional
+#             Radial distance tolerance in :math:`\mathrm{cMpc} / h`.
+#
+#         Returns
+#         -------
+#         dist : array of 1-dimensional arrays of shape `(n_neighbours,)`
+#             Distance of each neighbour to the query point.
+#         ind : array of 1-dimensional arrays of shape `(n_neighbours,)`
+#             Indices of each neighbour in this catalogue.
+#         """
+#         assert X.ndim == 2
+#
+#         # Get positions of haloes in this catalogue
+#         if in_rsp:
+#             pos = self.redshift_space_position(cartesian=True,
+#                                                subtract_observer=True)
+#         else:
+#             pos = self.position(in_initial=False, cartesian=True,
+#                                 subtract_observer=True)
+#
+#         # Convert halo positions to unit vectors.
+#         raddist = numpy.linalg.norm(pos, axis=1)
+#         pos /= raddist.reshape(-1, 1)
+#
+#         # Convert RA/dec query positions to unit vectors. If no radial
+#         # distance is provided artificially add it.
+#         if X.shape[1] == 2:
+#             X = numpy.vstack([numpy.ones_like(X[:, 0]), X[:, 0], X[:, 1]]).T
+#             radquery = None
+#         else:
+#             radquery = X[:, 0]
+#         X = radec_to_cartesian(X)
+#
+#         # Find neighbours
+#         knn = NearestNeighbors(metric="cosine")
+#         knn.fit(pos)
+#         metric_maxdist = 1 - numpy.cos(numpy.deg2rad(ang_radius))
+#         dist, ind = knn.radius_neighbors(X, radius=metric_maxdist,
+#                                          sort_results=True)
+#
+#         # Convert cosine difference to angular distance
+#         for i in range(X.shape[0]):
+#             dist[i] = numpy.rad2deg(numpy.arccos(1 - dist[i]))
+#
+#         # Apply radial tolerance
+#         if rad_tolerance and radquery:
+#             for i in range(X.shape[0]):
+#                 mask = numpy.abs(raddist[ind[i]] - radquery[i]) < rad_tolerance
+#                 dist[i], ind[i] = dist[i][mask], ind[i][mask]
+#
+#         return dist, ind
 
-        Returns
-        -------
-        dist : list of arrays
-            Distances to the nearest neighbours for each query.
-        indxs : list of arrays
-            Indices of nearest neighbours for each query.
-        mass (optional): list of arrays
-            Masses of the nearest neighbours for each query.
-        """
-        if X.shape != (len(X), 3):
-            raise ValueError("`X` must be of shape `(n_samples, 3)`.")
-        if knearest and not isinstance(radius, int):
-            raise ValueError("`radius` must be an integer if `knearest`.")
-        if return_mass and not mass_key:
-            raise ValueError("`mass_key` must be provided if `return_mass`.")
-
-        knn = self.knn(in_initial, subtract_observer=False, periodic=True)
-
-        if knearest:
-            dist, indxs = knn.kneighbors(X, radius)
-        else:
-            dist, indxs = knn.radius_neighbors(X, radius, sort_results=True)
-
-        if not return_mass:
-            return dist, indxs
-
-        mass = [self[mass_key][indx] for indx in indxs]
-        return dist, indxs, mass
-
-    def angular_neighbours(self, X, ang_radius, in_rsp, rad_tolerance=None):
-        r"""
-        Find nearest neighbours within `ang_radius` of query points `X` in the
-        final snaphot. Optionally applies radial distance tolerance, which is
-        expected to be in :math:`\mathrm{cMpc} / h`.
-
-        Parameters
-        ----------
-        X : 2-dimensional array of shape `(n_queries, 2)` or `(n_queries, 3)`
-            Query positions. Either RA/dec in degrees or dist/RA/dec with
-            distance in :math:`\mathrm{cMpc} / h`.
-        in_rsp : bool
-            If True, use redshift space positions of haloes.
-        ang_radius : float
-            Angular radius in degrees.
-        rad_tolerance : float, optional
-            Radial distance tolerance in :math:`\mathrm{cMpc} / h`.
-
-        Returns
-        -------
-        dist : array of 1-dimensional arrays of shape `(n_neighbours,)`
-            Distance of each neighbour to the query point.
-        ind : array of 1-dimensional arrays of shape `(n_neighbours,)`
-            Indices of each neighbour in this catalogue.
-        """
-        assert X.ndim == 2
-
-        # Get positions of haloes in this catalogue
-        if in_rsp:
-            pos = self.redshift_space_position(cartesian=True,
-                                               subtract_observer=True)
-        else:
-            pos = self.position(in_initial=False, cartesian=True,
-                                subtract_observer=True)
-
-        # Convert halo positions to unit vectors.
-        raddist = numpy.linalg.norm(pos, axis=1)
-        pos /= raddist.reshape(-1, 1)
-
-        # Convert RA/dec query positions to unit vectors. If no radial
-        # distance is provided artificially add it.
-        if X.shape[1] == 2:
-            X = numpy.vstack([numpy.ones_like(X[:, 0]), X[:, 0], X[:, 1]]).T
-            radquery = None
-        else:
-            radquery = X[:, 0]
-        X = radec_to_cartesian(X)
-
-        # Find neighbours
-        knn = NearestNeighbors(metric="cosine")
-        knn.fit(pos)
-        metric_maxdist = 1 - numpy.cos(numpy.deg2rad(ang_radius))
-        dist, ind = knn.radius_neighbors(X, radius=metric_maxdist,
-                                         sort_results=True)
-
-        # Convert cosine difference to angular distance
-        for i in range(X.shape[0]):
-            dist[i] = numpy.rad2deg(numpy.arccos(1 - dist[i]))
-
-        # Apply radial tolerance
-        if rad_tolerance and radquery:
-            for i in range(X.shape[0]):
-                mask = numpy.abs(raddist[ind[i]] - radquery[i]) < rad_tolerance
-                dist[i], ind[i] = dist[i][mask], ind[i][mask]
-
-        return dist, ind
+#     def filter_data(self, data, bounds):
+#         """
+#         Filters data based on specified bounds for each key.
+#
+#         Parameters
+#         ----------
+#         data : structured array
+#             The data to be filtered.
+#         bounds : dict
+#             A dictionary with keys corresponding to data columns or `dist` and
+#             values as a tuple of `(xmin, xmax)`. If `xmin` or `xmax` is `None`,
+#             it defaults to negative infinity and positive infinity,
+#             respectively.
+#
+#         Returns
+#         -------
+#         structured array
+#         """
+#         for key, (xmin, xmax) in bounds.items():
+#             if key == "dist":
+#                 pos = numpy.vstack([data[p] - self.observer_location[i]
+#                                     for i, p in enumerate("xyz")]).T
+#                 values_to_filter = numpy.linalg.norm(pos, axis=1)
+#             else:
+#                 values_to_filter = data[key]
+#
+#             min_bound = xmin if xmin is not None else -numpy.inf
+#             max_bound = xmax if xmax is not None else numpy.inf
+#
+#             data = data[(values_to_filter > min_bound)
+#                         & (values_to_filter <= max_bound)]
+#
+#         return data
 
     def keys(self):
-        """
-        Return catalogue keys.
+        """Catalogue keys."""
+        keys = []
 
-        Returns
-        -------
-        keys : list of strings
-        """
-        return self.data.dtype.names
+        if "snapshot_final" in self.data.keys():
+            for key in self.data["snapshot_final"].keys():
+                keys.append(f"snapshot_final/{key}")
+
+        if "snapshot_initial" in self.data.keys():
+            for key in self.data["snapshot_initial"].keys():
+                keys.append(f"snapshot_initial/{key}")
+
+        for key in self.data[f"{self.catalogue_name}"].keys():
+            keys.append(f"{self.catalogue_name}/{key}")
+
+        for key in self._derived_properties:
+            keys.append(key)
+
+        return keys
 
     def __getitem__(self, key):
-        # If key is an integer, return the corresponding row.
-        if isinstance(key, (int, numpy.integer)):
-            assert key >= 0
-        elif key not in self.keys():
-            raise KeyError(f"Key '{key}' not in catalogue.")
+        if "snapshot" in key:
+            return self.data[key]
 
-        return self.data[key]
+        try:
+            return self._cache[key]
+        except KeyError:
+            if key == "cartesian_pos":
+                out = numpy.vstack([self["x"], self["y"], self["z"]]).T
+            elif key == "spherical_pos":
+                out = cartesian_to_radec(
+                    self["cartesian_pos"] - self.observer_location)
+            elif key == "dist":
+                out = numpy.linalg.norm(
+                    self["cartesian_pos"] - self.observer_location, axis=1)
+            elif key == "cartesian_vel":
+                out = numpy.vstack([self["vx"], self["vy"], self["vz"]])
+            elif key == "cartesian_redshift_pos":
+                out = real2redshift(
+                    self["cartesian_pos"], self["cartesian_vel"],
+                    self.observer_location, self.observer_velocity, self.box,
+                    make_copy=False)
+            elif key == "spherical_redshift_pos":
+                out = cartesian_to_radec(
+                    self["cartesian_redshift_pos"] - self.observer_location)
+            elif key == "redshift_dist":
+                out = self["cartesian_redshift_pos"]
+                out = numpy.linalg.norm(out - self.observer_location, axis=1)
+            elif key == "angular_momentum":
+                out = numpy.vstack([self["Lx"], self["Ly"], self["Lz"]]).T
+            elif key in self.data[self.catalogue_name].keys():
+                out = self.data[f"{self.catalogue_name}/{key}"][:]
+            elif key == "particle_offset":
+                out = make_halomap_dict(self["snapshot_final/halo_map"][:])
+            elif key == "npart":
+                halomap = self["particle_offset"]
+                out = numpy.zeros(len(halomap), dtype=numpy.int32)
+                for i, hid in enumerate(self["index"]):
+                    if i == 0:
+                        continue
+                    start, end = halomap[hid]
+                    out[i] = end - start
+            else:
+                raise KeyError(f"Key '{key}' is not available.")
+
+        # TODO enforce a maximum size of the dictionary
+        # ALSO DO THE MASKING HERE? AND IF A NEW MASK THEN RESET CACHE?
+        self._cache[key] = out
+        return out
+
+    @property
+    def is_closed(self):
+        """Whether the HDF5 catalogue is closed."""
+        return self._is_closed
+
+    def close(self):
+        """Close the HDF5 catalogue file and clear the cache."""
+        if not self._is_closed:
+            self.data.close()
+            self._is_closed = True
+        self._cache = {}
+        collect()
 
     def __len__(self):
-        return self.data.size
+        if self._catalogue_length is None:
+            self._catalogue_length = len(self["index"])
+        return self._catalogue_length
 
 
 ###############################################################################
@@ -546,9 +510,9 @@ class BaseCatalogue(ABC):
 ###############################################################################
 
 
-class CSiBORGHaloCatalogue(BaseCatalogue):
+class CSiBORGCatalogue(BaseCatalogue):
     r"""
-    CSiBORG FoF halo catalogue with units:
+    CSiBORG halo catalogue. Units typically used are:
         - Length: :math:`cMpc / h`
         - Velocity: :math:`km / s`
         - Mass: :math:`M_\odot / h`
@@ -559,82 +523,32 @@ class CSiBORGHaloCatalogue(BaseCatalogue):
         IC realisation index.
     paths : py:class`csiborgtools.read.Paths`
         Paths object.
-    bounds : dict
-        Parameter bounds; keys as names, values as (min, max) tuples. Use
-        `dist` for radial distance, `None` for no bound.
-    load_fitted : bool, optional
-        Load fitted quantities.
-    load_initial : bool, optional
-        Load initial positions.
-    with_lagpatch : bool, optional
-        Load halos with a resolved Lagrangian patch.
+    catalogue_name : str
+        Name of the halo catalogue.
+    halo_finder : str
+        Halo finder name.
+    mass_key : str, optional
+        Mass key of the catalogue.
     observer_velocity : 1-dimensional array, optional
         Observer's velocity in :math:`\mathrm{km} / \mathrm{s}`.
     """
-
-    def __init__(self, nsim, paths, bounds={"dist": (0, 155.5)},
-                 load_fitted=True, load_initial=True, with_lagpatch=False,
+    def __init__(self, nsim, paths, catalogue_name, halo_finder, mass_key=None,
                  observer_velocity=None):
-        self.nsim = nsim
-        self.paths = paths
-        self.observer_location = [338.85, 338.85, 338.85]
+        super().__init__("csiborg", nsim,
+                         max(paths.get_snapshots(nsim, "csiborg")),
+                         halo_finder, catalogue_name, paths, mass_key)
+        self.box = CSiBORGBox(self.nsnap, self.nsim, self.paths)
+        self.observer_location = [338.85, 338.85, 338.85]  # Mpc / h
         self.observer_velocity = observer_velocity
-        reader = CSiBORGReader(paths)
-        data = reader.read_fof_halos(self.nsim)
-        box = self.box
-
-        # We want coordinates to be [0, 677.7] in Mpc / h
-        for p in ('x', 'y', 'z'):
-            data[p] = data[p] * box.h + box.box2mpc(1) / 2
-        # Similarly mass in units of Msun / h
-        data["fof_totpartmass"] *= box.h
-        data["fof_m200c"] *= box.h
-        # Because of a RAMSES bug, we must flip the x and z coordinates
-        flip_cols(data, 'x', 'z')
-
-        if load_initial:
-            data = self.load_initial(data, paths, "csiborg")
-            flip_cols(data, "x0", "z0")
-        if load_fitted:
-            data = self.load_fitted(data, paths, "csiborg")
-            flip_cols(data, "vx", "vz")
-
-        if load_initial and with_lagpatch:
-            data = data[numpy.isfinite(data["lagpatch_size"])]
-
-        if bounds is not None:
-            data = self.filter_data(data, bounds)
-
-        self._data = data
-
-    @property
-    def nsnap(self):
-        return max(self.paths.get_snapshots(self.nsim, "csiborg"))
-
-    @property
-    def box(self):
-        """
-        CSiBORG box object handling unit conversion.
-
-        Returns
-        -------
-        box : instance of :py:class:`csiborgtools.units.BaseBox`
-        """
-        return CSiBORGBox(self.nsnap, self.nsim, self.paths)
-
-    @property
-    def simname(self):
-        return "csiborg"
-
 
 ###############################################################################
 #                         Quijote halo catalogue                              #
 ###############################################################################
 
 
-class QuijoteHaloCatalogue(BaseCatalogue):
+class QuijoteCatalogue(BaseCatalogue):
     r"""
-    Quijote FoF halo catalogue with units:
+    Quijote halo catalogue. Units typically are:
         - Length: :math:`cMpc / h`
         - Velocity: :math:`km / s`
         - Mass: :math:`M_\odot / h`
@@ -770,6 +684,7 @@ class QuijoteHaloCatalogue(BaseCatalogue):
         cat.observer_location = fiducial_observers(self.box.boxsize, rmax)[n]
         cat._data = cat.filter_data(cat._data, {"dist": (0, rmax)})
         return cat
+
 
 
 ###############################################################################
