@@ -29,7 +29,8 @@ import numpy
 from readfof import FoF_catalog
 from sklearn.neighbors import NearestNeighbors
 
-from ..utils import (cartesian_to_radec, periodic_distance_two_points,
+from ..utils import (radec_to_cartesian, cartesian_to_radec,
+                     periodic_distance_two_points,
                      real2redshift)
 from .box_units import CSiBORGBox, QuijoteBox
 from .paths import Paths
@@ -159,7 +160,7 @@ class BaseCatalogue(ABC):
     @property
     def box(self):
         """Box object."""
-        pass
+        return self._box
 
     @box.setter
     def box(self, box):
@@ -279,7 +280,6 @@ class BaseCatalogue(ABC):
         -------
         :py:class:`sklearn.neighbors.NearestNeighbors`
         """
-        # TODO improve the caching
         pos = self["lagpatch_pos"] if in_initial else self["cartesian_pos"]
         L = self.box.boxsize
         knn = NearestNeighbors(
@@ -287,119 +287,96 @@ class BaseCatalogue(ABC):
         knn.fit(pos)
         return knn
 
-#     def nearest_neighbours(self, X, radius, in_initial, knearest=False,
-#                            return_mass=False):
-#         r"""
-#         Return nearest neighbours within `radius` of `X` from this catalogue.
-#
-#         Parameters
-#         ----------
-#         X : 2-dimensional array, shape `(n_queries, 3)`
-#             Query positions.
-#         radius : float or int
-#             Limiting distance or number of neighbours, depending on `knearest`.
-#         in_initial : bool
-#             Find nearest neighbours in the initial or final snapshot.
-#         knearest : bool, optional
-#             If True, `radius` is the number of neighbours to return.
-#         return_mass : bool, optional
-#             Return masses of the nearest neighbours.
-#
-#         Returns
-#         -------
-#         dist : list of arrays
-#             Distances to the nearest neighbours for each query.
-#         indxs : list of arrays
-#             Indices of nearest neighbours for each query.
-#         mass (optional): list of arrays
-#             Masses of the nearest neighbours for each query.
-#         """
-#         if X.shape != (len(X), 3):
-#             raise ValueError("`X` must be of shape `(n_samples, 3)`.")
-#         if knearest and not isinstance(radius, int):
-#             raise ValueError("`radius` must be an integer if `knearest`.")
-#         # if return_mass and not mass_key:
-#         #     raise ValueError("`mass_key` must be provided if `return_mass`.")
-#
-#         knn = self.knn(in_initial, subtract_observer=False, periodic=True)
-#
-#         if knearest:
-#             dist, indxs = knn.kneighbors(X, radius)
-#         else:
-#             dist, indxs = knn.radius_neighbors(X, radius, sort_results=True)
-#
-#         if not return_mass:
-#             return dist, indxs
-#
-#         mass = [self[self.mass_key][indx] for indx in indxs]
-#         return dist, indxs, mass
+    def nearest_neighbours(self, X, radius, in_initial, knearest=False):
+        r"""
+        Return nearest neighbours within `radius` of `X` from this catalogue.
+        Units of `X` are cMpc / h.
 
-#     def angular_neighbours(self, X, ang_radius, in_rsp, rad_tolerance=None):
-#         r"""
-#         Find nearest neighbours within `ang_radius` of query points `X` in the
-#         final snaphot. Optionally applies radial distance tolerance, which is
-#         expected to be in :math:`\mathrm{cMpc} / h`.
-#
-#         Parameters
-#         ----------
-#         X : 2-dimensional array of shape `(n_queries, 2)` or `(n_queries, 3)`
-#             Query positions. Either RA/dec in degrees or dist/RA/dec with
-#             distance in :math:`\mathrm{cMpc} / h`.
-#         in_rsp : bool
-#             If True, use redshift space positions of haloes.
-#         ang_radius : float
-#             Angular radius in degrees.
-#         rad_tolerance : float, optional
-#             Radial distance tolerance in :math:`\mathrm{cMpc} / h`.
-#
-#         Returns
-#         -------
-#         dist : array of 1-dimensional arrays of shape `(n_neighbours,)`
-#             Distance of each neighbour to the query point.
-#         ind : array of 1-dimensional arrays of shape `(n_neighbours,)`
-#             Indices of each neighbour in this catalogue.
-#         """
-#         assert X.ndim == 2
-#
-#         # Get positions of haloes in this catalogue
-#         if in_rsp:
-#             pos = self.redshift_space_position(cartesian=True,
-#                                                subtract_observer=True)
-#         else:
-#             pos = self.position(in_initial=False, cartesian=True,
-#                                 subtract_observer=True)
-#
-#         # Convert halo positions to unit vectors.
-#         raddist = numpy.linalg.norm(pos, axis=1)
-#         pos /= raddist.reshape(-1, 1)
-#
-#         # Convert RA/dec query positions to unit vectors. If no radial
-#         # distance is provided artificially add it.
-#         if X.shape[1] == 2:
-#             X = numpy.vstack([numpy.ones_like(X[:, 0]), X[:, 0], X[:, 1]]).T
-#             radquery = None
-#         else:
-#             radquery = X[:, 0]
-#         X = radec_to_cartesian(X)
-#
-#         # Find neighbours
-#         knn = NearestNeighbors(metric="cosine")
-#         knn.fit(pos)
-#         metric_maxdist = 1 - numpy.cos(numpy.deg2rad(ang_radius))
-#         dist, ind = knn.radius_neighbors(X, radius=metric_maxdist,
-#                                          sort_results=True)
-#
-#         # Convert cosine difference to angular distance
-#         for i in range(X.shape[0]):
-#             dist[i] = numpy.rad2deg(numpy.arccos(1 - dist[i]))
-#
-#         # Apply radial tolerance
-#         if rad_tolerance and radquery:
-#             for i in range(X.shape[0]):
-#                 mask = numpy.abs(raddist[ind[i]] - radquery[i]) < rad_tolerance
-#                 dist[i], ind[i] = dist[i][mask], ind[i][mask]
-#
-#         return dist, ind
+        Parameters
+        ----------
+        X : 2-dimensional array, shape `(n_queries, 3)`
+            Query positions.
+        radius : float or int
+            Limiting distance or number of neighbours, depending on `knearest`.
+        in_initial : bool
+            Find nearest neighbours in the initial or final snapshot.
+        knearest : bool, optional
+            If True, `radius` is the number of neighbours to return.
+        return_mass : bool, optional
+            Return masses of the nearest neighbours.
+
+        Returns
+        -------
+        dist : list of arrays
+            Distances to the nearest neighbours for each query.
+        indxs : list of arrays
+            Indices of nearest neighbours for each query.
+        mass : list of arrays
+            Masses of the nearest neighbours for each query.
+        """
+        if knearest and not isinstance(radius, int):
+            raise ValueError("`radius` must be an integer if `knearest`.")
+
+        knn = self.knn(in_initial)
+        if knearest:
+            dist, indxs = knn.kneighbors(X, radius)
+        else:
+            dist, indxs = knn.radius_neighbors(X, radius, sort_results=True)
+
+        return dist, indxs
+
+    def angular_neighbours(self, X, in_rsp, angular_tolerance,
+                           radial_tolerance=None):
+        """
+        Find nearest angular neighbours of query points. Optionally applies
+        radial distance tolerance. Units of `X` are cMpc / h and degrees.
+
+        Parameters
+        ----------
+        X : 2-dimensional array of shape `(n_queries, 3)`
+            Query positions given as distance/RA/dec.
+        in_rsp : bool
+            Whether to find neighbours in redshift space.
+        angular_tolerance : float
+            Angular radius in degrees.
+        radial_tolerance : float, optional
+            Radial tolerance.
+
+        Returns
+        -------
+        dist : array of 1-dimensional arrays of shape `(n_neighbours,)`
+            Distance of each neighbour to the query point.
+        ind : array of 1-dimensional arrays of shape `(n_neighbours,)`
+            Indices of each neighbour in this catalogue.
+        """
+        if in_rsp:
+            pos = self["cartesian_redshiftspace_pos"]
+        else:
+            pos = self["cartesian_pos"]
+
+        radial_dist = numpy.linalg.norm(pos, axis=1)
+        pos = pos / radial_dist.reshape(-1, 1)
+
+        knn = NearestNeighbors(metric="cosine")
+        knn.fit(pos)
+
+        metric_maxdist = 1 - numpy.cos(numpy.deg2rad(angular_tolerance))
+        dist, indxs = knn.radius_neighbors(radec_to_cartesian(X),
+                                           radius=metric_maxdist,
+                                           sort_results=True)
+
+        # Convert cosine difference to angular distance
+        for i in range(X.shape[0]):
+            dist[i] = numpy.rad2deg(numpy.arccos(1 - dist[i]))
+
+        if radial_tolerance is not None:
+            radial_query = numpy.linalg.norm(X, axis=1)
+            for i in range(X.shape[0]):
+                rad_sep = numpy.abs(radial_dist[indxs[i]] - radial_query[i])
+                mask = rad_sep < radial_tolerance
+                dist[i], indxs[i] = dist[i][mask], indxs[i][mask]
+
+        return dist, indxs
 
 #     def filter_data(self, data, bounds):
 #         """
