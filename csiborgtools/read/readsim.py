@@ -300,7 +300,7 @@ class CSiBORGReader(BaseReader):
         out["y"] = pos[:, 1] * h + 677.7 / 2
         out["z"] = pos[:, 2] * h + 677.7 / 2
         # Because of a RAMSES bug x and z are flipped.
-        flip_cols(out, ["x", "z"])
+        flip_cols(out, "x", "z")
         out["totpartmass"] = totmass * 1e11 * h
         out["m200c"] = m200c * 1e11 * h
         return out
@@ -359,7 +359,7 @@ class CSiBORGReader(BaseReader):
         out['y'] *= 677.7
         out['z'] *= 677.7
         # Because of a RAMSES bug x and z are flipped.
-        flip_cols(out, ["x", "z"])
+        flip_cols(out, "x", "z")
         out["mass_cl"] *= 2.6543271649678946e+19
 
         if find_ultimate_parent:
