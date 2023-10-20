@@ -314,14 +314,14 @@ def make_phew_halo_catalogue(nsim, find_ultimate_parent, verbose):
     Process the PHEW halo catalogue for a CSiBORG simulation at all snapshots.
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    snapshots = paths.get_snapshots(nsim, "csiborg")[-5:]
+    snapshots = paths.get_snapshots(nsim, "csiborg")
     reader = csiborgtools.read.CSiBORGReader(paths)
     keys_write = ["index", "x", "y", "z", "mass_cl"]
 
     if find_ultimate_parent:
         keys_write += ["ultimate_parent", "summed_mass"]
 
-    # Create some large HDF5 file to store all this.
+    # Create a HDF5 file to store all this.
     fname = paths.processed_phew(nsim)
     with h5py.File(fname, "w") as f:
         f.close()
@@ -338,19 +338,33 @@ def make_phew_halo_catalogue(nsim, find_ultimate_parent, verbose):
             grp.attrs["header"] = f"CSiBORG PHEW clumps at snapshot {nsnap}."
             f.close()
 
+    # Now write the redshifts
+    scale_factors = numpy.full(len(snapshots), numpy.nan, dtype=numpy.float32)
+    for i, nsnap in enumerate(snapshots):
+        box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
+        scale_factors[i] = box._aexp
+
+    redshifts = scale_factors[-1] / scale_factors - 1
+
+    with h5py.File(fname, "r+") as f:
+        grp = f.create_group("info")
+        grp.create_dataset("redshift", data=redshifts)
+        grp.create_dataset("snapshots", data=snapshots)
+        grp.create_dataset("Om0", data=[box.Om0])
+        grp.create_dataset("boxsize", data=[box.boxsize])
+        f.close()
+
 
 def main(nsim, args):
-    # Process the final snapshot
-    process_snapshot(nsim, args.simname, args.halofinder, True)
+    if args.make_final:
+        process_snapshot(nsim, args.simname, args.halofinder, True)
 
-    # Then add do it the initial snapshot data
-    add_initial_snapshot(nsim, args.simname, args.halofinder, True)
+    if args.make_initial:
+        add_initial_snapshot(nsim, args.simname, args.halofinder, True)
+        calculate_initial(nsim, args.simname, args.halofinder, True)
 
-    # # Calculate the Lagrangian patch size properties
-    calculate_initial(nsim, args.simname, args.halofinder, True)
-
-
-    # make_phew_halo_catalogue(7444, False, True)
+    if args.make_phew:
+        make_phew_halo_catalogue(nsim, True, True)
 
 
 if __name__ == "__main__":
@@ -361,10 +375,15 @@ if __name__ == "__main__":
     parser.add_argument("--nsims", type=int, nargs="+", default=None,
                         help="IC realisations. If `-1` processes all.")
     parser.add_argument("--halofinder", type=str, help="Halo finder")
+    parser.add_argument("--make_final", action="store_true", default=False,
+                        help="Process the final snapshot.")
+    parser.add_argument("--make_initial", action="store_true", default=False,
+                        help="Process the initial snapshot.")
+    parser.add_argument("--make_phew", action="store_true", default=False,
+                        help="Process the PHEW halo catalogue.")
+
     args = parser.parse_args()
-
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-
     nsims = get_nsims(args, paths)
 
     def _main(nsim):
