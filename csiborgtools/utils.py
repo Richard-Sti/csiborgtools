@@ -140,14 +140,11 @@ def radec_to_cartesian(X):
     """
     dist, ra, dec = X[:, 0], X[:, 1], X[:, 2]
 
-    ra *= numpy.pi / 180
-    dec *= numpy.pi / 180
-    cdec = numpy.cos(dec)
-
+    cdec = numpy.cos(dec * numpy.pi / 180)
     return numpy.vstack([
-        dist * cdec * numpy.cos(ra),
-        dist * cdec * numpy.sin(ra),
-        dist * numpy.sin(dec)
+        dist * cdec * numpy.cos(ra * numpy.pi / 180),
+        dist * cdec * numpy.sin(ra * numpy.pi / 180),
+        dist * numpy.sin(dec * numpy.pi / 180)
         ]).T
 
 
