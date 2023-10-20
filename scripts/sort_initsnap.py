@@ -327,8 +327,12 @@ def make_phew_halo_catalogue(nsim, find_ultimate_parent, verbose):
         f.close()
 
     for nsnap in tqdm(snapshots, disable=not verbose, desc="Snapshot"):
-        data = reader.read_phew_clumps(nsnap, nsim, find_ultimate_parent=False,
-                                       verbose=False)
+        try:
+            data = reader.read_phew_clumps(
+                nsnap, nsim, find_ultimate_parent=find_ultimate_parent,
+                verbose=False)
+        except FileExistsError:
+            continue
 
         with h5py.File(fname, "r+") as f:
             grp = f.create_group(str(nsnap))
@@ -364,7 +368,7 @@ def main(nsim, args):
         calculate_initial(nsim, args.simname, args.halofinder, True)
 
     if args.make_phew:
-        make_phew_halo_catalogue(nsim, True, True)
+        make_phew_halo_catalogue(nsim, False, True)
 
 
 if __name__ == "__main__":

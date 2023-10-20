@@ -16,7 +16,7 @@
 Functions to read in the particle and clump files.
 """
 from abc import ABC, abstractmethod
-from os.path import isfile, join
+from os.path import isfile, join, getsize
 from warnings import warn
 
 import numpy
@@ -329,10 +329,15 @@ class CSiBORGReader(BaseReader):
         fname = join(self.paths.snapshots(nsim, "csiborg", tonew=False),
                      "output_{}".format(nsnap),
                      "clump_{}.dat".format(nsnap))
-        if not isfile(fname):
-            raise FileExistsError("Clump file `{}` does not exist."
-                                  .format(fname))
+
+        if not isfile(fname) or getsize(fname) == 0:
+            raise FileExistsError(f"Clump file `{fname}` does not exist.")
+
         data = numpy.genfromtxt(fname)
+
+        if data.ndim == 1:
+            raise FileExistsError(f"Invalid clump file `{fname}`.")
+
         # How the data is stored in the clump file.
         clump_cols = {"index": (0, numpy.int32),
                       "level": (1, numpy.int32),
