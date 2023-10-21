@@ -17,30 +17,22 @@ Simulation catalogues:
     - CSiBORG: FoF halo catalogue.
     - Quijote: FoF halo catalogue.
 """
-from abc import ABC, abstractproperty
-from copy import deepcopy
+from abc import ABC
+from collections import OrderedDict
 from functools import lru_cache
+from gc import collect
 from itertools import product
 from math import floor
-from h5py import File
-from gc import collect
 
 import numpy
-from readfof import FoF_catalog
+from h5py import File
 from sklearn.neighbors import NearestNeighbors
 
-from ..utils import (radec_to_cartesian, cartesian_to_radec,
-                     periodic_distance_two_points,
-                     real2redshift)
+from ..utils import (cartesian_to_radec, fprint, periodic_distance_two_points,
+                     radec_to_cartesian, real2redshift)
 from .box_units import CSiBORGBox, QuijoteBox
 from .paths import Paths
-# from .readsim import CSiBORGReader
-from .utils import add_columns, cols_to_structured
-from ..utils import fprint
-from .readsim import make_halomap_dict, load_halo_particles
-
-from collections import OrderedDict
-
+from .readsim import load_halo_particles, make_halomap_dict
 
 ###############################################################################
 #                           Base catalogue                                    #
@@ -396,6 +388,7 @@ class BaseCatalogue(ABC):
         """Make an internal mask for the catalogue data."""
         self._load_filtered = False
 
+        self._catalogue_length = None
         mask = numpy.ones(len(self), dtype=bool)
         self._catalogue_length = None  # Don't cache the length
 
@@ -606,7 +599,6 @@ class CSiBORGPHEWCatalogue(BaseCatalogue):
     """
     def __init__(self, nsnap, nsim, paths, mass_key=None, bounds=None,
                  cache_maxsize=64):
-        # TODO add a flag if only want to load main haloes
         self.simname = "csiborg"
         self.nsnap = nsnap
         self.nsim = nsim
@@ -677,98 +669,22 @@ class QuijoteCatalogue(BaseCatalogue):
         Load halos from the backup catalogue that do not have corresponding
         snapshots.
     """
-    _nsnap = None
-    _origin = None
+    def __init__(self, nsim, paths, catalogue_name, halo_finder,
+                 mass_key=None, bounds=None, observer_velocity=None,
+                 cache_maxsize=64):
 
-    def __init__(self, nsim, paths, nsnap,
-                 observer_location=[500., 500., 500.],
-                 bounds=None, load_fitted=True, load_initial=True,
-                 with_lagpatch=False, load_backup=False):
-        self.nsim = nsim
-        self.paths = paths
-        self.nsnap = nsnap
-        self.observer_location = observer_location
-        # NOTE watch out about here setting nsim = 0
-        self._box = QuijoteBox(nsnap, 0, paths)
+        super().init_with_snapshot(
+            "quijote", nsim, 0,
+            halo_finder, catalogue_name, paths, mass_key, bounds,
+            [500., 500., 500.,], observer_velocity, cache_maxsize)
 
-        fpath = self.paths.fof_cat(nsim, "quijote", load_backup)
-        fof = FoF_catalog(fpath, self.nsnap, long_ids=False, swap=False,
-                          SFR=False, read_IDs=False)
-
-        cols = [("x", numpy.float32), ("y", numpy.float32),
-                ("z", numpy.float32), ("fof_vx", numpy.float32),
-                ("fof_vy", numpy.float32), ("fof_vz", numpy.float32),
-                ("group_mass", numpy.float32), ("fof_npart", numpy.int32),
-                ("index", numpy.int32)]
-        data = cols_to_structured(fof.GroupLen.size, cols)
-
-        pos = fof.GroupPos / 1e3
-        vel = fof.GroupVel * (1 + self.redshift)
-        for i, p in enumerate(["x", "y", "z"]):
-            data[p] = pos[:, i]
-            data["fof_v" + p] = vel[:, i]
-        data["group_mass"] = fof.GroupMass * 1e10
-        data["fof_npart"] = fof.GroupLen
-        # We want to start indexing from 1. Index 0 is reserved for
-        # particles unassigned to any FoF group.
-        data["index"] = 1 + numpy.arange(data.size, dtype=numpy.int32)
-
-        if load_backup and (load_initial or load_fitted):
-            raise ValueError("Cannot load initial/fitted data for the backup "
-                             "catalogues.")
-
-        if load_initial:
-            data = self.load_initial(data, paths, "quijote")
-        if load_fitted:
-            data = self.load_fitted(data, paths, "quijote")
-
-        if load_initial and with_lagpatch:
-            data = data[numpy.isfinite(data["lagpatch_size"])]
-
-        if bounds is not None:
-            data = self.filter_data(data, bounds)
-
-        self._data = data
-
-    @property
-    def nsnap(self):
-        """
-        Snapshot number.
-
-        Returns
-        -------
-        int
-        """
-        return self._nsnap
-
-    @nsnap.setter
-    def nsnap(self, nsnap):
-        assert nsnap in [0, 1, 2, 3, 4]
-        self._nsnap = nsnap
-
-    @property
-    def simname(self):
-        return "quijote"
-
-    @property
-    def redshift(self):
-        """
-        Redshift of the snapshot.
-
-        Returns
-        -------
-        float
-        """
-        return {4: 0.0, 3: 0.5, 2: 1.0, 1: 2.0, 0: 3.0}[self.nsnap]
-
-    @property
-    def box(self):
-        return self._box
+        # NOTE watch out about here setting nsim = 0 ?
+        self.box = QuijoteBox(self.nsnap, self.nsim, self.paths)
+        self._bounds = bounds
 
     def pick_fiducial_observer(self, n, rmax):
         r"""
-        Return a copy of itself, storing only halos within `rmax` of the new
-        fiducial observer.
+        Select a new fiducial observer in the box.
 
         Parameters
         ----------
@@ -776,15 +692,18 @@ class QuijoteCatalogue(BaseCatalogue):
             Fiducial observer index.
         rmax : float
             Max. distance from the fiducial obs. in :math:`\mathrm{cMpc} / h`.
-
-        Returns
-        -------
-        instance of `csiborgtools.read.QuijoteHaloCatalogue`
         """
-        cat = deepcopy(self)
-        cat.observer_location = fiducial_observers(self.box.boxsize, rmax)[n]
-        cat._data = cat.filter_data(cat._data, {"dist": (0, rmax)})
-        return cat
+        self.clear_cache()
+        # cat = deepcopy(self)
+        self.observer_location = fiducial_observers(self.box.boxsize, rmax)[n]
+        self.observer_velocity = None
+
+        if self._bounds is None:
+            bounds = {"dist": (0, rmax)}
+        else:
+            bounds = {**self._bounds, "dist": (0, rmax)}
+
+        self._make_mask(bounds)
 
 
 ###############################################################################
