@@ -82,9 +82,10 @@ class BaseCatalogue(ABC):
                            "particle_offset"
                            ]
 
-    def __init__(self, simname, nsim, nsnap, halo_finder, catalogue_name,
-                 paths, mass_key, bounds, observer_location, observer_velocity,
-                 cache_maxsize=64):
+    def init_with_snapshot(self, simname, nsim, nsnap, halo_finder,
+                           catalogue_name, paths, mass_key, bounds,
+                           observer_location, observer_velocity,
+                           cache_maxsize=64):
         self.simname = simname
         self.nsim = nsim
         self.nsnap = nsnap
@@ -406,6 +407,7 @@ class BaseCatalogue(ABC):
         self._load_filtered = False
 
         mask = numpy.ones(len(self), dtype=bool)
+        self._catalogue_length = None  # Don't cache the length
 
         for key, (xmin, xmax) in bounds.items():
             values_to_filter = self[f"__{key}"]
@@ -526,9 +528,17 @@ class BaseCatalogue(ABC):
         self._cache.clear()
         collect()
 
+    def __repr__(self):
+        return (f"<{self.__class__.__name__}> "
+                f"(nsim = {self.nsim}, nsnap = {self.nsnap}, "
+                f"nhalo = {len(self)})")
+
     def __len__(self):
         if self._catalogue_length is None:
-            self._catalogue_length = len(self["__index"])
+            if self._load_filtered:
+                self._catalogue_length = self._filter_mask.sum()
+            else:
+                self._catalogue_length = len(self["__index"])
         return self._catalogue_length
 
 
@@ -556,17 +566,72 @@ class CSiBORGCatalogue(BaseCatalogue):
         Halo finder name.
     mass_key : str, optional
         Mass key of the catalogue.
+    bounds : dict, optional
+        Parameter bounds; keys as parameter names, values as (min, max).
     observer_velocity : 1-dimensional array, optional
         Observer's velocity in :math:`\mathrm{km} / \mathrm{s}`.
+    cache_maxsize : int, optional
+        Maximum number of cached arrays.
     """
     def __init__(self, nsim, paths, catalogue_name, halo_finder, mass_key=None,
                  bounds=None, observer_velocity=None, cache_maxsize=64):
-        super().__init__("csiborg", nsim,
-                         max(paths.get_snapshots(nsim, "csiborg")),
-                         halo_finder, catalogue_name, paths, mass_key,
-                         bounds, [338.85, 338.85, 338.85], observer_velocity,
-                         cache_maxsize)
+        super().init_with_snapshot(
+            "csiborg", nsim, max(paths.get_snapshots(nsim, "csiborg")),
+            halo_finder, catalogue_name, paths, mass_key, bounds,
+            [338.85, 338.85, 338.85], observer_velocity, cache_maxsize)
         self.box = CSiBORGBox(self.nsnap, self.nsim, self.paths)
+
+
+###############################################################################
+#                    Quijote PHEW without snapshot catalogue                  #
+###############################################################################
+
+
+class CSiBORGPHEWCatalogue(BaseCatalogue):
+    r"""
+    CSiBORG PHEW halo catalogue without snapshot. Units typically used are:
+        - Length: :math:`cMpc / h`
+        - Mass: :math:`M_\odot / h`
+    """
+
+    def __init__(self, nsnap, nsim, paths, mass_key=None, bounds=None,
+                 cache_maxsize=64):
+        # TODO add a flag if only want to load main haloes
+        self.simname = "csiborg"
+        self.nsnap = nsnap
+        self.nsim = nsim
+        self.paths = paths
+        self.mass_key = mass_key
+        self.observer_location = [338.85, 338.85, 338.85]
+        self.box = CSiBORGBox(self.nsnap, self.nsim, self.paths)
+
+        fname = paths.processed_phew(nsim)
+        self._data = File(fname, "r")
+        if str(nsnap) not in self._data.keys():
+            raise ValueError(f"Snapshot {nsnap} not in the catalogue.")
+        self.catalogue_name = str(nsnap)
+
+        # self._data = self._data[str(nsnap)]
+        self._is_closed = False
+
+        self.cache_maxsize = cache_maxsize
+
+        if bounds is not None:
+            self._make_mask(bounds)
+
+        self._derived_properties = ["cartesian_pos", "spherical_pos", "dist"]
+
+    @staticmethod
+    def get_snapshots(nsim, paths):
+        """List of snapshots available for this simulation."""
+        fname = paths.processed_phew(nsim)
+
+        with File(fname, "r") as f:
+            snaps = [int(key) for key in f.keys() if key != "info"]
+            f.close()
+
+        return numpy.sort(snaps)
+
 
 ###############################################################################
 #                         Quijote halo catalogue                              #
@@ -711,7 +776,6 @@ class QuijoteCatalogue(BaseCatalogue):
         cat.observer_location = fiducial_observers(self.box.boxsize, rmax)[n]
         cat._data = cat.filter_data(cat._data, {"dist": (0, rmax)})
         return cat
-
 
 
 ###############################################################################

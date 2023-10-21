@@ -13,7 +13,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 from .box_units import CSiBORGBox, QuijoteBox                                               # noqa
-from .halo_cat import CSiBORGCatalogue, QuijoteCatalogue, fiducial_observers                # noqa
+from .halo_cat import CSiBORGCatalogue, QuijoteCatalogue, CSiBORGPHEWCatalogue, fiducial_observers                # noqa
 from .obs import SDSS, MCXCClusters, PlanckClusters, TwoMPPGalaxies, TwoMPPGroups           # noqa
 from .paths import Paths                                                                    # noqa
 from .readsim import CSiBORGReader, QuijoteReader, load_halo_particles, make_halomap_dict   # noqa
