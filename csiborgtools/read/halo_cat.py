@@ -393,29 +393,23 @@ class BaseCatalogue(ABC):
         return dist, indxs
 
     def _make_mask(self, bounds):
-        """
-        Make an internal mask for the catalogue data.
-
-        Parameters
-        ----------
-        bounds : dict
-            A dictionary with keys corresponding to data columns or `dist` and
-            values as a tuple of `(xmin, xmax)`. If `xmin` or `xmax` is `None`,
-            it defaults to negative infinity and positive infinity,
-            respectively.
-        """
+        """Make an internal mask for the catalogue data."""
         self._load_filtered = False
 
         mask = numpy.ones(len(self), dtype=bool)
         self._catalogue_length = None  # Don't cache the length
 
-        for key, (xmin, xmax) in bounds.items():
+        for key, lims in bounds.items():
             values_to_filter = self[f"__{key}"]
 
-            if xmin is not None:
-                mask &= (values_to_filter > xmin)
-            if xmax is not None:
-                mask &= (values_to_filter <= xmax)
+            if isinstance(lims, bool):
+                mask &= values_to_filter == lims
+            else:
+                xmin, xmax = lims
+                if xmin is not None:
+                    mask &= (values_to_filter > xmin)
+                if xmax is not None:
+                    mask &= (values_to_filter <= xmax)
 
         self.clear_cache()
         self._filter_mask = mask
@@ -567,7 +561,8 @@ class CSiBORGCatalogue(BaseCatalogue):
     mass_key : str, optional
         Mass key of the catalogue.
     bounds : dict, optional
-        Parameter bounds; keys as parameter names, values as (min, max).
+        Parameter bounds; keys as parameter names, values as (min, max) or
+        a boolean.
     observer_velocity : 1-dimensional array, optional
         Observer's velocity in :math:`\mathrm{km} / \mathrm{s}`.
     cache_maxsize : int, optional
@@ -592,8 +587,23 @@ class CSiBORGPHEWCatalogue(BaseCatalogue):
     CSiBORG PHEW halo catalogue without snapshot. Units typically used are:
         - Length: :math:`cMpc / h`
         - Mass: :math:`M_\odot / h`
-    """
 
+    Parameters
+    ----------
+    nsnap : int
+        Snapshot index.
+    nsim : int
+        IC realisation index.
+    paths : py:class`csiborgtools.read.Paths`
+        Paths object.
+    mass_key : str, optional
+        Mass key of the catalogue.
+    bounds : dict, optional
+        Parameter bounds; keys as parameter names, values as (min, max) or
+        a boolean.
+    cache_maxsize : int, optional
+        Maximum number of cached arrays.
+    """
     def __init__(self, nsnap, nsim, paths, mass_key=None, bounds=None,
                  cache_maxsize=64):
         # TODO add a flag if only want to load main haloes
@@ -603,15 +613,13 @@ class CSiBORGPHEWCatalogue(BaseCatalogue):
         self.paths = paths
         self.mass_key = mass_key
         self.observer_location = [338.85, 338.85, 338.85]
-        self.box = CSiBORGBox(self.nsnap, self.nsim, self.paths)
 
         fname = paths.processed_phew(nsim)
         self._data = File(fname, "r")
         if str(nsnap) not in self._data.keys():
-            raise ValueError(f"Snapshot {nsnap} not in the catalogue.")
+            raise ValueError(f"Snapshot {nsnap} not in the catalogue. "
+                             f"Options are {self.get_snapshots(nsim, paths)}")
         self.catalogue_name = str(nsnap)
-
-        # self._data = self._data[str(nsnap)]
         self._is_closed = False
 
         self.cache_maxsize = cache_maxsize
@@ -620,6 +628,7 @@ class CSiBORGPHEWCatalogue(BaseCatalogue):
             self._make_mask(bounds)
 
         self._derived_properties = ["cartesian_pos", "spherical_pos", "dist"]
+        self.box = CSiBORGBox(self.nsnap, self.nsim, self.paths)
 
     @staticmethod
     def get_snapshots(nsim, paths):
