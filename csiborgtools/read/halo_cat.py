@@ -455,12 +455,8 @@ class BaseCatalogue(ABC):
         else:
             is_internal = False
 
-        if key in self.cache_keys():
-            out = self._cache[key]
-            if self._load_filtered and not is_internal:
-                return out[self._filter_mask]
-            else:
-                return out
+        if not is_internal and key in self.cache_keys():
+            return self._cache[key]
         else:
             if key == "cartesian_pos":
                 out = numpy.vstack([self["__x"], self["__y"], self["__z"]]).T
@@ -501,16 +497,16 @@ class BaseCatalogue(ABC):
             else:
                 raise KeyError(f"Key '{key}' is not available.")
 
+        if self._load_filtered and not is_internal:
+            out = out[self._filter_mask]
+
         if not is_internal:
             self._cache[key] = out
 
         if self.cache_length() > self.cache_maxsize:
             self._cache.popitem(last=False)
 
-        if self._load_filtered and not is_internal:
-            return out[self._filter_mask]
-        else:
-            return out
+        return out
 
     @property
     def is_closed(self):
