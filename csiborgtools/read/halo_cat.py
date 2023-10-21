@@ -25,7 +25,7 @@ from h5py import File
 from sklearn.neighbors import NearestNeighbors
 
 from ..utils import (cartesian_to_radec, fprint, periodic_distance_two_points,
-                     radec_to_cartesian, real2redshift)
+                     radec_to_cartesian, real2redshift, number_counts)
 from .box_units import CSiBORGBox, QuijoteBox
 from .paths import Paths
 from .readsim import load_halo_particles, make_halomap_dict
@@ -239,6 +239,38 @@ class BaseCatalogue(ABC):
             raise ValueError(f"Mass key '{mass_key}' is not available.")
 
         self._mass_key = mass_key
+
+    def halo_mass_function(self, bin_edges, volume, mass_key=None):
+        """
+        Get the halo mass function.
+
+        Parameters
+        ----------
+        bin_edges : 1-dimensional array
+            Left mass bin edges.
+        volume : float
+            Volume in :math:`(cMpc / h)^3`.
+        mass_key : str, optional
+            Mass key of the catalogue.
+
+        Returns
+        -------
+        x, y, yerr : 1-dimensional arrays
+            Mass bin centres, halo number density, and Poisson error.
+        """
+        if mass_key is None:
+            mass_key = self.mass_key
+
+        counts = number_counts(self[mass_key], bin_edges)
+
+        bin_edges = numpy.log10(bin_edges)
+        bin_width = bin_edges[1:] - bin_edges[:-1]
+
+        x = (bin_edges[1:] + bin_edges[:-1]) / 2
+        y = counts / bin_width / volume
+        yerr = numpy.sqrt(counts) / bin_width / volume
+
+        return x, y, yerr
 
     def halo_particles(self, hid, kind, in_initial=False):
         """
