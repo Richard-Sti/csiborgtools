@@ -25,7 +25,8 @@ from h5py import File
 from sklearn.neighbors import NearestNeighbors
 
 from ..utils import (cartesian_to_radec, fprint, periodic_distance_two_points,
-                     radec_to_cartesian, real2redshift, number_counts)
+                     radec_to_cartesian, real2redshift, number_counts,
+                     great_circle_distance)
 from .box_units import CSiBORGBox, QuijoteBox
 from .paths import Paths
 from .readsim import load_halo_particles, make_halomap_dict
@@ -299,8 +300,8 @@ class BaseCatalogue(ABC):
         key = f"snapshot_{'initial' if in_initial else 'final'}/{kind}"
         return load_halo_particles(hid, self[key], self["particle_offset"])
 
-    @lru_cache(maxsize=2)
-    def knn(self, in_initial):
+    @lru_cache(maxsize=4)
+    def knn(self, in_initial, angular=False):
         r"""
         Periodic kNN object in real space in Cartesian coordinates trained on
         `self["cartesian_pos"]`.
@@ -309,15 +310,23 @@ class BaseCatalogue(ABC):
         ----------
         in_initial : bool
             Whether to define the kNN on the initial or final snapshot.
+        angular : bool, optional
+            Whether to define the kNN in RA/dec.
 
         Returns
         -------
         :py:class:`sklearn.neighbors.NearestNeighbors`
         """
-        pos = self["lagpatch_pos"] if in_initial else self["cartesian_pos"]
-        L = self.box.boxsize
-        knn = NearestNeighbors(
-            metric=lambda a, b: periodic_distance_two_points(a, b, L))
+        if angular:
+            assert not in_initial, "Angular kNN not available for initial."
+            pos = self["spherical_pos"][:, 1:]
+            knn = NearestNeighbors(metric=great_circle_distance)
+        else:
+            pos = self["lagpatch_pos"] if in_initial else self["cartesian_pos"]
+            L = self.box.boxsize
+            knn = NearestNeighbors(
+                metric=lambda a, b: periodic_distance_two_points(a, b, L))
+
         knn.fit(pos)
         return knn
 
@@ -383,28 +392,15 @@ class BaseCatalogue(ABC):
         ind : array of 1-dimensional arrays of shape `(n_neighbours,)`
             Indices of each neighbour in this catalogue.
         """
-        if in_rsp:
-            pos = self["cartesian_redshiftspace_pos"]
-        else:
-            pos = self["cartesian_pos"]
-
-        radial_dist = numpy.linalg.norm(pos, axis=1)
-        pos = pos / radial_dist.reshape(-1, 1)
-
-        knn = NearestNeighbors(metric="cosine")
-        knn.fit(pos)
-
-        metric_maxdist = 1 - numpy.cos(numpy.deg2rad(angular_tolerance))
-        dist, indxs = knn.radius_neighbors(radec_to_cartesian(X),
-                                           radius=metric_maxdist,
+        knn = self.knn(in_initial=False, angular=True)
+        dist, indxs = knn.radius_neighbors(X[:, 1:],
+                                           radius=angular_tolerance,
                                            sort_results=True)
 
-        # Convert cosine difference to angular distance
-        for i in range(X.shape[0]):
-            dist[i] = numpy.rad2deg(numpy.arccos(1 - dist[i]))
-
         if radial_tolerance is not None:
-            radial_query = numpy.linalg.norm(X, axis=1)
+            radial_dist = self["redshift_dist"] if in_rsp else self["dist"]
+            radial_query = X[:, 0]
+
             for i in range(X.shape[0]):
                 rad_sep = numpy.abs(radial_dist[indxs[i]] - radial_query[i])
                 mask = rad_sep < radial_tolerance
