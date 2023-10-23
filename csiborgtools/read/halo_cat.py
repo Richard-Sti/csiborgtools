@@ -699,7 +699,7 @@ class QuijoteCatalogue(BaseCatalogue):
                  cache_maxsize=64):
 
         super().init_with_snapshot(
-            "quijote", nsim, 0,
+            "quijote", nsim, 4,
             halo_finder, catalogue_name, paths, mass_key, bounds,
             [500., 500., 500.,], observer_velocity, cache_maxsize)
 
