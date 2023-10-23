@@ -13,7 +13,8 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-Support for matching halos between CSiBORG IC realisations.
+Support for matching halos between CSiBORG IC realisations based on their
+Lagrangian patch overlap.
 """
 from abc import ABC
 from datetime import datetime
@@ -21,12 +22,9 @@ from functools import lru_cache
 from math import ceil
 
 import numpy
-from scipy.ndimage import gaussian_filter
-
 from numba import jit
+from scipy.ndimage import gaussian_filter
 from tqdm import tqdm, trange
-
-from ..read import load_halo_particles
 
 
 class BaseMatcher(ABC):
@@ -160,8 +158,7 @@ class RealisationsMatcher(BaseMatcher):
         """The overlapper object."""
         return self._overlapper
 
-    def cross(self, cat0, catx, particles0, particlesx, halo_map0, halo_mapx,
-              delta_bckg, cache_size=10000, verbose=True):
+    def cross(self, cat0, catx, delta_bckg, cache_size=10000, verbose=True):
         r"""
         Find all neighbours whose CM separation is less than `nmult` times the
         sum of their initial Lagrangian patch sizes and calculate their
@@ -174,16 +171,6 @@ class RealisationsMatcher(BaseMatcher):
             Halo catalogue of the reference simulation.
         catx : instance of :py:class:`csiborgtools.read.BaseCatalogue`
             Halo catalogue of the cross simulation.
-        particles0 : 2-dimensional array
-            Particles archive file of the reference simulation. The columns
-            must be `x`, `y`, `z` and `M`.
-        particlesx : 2-dimensional array
-            Particles archive file of the cross simulation. The columns must be
-            `x`, `y`, `z` and `M`.
-        halo_map0 : 2-dimensional array
-            Halo map of the reference simulation.
-        halo_mapx : 2-dimensional array
-            Halo map of the cross simulation.
         delta_bckg : 3-dimensional array
             Summed background density field of the reference and cross
             simulations calculated with particles assigned to halos at the
@@ -220,14 +207,11 @@ class RealisationsMatcher(BaseMatcher):
                 aratio = numpy.abs(numpy.log10(catx[p][indx] / cat0[p][i]))
                 match_indxs[i] = match_indxs[i][aratio < self.dlogmass]
 
-        hid2map0 = {hid: i for i, hid in enumerate(halo_map0[:, 0])}
-        hid2mapx = {hid: i for i, hid in enumerate(halo_mapx[:, 0])}
-
         # We will cache the halos from the cross simulation to speed up the I/O
         @lru_cache(maxsize=cache_size)
         def load_cached_halox(hid):
-            return load_processed_halo(hid, particlesx, halo_mapx, hid2mapx,
-                                       nshift=0, ncells=self.box_size)
+            return load_processed_halo(hid, catx, nshift=0,
+                                       ncells=self.box_size)
 
         iterator = tqdm(
             cat0["index"],
@@ -243,8 +227,7 @@ class RealisationsMatcher(BaseMatcher):
             # Next, we find this halo's particles, total mass, minimum and
             # maximum cells and convert positions to cells.
             pos0, mass0, totmass0, mins0, maxs0 = load_processed_halo(
-                k0, particles0, halo_map0, hid2map0, nshift=0,
-                ncells=self.box_size)
+                k0, cat0, nshift=0, ncells=self.box_size)
 
             # We now loop over matches of this halo and calculate their
             # overlap, storing them in `_cross`.
@@ -268,9 +251,8 @@ class RealisationsMatcher(BaseMatcher):
         cross = numpy.asanyarray(cross, dtype=object)
         return match_indxs, cross
 
-    def smoothed_cross(self, cat0, catx, particles0, particlesx, halo_map0,
-                       halo_mapx, delta_bckg, match_indxs, smooth_kwargs,
-                       cache_size=10000, verbose=True):
+    def smoothed_cross(self, cat0, catx, delta_bckg, match_indxs,
+                       smooth_kwargs, cache_size=10000, verbose=True):
         r"""
         Calculate the smoothed overlaps for pairs previously identified via
         `self.cross(...)` to have a non-zero NGP overlap.
@@ -281,16 +263,6 @@ class RealisationsMatcher(BaseMatcher):
             Halo catalogue of the reference simulation.
         catx : instance of :py:class:`csiborgtools.read.BaseCatalogue`
             Halo catalogue of the cross simulation.
-        particles0 : 2-dimensional array
-            Particles archive file of the reference simulation. The columns
-            must be `x`, `y`, `z` and `M`.
-        particlesx : 2-dimensional array
-            Particles archive file of the cross simulation. The columns must be
-            `x`, `y`, `z` and `M`.
-        halo_map0 : 2-dimensional array
-            Halo map of the reference simulation.
-        halo_mapx : 2-dimensional array
-            Halo map of the cross simulation.
         delta_bckg : 3-dimensional array
             Smoothed summed background density field of the reference and cross
             simulations calculated with particles assigned to halos at the
@@ -309,13 +281,11 @@ class RealisationsMatcher(BaseMatcher):
         overlaps : 1-dimensional array of arrays
         """
         nshift = read_nshift(smooth_kwargs)
-        hid2map0 = {hid: i for i, hid in enumerate(halo_map0[:, 0])}
-        hid2mapx = {hid: i for i, hid in enumerate(halo_mapx[:, 0])}
 
         @lru_cache(maxsize=cache_size)
         def load_cached_halox(hid):
-            return load_processed_halo(hid, particlesx, halo_mapx, hid2mapx,
-                                       nshift=nshift, ncells=self.box_size)
+            return load_processed_halo(hid, catx, nshift=nshift,
+                                       ncells=self.box_size)
 
         iterator = tqdm(
             cat0["index"],
@@ -325,8 +295,7 @@ class RealisationsMatcher(BaseMatcher):
         cross = [numpy.asanyarray([], dtype=numpy.float32)] * match_indxs.size
         for i, k0 in enumerate(iterator):
             pos0, mass0, __, mins0, maxs0 = load_processed_halo(
-                k0, particles0, halo_map0, hid2map0, nshift=nshift,
-                ncells=self.box_size)
+                k0, cat0, nshift=nshift, ncells=self.box_size)
 
             # Now loop over the matches and calculate the smoothed overlap.
             _cross = numpy.full(match_indxs[i].size, numpy.nan, numpy.float32)
@@ -366,8 +335,7 @@ class ParticleOverlap(BaseMatcher):
         self.box_size = box_size
         self.bckg_halfsize = bckg_halfsize
 
-    def make_bckg_delta(self, particles, halo_map, hid2map, halo_cat,
-                        delta=None, verbose=False):
+    def make_bckg_delta(self, cat, delta=None, verbose=False):
         """
         Calculate a NGP density field of particles belonging to halos of a
         halo catalogue `halo_cat`. Particles are only counted within the
@@ -376,15 +344,8 @@ class ParticleOverlap(BaseMatcher):
 
         Parameters
         ----------
-        particles : 2-dimensional array
-            Particles archive file. The columns must be `x`, `y`, `z` and `M`.
-        halo_map : 2-dimensional array
-            Array containing start and end indices in the particle array
-            corresponding to each halo.
-        hid2map : dict
-            Dictionary mapping halo IDs to `halo_map` array positions.
-        halo_cat : instance of :py:class:`csiborgtools.read.BaseCatalogue`
-            Halo catalogue.
+        cat : instance of :py:class:`csiborgtools.read.BaseCatalogue`
+            Halo catalogue of the reference simulation.
         delta : 3-dimensional array, optional
             Array to store the density field. If `None` a new array is
             created.
@@ -406,16 +367,17 @@ class ParticleOverlap(BaseMatcher):
                     & (delta.dtype == numpy.float32))
 
         iterator = tqdm(
-            halo_cat["index"],
+            cat["index"],
             desc=f"{datetime.now()} Calculating the background field",
             disable=not verbose
             )
         for hid in iterator:
-            pos = load_halo_particles(hid, particles, halo_map, hid2map)
+            pos = cat.halo_particles(hid, "pos", in_initial=True)
             if pos is None:
                 continue
 
-            pos, mass = pos[:, :3], pos[:, 3]
+            mass = cat.halo_particles(hid, "mass", in_initial=True)
+
             pos = pos2cell(pos, self.box_size)
 
             # We mask out particles outside the cubical high-resolution region
@@ -844,7 +806,7 @@ def calculate_overlap_indxs(delta1, delta2, cellmins, delta_bckg, nonzero,
     return intersect / (mass1 + mass2 - intersect)
 
 
-def load_processed_halo(hid, particles, halo_map, hid2map, ncells, nshift):
+def load_processed_halo(hid, cat, ncells, nshift):
     """
     Load a processed halo from the `.h5` file. This is to be wrapped by a
     cacher.
@@ -853,14 +815,8 @@ def load_processed_halo(hid, particles, halo_map, hid2map, ncells, nshift):
     ----------
     hid : int
         Halo ID.
-    particles : 2-dimensional array
-        Array of particles in box units. The columns must be `x`, `y`, `z`
-        and `M`.
-    halo_map : 2-dimensional array
-        Array containing start and end indices in the particle array
-        corresponding to each halo.
-    hid2map : dict
-        Dictionary mapping halo IDs to `halo_map` array positions.
+    cat : instance of :py:class:`csiborgtools.read.BaseCatalogue`
+        Halo catalogue.
     ncells : int
         Number of cells in the box density field.
     nshift : int
@@ -879,8 +835,8 @@ def load_processed_halo(hid, particles, halo_map, hid2map, ncells, nshift):
     maxs : len-3 tuple
         Maximum cell indices of the halo.
     """
-    pos = load_halo_particles(hid, particles, halo_map, hid2map)
-    pos, mass = pos[:, :3], pos[:, 3]
+    pos = cat.halo_particles(hid, "pos", in_initial=True)
+    mass = cat.halo_particles(hid, "mass", in_initial=True)
 
     pos = pos2cell(pos, ncells)
     mins, maxs = get_halo_cell_limits(pos, ncells=ncells, nshift=nshift)
