@@ -25,7 +25,7 @@ from h5py import File
 from sklearn.neighbors import NearestNeighbors
 
 from ..utils import (cartesian_to_radec, fprint, periodic_distance_two_points,
-                     radec_to_cartesian, real2redshift, number_counts,
+                     real2redshift, number_counts,
                      great_circle_distance)
 from .box_units import CSiBORGBox, QuijoteBox
 from .paths import Paths
@@ -283,7 +283,8 @@ class BaseCatalogue(ABC):
         hid : int
             Halo ID.
         kind : str
-            Must be position or velocity, i.e. either 'pos' or 'vel'.
+            Must be position, velocity or mass, i.e. either 'pos', 'vel', or
+            'mass'.
         in_initial : bool, optional
             Whether to load the initial or final snapshot.
 
@@ -294,8 +295,8 @@ class BaseCatalogue(ABC):
         if hid == 0:
             raise ValueError("ID 0 is reserved for unassigned particles.")
 
-        if kind not in ["pos", "vel"]:
-            raise ValueError("`kind` must be either 'pos' or 'vel'.")
+        if kind not in ["pos", "vel", "mass"]:
+            raise ValueError("`kind` must be either 'pos', 'vel' or 'mass'.")
 
         key = f"snapshot_{'initial' if in_initial else 'final'}/{kind}"
         return load_halo_particles(hid, self[key], self["particle_offset"])
