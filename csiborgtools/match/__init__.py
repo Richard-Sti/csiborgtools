@@ -12,7 +12,5 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-from .match import (ParticleOverlap, RealisationsMatcher,  # noqa
-                    calculate_overlap, calculate_overlap_indxs, pos2cell, # noqa
-                    find_neighbour, get_halo_cell_limits,  # noqa
-                    matching_max)  # noqa
+from .match import (ParticleOverlap, RealisationsMatcher, calculate_overlap,    # noqa
+                    pos2cell, find_neighbour, matching_max)                     # noqa
