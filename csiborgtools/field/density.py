@@ -104,7 +104,7 @@ class DensityField(BaseField):
         delta -= 1
         return delta
 
-    def __call__(self, parts, grid, flip_xz=True, nbatch=30, verbose=True):
+    def __call__(self, pos, mass, grid, nbatch=30, verbose=True):
         """
         Calculate the density field using a Pylians routine [1, 2].
         Iteratively loads the particles into memory, flips their `x` and `z`
@@ -113,13 +113,12 @@ class DensityField(BaseField):
 
         Parameters
         ----------
-        parts : 2-dimensional array of shape `(n_parts, 7)`
-            Particle positions, velocities and masses.
-            Columns are: `x`, `y`, `z`, `vx`, `vy`, `vz`, `M`.
+        pos : 2-dimensional array of shape `(n_parts, 3)`
+            Particle positions
+        mass : 1-dimensional array of shape `(n_parts,)`
+            Particle masses
         grid : int
             Grid size.
-        flip_xz : bool, optional
-            Whether to flip the `x` and `z` coordinates.
         nbatch : int, optional
             Number of batches to split the particle loading into.
         verbose : bool, optional
@@ -137,24 +136,20 @@ class DensityField(BaseField):
         """
         rho = numpy.zeros((grid, grid, grid), dtype=numpy.float32)
 
-        nparts = parts.shape[0]
+        nparts = pos.shape[0]
         batch_size = nparts // nbatch
         start = 0
 
         for __ in trange(nbatch + 1, disable=not verbose,
                          desc="Loading particles for the density field"):
             end = min(start + batch_size, nparts)
-            pos = parts[start:end]
-            pos, vel, mass = pos[:, :3], pos[:, 3:6], pos[:, 6]
+            batch_pos = pos[start:end]
+            batch_mass = mass[start:end]
 
-            pos = force_single_precision(pos)
-            vel = force_single_precision(vel)
-            mass = force_single_precision(mass)
-            if flip_xz:
-                pos[:, [0, 2]] = pos[:, [2, 0]]
-                vel[:, [0, 2]] = vel[:, [2, 0]]
+            batch_pos = force_single_precision(batch_pos)
+            batch_mass = force_single_precision(batch_mass)
 
-            MASL.MA(pos, rho, 1., self.MAS, W=mass, verbose=False)
+            MASL.MA(batch_pos, rho, 1., self.MAS, W=batch_mass, verbose=False)
             if end == nparts:
                 break
             start = end
@@ -229,7 +224,7 @@ class VelocityField(BaseField):
                                        / numpy.sqrt(px**2 + py**2 + pz**2))
         return radvel
 
-    def __call__(self, parts, grid, flip_xz=True, nbatch=30,
+    def __call__(self, pos, vel, mass, grid, flip_xz=True, nbatch=30,
                  verbose=True):
         """
         Calculate the velocity field using a Pylians routine [1, 2].
@@ -238,9 +233,12 @@ class VelocityField(BaseField):
 
         Parameters
         ----------
-        parts : 2-dimensional array of shape `(n_parts, 7)`
-            Particle positions, velocities and masses.
-            Columns are: `x`, `y`, `z`, `vx`, `vy`, `vz`, `M`.
+        pos : 2-dimensional array of shape `(n_parts, 3)`
+            Particle positions.
+        vel : 2-dimensional array of shape `(n_parts, 3)`
+            Particle velocities.
+        mass : 1-dimensional array of shape `(n_parts,)`
+            Particle masses.
         grid : int
             Grid size.
         flip_xz : bool, optional
@@ -260,26 +258,26 @@ class VelocityField(BaseField):
         [2] https://github.com/franciscovillaescusa/Pylians3/blob/master
             /library/MAS_library/MAS_library.pyx
         """
-        rho_velx = numpy.zeros((grid, grid, grid), dtype=numpy.float32)
-        rho_vely = numpy.zeros((grid, grid, grid), dtype=numpy.float32)
-        rho_velz = numpy.zeros((grid, grid, grid), dtype=numpy.float32)
-        rho_vel = [rho_velx, rho_vely, rho_velz]
+        rho_vel = [numpy.zeros((grid, grid, grid), dtype=numpy.float32),
+                   numpy.zeros((grid, grid, grid), dtype=numpy.float32),
+                   numpy.zeros((grid, grid, grid), dtype=numpy.float32),
+                   ]
         cellcounts = numpy.zeros((grid, grid, grid), dtype=numpy.float32)
 
-        nparts = parts.shape[0]
+        nparts = pos.shape[0]
         batch_size = nparts // nbatch
         start = 0
         for __ in trange(nbatch + 1) if verbose else range(nbatch + 1):
             end = min(start + batch_size, nparts)
-            pos = parts[start:end]
-            pos, vel, mass = pos[:, :3], pos[:, 3:6], pos[:, 6]
 
-            pos = force_single_precision(pos)
-            vel = force_single_precision(vel)
-            mass = force_single_precision(mass)
-            if flip_xz:
-                pos[:, [0, 2]] = pos[:, [2, 0]]
-                vel[:, [0, 2]] = vel[:, [2, 0]]
+            batch_pos = pos[start:end]
+            batch_vel = vel[start:end]
+            batch_mass = mass[start:end]
+
+            batch_pos = force_single_precision(batch_pos)
+            batch_vel = force_single_precision(batch_vel)
+            batch_mass = force_single_precision(batch_mass)
+
             vel *= mass.reshape(-1, 1)
 
             for i in range(3):
@@ -295,7 +293,7 @@ class VelocityField(BaseField):
         for i in range(3):
             divide_nonzero(rho_vel[i], cellcounts)
 
-        return numpy.stack([rho_velx, rho_vely, rho_velz])
+        return numpy.stack(rho_vel)
 
 
 ###############################################################################
