@@ -168,7 +168,7 @@ class CSiBORGReader(BaseReader):
             raise ValueError(f"Unknown kind `{kind}`.")
 
         # Because of a RAMSES bug x and z are flipped.
-        if x in ["pos", "vel"]:
+        if kind in ["pos", "vel"]:
             x[:, [0, 2]] = x[:, [2, 0]]
 
         return x
