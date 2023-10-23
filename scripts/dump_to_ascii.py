@@ -61,13 +61,13 @@ def positions_to_ascii(positions, output_filename, boxsize=None,
             out_file.write(chunk_str + "\n")
 
 
-def extract_positions(nsim, paths, kind):
+def extract_positions(nsim, simname, paths, kind):
     """
     Extract either the particle or halo positions.
     """
     if kind == "particles":
-        fname = paths.particles(nsim, args.simname)
-        return h5py.File(fname, 'r')["particles"]
+        fname = paths.processed_output(nsim, simname, "FOF")
+        return h5py.File(fname, 'r')["snapshot_final/pos"][:]
 
     if kind == "particles_rsp":
         raise NotImplementedError("RSP of particles is not implemented yet.")
@@ -75,23 +75,23 @@ def extract_positions(nsim, paths, kind):
     fpath = paths.observer_peculiar_velocity("PCS", 512, nsim)
     vpec_observer = numpy.load(fpath)["observer_vp"][0, :]
     cat = csiborgtools.read.CSiBORGHaloCatalogue(
-        nsim, paths, bounds={"dist": (0, 155.5)}, load_fitted=True,
-        load_initial=False, observer_velocity=vpec_observer, )
+        nsim, paths, "halo_catalogue", "FOF", bounds={"dist": (0, 155.5)},
+        observer_velocity=vpec_observer)
 
     if kind == "halos":
-        return cat.position()
+        return cat["cartesian_pos"]
 
     if kind == "halos_rsp":
-        return cat.redshift_space_position()
+        return cat["cartesian_redshift_pos"]
 
     raise ValueError(f"Unknown kind `{kind}`. Allowed values are: "
                      "`particles`, `particles_rsp`, `halos`, `halos_rsp`.")
 
 
-def main(nsim, paths, kind):
-    boxsize = 677.7 if "particles" in kind else None
-    pos = extract_positions(nsim, paths, kind)
-    output_filename = paths.ascii_positions(nsim, kind)
+def main(args, paths):
+    boxsize = 677.7 if "particles" in args.kind else None
+    pos = extract_positions(args.nsim, args.simname, paths, args.kind)
+    output_filename = paths.ascii_positions(args.nsim, args.kind)
     positions_to_ascii(pos, output_filename, boxsize=boxsize)
 
 
