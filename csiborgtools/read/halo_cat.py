@@ -24,9 +24,9 @@ import numpy
 from h5py import File
 from sklearn.neighbors import NearestNeighbors
 
-from ..utils import (cartesian_to_radec, fprint, periodic_distance_two_points,
-                     real2redshift, number_counts,
-                     great_circle_distance)
+from ..utils import (cartesian_to_radec, fprint, great_circle_distance,
+                     number_counts, periodic_distance_two_points,
+                     real2redshift)
 from .box_units import CSiBORGBox, QuijoteBox
 from .paths import Paths
 from .readsim import load_halo_particles, make_halomap_dict
