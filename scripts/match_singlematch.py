@@ -69,7 +69,7 @@ def pair_match_max(nsim0, nsimx, simname, min_logmass, mult, verbose):
         raise ValueError(f"Unknown simulation `{simname}`.")
 
     reader = csiborgtools.summary.PairOverlap(cat0, catx, paths, min_logmass,
-                                           maxdist=maxdist)
+                                              maxdist=maxdist)
     out = csiborgtools.match.matching_max(
         cat0, catx, mass_kind, mult=mult, periodic=periodic,
         overlap=reader.overlap(from_smoothed=True),
@@ -106,54 +106,36 @@ def pair_match(nsim0, nsimx, simname, min_logmass, sigma, verbose):
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     smooth_kwargs = {"sigma": sigma, "mode": "constant", "cval": 0}
+    bounds = {"lagpatch_size": (0, None)}
 
     if simname == "csiborg":
         overlapper_kwargs = {"box_size": 2048, "bckg_halfsize": 512}
         mass_kind = "fof_totpartmass"
-        bounds = {"dist": (0, 155), mass_kind: (10**min_logmass, None)}
-
-        cat0 = csiborgtools.read.CSiBORGHaloCatalogue(
-            nsim0, paths, bounds=bounds, load_fitted=False,
-            with_lagpatch=True)
-        catx = csiborgtools.read.CSiBORGHaloCatalogue(
-            nsimx, paths, bounds=bounds, load_fitted=False,
-            with_lagpatch=True)
+        bounds |= {"dist": (0, 155), mass_kind: (10**min_logmass, None)}
+        cat0 = csiborgtools.read.CSiBORGCatalogue(
+            nsim0, paths, "halo_catalogue", "FOF", mass_kind, bounds)
+        catx = csiborgtools.read.CSiBORGCatalogue(
+            nsimx, paths, "halo_catalogue", "FOF", mass_kind, bounds)
     elif simname == "quijote":
         overlapper_kwargs = {"box_size": 512, "bckg_halfsize": 256}
         mass_kind = "group_mass"
-        bounds = {mass_kind: (10**min_logmass, None)}
+        bounds |= {mass_kind: (10**min_logmass, None)}
 
-        cat0 = csiborgtools.read.QuijoteHaloCatalogue(
-            nsim0, paths, 4, bounds=bounds, load_fitted=False,
-            with_lagpatch=True)
-        catx = csiborgtools.read.QuijoteHaloCatalogue(
-            nsimx, paths, 4, bounds=bounds, load_fitted=False,
-            with_lagpatch=True)
+        cat0 = csiborgtools.read.QuijoteCatalogue(
+            nsim0, paths, "halo_catalogue", "FOF", mass_kind, bounds=bounds)
+        catx = csiborgtools.read.QuijoteCatalogue(
+            nsimx, paths, "halo_catalogue", "FOF", mass_kind, bounds=bounds)
     else:
         raise ValueError(f"Unknown simulation name: `{simname}`.")
 
-    halomap0 = csiborgtools.read.read_h5(
-        paths.particles(nsim0, simname))["halomap"]
-    parts0 = csiborgtools.read.read_h5(
-        paths.initmatch(nsim0, simname, "particles"))["particles"]
-    hid2map0 = {hid: i for i, hid in enumerate(halomap0[:, 0])}
-
-    halomapx = csiborgtools.read.read_h5(
-        paths.particles(nsimx, simname))["halomap"]
-    partsx = csiborgtools.read.read_h5(
-        paths.initmatch(nsimx, simname, "particles"))["particles"]
-    hid2mapx = {hid: i for i, hid in enumerate(halomapx[:, 0])}
-
     overlapper = csiborgtools.match.ParticleOverlap(**overlapper_kwargs)
-    delta_bckg = overlapper.make_bckg_delta(parts0, halomap0, hid2map0, cat0,
+    delta_bckg = overlapper.make_bckg_delta(cat0, verbose=verbose)
+    delta_bckg = overlapper.make_bckg_delta(catx, delta=delta_bckg,
                                             verbose=verbose)
-    delta_bckg = overlapper.make_bckg_delta(partsx, halomapx, hid2mapx, catx,
-                                            delta=delta_bckg, verbose=verbose)
 
-    matcher = csiborgtools.match.RealisationsMatcher(
-        mass_kind=mass_kind, **overlapper_kwargs)
-    match_indxs, ngp_overlap = matcher.cross(cat0, catx, parts0, partsx,
-                                             halomap0, halomapx, delta_bckg,
+    matcher = csiborgtools.match.RealisationsMatcher(mass_kind=mass_kind,
+                                                     **overlapper_kwargs)
+    match_indxs, ngp_overlap = matcher.cross(cat0, catx, delta_bckg,
                                              verbose=verbose)
 
     # We want to store the halo IDs of the matches, not their array positions
@@ -177,8 +159,7 @@ def pair_match(nsim0, nsimx, simname, min_logmass, sigma, verbose):
     gaussian_filter(delta_bckg, output=delta_bckg, **smooth_kwargs)
 
     # We calculate the smoothed overlap for the pairs whose NGP overlap is > 0.
-    smoothed_overlap = matcher.smoothed_cross(cat0, catx, parts0, partsx,
-                                              halomap0, halomapx, delta_bckg,
+    smoothed_overlap = matcher.smoothed_cross(cat0, catx, delta_bckg,
                                               match_indxs, smooth_kwargs,
                                               verbose=verbose)
 
