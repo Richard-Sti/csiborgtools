@@ -148,6 +148,26 @@ def radec_to_cartesian(X):
         ]).T
 
 
+@jit(nopython=True, fastmath=True, boundscheck=False)
+def great_circle_distance(x1, x2):
+    """
+    Great circle distance between two points on a sphere, defined by RA and
+    dec, both in degrees.
+    """
+    ra1, dec1 = x1
+    ra2, dec2 = x2
+
+    ra1 *= numpy.pi / 180
+    dec1 *= numpy.pi / 180
+    ra2 *= numpy.pi / 180
+    dec2 *= numpy.pi / 180
+
+    return 180 / numpy.pi * numpy.arccos(
+        numpy.sin(dec1) * numpy.sin(dec2)
+        + numpy.cos(dec1) * numpy.cos(dec2) * numpy.cos(ra1 - ra2)
+        )
+
+
 def cosine_similarity(x, y):
     r"""
     Calculate the cosine similarity between two Cartesian vectors. Defined
