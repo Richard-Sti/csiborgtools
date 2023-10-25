@@ -69,66 +69,46 @@ def process_snapshot(nsim, simname, halo_finder, verbose):
         partreader = csiborgtools.read.QuijoteReader(paths)
         box = None
 
-    fname = paths.processed_output(nsim, simname, halo_finder)
-    # We first read in the halo IDs of the particles and infer the sorting.
-    # Right away we dump the halo IDs to a HDF5 file and clear up memory.
-    fprint(f"loading PIDs of IC {nsim}.", verbose)
-    hids = partreader.read_halo_id(nsnap, nsim, halo_finder, verbose)
-    fprint(f"sorting PIDs of IC {nsim}.")
-    sort_indxs = numpy.argsort(hids).astype(numpy.uint64)
+    desc = {"hid": f"Halo finder ID ({halo_finder})of the particle.",
+            "pos": "DM particle positions in box units.",
+            "vel": "DM particle velocity in km / s.",
+            "mass": "DM particle mass in Msun / h.",
+            "pid": "DM particle ID",
+            }
 
-    # Dump halo IDs
-    fprint("loading and dumping halo IDs.", verbose)
+    fname = paths.processed_output(nsim, simname, halo_finder)
+
+    fprint(f"loading HIDs of IC {nsim}.", verbose)
+    hids = partreader.read_halo_id(nsnap, nsim, halo_finder, verbose)
+    collect()
+
+    fprint(f"sorting HIDs of IC {nsim}.")
+    sort_indxs = numpy.argsort(hids)
+
     with h5py.File(fname, "w") as f:
         group = f.create_group("snapshot_final")
         group.attrs["header"] = "Snapshot data at z = 0."
+
+        fprint("dumping halo IDs.", verbose)
         dset = group.create_dataset("halo_ids", data=hids[sort_indxs])
-        dset.attrs["header"] = f"{halo_finder} particles' halo IDs"
-        f.close()
-    del hids
-    collect()
+        dset.attrs["header"] = desc["hid"]
+        del hids
+        collect()
 
-    # Dump particle positions
-    fprint("loading and dumping particle positions.", verbose)
-    pos = partreader.read_snapshot(nsnap, nsim, "pos")[sort_indxs]
-    with h5py.File(fname, "r+") as f:
-        dset = f["snapshot_final"].create_dataset("pos", data=pos)
-        dset.attrs["header"] = "DM particle positions in box units."
-        f.close()
-    del pos
-    collect()
+        fprint("reading, sorting and dumping the snapshot particles.", verbose)
+        for kind in ["pos", "vel", "mass", "pid"]:
+            x = partreader.read_snapshot(nsnap, nsim, kind)[sort_indxs]
 
-    # Dump velocities
-    fprint("Loading and dumping particle velocities.", verbose)
-    vel = partreader.read_snapshot(nsnap, nsim, "vel")[sort_indxs]
-    vel = box.box2vel(vel) if simname == "csiborg" else vel
-    with h5py.File(fname, "r+") as f:
-        dset = f["snapshot_final"].create_dataset("vel", data=vel)
-        dset.attrs["header"] = "DM particle velocity in km / s."
-        f.close()
-    del vel
-    collect()
+            if simname == "csiborg" and kind == "vel":
+                x = box.box2vel(x) if simname == "csiborg" else x
 
-    # Dump masses
-    fprint("loading and dumping particle masses.", verbose)
-    mass = partreader.read_snapshot(nsnap, nsim, "mass")[sort_indxs]
-    mass = box.box2solarmass(mass) if simname == "csiborg" else mass
-    with h5py.File(fname, "r+") as f:
-        dset = f["snapshot_final"].create_dataset("mass", data=mass)
-        dset.attrs["header"] = "DM particle mass in Msun / h."
-        f.close()
-    del mass
-    collect()
+            if simname == "csiborg" and kind == "mass":
+                x = box.box2solarmass(x) if simname == "csiborg" else x
 
-    # Dump particle IDs
-    fprint("loading and dumping particle IDs.", verbose)
-    pid = partreader.read_snapshot(nsnap, nsim, "pid")[sort_indxs]
-    with h5py.File(fname, "r+") as f:
-        dset = f["snapshot_final"].create_dataset("pid", data=pid)
-        dset.attrs["header"] = "DM particle ID."
-        f.close()
-    del pid
-    collect()
+            dset = f["snapshot_final"].create_dataset(kind, data=x)
+            dset.attrs["header"] = desc[kind]
+            del x
+            collect()
 
     del sort_indxs
     collect()
@@ -205,26 +185,25 @@ def add_initial_snapshot(nsim, simname, halo_finder, verbose):
     else:
         raise ValueError(f"Unknown simulation `{simname}`.")
 
-    fprint("loading the initial particles.", verbose)
-    pid0 = partreader.read_snapshot(nsnap0, nsim, "pid")
-    pos = partreader.read_snapshot(nsnap0, nsim, "pos")
-    fprint("sorting the initial particles.", verbose)
-
-    # First enforce them to already be sorted and then apply reverse
-    # sorting from the final snapshot.
-    pos = pos[numpy.argsort(pid0)]
-
-    del pid0
-    collect()
+    fprint("loading and sorting the initial PID.", verbose)
+    sort_indxs = numpy.argsort(partreader.read_snapshot(nsnap0, nsim, "pid"))
 
     fprint("loading the final particles.", verbose)
     with h5py.File(fname, "r") as f:
-        pidf = f["snapshot_final/pid"][:]
+        sort_indxs_final = f["snapshot_final/pid"][:]
         f.close()
-    fprint("sorting the particles according to the final snapshot.", verbose)
-    pos = pos[numpy.argsort(numpy.argsort(pidf))]
 
-    del pidf
+    fprint("sorting the particles according to the final snapshot.", verbose)
+    sort_indxs_final = numpy.argsort(numpy.argsort(sort_indxs_final))
+    sort_indxs = sort_indxs[sort_indxs_final]
+
+    del sort_indxs_final
+    collect()
+
+    fprint("loading and sorting the initial particle position.", verbose)
+    pos = partreader.read_snapshot(nsnap0, nsim, "pos")[sort_indxs]
+
+    del sort_indxs
     collect()
 
     # In Quijote some particles are position precisely at the edge of the

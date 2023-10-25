@@ -16,8 +16,10 @@
 Functions to read in the particle and clump files.
 """
 from abc import ABC, abstractmethod
-from os.path import isfile, join, getsize
+from gc import collect
+from os.path import getsize, isfile, join
 from warnings import warn
+from tqdm import tqdm
 
 import numpy
 import pynbody
@@ -141,6 +143,8 @@ class CSiBORGReader(BaseReader):
     ----------
     paths : py:class`csiborgtools.read.Paths`
     """
+    # _snapshot_cache = {}
+
     def __init__(self, paths):
         self.paths = paths
 
@@ -159,7 +163,13 @@ class CSiBORGReader(BaseReader):
         return {key: convert_str_to_num(val) for key, val in zip(keys, vals)}
 
     def read_snapshot(self, nsnap, nsim, kind):
+        # try:
+        #     sim = self._snapshot_cache[(nsnap, nsim)]
+        # except KeyError:
+        #     sim = pynbody.load(self.paths.snapshot(nsnap, nsim, "csiborg"))
+        #     self._snapshot_cache[(nsnap, nsim)] = sim
         sim = pynbody.load(self.paths.snapshot(nsnap, nsim, "csiborg"))
+
         if kind == "pid":
             x = numpy.array(sim["iord"], dtype=numpy.uint64)
         elif kind in ["pos", "vel", "mass"]:
@@ -170,6 +180,9 @@ class CSiBORGReader(BaseReader):
         # Because of a RAMSES bug x and z are flipped.
         if kind in ["pos", "vel"]:
             x[:, [0, 2]] = x[:, [2, 0]]
+
+        del sim
+        collect()
 
         return x
 
@@ -243,8 +256,6 @@ class CSiBORGReader(BaseReader):
     def read_halomaker_id(self, nsnap, nsim, halo_finder, verbose):
         fpath = self.paths.halomaker_particle_membership(
             nsnap, nsim, halo_finder)
-        fprint(f"loading particle membership `{fpath}`.", verbose)
-        membership = numpy.genfromtxt(fpath, dtype=int)
 
         fprint("loading particle IDs from the snapshot.", verbose)
         pids = self.read_snapshot(nsnap, nsim, "pid")
@@ -254,9 +265,16 @@ class CSiBORGReader(BaseReader):
         # Unassigned particle IDs are assigned a halo ID of 0.
         fprint("mapping HIDs to their array indices.", verbose)
         hids = numpy.zeros(pids.size, dtype=numpy.int32)
-        for i in trange(membership.shape[0]):
-            hid, pid = membership[i]
-            hids[pids_idx[pid]] = hid
+
+        # Read lin-by-line to avoid loading the whole file into memory.
+        with open(fpath, 'r') as file:
+            for line in tqdm(file, disable=not verbose,
+                             desc="Processing membership"):
+                hid, pid = map(int, line.split())
+                hids[pids_idx[pid]] = hid
+
+        del pids_idx
+        collect()
 
         return hids
 
