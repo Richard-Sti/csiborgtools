@@ -79,7 +79,6 @@ class BaseCatalogue(ABC):
         self.nsim = nsim
         self.nsnap = nsnap
         self.paths = paths
-        self.mass_key = mass_key
         self.observer_location = observer_location
         self.observer_velocity = observer_velocity
 
@@ -90,6 +89,7 @@ class BaseCatalogue(ABC):
 
         self.cache_maxsize = cache_maxsize
         self.catalogue_name = catalogue_name
+        self.mass_key = mass_key
 
         if bounds is not None:
             self._make_mask(bounds)
