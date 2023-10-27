@@ -473,7 +473,11 @@ class BaseCatalogue(ABC):
             return self._cache[key]
         else:
             if key == "cartesian_pos":
-                out = numpy.vstack([self["__x"], self["__y"], self["__z"]]).T
+                try:
+                    out = self["__cm_shrink"]
+                except KeyError:
+                    out = numpy.vstack([self["__x"], self["__y"],
+                                        self["__z"]]).T
             elif key == "spherical_pos":
                 out = cartesian_to_radec(
                     self["__cartesian_pos"] - self.observer_location)
