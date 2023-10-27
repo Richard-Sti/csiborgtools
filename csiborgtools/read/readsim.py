@@ -163,11 +163,6 @@ class CSiBORGReader(BaseReader):
         return {key: convert_str_to_num(val) for key, val in zip(keys, vals)}
 
     def read_snapshot(self, nsnap, nsim, kind):
-        # try:
-        #     sim = self._snapshot_cache[(nsnap, nsim)]
-        # except KeyError:
-        #     sim = pynbody.load(self.paths.snapshot(nsnap, nsim, "csiborg"))
-        #     self._snapshot_cache[(nsnap, nsim)] = sim
         sim = pynbody.load(self.paths.snapshot(nsnap, nsim, "csiborg"))
 
         if kind == "pid":
@@ -439,6 +434,33 @@ class CSiBORGReader(BaseReader):
             parent_arr[i] = par
 
         return parent_arr
+
+    def read_merger_tree(self, nsnap, nsim):
+        """
+        Read in the raw merger tree file.
+
+        Parameters
+        ----------
+        nsnap : int
+            Snapshot index.
+        nsim : int
+            IC realisation index.
+
+        Returns
+        -------
+        data : 2-dimensional array
+        """
+        fname = self.paths.merger_tree_file(nsnap, nsim)
+        # Do some checks if the file exists or is empty
+        if not isfile(fname) or getsize(fname) == 0:
+            raise FileExistsError(f"Merger file `{fname}` does not exist.")
+
+        data = numpy.genfromtxt(fname)
+
+        if data.ndim == 1:
+            raise FileExistsError(f"Invalid merger file `{fname}`.")
+
+        return data
 
 
 ###############################################################################
