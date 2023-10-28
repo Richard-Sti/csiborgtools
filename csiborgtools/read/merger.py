@@ -25,45 +25,22 @@ from treelib import Node, Tree
 from h5py import File
 from gc import collect
 
-class ClumpInfo:
-    _clump = None
-    _nsnap = None
-
-    def __init__(self, clump, nsnap, mass=None, pos=None, vel=None):
-        self.clump = clump
-        self.nsnap = nsnap
-
-    @property
-    def clump(self):
-        """Clump ID."""
-        if self._clump is None:
-            raise ValueError("`clump` is not set.")
-        return self._clump
-
-    @clump.setter
-    def clump(self, clump):
-        if not isinstance(clump, int) and not clump > 0:
-            raise ValueError(f"Invalid clump ID `{clump}`.")
-        self._clump = clump
-
-    @property
-    def nsnap(self):
-        """Snapshot number."""
-        if self._nsnap is None:
-            raise ValueError("`nsnap` is not set.")
-        return self._nsnap
-
-    @nsnap.setter
-    def nsnap(self, nsnap):
-        if not isinstance(nsnap, int) and not nsnap > 0:
-            raise ValueError(f"Invalid snapshot number `{nsnap}`.")
-        self._nsnap = nsnap
-
-    def __repr__(self):
-        return f"{str(self.clump)}__{str(self.nsnap).zfill(4)}"
-
 
 def clump_identifier(clump, nsnap):
+    """
+    Generate a unique identifier for a clump at a given snapshot.
+
+    Parameters
+    ----------
+    clump : int
+        Clump ID.
+    nsnap : int
+        Snapshot index.
+
+    Returns
+    -------
+    str
+    """
     return f"{str(clump).rjust(9, 'x')}__{str(nsnap).rjust(4, 'x')}"
 
 
@@ -119,11 +96,55 @@ class MergerReader(BaseMergerReader):
         self._cache = {}
         collect()
 
+    def get_info(self, current_clump, current_snap):
+        """
+        Make a list of information about a clump at a given snapshot. Elements
+        are mass and position.
+
+        Parameters
+        ----------
+        current_clump : int
+            Clump ID.
+        current_snap : int
+            Snapshot index.
+
+        Returns
+        -------
+        list
+        """
+        if current_clump < 0:
+            raise ValueError("Clump ID must be positive.")
+        k = self[f"{current_snap}__clump_to_array"][current_clump][0]
+
+        return [self[f"{current_snap}__desc_mass"][k],
+                *self[f"{current_snap}__desc_pos"][k]
+                ]
+
     def find_main_progenitor(self, clump, nsnap):
+        """
+        Find the main progenitor of a clump at a given snapshot. Cases are:
+            - `clump > 0`, `progenitor > 0`: main progenitor is in the adjacent
+            snapshot,
+            - `clump > 0`, `progenitor < 0`: main progenitor is not in the
+            adjacent snapshot.
+            - `clump < 0`, `progenitor = 0`: no progenitor, newly formed clump.
+
+        Parameters
+        ----------
+        clump : int
+            Clump ID.
+        nsnap : int
+            Snapshot index.
+
+        Returns
+        -------
+        progenitor : int
+            Main progenitor clump ID.
+        progenitor_snap : int
+            Main progenitor snapshot index.
+        """
         if not clump > 0:
             raise ValueError("Clump ID must be positive.")
-
-        print("Current snapshot: ", nsnap)
 
         cl2array = self[f"{nsnap}__clump_to_array"]
         if clump in cl2array:
@@ -132,18 +153,43 @@ class MergerReader(BaseMergerReader):
             raise ValueError("Clump ID not found.")
 
         if len(k) > 1:
-            raise ValueError("Detected more than one main progenitor.")
-        k = k[0]
+            raise ValueError("Found more than one main progenitor.")
 
+        k = k[0]
         progenitor = self[f"{nsnap}__progenitor"][k]
         progenitor_snap = self[f"{nsnap}__progenitor_outputnr"][k]
 
-        if nsnap < 940:
-            return 0, None
+        print("Current snapshot: ", nsnap)
+        print("Found main progenitor: ", progenitor, progenitor_snap)
+
+        # TODO add a real termination
+        if nsnap < 945:
+            return 0, -1
 
         return progenitor, progenitor_snap
 
     def find_minor_progenitors(self, clump, nsnap):
+        """
+        Find the minor progenitors of a clump at a given snapshot. This means
+        that `clump < 0`, `progenitor > 0`, i.e. this clump also has another
+        main progenitor.
+
+        If there are no minor progenitors, return `None` for both lists.
+
+        Parameters
+        ----------
+        clump : int
+            Clump ID.
+        nsnap : int
+            Snapshot index.
+
+        Returns
+        -------
+        progenitor : list
+            List of minor progenitor clump IDs.
+        progenitor_snap : list
+            List of minor progenitor snapshot indices.
+        """
         if not clump > 0:
             raise ValueError("Clump ID must be positive.")
 
@@ -156,63 +202,107 @@ class MergerReader(BaseMergerReader):
                       for k in ks]
         progenitor_snap = [self[f"{nsnap}__progenitor_outputnr"][k]
                            for k in ks]
+
+        print(f"Found minor progenitors: {len(ks)} for {clump} ({nsnap})")
+        print(progenitor, progenitor_snap)
+
         return progenitor, progenitor_snap
 
-    def walk_main_progenitor(self, clump, nsnap):
-        print("Current snapshot: ", nsnap)
+    def find_progenitors(self, clump, nsnap):
+        """
+        Find all progenitors of a clump at a given snapshot. The main
+        progenitor is the first element of the list.
 
-        progenitor, progenitor_snap = self.find_main_progenitor(clump, nsnap)
+        Parameters
+        ----------
+        clump : int
+            Clump ID.
+        nsnap : int
+            Snapshot index.
 
+        Returns
+        -------
+        prog : list
+            List of progenitor clump IDs.
+        prog_nsnap : list
+            List of progenitor snapshot indices.
+        """
+        main_prog, main_prog_nsnap = self.find_main_progenitor(clump, nsnap)
+        min_prog, min_prog_nsnap = self.find_minor_progenitors(clump, nsnap)
 
-        if progenitor == 0:
-            return None, None
+        if min_prog is None:
+            prog = [main_prog,]
+            prog_nsnap = [main_prog_nsnap,]
+        else:
+            prog = [main_prog,] + min_prog
+            prog_nsnap = [main_prog_nsnap,] + min_prog_nsnap
 
-        # k = self[f"{nsnap}__clump_to_array"][clump][0]
+        return prog, prog_nsnap
 
-        # print(clump, nsnap, m)
+    def make_tree(self, current_clump, current_nsnap,
+                  above_clump=None, above_nsnap=None,
+                  tree=None):
+        # There seems to still be issues..
+        # Terminate when the progenitor is 0
+        if current_clump == 0:
+            print("Maybe not finish it like this? Actually maybe do.")
+            return tree
 
-        return self.walk_main_progenitor(progenitor, progenitor_snap)
-
-    def make_tree(self, current_clump, current_nsnap, above_clump=None, above_nsnap=None, tree=None):
+        # Create the root node or add a new node
         if tree is None:
             tree = Tree()
             tree.create_node(
                 "root",
-                identifier=clump_identifier(current_clump, current_nsnap)
+                identifier=clump_identifier(current_clump, current_nsnap),
+                data=self.get_info(current_clump, current_nsnap),
                 )
         else:
+            print("Adding node: ", current_clump, current_nsnap)
+            print("From parent: ", above_clump, above_nsnap)
+            print()
+
             tree.create_node(
                 identifier=clump_identifier(current_clump, current_nsnap),
-                parent=clump_identifier(above_clump, above_nsnap)
+                parent=clump_identifier(above_clump, above_nsnap),
+                data=self.get_info(current_clump, current_nsnap),
                 )
 
-        if current_clump == 0:
-            print("A")
-            return tree
-
-        main_prog, main_prog_nsnap = self.find_main_progenitor(
-            current_clump, current_nsnap)
-
-        if main_prog == 0:
-            print("B")
-            return tree
-
-        min_prog, min_prog_nsnap = self.find_minor_progenitors(
-            current_clump, current_nsnap)
-
-        if min_prog is None:
-            prog = (main_prog,)
-            prog_nsnap = (main_prog_nsnap,)
-        else:
-            prog = (main_prog,) + min_prog
-            prog_nsnap = (main_prog_nsnap,) + min_prog_nsnap
+        prog, prog_nsnap = self.find_progenitors(current_clump, current_nsnap)
 
         for p, psnap in zip(prog, prog_nsnap):
+            print("Making tree for: ", p, psnap)
             self.make_tree(p, psnap, current_clump, current_nsnap, tree)
 
-        print("Returning.. ", current_clump, current_nsnap)
+        # print("Returning.. ", current_clump, current_nsnap)
 
-        return tree
+        # return tree
+
+    def walk_main_progenitor(self, clump, nsnap):
+        """
+        Walk the main progenitor branch of a clump.
+
+        Parameters
+        ----------
+        clump : int
+            Clump ID.
+        nsnap : int
+            Snapshot index.
+
+        Returns
+        -------
+        out : 2-dimensional array of shape `(nsteps, 5)`
+            Array with columns `(nsnap, clump, nsnap, mass, pos)`.
+        """
+        out = [[nsnap,] + self.get_info(clump, nsnap),]
+
+        while True:
+            clump, nsnap = self.find_main_progenitor(clump, nsnap)
+            if clump == 0:
+                break
+
+            out += [[nsnap,] + self.get_info(clump, nsnap),]
+
+        return numpy.vstack(out)
 
     def __getitem__(self, key):
         """
@@ -242,4 +332,3 @@ class MergerReader(BaseMergerReader):
             self._cache[key] = x
 
             return x
-
