@@ -15,15 +15,16 @@
 """
 Support for reading the CSiBORG merger trees.
 """
-
-import numpy
 from abc import ABC
-from .paths import Paths
 from datetime import datetime
-from treelib import Tree
-from h5py import File
 from gc import collect
 
+import numpy
+from h5py import File
+from tqdm import tqdm
+from treelib import Tree
+
+from .paths import Paths
 
 ###############################################################################
 #                          Utility functions.                                 #
@@ -73,8 +74,12 @@ def extract_identifier(identifier):
 
 
 class BaseMergerReader(ABC):
+    """
+    Base class for the CSiBORG merger tree reader.
+    """
     _paths = None
     _nsim = None
+    _min_snap = None
     _cache = {}
 
     @property
@@ -100,6 +105,17 @@ class BaseMergerReader(ABC):
     def nsim(self, nsim):
         assert isinstance(nsim, (int, numpy.integer))
         self._nsim = nsim
+
+    @property
+    def min_snap(self):
+        """Minimum snapshot index to read."""
+        return self._min_snap
+
+    @min_snap.setter
+    def min_snap(self, min_snap):
+        if min_snap is not None:
+            assert isinstance(min_snap, (int, numpy.integer))
+            self._min_snap = int(min_snap)
 
     def cache_length(self):
         """Length of the cache."""
@@ -147,15 +163,17 @@ class MergerReader(BaseMergerReader):
         Simulation index.
     paths : Paths
         Paths manager.
+    min_snap : int
+        Minimum snapshot index. Trees below this snapshot will not be read.
     """
-    def __init__(self, nsim, paths):
+    def __init__(self, nsim, paths, min_snap=None):
         self.nsim = nsim
         self.paths = paths
+        self.min_snap = min_snap
 
-    def get_info(self, current_clump, current_snap, is_main):
+    def get_info(self, current_clump, current_snap, is_main=None):
         """
-        Make a list of information about a clump at a given snapshot. Elements
-        are mass and position.
+        Make a list of information about a clump at a given snapshot.
 
         Parameters
         ----------
@@ -173,15 +191,38 @@ class MergerReader(BaseMergerReader):
         if current_clump < 0:
             raise ValueError("Clump ID must be positive.")
 
-        if not isinstance(is_main, bool):
+        if is_main is not None and not isinstance(is_main, bool):
             raise ValueError("`is_main` must be a boolean.")
 
         k = self[f"{current_snap}__clump_to_array"][current_clump][0]
 
-        return [int(is_main),
-                self[f"{current_snap}__desc_mass"][k],
-                *self[f"{current_snap}__desc_pos"][k]
-                ]
+        out = [self[f"{current_snap}__desc_mass"][k],
+               *self[f"{current_snap}__desc_pos"][k]]
+
+        if is_main is not None:
+            return [is_main,] + out
+
+        return out
+
+    def get_mass(self, clump, snap):
+        """
+        Get the mass of a clump at a given snapshot.
+
+        Parameters
+        ----------
+        clump : int
+            Clump ID.
+        snap : int
+            Snapshot index.
+
+        Returns
+        -------
+        float
+        """
+        if clump < 0:
+            raise ValueError("Clump ID must be positive.")
+        k = self[f"{snap}__clump_to_array"][clump][0]
+        return self[f"{snap}__desc_mass"][k]
 
     def find_main_progenitor(self, clump, nsnap):
         """
@@ -222,8 +263,7 @@ class MergerReader(BaseMergerReader):
         progenitor = abs(self[f"{nsnap}__progenitor"][k])
         progenitor_snap = self[f"{nsnap}__progenitor_outputnr"][k]
 
-        # TODO add a real termination
-        if nsnap < 945:
+        if (self.min_snap is not None) and (nsnap < self.min_snap):
             return 0, -1
 
         return progenitor, progenitor_snap
@@ -261,8 +301,7 @@ class MergerReader(BaseMergerReader):
         prog = [self[f"{nsnap}__progenitor"][k] for k in ks]
         prog_nsnap = [self[f"{nsnap}__progenitor_outputnr"][k] for k in ks]
 
-        # TODO add a real termination
-        if nsnap < 945:
+        if (self.min_snap is not None) and (nsnap < self.min_snap):
             return None, None
 
         return prog, prog_nsnap
@@ -288,6 +327,13 @@ class MergerReader(BaseMergerReader):
         """
         main_prog, main_prog_nsnap = self.find_main_progenitor(clump, nsnap)
         min_prog, min_prog_nsnap = self.find_minor_progenitors(clump, nsnap)
+
+        # Check that if the main progenitor is not in the adjacent snapshot,
+        # then the minor progenitor are also in that snapshot (if any).
+        if (min_prog is not None) and (main_prog_nsnap != nsnap - 1) and not all(prog_nsnap == mprog for mprog in min_prog_nsnap):  # noqa
+            raise ValueError(f"For clump {clump} at snapshot {nsnap} we have "
+                             f"main progenitor at {main_prog_nsnap} and "
+                             "minor progenitors at {min_prog_nsnap}.")
 
         if min_prog is None:
             prog = [main_prog,]
@@ -327,7 +373,7 @@ class MergerReader(BaseMergerReader):
 
         Returns
         -------
-        tree : treelib.Tree
+        treelib.Tree
             Tree with the current clump as the root.
         """
         if verbose:
@@ -363,7 +409,7 @@ class MergerReader(BaseMergerReader):
 
         return tree
 
-    def walk_main_progenitor(self, clump, nsnap):
+    def walk_main_progenitor(self, clump, nsnap, verbose=False):
         """
         Walk the main progenitor branch of a clump.
 
@@ -376,17 +422,46 @@ class MergerReader(BaseMergerReader):
 
         Returns
         -------
-        out : 2-dimensional array of shape `(nsteps, 5)`
-            Array with columns `(nsnap, clump, nsnap, mass, pos)`.
+        structured array
         """
-        out = [[nsnap,] + self.get_info(clump, nsnap),]
+        out = [[nsnap,] + self.get_info(clump, nsnap) + [numpy.nan,]]
 
+        pbar = tqdm(disable=not verbose)
         while True:
-            clump, nsnap = self.find_main_progenitor(clump, nsnap)
+            prog, prog_nsnap = self.find_progenitors(clump, nsnap)
+            clump, nsnap = prog[0], prog_nsnap[0]
 
             if clump == 0:
+                pbar.close()
                 break
 
-            out += [[nsnap,] + self.get_info(clump, nsnap),]
+            if len(prog) > 1:
+                minprog, minprog_snap = prog[1:], prog_nsnap[1:]
+            else:
+                minprog, minprog_snap = None, None
 
-        return numpy.vstack(out)
+            if minprog is not None:
+                mainprog_mass = self.get_mass(clump, nsnap)
+                minprog_mass = max(self.get_mass(c, n)
+                                   for c, n in zip(minprog, minprog_snap))
+
+                merger_ratio = minprog_mass / mainprog_mass
+            else:
+                merger_ratio = numpy.nan
+
+            out += [[nsnap,] + self.get_info(clump, nsnap) + [merger_ratio,]]
+
+            pbar.update(1)
+            pbar.set_description(f"Clump {clump} at snapshot {nsnap}")
+
+        # Convert output to a structured array
+        out = numpy.vstack(out)
+        dtype = [("snapshot_index", numpy.int32),
+                 ("mass", numpy.float32),
+                 ("x", numpy.float32),
+                 ("y", numpy.float32),
+                 ("z", numpy.float32),
+                 ("merger_ratio", numpy.float32),
+                 ]
+
+        return numpy.array([tuple(row) for row in out], dtype=dtype)
