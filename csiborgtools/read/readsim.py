@@ -460,6 +460,10 @@ class CSiBORGReader(BaseReader):
         if data.ndim == 1:
             raise FileExistsError(f"Invalid merger file `{fname}`.")
 
+        # Convert to Msun / h and cMpc / h but keep velocity in box units.
+        data[:, 3] *= 2.6543271649678946e+19
+        data[:, 5:8] *= 677.7
+
         return data
 
 
