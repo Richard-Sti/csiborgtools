@@ -264,7 +264,7 @@ class MergerReader(BaseMergerReader):
         progenitor_snap = self[f"{nsnap}__progenitor_outputnr"][k]
 
         if (self.min_snap is not None) and (nsnap < self.min_snap):
-            return 0, -1
+            return 0, numpy.nan
 
         return progenitor, progenitor_snap
 
@@ -409,9 +409,11 @@ class MergerReader(BaseMergerReader):
 
         return tree
 
-    def walk_main_progenitor(self, clump, nsnap, verbose=False):
+    def walk_main_progenitor(self, main_clump, main_nsnap, verbose=False):
         """
         Walk the main progenitor branch of a clump.
+
+        Each snapshot contains information about the clump at that snapshot.
 
         Parameters
         ----------
@@ -424,44 +426,101 @@ class MergerReader(BaseMergerReader):
         -------
         structured array
         """
-        out = [[nsnap,] + self.get_info(clump, nsnap) + [numpy.nan,]]
+        out = []
 
         pbar = tqdm(disable=not verbose)
         while True:
-            prog, prog_nsnap = self.find_progenitors(clump, nsnap)
-            clump, nsnap = prog[0], prog_nsnap[0]
+            prog, prog_nsnap = self.find_progenitors(main_clump, main_nsnap)
 
-            if clump == 0:
+            # Unpack the main and minor progenitor
+            mainprog, mainprog_nsnap = prog[0], prog_nsnap[0]
+            if len(prog) > 1:
+                minprog, minprog_nsnap = prog[1:], prog_nsnap[1:]
+            else:
+                minprog, minprog_nsnap = None, None
+
+            # If there is no progenitor, then set the main progenitor mass to 0
+            if mainprog == 0:
+                mainprog_mass = numpy.nan
+            else:
+                mainprog_mass = self.get_mass(mainprog, mainprog_nsnap)
+
+            totprog_mass = mainprog_mass
+
+            # Unpack masses of the progenitors
+            if minprog is not None:
+                minprog, minprog_nsnap = prog[1:], prog_nsnap[1:]
+                minprog_masses = [self.get_mass(c, n)
+                                  for c, n in zip(minprog, minprog_nsnap)]
+
+                max_minprog_mass = max(minprog_masses)
+                minprog_totmass = sum(minprog_masses)
+                totprog_mass += minprog_totmass
+            else:
+                minprog_totmass = numpy.nan
+                max_minprog_mass = numpy.nan
+
+            out += [
+                [main_nsnap,]
+                + self.get_info(main_clump, main_nsnap)
+                + [mainprog_nsnap, totprog_mass, mainprog_mass, minprog_totmass, max_minprog_mass / mainprog_mass]  # noqa
+                ]
+
+            pbar.update(1)
+            pbar.set_description(f"Clump {main_clump} ({main_nsnap})")
+
+            if mainprog == 0:
                 pbar.close()
                 break
 
-            if len(prog) > 1:
-                minprog, minprog_snap = prog[1:], prog_nsnap[1:]
-            else:
-                minprog, minprog_snap = None, None
+            main_clump = mainprog
+            main_nsnap = mainprog_nsnap
 
-            if minprog is not None:
-                mainprog_mass = self.get_mass(clump, nsnap)
-                minprog_mass = max(self.get_mass(c, n)
-                                   for c, n in zip(minprog, minprog_snap))
-
-                merger_ratio = minprog_mass / mainprog_mass
-            else:
-                merger_ratio = numpy.nan
-
-            out += [[nsnap,] + self.get_info(clump, nsnap) + [merger_ratio,]]
-
-            pbar.update(1)
-            pbar.set_description(f"Clump {clump} at snapshot {nsnap}")
-
-        # Convert output to a structured array
+        # Convert output to a structured array. We store integers as float
+        # to avoid errors because of converting NaNs to integers.
         out = numpy.vstack(out)
-        dtype = [("snapshot_index", numpy.int32),
-                 ("mass", numpy.float32),
-                 ("x", numpy.float32),
-                 ("y", numpy.float32),
-                 ("z", numpy.float32),
+        dtype = [("desc_snapshot_index", numpy.float32),
+                 ("desc_mass", numpy.float32),
+                 ("desc_x", numpy.float32),
+                 ("desc_y", numpy.float32),
+                 ("desc_z", numpy.float32),
+                 ("prog_snapshot_index", numpy.float32),
+                 ("prog_totmass", numpy.float32),
+                 ("mainprog_mass", numpy.float32),
+                 ("minprog_totmass", numpy.float32),
                  ("merger_ratio", numpy.float32),
                  ]
 
         return numpy.array([tuple(row) for row in out], dtype=dtype)
+
+    def match_mass_to_phewcat(self, phewcat):
+        """
+        For each clump mass in the PHEW catalogue, find the corresponding
+        clump mass in the merger tree file. If no match is found returns NaN.
+        These are not equal because the PHEW catalogue mass is the mass without
+        unbinding.
+
+        Parameters
+        ----------
+        phewcat : csiborgtools.read.CSiBORGPEEWReader
+            PHEW catalogue reader.
+
+        Returns
+        -------
+        mass : float
+        """
+        if phewcat.nsim != self.nsim:
+            raise ValueError("Simulation indices do not match.")
+
+        nsnap = phewcat.nsnap
+        indxs = phewcat["index"]
+        mergertree_mass = numpy.full(len(indxs), numpy.nan,
+                                     dtype=numpy.float32)
+
+        for i, ind in enumerate(indxs):
+            try:
+                mergertree_mass[i] = self.get_mass(ind, nsnap)
+            except KeyError:
+                continue
+
+        return mergertree_mass
