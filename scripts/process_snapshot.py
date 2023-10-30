@@ -378,7 +378,13 @@ def make_merger_tree_file(nsim, verbose):
 
 
 def append_merger_tree_mass_to_phew_catalogue(nsim, verbose):
-    """Note that only does this for the highest snapshot."""
+    """
+    Append mass of haloes from mergertree files to the PHEW catalogue. The
+    difference between this and the PHEW value is that the latter is written
+    before unbinding is performed.
+
+    Note that currently only does this for the highest snapshot.
+    """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     snapshots = paths.get_snapshots(nsim, "csiborg")
     merger_reader = csiborgtools.read.MergerReader(nsim, paths)
