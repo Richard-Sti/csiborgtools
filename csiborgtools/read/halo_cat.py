@@ -510,6 +510,8 @@ class BaseCatalogue(ABC):
                         continue
                     start, end = halomap[hid]
                     out[i] = end - start
+            elif key == "hid_to_array_index":
+                out = {hid: i for i, hid in enumerate(self["index"])}
             elif key in self.data[self.catalogue_name].keys():
                 out = self.data[f"{self.catalogue_name}/{key}"][:]
             else:
