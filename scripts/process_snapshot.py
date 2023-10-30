@@ -295,7 +295,7 @@ def make_phew_halo_catalogue(nsim, find_ultimate_parent, verbose):
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     snapshots = paths.get_snapshots(nsim, "csiborg")
     reader = csiborgtools.read.CSiBORGReader(paths)
-    keys_write = ["index", "x", "y", "z", "mass_cl"]
+    keys_write = ["index", "x", "y", "z", "mass_cl", "parent"]
 
     if find_ultimate_parent:
         keys_write += ["ultimate_parent", "summed_mass"]
@@ -377,6 +377,24 @@ def make_merger_tree_file(nsim, verbose):
             f.close()
 
 
+def append_merger_tree_mass_to_phew_catalogue(nsim, verbose):
+    """Note that only does this for the highest snapshot."""
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    snapshots = paths.get_snapshots(nsim, "csiborg")
+    merger_reader = csiborgtools.read.MergerReader(nsim, paths)
+
+    nsnap = max(snapshots)
+    phewcat = csiborgtools.read.CSiBORGPHEWCatalogue(nsnap, nsim, paths)
+    mergertree_mass = merger_reader.match_mass_to_phewcat(phewcat)
+    phewcat.close()
+
+    fname = paths.processed_phew(nsim)
+    with h5py.File(fname, "r+") as f:
+        grp = f[str(nsnap)]
+        grp.create_dataset("mergertree_mass", data=mergertree_mass)
+        f.close()
+
+
 def main(nsim, args):
     if args.make_final:
         process_snapshot(nsim, args.simname, args.halofinder, True)
@@ -390,6 +408,9 @@ def main(nsim, args):
 
     if args.make_merger:
         make_merger_tree_file(nsim, True)
+
+    if args.append_merger_mass:
+        append_merger_tree_mass_to_phew_catalogue(nsim, True)
 
 
 if __name__ == "__main__":
@@ -408,6 +429,9 @@ if __name__ == "__main__":
                         help="Process the PHEW halo catalogue.")
     parser.add_argument("--make_merger", action="store_true", default=False,
                         help="Process the merger tree files.")
+    parser.add_argument("--append_merger_mass", action="store_true",
+                        default=False,
+                        help="Append the merger tree mass to the PHEW cat.")
 
     args = parser.parse_args()
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
