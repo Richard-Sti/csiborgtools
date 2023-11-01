@@ -29,6 +29,7 @@ import readfof
 import readgadget
 from readfof import FoF_catalog
 from tqdm import trange
+from numba import jit
 
 from ..utils import fprint
 from .paths import Paths
@@ -318,8 +319,7 @@ class CSiBORGReader(BaseReader):
         out["m200c"] = m200c * 1e11 * h
         return out
 
-    def read_phew_clumps(self, nsnap, nsim, find_ultimate_parent=True,
-                         verbose=True):
+    def read_phew_clumps(self, nsnap, nsim, verbose=True):
         """
         Read in a PHEW clump file `clump_XXXXX.dat`.
 
@@ -329,8 +329,6 @@ class CSiBORGReader(BaseReader):
             Snapshot index.
         nsim : int
             IC realisation index.
-        find_ultimate_parent : bool, optional
-            Whether to find the ultimate parent halo of every clump.
         verbose : bool, optional
             Verbosity flag.
 
@@ -380,22 +378,13 @@ class CSiBORGReader(BaseReader):
         flip_cols(out, "x", "z")
         out["mass_cl"] *= 2.6543271649678946e+19
 
-        if find_ultimate_parent:
-            ultimate_parent = self.find_parents(out, verbose)
+        ultimate_parent, summed_mass = self.find_parents(out)
 
-            summed_mass = numpy.full(out.size, numpy.nan, dtype=numpy.float32)
-            for i in range(out.size):
-                mask = ultimate_parent == out["index"][i]
-                summed_mass[i] = numpy.sum(out["mass_cl"][mask])
-
-            out = add_columns(out,
-                              [ultimate_parent, summed_mass],
-                              ["ultimate_parent", "summed_mass"]
-                              )
-
+        out = add_columns(out, [ultimate_parent, summed_mass],
+                          ["ultimate_parent", "summed_mass"])
         return out
 
-    def find_parents(self, clumparr, verbose=False):
+    def find_parents(self, clumparr):
         """
         Find ultimate parent haloes for every PHEW clump.
 
@@ -403,37 +392,45 @@ class CSiBORGReader(BaseReader):
         ----------
         clumparr : structured array
             Clump array. Must contain `index` and `parent` columns.
-        verbose : bool, optional
-            Verbosity flag.
 
         Returns
         -------
         parent_arr : 1-dimensional array of shape `(nclumps, )`
             The ultimate parent halo index of every clump.
+        parent_mass : 1-dimensional array of shape `(nclumps, )`
+            The summed substructure mass of ultimate parent clumps.
         """
         clindex = clumparr["index"]
         parindex = clumparr["parent"]
+        clmass = clumparr["mass_cl"]
 
-        # The ultimate parent for every clump
-        parent_arr = numpy.zeros(clindex.size, dtype=numpy.int32)
-        for i in trange(clindex.size, disable=not verbose,
-                        desc="Ultimate clump"):
-            tocont = clindex[i] != parindex[i]  # Continue if not a main halo
-            par = parindex[i]  # First we try the parent of this clump
-            while tocont:
-                # The element of the array corresponding to the parent clump to
-                # the one we're looking at
-                element = numpy.where(clindex == par)[0][0]
-                # We stop if the parent is its own parent, so a main halo. Else
-                # move onto the parent of the parent. Eventually this is its
-                # own parent and we stop, with ultimate parent=par
-                if clindex[element] == clindex[element]:
-                    tocont = False
-                else:
-                    par = parindex[element]
-            parent_arr[i] = par
+        clindex_to_array_index = {clindex[i]: i for i in range(clindex.size)}
 
-        return parent_arr
+        parent_arr = numpy.copy(parindex)
+        for i in range(clindex.size):
+            cl = clindex[i]
+            par = parindex[i]
+
+            while cl != par:
+
+                element = clindex_to_array_index[par]
+
+                cl = clindex[element]
+                par = parindex[element]
+
+            parent_arr[i] = cl
+
+        parent_mass = numpy.full(clindex.size, 0, dtype=numpy.float32)
+        # Assign the clump masses to the ultimate parent haloes. For each clump
+        # find its ultimate parent and add its mass to the parent mass.
+        for i in range(clindex.size):
+            element = clindex_to_array_index[parent_arr[i]]
+            parent_mass[element] += clmass[i]
+
+        # Set this to NaN for the clumps that are not ultimate parents.
+        parent_mass[clindex != parindex] = numpy.nan
+
+        return parent_arr, parent_mass
 
     def read_merger_tree(self, nsnap, nsim):
         """
