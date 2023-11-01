@@ -310,6 +310,9 @@ def make_phew_halo_catalogue(nsim, verbose):
             continue
 
         with h5py.File(fname, "r+") as f:
+            if str(nsnap) in f:
+                print(f"Group {nsnap} already exists. Deleting.", flush=True)
+                del f[str(nsnap)]
             grp = f.create_group(str(nsnap))
             for key in keys_write:
                 grp.create_dataset(key, data=data[key])
