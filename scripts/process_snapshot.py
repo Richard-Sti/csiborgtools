@@ -288,17 +288,15 @@ def calculate_initial(nsim, simname, halo_finder, verbose):
         f.close()
 
 
-def make_phew_halo_catalogue(nsim, find_ultimate_parent, verbose):
+def make_phew_halo_catalogue(nsim, verbose):
     """
     Process the PHEW halo catalogue for a CSiBORG simulation at all snapshots.
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     snapshots = paths.get_snapshots(nsim, "csiborg")
     reader = csiborgtools.read.CSiBORGReader(paths)
-    keys_write = ["index", "x", "y", "z", "mass_cl", "parent"]
-
-    if find_ultimate_parent:
-        keys_write += ["ultimate_parent", "summed_mass"]
+    keys_write = ["index", "x", "y", "z", "mass_cl", "parent",
+                  "ultimate_parent", "summed_mass"]
 
     # Create a HDF5 file to store all this.
     fname = paths.processed_phew(nsim)
@@ -307,9 +305,7 @@ def make_phew_halo_catalogue(nsim, find_ultimate_parent, verbose):
 
     for nsnap in tqdm(snapshots, disable=not verbose, desc="Snapshot"):
         try:
-            data = reader.read_phew_clumps(
-                nsnap, nsim, find_ultimate_parent=find_ultimate_parent,
-                verbose=False)
+            data = reader.read_phew_clumps(nsnap, nsim, verbose=False)
         except FileExistsError:
             continue
 
@@ -419,7 +415,7 @@ def main(nsim, args):
         calculate_initial(nsim, args.simname, args.halofinder, True)
 
     if args.make_phew:
-        make_phew_halo_catalogue(nsim, True, True)
+        make_phew_halo_catalogue(nsim, True)
 
     if args.make_merger:
         make_merger_tree_file(nsim, True)
