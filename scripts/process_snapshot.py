@@ -389,16 +389,25 @@ def append_merger_tree_mass_to_phew_catalogue(nsim, verbose):
     snapshots = paths.get_snapshots(nsim, "csiborg")
     merger_reader = csiborgtools.read.MergerReader(nsim, paths)
 
-    nsnap = max(snapshots)
-    phewcat = csiborgtools.read.CSiBORGPHEWCatalogue(nsnap, nsim, paths)
-    mergertree_mass = merger_reader.match_mass_to_phewcat(phewcat)
-    phewcat.close()
+    for nsnap in tqdm(snapshots, disable=not verbose, desc="Snapshot"):
+        # TODO do this for all later
+        if nsnap < 930:
+            continue
+        try:
+            phewcat = csiborgtools.read.CSiBORGPHEWCatalogue(nsnap, nsim,
+                                                             paths)
+        except ValueError:
+            phewcat.close()
+            continue
 
-    fname = paths.processed_phew(nsim)
-    with h5py.File(fname, "r+") as f:
-        grp = f[str(nsnap)]
-        grp.create_dataset("mergertree_mass", data=mergertree_mass)
-        f.close()
+        mergertree_mass = merger_reader.match_mass_to_phewcat(phewcat)
+        phewcat.close()
+
+        fname = paths.processed_phew(nsim)
+        with h5py.File(fname, "r+") as f:
+            grp = f[str(nsnap)]
+            grp.create_dataset("mergertree_mass_new", data=mergertree_mass)
+            f.close()
 
 
 def main(nsim, args):
@@ -410,7 +419,7 @@ def main(nsim, args):
         calculate_initial(nsim, args.simname, args.halofinder, True)
 
     if args.make_phew:
-        make_phew_halo_catalogue(nsim, False, True)
+        make_phew_halo_catalogue(nsim, True, True)
 
     if args.make_merger:
         make_merger_tree_file(nsim, True)
