@@ -652,6 +652,7 @@ class CSiBORGPHEWCatalogue(BaseCatalogue):
 
         self._derived_properties = ["cartesian_pos", "spherical_pos", "dist"]
         self.box = CSiBORGBox(self.nsnap, self.nsim, self.paths)
+        self.clear_cache()
 
     @staticmethod
     def get_snapshots(nsim, paths):
