@@ -385,13 +385,13 @@ class CSiBORGReader(BaseReader):
 
             summed_mass = numpy.full(out.size, numpy.nan, dtype=numpy.float32)
             for i in range(out.size):
-                mask = [ultimate_parent == out["index"][i]]
+                mask = ultimate_parent == out["index"][i]
                 summed_mass[i] = numpy.sum(out["mass_cl"][mask])
 
-            add_columns(out,
-                        [ultimate_parent, summed_mass],
-                        ["ultimate_parent", "summed_mass"]
-                        )
+            out = add_columns(out,
+                              [ultimate_parent, summed_mass],
+                              ["ultimate_parent", "summed_mass"]
+                              )
 
         return out
 
