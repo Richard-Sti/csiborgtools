@@ -22,6 +22,7 @@ from math import floor
 
 import numpy
 from h5py import File
+from numba import jit
 from sklearn.neighbors import NearestNeighbors
 
 from ..utils import (cartesian_to_radec, fprint, great_circle_distance,
@@ -331,6 +332,27 @@ class BaseCatalogue(ABC):
         knn.fit(pos)
         return knn
 
+    def select_in_box(self, center, boxwidth, in_initial=False):
+        """
+        Find array indices of haloes in a box of size `boxwidth` centered on
+        `center`.
+
+        Parameters
+        ----------
+        center : 1-dimensional array
+            Center of the box.
+        boxwidth : float
+            Width of the box.
+        in_initial : bool, optional
+            Whether to find haloes in the initial or final snapshot.
+
+        Returns
+        -------
+        indxs : 1-dimensional array
+        """
+        pos = self["lagpatch_pos"] if in_initial else self["cartesian_pos"]
+        return find_boxed(pos, center, boxwidth, self.box.boxsize)
+
     def nearest_neighbours(self, X, radius, in_initial, knearest=False):
         r"""
         Return nearest neighbours within `radius` of `X` from this catalogue.
@@ -500,6 +522,8 @@ class BaseCatalogue(ABC):
             elif key == "angular_momentum":
                 out = numpy.vstack(
                     [self["__Lx"], self["__Ly"], self["__Lz"]]).T
+            elif key == "is_main":
+                out = self["__index"] == self["__parent"]
             elif key == "particle_offset":
                 out = make_halomap_dict(self["snapshot_final/halo_map"][:])
             elif key == "npart":
@@ -517,7 +541,7 @@ class BaseCatalogue(ABC):
             else:
                 raise KeyError(f"Key '{key}' is not available.")
 
-        if self._load_filtered and not is_internal:
+        if self._load_filtered and not is_internal and isinstance(out, numpy.ndarray):  # noqa
             out = out[self._filter_mask]
 
         if not is_internal:
@@ -762,3 +786,64 @@ def fiducial_observers(boxwidth, radius):
     nobs = floor(boxwidth / (2 * radius))
     return [[val * radius for val in position]
             for position in product([1, 3, 5], repeat=nobs)]
+
+
+@jit(nopython=True, fastmath=True, boundscheck=False)
+def pbc_distance(x1, x2, boxsize):
+    """Calculate periodic distance between two points."""
+    delta = abs(x1 - x2)
+    return min(delta, boxsize - delta)
+
+
+@jit(nopython=True, fastmath=True, boundscheck=False)
+def find_next_particle(start_index, end_index, pos, x0, y0, z0,
+                       half_width, boxsize):
+    """
+    Find the next particle in a box of size `half_width` centered on `x0`,
+    `y0`, `z0`, where the periodic simulation box size is `boxsize`.
+    """
+    for i in range(start_index, end_index):
+        x, y, z = pos[i]
+        if ((pbc_distance(x, x0, boxsize) < half_width) and (pbc_distance(y, y0, boxsize) < half_width) and (pbc_distance(z, z0, boxsize) < half_width)):  # noqa
+            return i
+
+    return None
+
+
+def find_boxed(pos, center, subbox_size, boxsize):
+    """
+    Find indicies of positions in a box of size `subbox_size` centered on
+    `center`, where the simulation box size is `boxsize`.
+
+    Parameters
+    ----------
+    pos : 2-dimensional array of shape (nsamples, 3)
+        Positions of all particles in the simulation.
+    center : 1-dimensional array
+        Center of the sub-box.
+    subbox_size : float
+        Size of the sub-box.
+    boxsize : float
+        Size of the simulation box.
+
+    Returns
+    -------
+    indxs : 1-dimensional array of shape
+    """
+    if isinstance(center, list):
+        center = numpy.asanyarray(center)
+
+    half_width = subbox_size / 2.
+
+    indxs, start_index, end_index = [], 0, len(pos)
+    while True:
+        i = find_next_particle(start_index, end_index, pos,
+                               *center, half_width, boxsize)
+
+        if i is None:
+            break
+
+        indxs.append(i)
+        start_index = i + 1
+
+    return indxs
