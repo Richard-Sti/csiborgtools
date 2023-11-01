@@ -197,7 +197,7 @@ class MergerReader(BaseMergerReader):
         k = self[f"{current_snap}__clump_to_array"][current_clump][0]
 
         out = [self[f"{current_snap}__desc_mass"][k],
-               *self[f"{current_snap}__desc_pos"][k]]
+               *self[f"{current_snap}__desc_pos"][k][::-1]] # TODO REMOVE LATER
 
         if is_main is not None:
             return [is_main,] + out
@@ -223,6 +223,12 @@ class MergerReader(BaseMergerReader):
             raise ValueError("Clump ID must be positive.")
         k = self[f"{snap}__clump_to_array"][clump][0]
         return self[f"{snap}__desc_mass"][k]
+
+    def get_pos(self, clump, snap):
+        if clump < 0:
+            raise ValueError("Clump ID must be positive.")
+        k = self[f"{snap}__clump_to_array"][clump][0]
+        return self[f"{snap}__desc_pos"][k]
 
     def find_main_progenitor(self, clump, nsnap):
         """
@@ -258,8 +264,8 @@ class MergerReader(BaseMergerReader):
 
         if len(k) > 1:
             raise ValueError("Found more than one main progenitor.")
-
         k = k[0]
+
         progenitor = abs(self[f"{nsnap}__progenitor"][k])
         progenitor_snap = self[f"{nsnap}__progenitor_outputnr"][k]
 
@@ -347,6 +353,37 @@ class MergerReader(BaseMergerReader):
                              "found for clump {clump} at snapshot {nsnap}.")
 
         return prog, prog_nsnap
+
+    def tree_mass_at_snapshot(self, clump, nsnap, target_snap):
+        """
+        Calculate the total mass of nodes in a tree at a given snapshot.
+        """
+        # If clump is 0 (i.e., we've reached the end of the tree), return 0
+        if clump == 0:
+            return 0
+
+        # Find the progenitors for the given clump and nsnap
+        prog, prog_nsnap = self.find_progenitors(clump, nsnap)
+
+        if prog[0] == 0:
+            print(prog)
+            return 0
+
+        # Sum the mass of the current clump's progenitors
+        tot = 0
+        for p, psnap in zip(prog, prog_nsnap):
+            if psnap == target_snap:
+                tot += self.get_mass(p, psnap)
+
+        # Recursively sum the mass of each progenitor's progenitors
+        for p, psnap in zip(prog, prog_nsnap):
+            # print("P ", p, psnap)
+            tot += self.mass_all_progenitor2(p, psnap, target_snap)
+
+        return tot
+
+    def is_jumper(self, clump, nsnap, nsnap_descendant):
+        pass
 
     def make_tree(self, current_clump, current_nsnap,
                   above_clump=None, above_nsnap=None,
@@ -436,6 +473,9 @@ class MergerReader(BaseMergerReader):
             mainprog, mainprog_nsnap = prog[0], prog_nsnap[0]
             if len(prog) > 1:
                 minprog, minprog_nsnap = prog[1:], prog_nsnap[1:]
+                # print(main_nsnap)
+                # print(minprog, minprog_nsnap)
+                # print()
             else:
                 minprog, minprog_nsnap = None, None
 
@@ -524,3 +564,35 @@ class MergerReader(BaseMergerReader):
                 continue
 
         return mergertree_mass
+
+    def match_pos_to_phewcat(self, phewcat):
+        """
+        For each clump mass in the PHEW catalogue, find the corresponding
+        clump mass in the merger tree file. If no match is found returns NaN.
+        These are not equal because the PHEW catalogue mass is the mass without
+        unbinding.
+
+        Parameters
+        ----------
+        phewcat : csiborgtools.read.CSiBORGPEEWReader
+            PHEW catalogue reader.
+
+        Returns
+        -------
+        mass : float
+        """
+        if phewcat.nsim != self.nsim:
+            raise ValueError("Simulation indices do not match.")
+
+        nsnap = phewcat.nsnap
+        indxs = phewcat["index"]
+        mergertree_pos = numpy.full((len(indxs), 3), numpy.nan,
+                                    dtype=numpy.float32)
+
+        for i, ind in enumerate(indxs):
+            try:
+                mergertree_pos[i] = self.get_pos(ind, nsnap)
+            except KeyError:
+                continue
+
+        return mergertree_pos[:, ::-1]
