@@ -21,9 +21,10 @@ from gc import collect
 
 import numpy
 from h5py import File
-from tqdm import tqdm
+from tqdm import tqdm, trange
 from treelib import Tree
 
+from ..utils import periodic_distance
 from .paths import Paths
 
 ###############################################################################
@@ -596,3 +597,100 @@ class MergerReader(BaseMergerReader):
                 continue
 
         return mergertree_pos[:, ::-1]
+
+
+###############################################################################
+#                           Manual halo tracking.                             #
+###############################################################################
+
+
+def track_halo_manually(cats, hid, maxdist=0.15, max_dlogm=0.35):
+    """
+    Manually track a halo without using the merger tree. Searches for nearby
+    halo of similar mass in adjacent snapshots. Supports only main haloes and
+    can only work for the most massive haloes in a simulation, however even
+    then significant care should be taken.
+
+    Selects the most massive halo within a search radius to be a match.
+
+    In case a progenitor is not found in the adjacent snapshot, the search
+    continues in the next snapshot. Occasionally some haloes disappear..
+
+    Parameters
+    ----------
+    cats : dict
+        Dictionary of halo catalogues, keys are snapshot indices.
+    hid : int
+        Halo ID.
+    maxdist : float, optional
+        Maximum comoving distance for a halo to move between adjacent
+        snapshots.
+    max_dlogm : float, optional
+        Maximum |log mass ratio| for a halo to be considered a progenitor.
+
+    Returns
+    -------
+    hist : structured array
+        History of the halo.
+
+    """
+    nsnap0 = max(cats.keys())
+    k = cats[nsnap0]["hid_to_array_index"][hid]
+    pos = cats[nsnap0]["cartesian_pos"][k]
+    mass = cats[nsnap0]["summed_mass"][k]
+
+    if not cats[nsnap0]["is_main"][k]:
+        raise ValueError("Only main haloes are supported.")
+
+    if not mass > 1e13:
+        raise ValueError("Only the most massive haloes are supported.")
+
+    if not cats[nsnap0]["dist"][k] < 155.5:
+        raise ValueError("Only high-resolution region haloes are supported.")
+
+    dtype = [("snapshot_index", numpy.float32),
+             ("x", numpy.float32),
+             ("y", numpy.float32),
+             ("z", numpy.float32),
+             ("mass", numpy.float32),
+             ("desc_dist", numpy.float32),
+             ]
+    hist = numpy.full(len(cats), numpy.nan, dtype=dtype)
+    hist["snapshot_index"][0] = nsnap0
+    hist["x"][0], hist["y"][0], hist["z"][0] = pos
+    hist["mass"][0] = mass
+
+    nskipped = 0
+
+    for n in trange(1, len(cats), desc="Tracking halo"):
+        nsnap = nsnap0 - n
+        hist["snapshot_index"][n] = nsnap
+
+        # Find indices of all main haloes that are within a box of width
+        indxs = cats[nsnap].select_in_box(pos, 2 * maxdist)
+
+        if len(indxs) == 0:
+            nskipped += 1
+            continue
+
+        nearby_pos = cats[nsnap]["cartesian_pos"][indxs]
+        nearby_mass = cats[nsnap]["summed_mass"][indxs]
+
+        # Distance from the previous position and |log mass ratio|
+        dist = periodic_distance(nearby_pos, pos, cats[nsnap].box.boxsize)
+        dlogm = numpy.abs(numpy.log10(nearby_mass / mass))
+        k = numpy.argmin(dlogm)
+
+        if (dlogm[k] < max_dlogm) & (dist[k] < maxdist):
+            hist["x"][n], hist["y"][n], hist["z"][n] = nearby_pos[k]
+            hist["mass"][n] = nearby_mass[k]
+            hist["desc_dist"][n] = dist[k]
+
+            pos = nearby_pos[k]
+            mass = nearby_mass[k]
+        else:
+            nskipped += 1
+
+    print("Skipped ", nskipped, " snapshots.")
+
+    return hist
