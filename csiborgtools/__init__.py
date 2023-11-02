@@ -47,5 +47,21 @@ class SDSS:
                 (lambda x: cls[x] < 155, ("DIST", ))
                 ]
 
-    def __call__(self):
-        return read.SDSS(h=1, sel_steps=self.steps)
+    def __call__(self, fpath=None):
+        if fpath is None:
+            fpath = "/mnt/extraspace/rstiskalek/catalogs/nsa_v1_0_1.fits"
+        return read.SDSS(fpath, h=1, sel_steps=self.steps)
+
+
+class SDSSxALFALFA:
+    @staticmethod
+    def steps(cls):
+        return [(lambda x: cls[x], ("IN_DR7_LSS",)),
+                (lambda x: cls[x] < 17.6, ("ELPETRO_APPMAG_r", )),
+                (lambda x: cls[x] < 155, ("DIST", ))
+                ]
+
+    def __call__(self, fpath=None):
+        if fpath is None:
+            fpath = "/mnt/extraspace/rstiskalek/catalogs/5asfullmatch.fits"
+        return read.SDSS(fpath, h=1, sel_steps=self.steps)
