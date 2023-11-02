@@ -29,7 +29,6 @@ import readfof
 import readgadget
 from readfof import FoF_catalog
 from tqdm import trange
-from numba import jit
 
 from ..utils import fprint
 from .paths import Paths

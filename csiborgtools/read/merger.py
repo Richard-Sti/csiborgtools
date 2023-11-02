@@ -13,7 +13,8 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-Support for reading the CSiBORG merger trees.
+Support for reading the PHEW/ACACIA CSiBORG merger trees. However, note that
+the merger trees are very unreliable.
 """
 from abc import ABC
 from datetime import datetime
