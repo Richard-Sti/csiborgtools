@@ -636,6 +636,8 @@ class CSiBORGPHEWCatalogue(BaseCatalogue):
         - Length: :math:`cMpc / h`
         - Mass: :math:`M_\odot / h`
 
+    Note that the PHEW catalogue is not very reliable.
+
     Parameters
     ----------
     nsnap : int
