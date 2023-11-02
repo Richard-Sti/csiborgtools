@@ -17,6 +17,7 @@ Simulation box unit transformations.
 """
 from abc import ABC, abstractmethod, abstractproperty
 
+import numpy
 from astropy import constants, units
 from astropy.cosmology import LambdaCDM
 
@@ -75,8 +76,7 @@ class BaseBox(ABC):
 
         Returns
         -------
-        length : float
-            Length in box units.
+        float
         """
         pass
 
@@ -92,8 +92,7 @@ class BaseBox(ABC):
 
         Returns
         -------
-        length : float
-            Length in :math:`\mathrm{cMpc} / h`
+        float
         """
         pass
 
@@ -109,8 +108,7 @@ class BaseBox(ABC):
 
         Returns
         -------
-        mass : float
-            Mass in box units.
+        float
         """
         pass
 
@@ -126,8 +124,23 @@ class BaseBox(ABC):
 
         Returns
         -------
-        mass : float
-            Mass in :math:`M_\odot / h`.
+        float
+        """
+        pass
+
+    @abstractmethod
+    def m200c_to_r200c(self, m200c):
+        """
+        Convert M200c to R200c in units of cMpc / h.
+
+        Parameters
+        ----------
+        m200c : float
+            M200c in units of M_sun / h.
+
+        Returns
+        -------
+        float
         """
         pass
 
@@ -207,6 +220,12 @@ class CSiBORGBox(BaseBox):
     def boxsize(self):
         return self.box2mpc(1.)
 
+    def m200c_to_r200c(self, m200c):
+        rho_crit = self.cosmo.critical_density(1 / self._aexp - 1)
+        rho_crit = rho_crit.to_value(units.solMass / units.Mpc**3)
+        r200c = (3 * m200c / (4 * numpy.pi * 200 * rho_crit))**(1 / 3)
+        return r200c / self._aexp
+
 
 ###############################################################################
 #                      Quijote fiducial cosmology box                         #
@@ -252,3 +271,6 @@ class QuijoteBox(BaseBox):
 
     def box2solarmass(self, mass):
         return mass * self._info["TotMass"]
+
+    def m200c_to_r200c(self, m200c):
+        raise ValueError("Not implemented for Quijote boxes.")
