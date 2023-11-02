@@ -186,7 +186,7 @@ class ClumpData:
 
         i = 0
         for cpu in range(1):
-            fname = join(par.workdir, dirname, 'clump_' + dirnrstr + '.txt')
+            fname = join(par.workdir, dirname, 'clump_' + dirnrstr + '.dat')
             new_data = np.loadtxt(fname, dtype='int', skiprows=1,
                                   usecols=[0, 1, 2])
             if new_data.ndim == 2:
@@ -536,7 +536,10 @@ class Params:
 
         print("workdir:                 ", self.workdir)
         print("snapshot of tree root:   ", self.outputnrs[self.z0])
-        print("output directory:        ", self.output_prefix)
+        print("p.one_halo_only          ", p.one_halo_only)
+        print("p.do_all                 ", p.do_all)
+        print("p.halo_and_children      ", p.halo_and_children)
+        print("p.one_halo_only          ", p.one_halo_only)
 
 
 ###############################################################################
@@ -723,7 +726,6 @@ class MTreeData:
                     # find mass of merger. That's been written down at the
                     # place where merger was descendant.
                     m_snap_ind, mergerind = get_prog_indices(m, desc_snap_ind)
-                    print(self.mass[m_snap_ind])
                     mergermass += self.mass[m_snap_ind][mergerind]
 
             # add the descendant to the tree
@@ -910,7 +912,7 @@ if __name__ == '__main__':
         print(f"{datetime.now()}: loading mergertree data from `{fname}`.",
               flush=True)
         mtd = load(fname)
-        print(f"{datetime.now()}Finished loading mergertree data from `{fname}`.",  # noqa
+        print(f"{datetime.now()}: finished loading mergertree data from `{fname}`.",  # noqa
               flush=True)
     else:
         print("Generating mergertree data.", flush=True)
@@ -921,8 +923,6 @@ if __name__ == '__main__':
 
         print("Saving mergertree data.", flush=True)
         dump(mtd, fname)
-
-    quit()
 
     # read in clump data if required
     if p.do_all or p.halo_and_children:
