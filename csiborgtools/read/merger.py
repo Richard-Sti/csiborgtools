@@ -632,7 +632,6 @@ def track_halo_manually(cats, hid, maxdist=0.15, max_dlogm=0.35):
     -------
     hist : structured array
         History of the halo.
-
     """
     nsnap0 = max(cats.keys())
     k = cats[nsnap0]["hid_to_array_index"][hid]
@@ -660,8 +659,6 @@ def track_halo_manually(cats, hid, maxdist=0.15, max_dlogm=0.35):
     hist["x"][0], hist["y"][0], hist["z"][0] = pos
     hist["mass"][0] = mass
 
-    nskipped = 0
-
     for n in trange(1, len(cats), desc="Tracking halo"):
         nsnap = nsnap0 - n
         hist["snapshot_index"][n] = nsnap
@@ -670,7 +667,6 @@ def track_halo_manually(cats, hid, maxdist=0.15, max_dlogm=0.35):
         indxs = cats[nsnap].select_in_box(pos, 2 * maxdist)
 
         if len(indxs) == 0:
-            nskipped += 1
             continue
 
         nearby_pos = cats[nsnap]["cartesian_pos"][indxs]
@@ -688,9 +684,5 @@ def track_halo_manually(cats, hid, maxdist=0.15, max_dlogm=0.35):
 
             pos = nearby_pos[k]
             mass = nearby_mass[k]
-        else:
-            nskipped += 1
-
-    print("Skipped ", nskipped, " snapshots.")
 
     return hist
