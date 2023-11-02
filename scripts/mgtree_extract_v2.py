@@ -266,9 +266,9 @@ class Constants:
         self.Gyr = (24 * 3600 * 365 * 1e9)  # s
         self.G = 4.492e-15                  # Mpc^3/(M_sol Gyr^2)
 
-        self.H0 = 70.4                      # km/s/Mpc # TODO change to 100?
-        self.omega_m = 0.272
-        self.omega_l = 0.728
+        self.H0 = 100                      # km/s/Mpc
+        self.omega_m = 0.307000011205673
+        self.omega_l = 0.693000018596649
         self.omega_k = 0.0
         self.omega_b = 0.0
 
