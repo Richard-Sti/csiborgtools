@@ -474,9 +474,6 @@ class MergerReader(BaseMergerReader):
             mainprog, mainprog_nsnap = prog[0], prog_nsnap[0]
             if len(prog) > 1:
                 minprog, minprog_nsnap = prog[1:], prog_nsnap[1:]
-                # print(main_nsnap)
-                # print(minprog, minprog_nsnap)
-                # print()
             else:
                 minprog, minprog_nsnap = None, None
 
@@ -596,7 +593,7 @@ class MergerReader(BaseMergerReader):
             except KeyError:
                 continue
 
-        return mergertree_pos[:, ::-1]
+        return mergertree_pos[:, ::-1]  # TODO later remove
 
 
 ###############################################################################
