@@ -41,26 +41,6 @@ class BaseCatalogue(ABC):
     """
     Base halo catalogue.
     """
-    _simname = None
-    _nsim = None
-    _nsnap = None
-    _catalogue_name = None
-
-    _paths = None
-    _box = None
-
-    _data = None
-    _observer_location = None
-    _observer_velocity = None
-    _mass_key = None
-
-    _cache = OrderedDict()
-    _cache_maxsize = None
-    _catalogue_length = None
-    _is_closed = None
-    _load_filtered = False
-    _filter_mask = None
-
     _derived_properties = ["cartesian_pos",
                            "spherical_pos",
                            "dist",
@@ -71,6 +51,27 @@ class BaseCatalogue(ABC):
                            "angular_momentum",
                            "particle_offset"
                            ]
+
+    def __init__(self):
+        self._simname = None
+        self._nsim = None
+        self._nsnap = None
+        self._catalogue_name = None
+
+        self._paths = None
+        self._box = None
+
+        self._data = None
+        self._observer_location = None
+        self._observer_velocity = None
+        self._mass_key = None
+
+        self._cache = OrderedDict()
+        self._cache_maxsize = None
+        self._catalogue_length = None
+        self._is_closed = None
+        self._load_filtered = False
+        self._filter_mask = None
 
     def init_with_snapshot(self, simname, nsim, nsnap, halo_finder,
                            catalogue_name, paths, mass_key, bounds,
@@ -377,8 +378,6 @@ class BaseCatalogue(ABC):
             Distances to the nearest neighbours for each query.
         indxs : list of arrays
             Indices of nearest neighbours for each query.
-        mass : list of arrays
-            Masses of the nearest neighbours for each query.
         """
         if knearest and not isinstance(radius, int):
             raise ValueError("`radius` must be an integer if `knearest`.")
@@ -618,6 +617,7 @@ class CSiBORGCatalogue(BaseCatalogue):
     """
     def __init__(self, nsim, paths, catalogue_name, halo_finder, mass_key=None,
                  bounds=None, observer_velocity=None, cache_maxsize=64):
+        super().__init__()
         super().init_with_snapshot(
             "csiborg", nsim, max(paths.get_snapshots(nsim, "csiborg")),
             halo_finder, catalogue_name, paths, mass_key, bounds,
@@ -654,6 +654,7 @@ class CSiBORGPHEWCatalogue(BaseCatalogue):
     """
     def __init__(self, nsnap, nsim, paths, mass_key=None, bounds=None,
                  cache_maxsize=64):
+        super().__init__()
         self.simname = "csiborg"
         self.nsnap = nsnap
         self.nsim = nsim
@@ -728,7 +729,7 @@ class QuijoteCatalogue(BaseCatalogue):
     def __init__(self, nsim, paths, catalogue_name, halo_finder,
                  mass_key=None, bounds=None, observer_velocity=None,
                  cache_maxsize=64):
-
+        super().__init__()
         super().init_with_snapshot(
             "quijote", nsim, 4,
             halo_finder, catalogue_name, paths, mass_key, bounds,
