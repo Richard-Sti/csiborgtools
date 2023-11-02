@@ -383,6 +383,9 @@ class FitsSurvey(ABC):
             return out
         return out[self.selection_mask]
 
+    def __len__(self):
+        return self.size
+
 
 ###############################################################################
 #                            Planck clusters                                  #
@@ -560,8 +563,7 @@ class SDSS(FitsSurvey):
     Parameters
     ----------
     fpath : str, optional
-        Path to the FITS file. By default
-        `/mnt/extraspace/rstiskalek/catalogs/nsa_v1_0_1.fits`.
+        Path to the FITS file.
     h : float, optional
         Little h. By default `h = 1`. The catalogue assumes this value.
         The routine properties should take care of little h conversion.
@@ -581,9 +583,7 @@ class SDSS(FitsSurvey):
     """
     name = "SDSS"
 
-    def __init__(self, fpath=None, h=1, Om0=0.3175, sel_steps=None):
-        if fpath is None:
-            fpath = "/mnt/extraspace/rstiskalek/catalogs/nsa_v1_0_1.fits"
+    def __init__(self, fpath, h=1, Om0=0.3175, sel_steps=None):
         self._file = fits.open(fpath, memmap=False)
         self.h = h
 
