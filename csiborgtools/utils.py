@@ -197,6 +197,36 @@ def cosine_similarity(x, y):
     return out[0] if out.size == 1 else out
 
 
+def hms_to_degrees(hours, minutes=None, seconds=None):
+    """
+    Convert hours, minutes and seconds to degrees.
+
+    Parameters
+    ----------
+    hours, minutes, seconds : float
+
+    Returns
+    -------
+    float
+    """
+    return hours * 15 + (minutes or 0) / 60 * 15 + (seconds or 0) / 3600 * 15
+
+
+def dms_to_degrees(degrees, arcminutes=None, arcseconds=None):
+    """
+    Convert degrees, arcminutes and arcseconds to decimal degrees.
+
+    Parameters
+    ----------
+    degrees, arcminutes, arcseconds : float
+
+    Returns
+    -------
+    float
+    """
+    return degrees + (arcminutes or 0) / 60 + (arcseconds or 0) / 3600
+
+
 def real2redshift(pos, vel, observer_location, observer_velocity, box,
                   periodic_wrap=True, make_copy=True):
     r"""
