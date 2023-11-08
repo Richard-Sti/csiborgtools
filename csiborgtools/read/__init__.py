@@ -18,7 +18,7 @@ from .halo_cat import (CSiBORGCatalogue, QuijoteCatalogue,                      
 from .merger import (MergerReader, clump_identifier, extract_identifier,        # noqa
                      track_halo_manually)                                       # noqa
 from .obs import (SDSS, MCXCClusters, PlanckClusters, TwoMPPGalaxies,           # noqa
-                  TwoMPPGroups)                                                 # noqa
+                  TwoMPPGroups, ObservedCluster)                                # noqa
 from .paths import Paths                                                        # noqa
 from .readsim import (CSiBORGReader, QuijoteReader, load_halo_particles,        # noqa
                       make_halomap_dict)                                        # noqa

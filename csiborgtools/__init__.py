@@ -17,8 +17,7 @@ from csiborgtools import clustering, field, halo, match, read, summary          
 from .utils import (center_of_mass, delta2ncells, number_counts,                # noqa
                     periodic_distance, periodic_distance_two_points,            # noqa
                     binned_statistic, cosine_similarity, fprint,                # noqa
-                    great_circle_distance)                                      # noqa
-
+                    hms_to_degrees, dms_to_degrees, great_circle_distance)      # noqa
 
 # Arguments to csiborgtools.read.Paths.
 paths_glamdring = {"srcdir": "/mnt/extraspace/hdesmond/",
@@ -65,3 +64,14 @@ class SDSSxALFALFA:
         if fpath is None:
             fpath = "/mnt/extraspace/rstiskalek/catalogs/5asfullmatch.fits"
         return read.SDSS(fpath, h=1, sel_steps=self.steps)
+
+
+###############################################################################
+#                              Clusters                                       #
+###############################################################################
+
+clusters = {"Virgo": read.ObservedCluster(RA=hms_to_degrees(12, 27),
+                                          dec=dms_to_degrees(12, 43),
+                                          dist=16.5 * 0.7,
+                                          name="Virgo"),
+            }
