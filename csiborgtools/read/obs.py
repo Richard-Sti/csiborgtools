@@ -719,3 +719,81 @@ class SDSS(FitsSurvey):
         Get `IN_DR7_LSS` and turn to a boolean array.
         """
         return self.get_fitsitem("IN_DR7_LSS").astype(bool)
+
+
+###############################################################################
+#                           Individual observations                           #
+###############################################################################
+
+
+class BaseSingleObservation(ABC):
+    """
+    Base class to hold information about a single object.
+    """
+    def __init__(self):
+        self._spherical_pos = None
+        self._name = None
+
+    @property
+    def spherical_pos(self):
+        """
+        Spherical position of the observation in dist/RA/dec in Mpc / h and
+        degrees, respectively.
+
+        Returns
+        -------
+        1-dimensional array of shape (3,)
+        """
+        if self._spherical_pos is None:
+            raise ValueError("`spherical_pos` is not set!")
+        return self._spherical_pos
+
+    @spherical_pos.setter
+    def spherical_pos(self, pos):
+        if isinstance(pos, (list, tuple)):
+            pos = numpy.array(pos)
+
+        if not pos.shape == (3,):
+            raise ValueError("`spherical_pos` must be a of shape (3,).")
+
+        self._spherical_pos = pos
+
+    @property
+    def name(self):
+        """
+        Observated object name.
+
+        Returns
+        -------
+        str
+        """
+        if self._name is None:
+            raise ValueError("`name` is not set!")
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        if not isinstance(name, str):
+            raise ValueError("`name` must be a string.")
+        self._name = name
+
+
+class ObservedCluster(BaseSingleObservation):
+    """
+    Class to hold information about an observed cluster.
+
+    Parameters
+    ----------
+    RA : float
+        Right ascension in degrees.
+    dec : float
+        Declination in degrees.
+    dist : float
+        Distance in Mpc / h.
+    name : str
+        Cluster name.
+    """
+    def __init__(self, RA, dec, dist, name):
+        super().__init__()
+        self.name = name
+        self.spherical_pos = [dist, RA, dec]
