@@ -118,7 +118,7 @@ def evaluate_field(field, pos, nrand, smooth_scales=None, seed=42,
             field_smoothed = csiborgtools.field.smoothen_field(
                 field, scale * MPC2BOX, boxsize=1, make_copy=True)
         else:
-            field_smoothed = field
+            field_smoothed = numpy.copy(field)
 
         val[:, i] = csiborgtools.field.evaluate_sky(
             field_smoothed, pos=pos, mpc2box=MPC2BOX)
@@ -196,12 +196,6 @@ if __name__ == "__main__":
     nsims = get_nsims(args, paths)
 
     pos, indxs = open_galaxy_positions(args.survey, MPI.COMM_WORLD)
-
-    if MPI.COMM_WORLD.Get_rank() == 0 and args.survey != "GW170817":
-        fout = f"/mnt/extraspace/rstiskalek/CSiBORG/ascii_positions/{args.survey}_positions.npz"  # noqa
-        pos = csiborgtools.utils.radec_to_cartesian(pos) + 677.7 / 2
-        print(f"Saving to ... `{fout}`.")
-        numpy.savez(fout, pos=pos, indxs=indxs)
 
     def _main(nsim):
         main(nsim, args, pos, indxs, paths,
