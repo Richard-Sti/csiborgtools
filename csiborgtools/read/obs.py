@@ -797,3 +797,36 @@ class ObservedCluster(BaseSingleObservation):
         super().__init__()
         self.name = name
         self.spherical_pos = [dist, RA, dec]
+
+
+###############################################################################
+#                           Utility functions                                 #
+###############################################################################
+
+def match_array_to_no_masking(arr, surv):
+    """
+    Match an array to a survey without masking.
+
+    Parameters
+    ----------
+    arr : n-dimensional array
+        Array to match.
+    surv : survey class
+        Survey class.
+
+    Returns
+    -------
+    out : n-dimensional array
+    """
+    dtype = arr.dtype
+    if arr.ndim > 1:
+        shape = arr.shape
+        out = numpy.full((surv.selection_mask.size, *shape[1:]), numpy.nan,
+                         dtype=dtype)
+    else:
+        out = numpy.full(surv.selection_mask.size, numpy.nan, dtype=dtype)
+
+    for i, indx in enumerate(surv["INDEX"]):
+        out[indx] = arr[i]
+
+    return out
