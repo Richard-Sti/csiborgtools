@@ -98,9 +98,12 @@ def evaluate_sky(*fields, pos, mpc2box, smooth_scales=None, verbose=False):
     -------
     (list of) 1-dimensional array of shape `(n_samples, len(smooth_scales))`
     """
-    pos = force_single_precision(pos)
+    # Make a copy of the positions to avoid modifying the input.
+    pos = numpy.copy(pos)
 
+    pos = force_single_precision(pos)
     pos[:, 0] *= mpc2box
+
     cart_pos = radec_to_cartesian(pos) + 0.5
 
     if smooth_scales is not None:
