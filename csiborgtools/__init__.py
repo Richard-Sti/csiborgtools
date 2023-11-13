@@ -46,10 +46,11 @@ class SDSS:
                 (lambda x: cls[x] < 155, ("DIST", ))
                 ]
 
-    def __call__(self, fpath=None):
+    def __call__(self, fpath=None, apply_selection=True):
         if fpath is None:
             fpath = "/mnt/extraspace/rstiskalek/catalogs/nsa_v1_0_1.fits"
-        return read.SDSS(fpath, h=1, sel_steps=self.steps)
+        sel_steps = self.steps if apply_selection else None
+        return read.SDSS(fpath, h=1, sel_steps=sel_steps)
 
 
 class SDSSxALFALFA:
@@ -60,10 +61,11 @@ class SDSSxALFALFA:
                 (lambda x: cls[x] < 155, ("DIST", ))
                 ]
 
-    def __call__(self, fpath=None):
+    def __call__(self, fpath=None, apply_selection=True):
         if fpath is None:
             fpath = "/mnt/extraspace/rstiskalek/catalogs/5asfullmatch.fits"
-        return read.SDSS(fpath, h=1, sel_steps=self.steps)
+        sel_steps = self.steps if apply_selection else None
+        return read.SDSS(fpath, h=1, sel_steps=sel_steps)
 
 
 ###############################################################################
