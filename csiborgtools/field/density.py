@@ -18,6 +18,7 @@ Density field and cross-correlation calculations.
 from abc import ABC
 
 import MAS_library as MASL
+import Pk_library as PKL
 import numpy
 from numba import jit
 from tqdm import trange
@@ -490,3 +491,35 @@ def eigenvalues_to_environment(eigvals, th):
                 else:
                     env[i, j, k] = 3
     return env
+
+
+###############################################################################
+#                       Power spectrum calculation                            #
+###############################################################################
+
+
+def power_spectrum(delta, boxsize, MAS, threads=1, verbose=True):
+    """
+    Calculate the monopole power spectrum of the density field.
+
+    Parameters
+    ----------
+    delta : 3-dimensional array of shape `(grid, grid, grid)`
+        The over-density field.
+    boxsize : float
+        The simulation box size in `Mpc / h`.
+    MAS : str
+        Mass assignment scheme used to calculate the density field.
+    threads : int, optional
+        Number of threads to use.
+    verbose : bool, optional
+        Verbosity flag.
+
+    Returns
+    -------
+    k, Pk : 1-dimensional arrays of shape `(grid,)`
+        The wavenumbers and the power spectrum.
+    """
+    axis = 2  # Axis along which compute the quadrupole and hexadecapole
+    Pk = PKL.Pk(delta, boxsize, axis, MAS, threads, verbose)
+    return Pk.k3D, Pk.Pk[:, 0]

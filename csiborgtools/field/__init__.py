@@ -17,7 +17,7 @@ from warnings import warn
 try:
     import MAS_library as MASL                                                  # noqa
     from .density import (DensityField, PotentialField, TidalTensorField,       # noqa
-                          VelocityField)                                        # noqa
+                          VelocityField, power_spectrum)                        # noqa
     from .interp import (evaluate_cartesian, evaluate_sky, field2rsp,           # noqa
                          fill_outside, make_sky, observer_vobs)                 # noqa
     from .utils import nside2radec, smoothen_field                              # noqa
