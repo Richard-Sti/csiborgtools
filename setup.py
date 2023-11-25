@@ -9,7 +9,7 @@ INSTALL_REQ += [
                 "astropy",
                 "scikit-learn",
                 "h5py",
-                "pynbody"
+                "pynbody",
                 "joblib",
                 ]
 
