@@ -19,15 +19,17 @@ from abc import ABC, abstractmethod
 from gc import collect
 from os.path import getsize, isfile, join
 from warnings import warn
-from tqdm import tqdm
 
 import numpy
 import pynbody
 from scipy.io import FortranFile
+from tqdm import tqdm
 
-import readfof
-import readgadget
-from readfof import FoF_catalog
+try:
+    import readgadget
+    from readfof import FoF_catalog
+except ImportError:
+    warn("Could not import `readgadget` and `readfof`. Related routines will not be available", ImportWarning)  # noqa
 from tqdm import trange
 
 from ..utils import fprint
@@ -521,7 +523,7 @@ class QuijoteReader(BaseReader):
     def read_halo_id(self, nsnap, nsim, halo_finder, verbose=True):
         if halo_finder == "FOF":
             path = self.paths.fof_cat(nsnap, nsim, "quijote")
-            cat = readfof.FoF_catalog(path, nsnap)
+            cat = FoF_catalog(path, nsnap)
             pids = self.read_snapshot(nsnap, nsim, kind="pid")
 
             # Read the FoF particle membership.

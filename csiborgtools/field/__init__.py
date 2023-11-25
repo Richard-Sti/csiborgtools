@@ -22,5 +22,4 @@ try:
                          fill_outside, make_sky, observer_vobs)                 # noqa
     from .utils import nside2radec, smoothen_field                              # noqa
 except ImportError:
-    warn("MAS_library not found, `DensityField` and related Pylians-based "
-         "routines will not be available")
+    warn("MAS_library not found, `DensityField` and related Pylians-based routines will not be available")  # noqa
