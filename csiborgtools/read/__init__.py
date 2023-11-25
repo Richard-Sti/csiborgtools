@@ -15,8 +15,6 @@
 from .box_units import CSiBORGBox, QuijoteBox                                   # noqa
 from .halo_cat import (CSiBORGCatalogue, QuijoteCatalogue,                      # noqa
                        CSiBORGPHEWCatalogue, fiducial_observers)                # noqa
-from .merger import (MergerReader, clump_identifier, extract_identifier,        # noqa
-                     track_halo_manually)                                       # noqa
 from .obs import (SDSS, MCXCClusters, PlanckClusters, TwoMPPGalaxies,           # noqa
                   TwoMPPGroups, ObservedCluster, match_array_to_no_masking)     # noqa
 from .paths import Paths                                                        # noqa
