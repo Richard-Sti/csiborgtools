@@ -20,6 +20,21 @@ from setuptools import find_packages, setup
 #   - cache_to_disk
 
 
+
+Pylians
+Corrfunc
+numpy
+scipy
+healpy
+numba
+tqdm
+astropy
+scikit-learn
+treelib
+pynbody
+joblib
+
+
 BUILD_REQ = ["numpy", "scipy"]
 INSTALL_REQ = BUILD_REQ
 INSTALL_REQ += ["Corrfunc",
