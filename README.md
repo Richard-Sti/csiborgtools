@@ -8,4 +8,15 @@ however with little effort it can support other simulations as well.
 
 
 ## TODO
-We need to add support for CSiBORG2
+- [ ] Add full support for CSiBORG2 suite of simulations.
+- [ ] Add SPH field calculation from cosmotools.
+
+
+## Adding a new simulation suite
+
+box units
+paths
+readsim
+halo_cat
+
+
