@@ -28,6 +28,16 @@ from taskmaster import work_delegation
 import csiborgtools
 from utils import get_nsims
 
+
+###############################################################################
+#                   Cosmotool SPH density & velocity field                    #
+###############################################################################
+
+def cosmotool_sph(nsim, parser_args):
+    pass
+
+
+
 ###############################################################################
 #                            Density field                                    #
 ###############################################################################
@@ -252,6 +262,7 @@ if __name__ == "__main__":
     parser.add_argument("--verbose", type=lambda x: bool(strtobool(x)),
                         help="Verbosity flag for reading in particles.")
     parser.add_argument("--simname", type=str, default="csiborg",
+                        choices=["csiborg", "csiborg2"],
                         help="Verbosity flag for reading in particles.")
     parser_args = parser.parse_args()
     comm = MPI.COMM_WORLD
