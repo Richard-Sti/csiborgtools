@@ -314,26 +314,6 @@ class Paths:
             nsnap = str(nsnap).zfill(3)
             return join(simpath, f"snapdir_{nsnap}", f"snap_{nsnap}")
 
-    def merger_tree_file(self, nsnap, nsim):
-        """
-        Path to the CSiBORG on-the-fly generated merger tree file.
-
-        Parameters
-        ----------
-        nsnap : int
-            Snapshot index.
-        nsim : int
-            IC realisation index.
-
-        Returns
-        -------
-        str
-        """
-        nsim = str(nsim)
-        nsnap = str(nsnap).zfill(5)
-        return join(self.srcdir, f"ramses_out_{nsim}",
-                    f"output_{nsnap}", f"mergertree_{nsnap}.dat")
-
     def processed_output(self, nsim, simname, halo_finder):
         """
         Path to the files containing all particles of a CSiBORG realisation at
@@ -379,23 +359,6 @@ class Paths:
         fdir = join(self.postdir, "processed_output")
         try_create_directory(fdir)
         return join(fdir, f"phew_{str(nsim).zfill(5)}.hdf5")
-
-    def processed_merger_tree(self, nsim):
-        """
-        Path to the files containing the processed original merger tree files.
-
-        Parameters
-        ----------
-        nsim : int
-            IC realisation index.
-
-        Returns
-        -------
-        str
-        """
-        fdir = join(self.postdir, "processed_output")
-        try_create_directory(fdir)
-        return join(fdir, f"merger_{str(nsim).zfill(5)}.hdf5")
 
     def halomaker_particle_membership(self, nsnap, nsim, halo_finder):
         """

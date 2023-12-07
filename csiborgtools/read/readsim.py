@@ -145,8 +145,6 @@ class CSiBORGReader(BaseReader):
     ----------
     paths : py:class`csiborgtools.read.Paths`
     """
-    # _snapshot_cache = {}
-
     def __init__(self, paths):
         self.paths = paths
 
@@ -432,37 +430,6 @@ class CSiBORGReader(BaseReader):
         parent_mass[clindex != parindex] = numpy.nan
 
         return parent_arr, parent_mass
-
-    def read_merger_tree(self, nsnap, nsim):
-        """
-        Read in the raw merger tree file.
-
-        Parameters
-        ----------
-        nsnap : int
-            Snapshot index.
-        nsim : int
-            IC realisation index.
-
-        Returns
-        -------
-        data : 2-dimensional array
-        """
-        fname = self.paths.merger_tree_file(nsnap, nsim)
-        # Do some checks if the file exists or is empty
-        if not isfile(fname) or getsize(fname) == 0:
-            raise FileExistsError(f"Merger file `{fname}` does not exist.")
-
-        data = numpy.genfromtxt(fname)
-
-        if data.ndim == 1:
-            raise FileExistsError(f"Invalid merger file `{fname}`.")
-
-        # Convert to Msun / h and cMpc / h but keep velocity in box units.
-        data[:, 3] *= 2.6543271649678946e+19
-        data[:, 5:8] *= 677.7
-
-        return data
 
 
 ###############################################################################

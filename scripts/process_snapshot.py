@@ -337,78 +337,6 @@ def make_phew_halo_catalogue(nsim, verbose):
         f.close()
 
 
-def make_merger_tree_file(nsim, verbose):
-    """
-    Process the `.dat` merger tree files and dump them into a HDF5 file.
-    """
-    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    reader = csiborgtools.read.CSiBORGReader(paths)
-    snaps = paths.get_snapshots(nsim, "csiborg")
-
-    fname = paths.processed_merger_tree(nsim)
-    with h5py.File(fname, "w") as f:
-        f.close()
-
-    for nsnap in tqdm(snaps, desc="Loading merger files",
-                      disable=not verbose):
-        try:
-            data = reader.read_merger_tree(nsnap, nsim)
-        except FileExistsError:
-            continue
-
-        with h5py.File(fname, "r+") as f:
-            grp = f.create_group(str(nsnap))
-
-            grp.create_dataset("clump",
-                               data=data[:, 0].astype(numpy.int32))
-            grp.create_dataset("progenitor",
-                               data=data[:, 1].astype(numpy.int32))
-            grp.create_dataset("progenitor_outputnr",
-                               data=data[:, 2].astype(numpy.int32))
-            grp.create_dataset("desc_mass",
-                               data=data[:, 3].astype(numpy.float32))
-            grp.create_dataset("desc_npart",
-                               data=data[:, 4].astype(numpy.int32))
-            grp.create_dataset("desc_pos",
-                               data=data[:, 5:8].astype(numpy.float32))
-            grp.create_dataset("desc_vel",
-                               data=data[:, 8:11].astype(numpy.float32))
-            f.close()
-
-
-def append_merger_tree_mass_to_phew_catalogue(nsim, verbose):
-    """
-    Append mass of haloes from mergertree files to the PHEW catalogue. The
-    difference between this and the PHEW value is that the latter is written
-    before unbinding is performed.
-
-    Note that currently only does this for the highest snapshot.
-    """
-    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    snapshots = paths.get_snapshots(nsim, "csiborg")
-    merger_reader = csiborgtools.read.MergerReader(nsim, paths)
-
-    for nsnap in tqdm(snapshots, disable=not verbose, desc="Snapshot"):
-        # TODO do this for all later
-        if nsnap < 930:
-            continue
-        try:
-            phewcat = csiborgtools.read.CSiBORGPHEWCatalogue(nsnap, nsim,
-                                                             paths)
-        except ValueError:
-            phewcat.close()
-            continue
-
-        mergertree_mass = merger_reader.match_mass_to_phewcat(phewcat)
-        phewcat.close()
-
-        fname = paths.processed_phew(nsim)
-        with h5py.File(fname, "r+") as f:
-            grp = f[str(nsnap)]
-            grp.create_dataset("mergertree_mass_new", data=mergertree_mass)
-            f.close()
-
-
 def main(nsim, args):
     if args.make_final:
         process_snapshot(nsim, args.simname, args.halofinder, True)
@@ -419,12 +347,6 @@ def main(nsim, args):
 
     if args.make_phew:
         make_phew_halo_catalogue(nsim, True)
-
-    if args.make_merger:
-        make_merger_tree_file(nsim, True)
-
-    if args.append_merger_mass:
-        append_merger_tree_mass_to_phew_catalogue(nsim, True)
 
 
 if __name__ == "__main__":
@@ -441,11 +363,6 @@ if __name__ == "__main__":
                         help="Process the initial snapshot.")
     parser.add_argument("--make_phew", action="store_true", default=False,
                         help="Process the PHEW halo catalogue.")
-    parser.add_argument("--make_merger", action="store_true", default=False,
-                        help="Process the merger tree files.")
-    parser.add_argument("--append_merger_mass", action="store_true",
-                        default=False,
-                        help="Append the merger tree mass to the PHEW cat.")
 
     args = parser.parse_args()
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
