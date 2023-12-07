@@ -8,6 +8,7 @@ however with little effort it can support other simulations as well.
 
 
 ## TODO
+- [x] Prune old CSiBORG1 merger tree things.
 - [ ] Add full support for CSiBORG2 suite of simulations.
 - [ ] Add SPH field calculation from cosmotools.
 
