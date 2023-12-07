@@ -161,8 +161,105 @@ class DensityField(BaseField):
         return rho
 
 
+# class SPHDensityVelocity(BaseField):
+#     r"""
+#     Density field calculation. Based primarily on routines of Pylians [1].
+#
+#     Parameters
+#     ----------
+#     box : :py:class:`csiborgtools.read.CSiBORGBox`
+#         The simulation box information and transformations.
+#     MAS : str
+#         Mass assignment scheme. Options are Options are: 'NGP' (nearest grid
+#         point), 'CIC' (cloud-in-cell), 'TSC' (triangular-shape cloud), 'PCS'
+#         (piecewise cubic spline).
+#     paths : :py:class:`csiborgtools.read.Paths`
+#         The simulation paths.
+#
+#     References
+#     ----------
+#     [1] https://pylians3.readthedocs.io/
+#     """
+#
+#     def __init__(self, box, MAS):
+#         self.box = box
+#         self.MAS = MAS
+#
+#     def overdensity_field(self, delta):
+#         r"""
+#         Calculate the overdensity field from the density field.
+#         Defined as :math:`\rho/ <\rho> - 1`. Overwrites the input array.
+#
+#         Parameters
+#         ----------
+#         delta : 3-dimensional array of shape `(grid, grid, grid)`
+#             The density field.
+#
+#         Returns
+#         -------
+#         3-dimensional array of shape `(grid, grid, grid)`.
+#         """
+#         delta /= delta.mean()
+#         delta -= 1
+#         return delta
+#
+#     def __call__(self, pos, mass, grid, nbatch=30, verbose=True):
+#         """
+#         Calculate the density field using a Pylians routine [1, 2].
+#         Iteratively loads the particles into memory, flips their `x` and `z`
+#         coordinates. Particles are assumed to be in box units, with positions
+#         in [0, 1]
+#
+#         Parameters
+#         ----------
+#         pos : 2-dimensional array of shape `(n_parts, 3)`
+#             Particle positions
+#         mass : 1-dimensional array of shape `(n_parts,)`
+#             Particle masses
+#         grid : int
+#             Grid size.
+#         nbatch : int, optional
+#             Number of batches to split the particle loading into.
+#         verbose : bool, optional
+#             Verbosity flag.
+#
+#         Returns
+#         -------
+#         3-dimensional array of shape `(grid, grid, grid)`.
+#
+#         References
+#         ----------
+#         [1] https://pylians3.readthedocs.io/
+#         [2] https://github.com/franciscovillaescusa/Pylians3/blob/master
+#             /library/MAS_library/MAS_library.pyx
+#         """
+#         rho = numpy.zeros((grid, grid, grid), dtype=numpy.float32)
+#
+#         nparts = pos.shape[0]
+#         batch_size = nparts // nbatch
+#         start = 0
+#
+#         for __ in trange(nbatch + 1, disable=not verbose,
+#                          desc="Loading particles for the density field"):
+#             end = min(start + batch_size, nparts)
+#             batch_pos = pos[start:end]
+#             batch_mass = mass[start:end]
+#
+#             batch_pos = force_single_precision(batch_pos)
+#             batch_mass = force_single_precision(batch_mass)
+#
+#             MASL.MA(batch_pos, rho, 1., self.MAS, W=batch_mass, verbose=False)
+#             if end == nparts:
+#                 break
+#             start = end
+#
+#         # Divide by the cell volume in (kpc / h)^3
+#         rho /= (self.box.boxsize / grid * 1e3)**3
+#
+#         return rho
+
 ###############################################################################
-#                         Density field calculation                           #
+#                         Velocity field calculation                          #
 ###############################################################################
 
 
