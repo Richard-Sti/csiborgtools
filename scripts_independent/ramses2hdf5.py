@@ -18,7 +18,7 @@ because reading the HDF5 file requires `hdf5plugin` package to be installed.
 """
 from argparse import ArgumentParser
 from datetime import datetime
-from os.path import join
+from os.path import exists, join
 
 import hdf5plugin
 import numpy
@@ -79,6 +79,10 @@ def convert_to_hdf5(snapshot_path, output_path=None):
                     "clevel": 9,
                     "shuffle": hdf5plugin.Blosc.SHUFFLE,
                     }
+
+    if exists(output_path):
+        raise RuntimeError(f"Stopping! `{output_path}` already exists.")
+
 
     with File(output_path, 'w') as f:
         print(f"{datetime.now()}: creating dataset `ParticleIDs`...",

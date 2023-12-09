@@ -22,19 +22,23 @@ from os.path import join
 
 if __name__ == "__main__":
     # CSiBORG1 chains. Modify this is needed.
-    base_dir = "/cosma8/data/dp016/dc-stis1/csiborg1/"
-    chains = [7444 + n * 24 for n in range(101)][:1]
+    base_dir = "/cosma8/data/dp016/dc-stis1/csiborg1/csiborg_new"
+    # chains = [7444 + n * 24 for n in range(2, 101)]
+    chains = [8548 + n * 24 for n in range(55)]
 
     for chain in chains:
-        fpath = join(base_dir, f"ramses_out_{chain}", "output_*")
+        fpath = join(base_dir, f"ramses_out_{chain}_new", "output_*")
         fs = glob(fpath)
 
         if len(fs) != 1:
-            raise ValueError(f"Found too many output folders in `{fpath}`.")
+            raise ValueError(f"Found too incorrect number of output folders in `{fpath}`.")
 
         snapshot_path = fs[0]
-
+        
+        print(f"Doing {snapshot_path}")
         system(f"python3 ramses2hdf5.py --snapshot_path {snapshot_path}")
 
-        # Remove all part_* particles
-        system(f"rm -rf {snapshot_path}/part_*")
+        # Remove all part_* particles. Recommended to do this only once you
+        # have ensured that the compression was OK.
+        # system(f"rm -rf {snapshot_path}/part_*")
+
