@@ -83,7 +83,6 @@ def convert_to_hdf5(snapshot_path, output_path=None):
     if exists(output_path):
         raise RuntimeError(f"Stopping! `{output_path}` already exists.")
 
-
     with File(output_path, 'w') as f:
         print(f"{datetime.now()}: creating dataset `ParticleIDs`...",
               flush=True)

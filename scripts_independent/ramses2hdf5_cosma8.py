@@ -34,7 +34,7 @@ if __name__ == "__main__":
             raise ValueError(f"Found a wrong number of folders in `{fpath}`.")
 
         snapshot_path = fs[0]
-        
+
         print(f"Doing {snapshot_path}")
         system(f"python3 ramses2hdf5.py --snapshot_path {snapshot_path}")
 
