@@ -13,29 +13,17 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-Script to convert a RAMSES snapshot to a compressed HDF5 file. Be careful
-because reading the HDF5 file requires `hdf5plugin` package to be installed.
+Submission script for converting CSiBORG 1 RAMSES snapshots to HDF5 files on
+COSMA8. Be careful as this also deletes the part_* files.
 """
-from argparse import ArgumentParser
-from datetime import datetime
-from os.path import join, isdir
-from os import listdir
-import numpy as np
-
-import hdf5plugin
-import numpy
-import pynbody
-from h5py import File
-import os
 from glob import glob
-
 from os import system
+from os.path import join
 
 if __name__ == "__main__":
+    # CSiBORG1 chains. Modify this is needed.
     base_dir = "/cosma8/data/dp016/dc-stis1/csiborg1/"
-
     chains = [7444 + n * 24 for n in range(101)][:1]
-
 
     for chain in chains:
         fpath = join(base_dir, f"ramses_out_{chain}", "output_*")
@@ -49,5 +37,5 @@ if __name__ == "__main__":
         system(f"python3 ramses2hdf5.py --snapshot_path {snapshot_path}")
 
         # Remove all part_* particles
-        # print(f"rm -rf {snapshot_path}/part_*")
+        system(f"rm -rf {snapshot_path}/part_*")
 
