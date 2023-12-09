@@ -31,7 +31,7 @@ if __name__ == "__main__":
         fs = glob(fpath)
 
         if len(fs) != 1:
-            raise ValueError(f"Found too incorrect number of output folders in `{fpath}`.")
+            raise ValueError(f"Found a wrong number of folders in `{fpath}`.")
 
         snapshot_path = fs[0]
         
@@ -41,4 +41,3 @@ if __name__ == "__main__":
         # Remove all part_* particles. Recommended to do this only once you
         # have ensured that the compression was OK.
         # system(f"rm -rf {snapshot_path}/part_*")
-
