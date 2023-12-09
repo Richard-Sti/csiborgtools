@@ -110,9 +110,9 @@ def convert_to_hdf5(snapshot_path, output_path=None):
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="Convert RAMSES snapshot to a compressed HDF5 file.")  # noqa
-    parser.add_argument("snapshot_path", type=str, required=True,
+    parser.add_argument("--snapshot_path", type=str, required=True,
                         help="Path to RAMSES snapshot folder.")
-    parser.add_argument("output_path", type=str, required=False, default=None,
+    parser.add_argument("--output_path", type=str, required=False, default=None,
                         help="Path to output HDF5 file. By default stored in the same folder as the snapshot.")  # noqa
     args = parser.parse_args()
 
