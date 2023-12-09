@@ -38,4 +38,3 @@ if __name__ == "__main__":
 
         # Remove all part_* particles
         system(f"rm -rf {snapshot_path}/part_*")
-
