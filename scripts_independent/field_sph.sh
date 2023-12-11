@@ -37,4 +37,4 @@ SPH_executable="/cosma8/data/dp016/dc-stis1/cosmotool/bld/sample/simple3DFilter"
 snapshot_kind="gadget4"
 
 
-echo "python3 field_sph.py --snapshot_path $snapshot_path --output_path $output_path --resolution $resolution --scratch_space $scratch_space --SPH_executable $SPH_executable --snapshot_kind $snapshot_kind"
+python3 field_sph.py --snapshot_path $snapshot_path --output_path $output_path --resolution $resolution --scratch_space $scratch_space --SPH_executable $SPH_executable --snapshot_kind $snapshot_kind

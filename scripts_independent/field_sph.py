@@ -24,7 +24,7 @@ from datetime import datetime
 
 import hdf5plugin  # noqa
 import numpy as np
-from healpy import File
+from h5py import File
 
 
 def now():
@@ -98,13 +98,8 @@ def run_sph_filter(particles_path, output_path, boxsize, resolution,
     if not exists(SPH_executable):
         raise RuntimeError(f"SPH executable `{SPH_executable}` does not exist.")  # noqa
 
-    # rlimit is supposed to be set to some arbitrary large value and cx, cy,
-    # cz to 0, we don't need to apply any offset.
-    rlimit = 1e14
-    cx, cy, cz = 0.0
-
-    command = [SPH_executable, particles_path, rlimit, boxsize, resolution,
-               cx, cy, cz, output_path, 1]
+    command = [SPH_executable, particles_path, str(1e14), str(boxsize), str(resolution),
+               str(0), str(0), str(0), output_path, "1"]
     print(f"{now()}: executing `simple3DFilter`.", flush=True)
     start_time = now()
     process = subprocess.Popen(
