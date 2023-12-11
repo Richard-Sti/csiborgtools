@@ -25,7 +25,7 @@ module load python/3.10.12
 module list
 
 source /cosma/home/dp016/dc-stis1/csiborgtools/venv_csiborgtools/bin/activate
-export OMP_NUM_THREADS=1
+export OMP_NUM_THREADS=4
 
 # ADD CHAINS HERE
 
@@ -35,6 +35,7 @@ resolution=64
 scratch_space="/cosma8/data/dp016/dc-stis1/csiborg2_main/field"
 SPH_executable="/cosma8/data/dp016/dc-stis1/cosmotool/bld/sample/simple3DFilter"
 snapshot_kind="gadget4"
+nthreads=4
 
 
-python3 field_sph.py --snapshot_path $snapshot_path --output_path $output_path --resolution $resolution --scratch_space $scratch_space --SPH_executable $SPH_executable --snapshot_kind $snapshot_kind
+python3 field_sph.py --snapshot_path $snapshot_path --output_path $output_path --resolution $resolution --scratch_space $scratch_space --SPH_executable $SPH_executable --snapshot_kind $snapshot_kind --nthreads $nthreads
