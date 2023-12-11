@@ -56,7 +56,7 @@ export OMP_NESTED=true
 snapshot_path="/cosma8/data/dp016/dc-stis1/csiborg2_{kind}/chain_{chain_index}/output/snapshot_099_full.hdf5"
 output_path="/cosma8/data/dp016/dc-stis1/csiborg2_{kind}/field/chain_{chain_index}.hdf5"
 resolution={resolution}
-scratch_space="/cosma8/data/dp016/dc-stis1/csiborg2_main/field"
+scratch_space="/snap8/scratch/dp016/dc-stis1/"
 SPH_executable="/cosma8/data/dp016/dc-stis1/cosmotool/bld2/sample/simple3DFilter"
 snapshot_kind="gadget4"
 
