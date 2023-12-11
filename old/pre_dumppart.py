@@ -114,7 +114,7 @@ def main(nsim, simname, verbose):
     # In case of CSiBORG, we need to convert the mass and velocities from
     # box units.
     if simname == "csiborg":
-        box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
+        box = csiborgtools.read.CSiBORG1Box(nsnap, nsim, paths)
         parts[:, [3, 4, 5]] = box.box2vel(parts[:, [3, 4, 5]])
         parts[:, 6] = box.box2solarmass(parts[:, 6])
 

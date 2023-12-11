@@ -49,7 +49,7 @@ def density_field(nsim, parser_args, to_save=True):
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsnap = max(paths.get_snapshots(nsim, "csiborg"))
-    box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
+    box = csiborgtools.read.CSiBORG1Box(nsnap, nsim, paths)
     fname = paths.processed_output(nsim, "csiborg", "halo_catalogue")
 
     if not parser_args.in_rsp:
@@ -94,7 +94,7 @@ def velocity_field(nsim, parser_args, to_save=True):
 
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsnap = max(paths.get_snapshots(nsim, "csiborg"))
-    box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
+    box = csiborgtools.read.CSiBORG1Box(nsnap, nsim, paths)
     fname = paths.processed_output(nsim, "csiborg", "halo_catalogue")
 
     snap = csiborgtools.read.read_h5(fname)["snapshot_final"]
@@ -127,7 +127,7 @@ def radvel_field(nsim, parser_args, to_save=True):
 
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsnap = max(paths.get_snapshots(nsim, "csiborg"))
-    box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
+    box = csiborgtools.read.CSiBORG1Box(nsnap, nsim, paths)
 
     vel = numpy.load(paths.field("velocity", parser_args.MAS, parser_args.grid,
                                  nsim, parser_args.in_rsp))
@@ -154,7 +154,7 @@ def potential_field(nsim, parser_args, to_save=True):
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsnap = max(paths.get_snapshots(nsim, "csiborg"))
-    box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
+    box = csiborgtools.read.CSiBORG1Box(nsnap, nsim, paths)
 
     if not parser_args.in_rsp:
         rho = numpy.load(paths.field(
@@ -192,7 +192,7 @@ def environment_field(nsim, parser_args, to_save=True):
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsnap = max(paths.get_snapshots(nsim, "csiborg"))
-    box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
+    box = csiborgtools.read.CSiBORG1Box(nsnap, nsim, paths)
 
     rho = numpy.load(paths.field(
         "density", parser_args.MAS, parser_args.grid, nsim, in_rsp=False))

@@ -154,7 +154,7 @@ def make_sky(field, angpos, dist, box, volume_weight=True, verbose=True):
         Directions to evaluate the field.
     dist : 1-dimensional array
         Uniformly spaced radial distances to evaluate the field.
-    box : :py:class:`csiborgtools.read.CSiBORGBox`
+    box : :py:class:`csiborgtools.read.CSiBORG1Box`
         The simulation box information and transformations.
     volume_weight : bool, optional
         Whether to weight the field by the volume of the pixel.
@@ -244,7 +244,7 @@ def field2rsp(field, radvel_field, box, MAS, init_value=0.):
     radvel_field : 3-dimensional array of shape `(grid, grid, grid)`
         Radial velocity field in `km / s`. Expected to account for the observer
         velocity.
-    box : :py:class:`csiborgtools.read.CSiBORGBox`
+    box : :py:class:`csiborgtools.read.CSiBORG1Box`
         The simulation box information and transformations.
     MAS : str
         Mass assignment. Must be one of `NGP`, `CIC`, `TSC` or `PCS`.

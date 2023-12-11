@@ -69,7 +69,7 @@ class DensityField(BaseField):
 
     Parameters
     ----------
-    box : :py:class:`csiborgtools.read.CSiBORGBox`
+    box : :py:class:`csiborgtools.read.CSiBORG1Box`
         The simulation box information and transformations.
     MAS : str
         Mass assignment scheme. Options are Options are: 'NGP' (nearest grid
@@ -167,7 +167,7 @@ class DensityField(BaseField):
 #
 #     Parameters
 #     ----------
-#     box : :py:class:`csiborgtools.read.CSiBORGBox`
+#     box : :py:class:`csiborgtools.read.CSiBORG1Box`
 #         The simulation box information and transformations.
 #     MAS : str
 #         Mass assignment scheme. Options are Options are: 'NGP' (nearest grid
@@ -269,7 +269,7 @@ class VelocityField(BaseField):
 
     Parameters
     ----------
-    box : :py:class:`csiborgtools.read.CSiBORGBox`
+    box : :py:class:`csiborgtools.read.CSiBORG1Box`
         The simulation box information and transformations.
     MAS : str
         Mass assignment scheme. Options are Options are: 'NGP' (nearest grid
@@ -405,7 +405,7 @@ class PotentialField(BaseField):
 
     Parameters
     ----------
-    box : :py:class:`csiborgtools.read.CSiBORGBox`
+    box : :py:class:`csiborgtools.read.CSiBORG1Box`
         The simulation box information and transformations.
     MAS : str
         Mass assignment scheme. Options are Options are: 'NGP' (nearest grid
@@ -444,7 +444,7 @@ class TidalTensorField(BaseField):
 
     Parameters
     ----------
-    box : :py:class:`csiborgtools.read.CSiBORGBox`
+    box : :py:class:`csiborgtools.read.CSiBORG1Box`
         The simulation box information and transformations.
     MAS : str
         Mass assignment scheme used to calculate the density field. Options

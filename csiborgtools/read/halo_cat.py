@@ -28,7 +28,7 @@ from sklearn.neighbors import NearestNeighbors
 from ..utils import (cartesian_to_radec, fprint, great_circle_distance,
                      number_counts, periodic_distance_two_points,
                      real2redshift)
-from .box_units import CSiBORGBox, QuijoteBox
+from .box_units import CSiBORG1Box, QuijoteBox
 from .paths import Paths
 from .readsim import load_halo_particles, make_halomap_dict
 
@@ -622,7 +622,7 @@ class CSiBORGCatalogue(BaseCatalogue):
             "csiborg", nsim, max(paths.get_snapshots(nsim, "csiborg")),
             halo_finder, catalogue_name, paths, mass_key, bounds,
             [338.85, 338.85, 338.85], observer_velocity, cache_maxsize)
-        self.box = CSiBORGBox(self.nsnap, self.nsim, self.paths)
+        self.box = CSiBORG1Box(self.nsnap, self.nsim, self.paths)
 
 
 ###############################################################################
@@ -678,7 +678,7 @@ class CSiBORGPHEWCatalogue(BaseCatalogue):
             self._make_mask(bounds)
 
         self._derived_properties = ["cartesian_pos", "spherical_pos", "dist"]
-        self.box = CSiBORGBox(self.nsnap, self.nsim, self.paths)
+        self.box = CSiBORG1Box(self.nsnap, self.nsim, self.paths)
         self.clear_cache()
 
     @staticmethod

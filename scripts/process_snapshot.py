@@ -64,7 +64,7 @@ def process_snapshot(nsim, simname, halo_finder, verbose):
 
     if simname == "csiborg":
         partreader = csiborgtools.read.CSiBORGReader(paths)
-        box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
+        box = csiborgtools.read.CSiBORG1Box(nsnap, nsim, paths)
     else:
         partreader = csiborgtools.read.QuijoteReader(paths)
         box = None
@@ -323,7 +323,7 @@ def make_phew_halo_catalogue(nsim, verbose):
     # Now write the redshifts
     scale_factors = numpy.full(len(snapshots), numpy.nan, dtype=numpy.float32)
     for i, nsnap in enumerate(snapshots):
-        box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
+        box = csiborgtools.read.CSiBORG1Box(nsnap, nsim, paths)
         scale_factors[i] = box._aexp
 
     redshifts = scale_factors[-1] / scale_factors - 1

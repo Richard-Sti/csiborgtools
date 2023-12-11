@@ -59,7 +59,7 @@ for i, nsim in enumerate(nsims):
         now = datetime.now()
         print(f"{now}: calculating {i}th simulation `{nsim}`.", flush=True)
     nsnap = max(paths.get_snapshots(nsim, "csiborg"))
-    box = csiborgtools.read.CSiBORGBox(nsnap, nsim, paths)
+    box = csiborgtools.read.CSiBORG1Box(nsnap, nsim, paths)
 
     f = csiborgtools.read.read_h5(paths.particles(nsim, "csiborg"))
     particles = f["particles"]

@@ -12,7 +12,7 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-from .box_units import CSiBORGBox, QuijoteBox                                   # noqa
+from .box_units import CSiBORG1Box, QuijoteBox                                   # noqa
 from .halo_cat import (CSiBORGCatalogue, QuijoteCatalogue,                      # noqa
                        CSiBORGPHEWCatalogue, fiducial_observers)                # noqa
 from .obs import (SDSS, MCXCClusters, PlanckClusters, TwoMPPGalaxies,           # noqa

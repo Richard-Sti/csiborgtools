@@ -244,7 +244,7 @@ def real2redshift(pos, vel, observer_location, observer_velocity, box,
         Observer location in `Mpc / h`.
     observer_velocity: 1-dimensional array `(3,)`
         Observer velocity in `km / s`.
-    box : py:class:`csiborg.read.CSiBORGBox`
+    box : py:class:`csiborg.read.CSiBORG1Box`
         Box units.
     periodic_wrap : bool, optional
         Whether to wrap around the box, particles may be outside the default

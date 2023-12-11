@@ -50,7 +50,7 @@ nproc = comm.Get_size()
 MAS = "CIC"  # mass asignment scheme
 
 paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-box = csiborgtools.read.CSiBORGBox(paths)
+box = csiborgtools.read.CSiBORG1Box(paths)
 reader = csiborgtools.read.CSiBORGReader(paths)
 ics = paths.get_ics("csiborg")
 nsims = len(ics)
