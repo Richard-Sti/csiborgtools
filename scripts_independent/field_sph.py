@@ -97,9 +97,13 @@ def run_sph_filter(particles_path, output_path, boxsize, resolution,
         raise TypeError("`resolution` must be an integer.")
     if not exists(SPH_executable):
         raise RuntimeError(f"SPH executable `{SPH_executable}` does not exist.")  # noqa
+    if not isinstance(nthreads, int):
+        raise TypeError("`nthreads` must be an integer.")
 
     env = environ.copy()
-    env['OMP_NUM_THREADS'] = '4'
+    print("ENV IS ")
+    print(env)
+    env['OMP_NUM_THREADS'] = str(nthreads)
 
     command = [SPH_executable, particles_path, str(1e14), str(boxsize),
                str(resolution), str(0), str(0), str(0), output_path, "1"]
@@ -172,7 +176,8 @@ def main(snapshot_path, output_path, resolution, scratch_space, SPH_executable,
         raise RuntimeError("Temporary output path must end with `.hdf5`.")
 
     print(f"{now()}: preparing snapshot...", flush=True)
-    boxsize = prepare_gadget(snapshot_path, temporary_output_path)
+    # boxsize = prepare_gadget(snapshot_path, temporary_output_path)
+    boxsize = prepare_random(temporary_output_path, npart=1000)
     print(f"{now()}: wrote temporary data to {temporary_output_path}.",
           flush=True)
 
