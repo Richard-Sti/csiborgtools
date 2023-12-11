@@ -136,7 +136,7 @@ class BaseReader(ABC):
 ###############################################################################
 
 
-class CSiBORGReader(BaseReader):
+class CSiBORG1Reader(BaseReader):
     """
     Object to read in CSiBORG snapshots from the binary files and halo
     catalogues.
@@ -430,6 +430,47 @@ class CSiBORGReader(BaseReader):
         parent_mass[clindex != parindex] = numpy.nan
 
         return parent_arr, parent_mass
+
+###############################################################################
+#                         Quijote particle reader                             #
+###############################################################################
+
+
+class CSiBORG2Reader(BaseReader):
+    """
+    Object to read in Quijote snapshots from the binary files.
+
+    Parameters
+    ----------
+    paths : py:class`csiborgtools.read.Paths`
+    """
+    def __init__(self, paths):
+        self.paths = paths
+
+    @abstractmethod
+    def read_info(self, nsnap, nsim):
+        """
+        Read simulation snapshot info.
+        """
+        pass
+
+    @abstractmethod
+    def read_snapshot(self, nsnap, nsim, kind, sort_like_final=False):
+        """
+        Read snapshot.
+        """
+
+    @abstractmethod
+    def read_halo_id(self, nsnap, nsim, halo_finder, verbose=True):
+        """
+        Read the (sub) halo membership of particles.
+        """
+
+    def read_catalogue(self, nsnap, nsim, halo_finder):
+        """
+        Read in the halo catalogue.
+
+        """
 
 
 ###############################################################################

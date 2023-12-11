@@ -21,7 +21,7 @@ import numpy
 from astropy import constants, units
 from astropy.cosmology import LambdaCDM
 
-from .readsim import CSiBORGReader, QuijoteReader
+from .readsim import CSiBORG1Reader, QuijoteReader
 
 ###############################################################################
 #                              Base box                                       #
@@ -150,9 +150,9 @@ class BaseBox(ABC):
 ###############################################################################
 
 
-class CSiBORGBox(BaseBox):
+class CSiBORG1Box(BaseBox):
     r"""
-    CSiBORG box units class for converting between box and physical units.
+    CSiBORG1 box units class for converting between box and physical units.
 
     Paramaters
     ----------
@@ -168,7 +168,7 @@ class CSiBORGBox(BaseBox):
         """
         Read in the snapshot info file and set the units from it.
         """
-        partreader = CSiBORGReader(paths)
+        partreader = CSiBORG1Reader(paths)
         info = partreader.read_info(nsnap, nsim)
         pars = ["boxlen", "time", "aexp", "H0", "omega_m", "omega_l",
                 "omega_k", "omega_b", "unit_l", "unit_d", "unit_t"]
@@ -227,6 +227,46 @@ class CSiBORGBox(BaseBox):
         return r200c / self._aexp
 
 
+class CSiBORG2Box(BaseBox):
+    """
+    CSiBORG2 box units class for converting between box and physical units.
+
+    Parameters
+    ----------
+    nsim : int
+        IC realisation index.
+    paths : py:class`csiborgtools.read.Paths`
+        Paths manager
+    """
+    def __init__(self, nsnap, nsim, paths):
+
+        info = QuijoteReader(paths).read_info(nsnap, nsim)
+        self._aexp = 1 / (1 + zdict[nsnap])
+        self._h = info["h"]
+        self._cosmo = LambdaCDM(H0=100, Om0=info["Omega_m"],
+                                Ode0=info["Omega_l"], Tcmb0=2.725 * units.K)
+        self._info = info
+
+    @property
+    def boxsize(self):
+        return self._info["BoxSize"]
+
+    def box2mpc(self, length):
+        return length * self.boxsize
+
+    def mpc2box(self, length):
+        return length / self.boxsize
+
+    def solarmass2box(self, mass):
+        return mass / self._info["TotMass"]
+
+    def box2solarmass(self, mass):
+        return mass * self._info["TotMass"]
+
+    def m200c_to_r200c(self, m200c):
+        raise ValueError("Not implemented for Quijote boxes.")
+
+
 ###############################################################################
 #                      Quijote fiducial cosmology box                         #
 ###############################################################################
@@ -274,3 +314,4 @@ class QuijoteBox(BaseBox):
 
     def m200c_to_r200c(self, m200c):
         raise ValueError("Not implemented for Quijote boxes.")
+
