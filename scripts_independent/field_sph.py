@@ -174,7 +174,10 @@ def main(snapshot_path, output_path, resolution, scratch_space, SPH_executable,
     run_sph_filter(temporary_output_path, output_path, boxsize, resolution,
                    SPH_executable)
     print(f"{now()}: removing the temporary snapshot file.", flush=True)
-    remove(temporary_output_path)
+    try:
+        remove(temporary_output_path)
+    except FileNotFoundError:
+        pass
 
 
 if __name__ == "__main__":

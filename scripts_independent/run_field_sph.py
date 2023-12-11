@@ -34,7 +34,7 @@ def write_submit(chain_index, kind, resolution, nthreads):
 #SBATCH -e error_{chain_index}_%J.err
 #SBATCH -p cosma8-serial
 #SBATCH -A dp016
-#SBATCH -t 04:00:00
+#SBATCH -t 16:00:00
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=richard.stiskalek@physics.ox.ac.uk
 
@@ -54,7 +54,7 @@ export OMP_NUM_THREADS={nthreads}
 export OMP_NESTED=true
 
 snapshot_path="/cosma8/data/dp016/dc-stis1/csiborg2_{kind}/chain_{chain_index}/output/snapshot_099_full.hdf5"
-output_path="/cosma8/data/dp016/dc-stis1/csiborg2_{kind}/field/chain_{chain_index}.hdf5"
+output_path="/cosma8/data/dp016/dc-stis1/csiborg2_{kind}/field/chain_{chain_index}_{resolution}.hdf5"
 resolution={resolution}
 scratch_space="/snap8/scratch/dp016/dc-stis1/"
 SPH_executable="/cosma8/data/dp016/dc-stis1/cosmotool/bld2/sample/simple3DFilter"
@@ -73,8 +73,8 @@ python3 field_sph.py --snapshot_path $snapshot_path --output_path $output_path -
 
 if __name__ == "__main__":
     kind = "main"
-    resolution = 256
-    nthreads = 4
+    resolution = 1024 
+    nthreads = 32
     chains = [15517]
 
     for chain_index in chains:
