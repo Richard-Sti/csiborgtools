@@ -42,7 +42,7 @@ def prepare_random(temporary_output_path, npart=100, dtype=np.float32):
     """
     Prepare a random dataset for the SPH filter.
     """
-
+    print("Preparing random dataset.", flush=True)
     arr = np.full((npart, 7), np.nan, dtype=dtype)
 
     arr[:, :3] = np.random.uniform(0, 1, (npart, 3))
@@ -172,7 +172,7 @@ def main(snapshot_path, output_path, resolution, scratch_space, SPH_executable,
         raise RuntimeError("Temporary output path must end with `.hdf5`.")
 
     print(f"{now()}: preparing snapshot...", flush=True)
-    boxsize = prepare_gadget(snapshot_path, temporary_output_path)
+    # boxsize = prepare_gadget(snapshot_path, temporary_output_path)
     boxsize = prepare_random(temporary_output_path, npart=100,
                              dtype=np.float32)
 
