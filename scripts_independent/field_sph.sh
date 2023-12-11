@@ -25,7 +25,7 @@ module load python/3.10.12
 module list
 
 source /cosma/home/dp016/dc-stis1/csiborgtools/venv_csiborgtools/bin/activate
-export OMP_NUM_THREADS=1
+export OMP_NUM_THREADS=4
 
 # ADD CHAINS HERE
 
