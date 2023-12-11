@@ -98,8 +98,8 @@ def run_sph_filter(particles_path, output_path, boxsize, resolution,
     if not exists(SPH_executable):
         raise RuntimeError(f"SPH executable `{SPH_executable}` does not exist.")  # noqa
 
-    command = [SPH_executable, particles_path, str(1e14), str(boxsize), str(resolution),
-               str(0), str(0), str(0), output_path, "1"]
+    command = [SPH_executable, particles_path, str(1e14), str(boxsize),
+               str(resolution), str(0), str(0), str(0), output_path, "1"]
     print(f"{now()}: executing `simple3DFilter`.", flush=True)
     start_time = now()
     process = subprocess.Popen(
@@ -114,7 +114,7 @@ def run_sph_filter(particles_path, output_path, boxsize, resolution,
         raise RuntimeError("`simple3DFilter`failed.")
     else:
         dt = now() - start_time
-        print(f"{now}: `simple3DFilter`completed successfully in {dt}.",
+        print(f"{now()}: `simple3DFilter`completed successfully in {dt}.",
               flush=True)
 
 
@@ -167,9 +167,9 @@ def main(snapshot_path, output_path, resolution, scratch_space, SPH_executable,
         raise RuntimeError("Temporary output path must end with `.hdf5`.")
 
     print(f"{now()}: preparing snapshot...", flush=True)
-    # boxsize = prepare_gadget(snapshot_path, temporary_output_path)
-    boxsize = prepare_random(temporary_output_path, npart=100,
-                             dtype=np.float32)
+    boxsize = prepare_gadget(snapshot_path, temporary_output_path)
+    # boxsize = prepare_random(temporary_output_path, npart=100,
+    #                          dtype=np.float32)
 
     run_sph_filter(temporary_output_path, output_path, boxsize, resolution,
                    SPH_executable)
