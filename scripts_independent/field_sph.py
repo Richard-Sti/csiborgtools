@@ -168,8 +168,8 @@ def main(snapshot_path, output_path, resolution, scratch_space, SPH_executable,
 
     print(f"{now()}: preparing snapshot...", flush=True)
     boxsize = prepare_gadget(snapshot_path, temporary_output_path)
-    # boxsize = prepare_random(temporary_output_path, npart=100,
-    #                          dtype=np.float32)
+    print(f"{now()}: wrote temporary data to {temporary_output_path}.",
+          flush=True)
 
     run_sph_filter(temporary_output_path, output_path, boxsize, resolution,
                    SPH_executable)
