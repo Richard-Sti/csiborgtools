@@ -79,7 +79,7 @@ def main(nsim, simname, verbose):
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     if simname == "csiborg":
-        partreader = csiborgtools.read.CSiBORGReader(paths)
+        partreader = csiborgtools.read.CSiBORG1Reader(paths)
     else:
         partreader = csiborgtools.read.QuijoteReader(paths)
 

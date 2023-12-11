@@ -18,6 +18,6 @@ from .halo_cat import (CSiBORGCatalogue, QuijoteCatalogue,                      
 from .obs import (SDSS, MCXCClusters, PlanckClusters, TwoMPPGalaxies,           # noqa
                   TwoMPPGroups, ObservedCluster, match_array_to_no_masking)     # noqa
 from .paths import Paths                                                        # noqa
-from .readsim import (CSiBORGReader, QuijoteReader, load_halo_particles,        # noqa
+from .readsim import (CSiBORG1Reader, QuijoteReader, load_halo_particles,        # noqa
                       make_halomap_dict)                                        # noqa
 from .utils import cols_to_structured, read_h5                                  # noqa

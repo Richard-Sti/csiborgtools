@@ -51,7 +51,7 @@ MAS = "CIC"  # mass asignment scheme
 
 paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 box = csiborgtools.read.CSiBORG1Box(paths)
-reader = csiborgtools.read.CSiBORGReader(paths)
+reader = csiborgtools.read.CSiBORG1Reader(paths)
 ics = paths.get_ics("csiborg")
 nsims = len(ics)
 

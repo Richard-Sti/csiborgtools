@@ -63,7 +63,7 @@ def process_snapshot(nsim, simname, halo_finder, verbose):
     nsnap = max(paths.get_snapshots(nsim, simname))
 
     if simname == "csiborg":
-        partreader = csiborgtools.read.CSiBORGReader(paths)
+        partreader = csiborgtools.read.CSiBORG1Reader(paths)
         box = csiborgtools.read.CSiBORG1Box(nsnap, nsim, paths)
     else:
         partreader = csiborgtools.read.QuijoteReader(paths)
@@ -173,7 +173,7 @@ def add_initial_snapshot(nsim, simname, halo_finder, verbose):
     fname = paths.processed_output(nsim, simname, halo_finder)
 
     if simname == "csiborg":
-        partreader = csiborgtools.read.CSiBORGReader(paths)
+        partreader = csiborgtools.read.CSiBORG1Reader(paths)
     else:
         partreader = csiborgtools.read.QuijoteReader(paths)
 
@@ -294,7 +294,7 @@ def make_phew_halo_catalogue(nsim, verbose):
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     snapshots = paths.get_snapshots(nsim, "csiborg")
-    reader = csiborgtools.read.CSiBORGReader(paths)
+    reader = csiborgtools.read.CSiBORG1Reader(paths)
     keys_write = ["index", "x", "y", "z", "mass_cl", "parent",
                   "ultimate_parent", "summed_mass"]
 
