@@ -85,7 +85,7 @@ def prepare_gadget(snapshot_path, temporary_output_path):
 
 
 def run_sph_filter(particles_path, output_path, boxsize, resolution,
-                   SPH_executable, nthreads):
+                   SPH_executable):
     """
     Run the SPH filter on a snapshot.
     """
@@ -97,13 +97,6 @@ def run_sph_filter(particles_path, output_path, boxsize, resolution,
         raise TypeError("`resolution` must be an integer.")
     if not exists(SPH_executable):
         raise RuntimeError(f"SPH executable `{SPH_executable}` does not exist.")  # noqa
-    if not isinstance(nthreads, int):
-        raise TypeError("`nthreads` must be an integer.")
-
-    env = environ.copy()
-    print("ENV IS ")
-    print(env)
-    env['OMP_NUM_THREADS'] = str(nthreads)
 
     command = [SPH_executable, particles_path, str(1e14), str(boxsize),
                str(resolution), str(0), str(0), str(0), output_path, "1"]
@@ -111,7 +104,7 @@ def run_sph_filter(particles_path, output_path, boxsize, resolution,
     start_time = now()
     process = subprocess.Popen(
         command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        universal_newlines=True, env=env)
+        universal_newlines=True)
 
     for line in iter(process.stdout.readline, ""):
         print(line, end="", flush=True)
@@ -126,7 +119,7 @@ def run_sph_filter(particles_path, output_path, boxsize, resolution,
 
 
 def main(snapshot_path, output_path, resolution, scratch_space, SPH_executable,
-         snapshot_kind, nthreads=1):
+         snapshot_kind):
     """
     Construct the density and velocity fields for a simulation snapshot using
     `cosmotool` [1].
@@ -145,8 +138,6 @@ def main(snapshot_path, output_path, resolution, scratch_space, SPH_executable,
         Path to the `simple3DFilter` executable [1].
     snapshot_kind : str
         Kind of the simulation snapshot. Currently only `gadget4` is supported.
-    nthreads : int, optional
-        Number of threads to use to execute the SPH filter.
 
     Returns
     -------
@@ -176,13 +167,12 @@ def main(snapshot_path, output_path, resolution, scratch_space, SPH_executable,
         raise RuntimeError("Temporary output path must end with `.hdf5`.")
 
     print(f"{now()}: preparing snapshot...", flush=True)
-    # boxsize = prepare_gadget(snapshot_path, temporary_output_path)
-    boxsize = prepare_random(temporary_output_path, npart=1000)
+    boxsize = prepare_gadget(snapshot_path, temporary_output_path)
     print(f"{now()}: wrote temporary data to {temporary_output_path}.",
           flush=True)
 
     run_sph_filter(temporary_output_path, output_path, boxsize, resolution,
-                   SPH_executable, nthreads=nthreads)
+                   SPH_executable)
     print(f"{now()}: removing the temporary snapshot file.", flush=True)
     remove(temporary_output_path)
 
@@ -202,10 +192,7 @@ if __name__ == "__main__":
     parser.add_argument("--snapshot_kind", type=str, required=True,
                         choices=["gadget4"],
                         help="Kind of the simulation snapshot.")
-    parser.add_argument("--nthreads", type=int, default=1,
-                        help="Number of threads to use to execute the SPH filter.")  # noqa
     args = parser.parse_args()
 
     main(args.snapshot_path, args.output_path, args.resolution,
-         args.scratch_space, args.SPH_executable, args.snapshot_kind,
-         args.nthreads)
+         args.scratch_space, args.SPH_executable, args.snapshot_kind)
