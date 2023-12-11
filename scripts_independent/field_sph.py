@@ -17,7 +17,7 @@ Script to construct the density and velocity fields for a simulation snapshot.
 The SPH filter is implemented in the cosmotool package.
 """
 from argparse import ArgumentParser
-from os import remove
+from os import environ, remove
 from os.path import join, exists
 import subprocess
 from datetime import datetime
@@ -85,7 +85,7 @@ def prepare_gadget(snapshot_path, temporary_output_path):
 
 
 def run_sph_filter(particles_path, output_path, boxsize, resolution,
-                   SPH_executable):
+                   SPH_executable, nthreads):
     """
     Run the SPH filter on a snapshot.
     """
@@ -98,13 +98,16 @@ def run_sph_filter(particles_path, output_path, boxsize, resolution,
     if not exists(SPH_executable):
         raise RuntimeError(f"SPH executable `{SPH_executable}` does not exist.")  # noqa
 
+    env = environ.copy()
+    env['OMP_NUM_THREADS'] = '4'
+
     command = [SPH_executable, particles_path, str(1e14), str(boxsize),
                str(resolution), str(0), str(0), str(0), output_path, "1"]
     print(f"{now()}: executing `simple3DFilter`.", flush=True)
     start_time = now()
     process = subprocess.Popen(
         command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        universal_newlines=True)
+        universal_newlines=True, env=env)
 
     for line in iter(process.stdout.readline, ""):
         print(line, end="", flush=True)
@@ -119,7 +122,7 @@ def run_sph_filter(particles_path, output_path, boxsize, resolution,
 
 
 def main(snapshot_path, output_path, resolution, scratch_space, SPH_executable,
-         snapshot_kind):
+         snapshot_kind, nthreads=1):
     """
     Construct the density and velocity fields for a simulation snapshot using
     `cosmotool` [1].
@@ -138,6 +141,8 @@ def main(snapshot_path, output_path, resolution, scratch_space, SPH_executable,
         Path to the `simple3DFilter` executable [1].
     snapshot_kind : str
         Kind of the simulation snapshot. Currently only `gadget4` is supported.
+    nthreads : int, optional
+        Number of threads to use to execute the SPH filter.
 
     Returns
     -------
@@ -172,7 +177,7 @@ def main(snapshot_path, output_path, resolution, scratch_space, SPH_executable,
     #                          dtype=np.float32)
 
     run_sph_filter(temporary_output_path, output_path, boxsize, resolution,
-                   SPH_executable)
+                   SPH_executable, nthreads=nthreads)
     print(f"{now()}: removing the temporary snapshot file.", flush=True)
     remove(temporary_output_path)
 
@@ -192,7 +197,10 @@ if __name__ == "__main__":
     parser.add_argument("--snapshot_kind", type=str, required=True,
                         choices=["gadget4"],
                         help="Kind of the simulation snapshot.")
+    parser.add_argument("--nthreads", type=int, default=1,
+                        help="Number of threads to use to execute the SPH filter.")  # noqa
     args = parser.parse_args()
 
     main(args.snapshot_path, args.output_path, args.resolution,
-         args.scratch_space, args.SPH_executable, args.snapshot_kind)
+         args.scratch_space, args.SPH_executable, args.snapshot_kind,
+         args.nthreads)
