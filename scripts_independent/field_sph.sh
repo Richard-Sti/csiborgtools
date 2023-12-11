@@ -27,8 +27,6 @@ module list
 source /cosma/home/dp016/dc-stis1/csiborgtools/venv_csiborgtools/bin/activate
 export OMP_NUM_THREADS=1
 
-
-
 # ADD CHAINS HERE
 
 snapshot_path="/cosma8/data/dp016/dc-stis1/csiborg2_main/chain_15517/output/snapshot_099_full.hdf5"
@@ -38,14 +36,5 @@ scratch_space="/cosma8/data/dp016/dc-stis1/csiborg2_main/field"
 SPH_executable="/cosma8/data/dp016/dc-stis1/cosmotool/bld/sample/simple3DFilter"
 snapshot_kind="gadget4"
 
-
-echo "---------------------- Job Information ----------------------"
-echo "Hosts:                                   $SLURM_NODELIST"
-echo "Number of Nodes:                         $SLURM_NNODES"
-echo "CPUs per Node:                           $SLURM_CPUS_ON_NODE"
-echo "Total CPUs Requested:                    $(($SLURM_NTASKS_PER_NODE * $SLURM_NNODES * $SLURM_CPUS_ON_NODE))"
-echo "Current Working Directory:               $(pwd)"
-echo "-------------------------------------------------------------"
-echo
 
 echo "python3 field_sph.py --snapshot_path $snapshot_path --output_path $output_path --resolution $resolution --scratch_space $scratch_space --SPH_executable $SPH_executable --snapshot_kind $snapshot_kind"
