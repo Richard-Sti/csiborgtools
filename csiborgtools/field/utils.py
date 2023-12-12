@@ -49,5 +49,8 @@ def nside2radec(nside):
     """
     pixs = numpy.arange(healpy.nside2npix(nside))
     theta, phi = healpy.pix2ang(nside, pixs)
-    theta -= numpy.pi / 2
-    return 180 / numpy.pi * numpy.vstack([phi, theta]).T
+
+    ra = 180 / numpy.pi * phi
+    dec = 90 - 180 / numpy.pi * theta
+
+    return numpy.vstack([ra, dec]).T
