@@ -48,10 +48,11 @@ def convert_last_snapshot():
     Read in RAMSES binary files and output them as HDF5 files. Works on
     glamdring.
     """
-    chains = [7444 + n * 24 for n in range(101)]
+    chains = [7444 + n * 24 for n in range(2, 101)]
+    chains = [7444]
     base_dir = "/mnt/extraspace/hdesmond/"
 
-    for chain in chains[:1]:
+    for chain in chains:
         sourcedir = join(base_dir, f"ramses_out_{chain}")
         snap = max([int(basename(f).replace("output_", ""))
                     for f in glob(join(sourcedir, "output_*"))])
@@ -84,4 +85,6 @@ def convert_initial_snapshot():
 
 
 if __name__ == "__main__":
-    convert_initial_snapshot()
+    # convert_initial_snapshot()
+    # convert_last_snapshot()
+    print("No option selected.")
