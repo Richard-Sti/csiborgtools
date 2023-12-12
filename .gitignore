@@ -26,3 +26,6 @@ scripts_plots/*.sh
 notebooks/test.ipynb
 scripts/mgtree.py
 scripts/makemerger.py
+
+*.out
+*/python.sh
