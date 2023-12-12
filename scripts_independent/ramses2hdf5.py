@@ -111,7 +111,7 @@ def convert_to_hdf5(snapshot_path, output_path=None):
                          data=load_snapshot(snapshot_path, "mass") * box2msunh,
                          **hdf5plugin.Blosc(**blosc_kwargs))
 
-        header = f.create_dataset("Header")
+        header = f.create_dataset("Header", (0,))
         header["BoxSize"] = 677.7  # Mpc/h
         header["Omega0"] = 0.307
         header["OmegaBaryon"] = 0.0
