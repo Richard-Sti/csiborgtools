@@ -58,7 +58,7 @@ def load_snapshot(snapshot_path, kind):
 
 def convert_to_hdf5(snapshot_path, output_path=None):
     """
-    Convert a RAMSES snapshot to a compressed HDF5 file.
+    Convert a RAMSES CSiBORG1 snapshot to a compressed HDF5 file.
 
     Parameters
     ----------
@@ -92,21 +92,31 @@ def convert_to_hdf5(snapshot_path, output_path=None):
 
         print(f"{datetime.now()}: creating dataset `Coordinates`...",
               flush=True)
+        box2mpch = 677.7
         f.create_dataset("Coordinates",
-                         data=load_snapshot(snapshot_path, "pos"),
+                         data=load_snapshot(snapshot_path, "pos") * box2mpch,
                          **hdf5plugin.Blosc(**blosc_kwargs))
 
         print(f"{datetime.now()}: creating dataset `Velocities`...",
               flush=True)
+        box2kms = 67682.75228061239
         f.create_dataset("Velocities",
-                         data=load_snapshot(snapshot_path, "vel"),
+                         data=load_snapshot(snapshot_path, "vel") * box2kms,
                          **hdf5plugin.Blosc(**blosc_kwargs))
 
         print(f"{datetime.now()}: creating dataset `Masses`...",
               flush=True)
+        box2msunh = 2.6543271649678946e+19
         f.create_dataset("Masses",
-                         data=load_snapshot(snapshot_path, "mass"),
+                         data=load_snapshot(snapshot_path, "mass") * box2msunh,
                          **hdf5plugin.Blosc(**blosc_kwargs))
+
+        header = f.create_dataset("Header")
+        header["BoxSize"] = 677.7  # Mpc/h
+        header["Omega0"] = 0.307
+        header["OmegaBaryon"] = 0.0
+        header["OmegaLambda"] = 0.693
+        header["HubleParam"] = 0.6777
 
         print(f"{datetime.now()}: done with `{snapshot_path}`.", flush=True)
 
