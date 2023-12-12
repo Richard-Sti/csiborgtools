@@ -20,13 +20,14 @@ from .utils import (center_of_mass, delta2ncells, number_counts,                
                     hms_to_degrees, dms_to_degrees, great_circle_distance)      # noqa
 
 # Arguments to csiborgtools.read.Paths.
-paths_glamdring = {"csiborg1_srcdir": "/mnt/extraspace/hdesmond/",
-                   "csiborg2_main_srcdir": "/mnt/extraspace/rstiskalek/csiborg2_main",  # noqa
-                   "csiborg2_varysmall_srcdir": "/mnt/extraspace/rstiskalek/csiborg2_varysmall",  # noqa
-                   "csiborg2_random_srcdir": "/mnt/extraspace/rstiskalek/csiborg2_random",  # noqa
-                   "postdir": "/mnt/extraspace/rstiskalek/csiborg/",
-                   "quijote_dir": "/mnt/extraspace/rstiskalek/quijote",
-                   }
+paths_glamdring = {
+    "csiborg1_srcdir": "/mnt/extraspace/hdesmond/",
+    "csiborg2_main_srcdir": "/mnt/extraspace/rstiskalek/csiborg2_main",
+    "csiborg2_varysmall_srcdir": "/mnt/extraspace/rstiskalek/csiborg2_varysmall",   # noqa
+    "csiborg2_random_srcdir": "/mnt/extraspace/rstiskalek/csiborg2_random",         # noqa
+    "postdir": "/mnt/extraspace/rstiskalek/csiborg_postprocessing/",
+    "quijote_dir": "/mnt/extraspace/rstiskalek/quijote",
+    }
 
 
 neighbour_kwargs = {"rmax_radial": 155 / 0.705,
