@@ -112,11 +112,11 @@ def convert_to_hdf5(snapshot_path, output_path=None):
                          **hdf5plugin.Blosc(**blosc_kwargs))
 
         header = f.create_dataset("Header", (0,))
-        header["BoxSize"] = 677.7  # Mpc/h
-        header["Omega0"] = 0.307
-        header["OmegaBaryon"] = 0.0
-        header["OmegaLambda"] = 0.693
-        header["HubleParam"] = 0.6777
+        header.attrs["BoxSize"] = 677.7  # Mpc/h
+        header.attrs["Omega0"] = 0.307
+        header.attrs["OmegaBaryon"] = 0.0
+        header.attrs["OmegaLambda"] = 0.693
+        header.attrs["HubleParam"] = 0.6777
 
         print(f"{datetime.now()}: done with `{snapshot_path}`.", flush=True)
 
