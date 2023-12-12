@@ -139,7 +139,7 @@ def observer_vobs(velocity_field):
     return vobs
 
 
-def make_sky(field, angpos, dist, box, volume_weight=True, verbose=True):
+def make_sky(field, angpos, dist, boxsize, volume_weight=True, verbose=True):
     r"""
     Make a sky map of a scalar field. The observer is in the centre of the
     box the field is evaluated along directions `angpos` (RA [0, 360) deg,
@@ -153,9 +153,9 @@ def make_sky(field, angpos, dist, box, volume_weight=True, verbose=True):
     angpos : 2-dimensional arrays of shape `(ndir, 2)`
         Directions to evaluate the field.
     dist : 1-dimensional array
-        Uniformly spaced radial distances to evaluate the field.
-    box : :py:class:`csiborgtools.read.CSiBORG1Box`
-        The simulation box information and transformations.
+        Uniformly spaced radial distances to evaluate the field in `Mpc / h`.
+    boxsize : float
+        Box size in `Mpc / h`.
     volume_weight : bool, optional
         Whether to weight the field by the volume of the pixel.
     verbose : bool, optional
@@ -168,11 +168,11 @@ def make_sky(field, angpos, dist, box, volume_weight=True, verbose=True):
     dx = dist[1] - dist[0]
     assert numpy.allclose(dist[1:] - dist[:-1], dx)
     assert angpos.ndim == 2 and dist.ndim == 1
+
     # We loop over the angular directions, at each step evaluating a vector
     # of distances. We pre-allocate arrays for speed.
     dir_loop = numpy.full((dist.size, 3), numpy.nan, dtype=numpy.float32)
-    boxdist = box.mpc2box(dist)
-    boxsize = box.box2mpc(1.)
+
     ndir = angpos.shape[0]
     out = numpy.full(ndir, numpy.nan, dtype=numpy.float32)
     for i in trange(ndir) if verbose else range(ndir):
@@ -181,7 +181,7 @@ def make_sky(field, angpos, dist, box, volume_weight=True, verbose=True):
         dir_loop[:, 2] = angpos[i, 1]
         if volume_weight:
             out[i] = numpy.sum(
-                boxdist**2
+                dist**2
                 * evaluate_sky(field, pos=dir_loop, mpc2box=1 / boxsize))
         else:
             out[i] = numpy.sum(
