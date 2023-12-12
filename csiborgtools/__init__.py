@@ -79,4 +79,8 @@ clusters = {"Virgo": read.ObservedCluster(RA=hms_to_degrees(12, 27),
                                           dec=dms_to_degrees(12, 43),
                                           dist=16.5 * 0.7,
                                           name="Virgo"),
+            "Fornax": read.ObservedCluster(RA=hms_to_degrees(3, 38),
+                                           dec=dms_to_degrees(-35, 27),
+                                           dist=19 * 0.7,
+                                           name="Fornax"),
             }
