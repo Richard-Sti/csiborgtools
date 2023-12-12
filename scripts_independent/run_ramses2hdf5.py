@@ -13,14 +13,14 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-Submission script for converting CSiBORG 1 RAMSES snapshots to HDF5 files on
-COSMA8. Be careful as this also deletes the part_* files.
+Submission script for converting CSiBORG 1 RAMSES snapshots to HDF5 files.
 """
 from glob import glob
-from os import system
-from os.path import join
+from os import system, makedirs
+from os.path import join, basename, exists
 
-if __name__ == "__main__":
+
+def main_cosma8():
     # CSiBORG1 chains. Modify this is needed.
     base_dir = "/cosma8/data/dp016/dc-stis1/csiborg1/csiborg_new"
     # chains = [7444 + n * 24 for n in range(2, 101)]
@@ -41,3 +41,47 @@ if __name__ == "__main__":
         # Remove all part_* particles. Recommended to do this only once you
         # have ensured that the compression was OK.
         # system(f"rm -rf {snapshot_path}/part_*")
+
+
+def convert_last_snapshot():
+    """
+    Read in RAMSES binary files and output them as HDF5 files. Works on
+    glamdring.
+    """
+    chains = [7444 + n * 24 for n in range(101)]
+    base_dir = "/mnt/extraspace/hdesmond/"
+
+    for chain in chains[:1]:
+        sourcedir = join(base_dir, f"ramses_out_{chain}")
+        snap = max([int(basename(f).replace("output_", ""))
+                    for f in glob(join(sourcedir, "output_*"))])
+
+        snapshot_path = join(sourcedir, f"output_{str(snap).zfill(5)}")
+
+        output_dir = f"/mnt/extraspace/rstiskalek/csiborg1/chain_{chain}"
+
+        if not exists(output_dir):
+            makedirs(output_dir)
+
+        output_path = join(output_dir, f"snapshot_{str(snap).zfill(5)}.hdf5")
+
+        cmd = f"addqueue -q berg -n 1x1 -m 64 /mnt/zfsusers/rstiskalek/csiborgtools/venv_csiborg/bin/python ramses2hdf5.py --snapshot_path {snapshot_path} --output_path {output_path}"  # noqa
+        print(cmd)
+        system(cmd)
+
+
+def convert_initial_snapshot():
+
+    chains = [7444 + n * 24 for n in range(101)]
+    chains = [7444, 7468]
+    base_dir = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/output"
+
+    for chain in chains:
+        snapshot_path = join(base_dir,
+                             f"ramses_out_{chain}_new", "output_00001")
+        cmd = f"addqueue -q berg -n 1x1 -m 64 /mnt/zfsusers/rstiskalek/csiborgtools/venv_csiborg/bin/python ramses2hdf5.py --snapshot_path {snapshot_path}"  # noqa
+        system(cmd)
+
+
+if __name__ == "__main__":
+    convert_initial_snapshot()
