@@ -21,7 +21,7 @@ import numpy
 from astropy import constants, units
 from astropy.cosmology import LambdaCDM
 
-from .readsim import CSiBORG1Reader, QuijoteReader
+from .readsim import CSiBORG1Reader
 
 ###############################################################################
 #                              Base box                                       #
@@ -225,93 +225,3 @@ class CSiBORG1Box(BaseBox):
         rho_crit = rho_crit.to_value(units.solMass / units.Mpc**3)
         r200c = (3 * m200c / (4 * numpy.pi * 200 * rho_crit))**(1 / 3)
         return r200c / self._aexp
-
-
-class CSiBORG2Box(BaseBox):
-    """
-    CSiBORG2 box units class for converting between box and physical units.
-
-    Parameters
-    ----------
-    nsim : int
-        IC realisation index.
-    paths : py:class`csiborgtools.read.Paths`
-        Paths manager
-    """
-    def __init__(self, nsnap, nsim, paths):
-
-        info = QuijoteReader(paths).read_info(nsnap, nsim)
-        self._aexp = 1 / (1 + zdict[nsnap])
-        self._h = info["h"]
-        self._cosmo = LambdaCDM(H0=100, Om0=info["Omega_m"],
-                                Ode0=info["Omega_l"], Tcmb0=2.725 * units.K)
-        self._info = info
-
-    @property
-    def boxsize(self):
-        return self._info["BoxSize"]
-
-    def box2mpc(self, length):
-        return length * self.boxsize
-
-    def mpc2box(self, length):
-        return length / self.boxsize
-
-    def solarmass2box(self, mass):
-        return mass / self._info["TotMass"]
-
-    def box2solarmass(self, mass):
-        return mass * self._info["TotMass"]
-
-    def m200c_to_r200c(self, m200c):
-        raise ValueError("Not implemented for Quijote boxes.")
-
-
-###############################################################################
-#                      Quijote fiducial cosmology box                         #
-###############################################################################
-
-
-class QuijoteBox(BaseBox):
-    """
-    Quijote cosmology box.
-
-    Parameters
-    ----------
-    nsnap : int
-        Snapshot number.
-    nsim : int
-        IC realisation index.
-    paths : py:class`csiborgtools.read.Paths`
-        Paths manager
-    """
-
-    def __init__(self, nsnap, nsim, paths):
-        zdict = {4: 0.0, 3: 0.5, 2: 1.0, 1: 2.0, 0: 3.0}
-        assert nsnap in zdict.keys(), f"`nsnap` must be in {zdict.keys()}."
-        info = QuijoteReader(paths).read_info(nsnap, nsim)
-        self._aexp = 1 / (1 + zdict[nsnap])
-        self._h = info["h"]
-        self._cosmo = LambdaCDM(H0=100, Om0=info["Omega_m"],
-                                Ode0=info["Omega_l"], Tcmb0=2.725 * units.K)
-        self._info = info
-
-    @property
-    def boxsize(self):
-        return self._info["BoxSize"]
-
-    def box2mpc(self, length):
-        return length * self.boxsize
-
-    def mpc2box(self, length):
-        return length / self.boxsize
-
-    def solarmass2box(self, mass):
-        return mass / self._info["TotMass"]
-
-    def box2solarmass(self, mass):
-        return mass * self._info["TotMass"]
-
-    def m200c_to_r200c(self, m200c):
-        raise ValueError("Not implemented for Quijote boxes.")
-
