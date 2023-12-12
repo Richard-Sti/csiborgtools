@@ -65,7 +65,7 @@ def plot_sky_projected_density(nsim, simname, grid, nside, MAS="PCS",
                                        dmin, dmax, volume_weight)
 
     with plt.style.context(plt_utils.mplstyle):
-        healpy.mollview(dmap, fig=0, title="", unit="", rot=90)
+        healpy.mollview(numpy.log10(dmap), fig=0, title="", unit="")
 
         # if plot_groups:
         #     groups = csiborgtools.read.TwoMPPGroups(fpath="/mnt/extraspace/rstiskalek/catalogs/2M++_group_catalog.dat")  # noqa
@@ -95,4 +95,6 @@ if __name__ == "__main__":
             delete_disk_caches_for_function(func)
 
     if True:
-        plot_sky_projected_density()
+        plot_sky_projected_density(7444, "csiborg", 512, 32, "PCS", dmin=10,
+                                   dmax=30, volume_weight=False)
+
