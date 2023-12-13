@@ -29,6 +29,7 @@ from tqdm import tqdm
 import csiborgtools
 from utils import get_nsims
 
+# TODO get rid of this.
 MPC2BOX = 1 / 677.7
 
 
