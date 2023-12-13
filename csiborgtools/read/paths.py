@@ -393,29 +393,6 @@ class Paths:
 
         return join(fdir, fname)
 
-    def observer_peculiar_velocity(self, MAS, grid, nsim):
-        """
-        Path to the files containing the observer peculiar velocity.
-
-        Parameters
-        ----------
-        MAS : str
-           Mass-assignment scheme.
-        grid : int
-            Grid size.
-        nsim : int
-            IC realisation index.
-
-        Returns
-        -------
-        str
-        """
-        fdir = join(self.postdir, "environment")
-        try_create_directory(fdir)
-
-        fname = f"obs_vp_{MAS}_{str(nsim).zfill(5)}_{grid}.npz"
-        return join(fdir, fname)
-
     def cross_nearest(self, simname, run, kind, nsim=None, nobs=None):
         """
         Path to the files containing distance from a halo in a reference
