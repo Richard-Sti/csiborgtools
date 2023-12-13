@@ -38,9 +38,7 @@ from .utils import add_columns, cols_to_structured, flip_cols
 
 
 class BaseReader(ABC):
-    """
-    Base class for all readers.
-    """
+    """Base class for all readers."""
     _paths = None
 
     @property
@@ -148,21 +146,14 @@ class CSiBORG1Reader(BaseReader):
     def __init__(self, paths):
         self.paths = paths
 
-    def read_info(self, nsnap, nsim):
-        snappath = self.paths.snapshot(nsnap, nsim, "csiborg")
-        filename = join(snappath, "info_{}.txt".format(str(nsnap).zfill(5)))
-        with open(filename, "r") as f:
-            info = f.read().split()
-        # Throw anything below ordering line out
-        info = numpy.asarray(info[:info.index("ordering")])
-        # Get indexes of lines with `=`. Indxs before/after be keys/vals
-        eqs = numpy.asarray([i for i in range(info.size) if info[i] == '='])
-
-        keys = info[eqs - 1]
-        vals = info[eqs + 1]
-        return {key: convert_str_to_num(val) for key, val in zip(keys, vals)}
-
     def read_snapshot(self, nsnap, nsim, kind):
+
+
+
+
+
+
+
         sim = pynbody.load(self.paths.snapshot(nsnap, nsim, "csiborg"))
 
         if kind == "pid":
@@ -248,30 +239,7 @@ class CSiBORG1Reader(BaseReader):
 
         return clumpid
 
-    def read_halomaker_id(self, nsnap, nsim, halo_finder, verbose):
-        fpath = self.paths.halomaker_particle_membership(
-            nsnap, nsim, halo_finder)
 
-        fprint("loading particle IDs from the snapshot.", verbose)
-        pids = self.read_snapshot(nsnap, nsim, "pid")
-
-        fprint("mapping particle IDs to their indices.", verbose)
-        pids_idx = {pid: i for i, pid in enumerate(pids)}
-        # Unassigned particle IDs are assigned a halo ID of 0.
-        fprint("mapping HIDs to their array indices.", verbose)
-        hids = numpy.zeros(pids.size, dtype=numpy.int32)
-
-        # Read lin-by-line to avoid loading the whole file into memory.
-        with open(fpath, 'r') as file:
-            for line in tqdm(file, disable=not verbose,
-                             desc="Processing membership"):
-                hid, pid = map(int, line.split())
-                hids[pids_idx[pid]] = hid
-
-        del pids_idx
-        collect()
-
-        return hids
 
     def read_catalogue(self, nsnap, nsim, halo_finder):
         if halo_finder == "PHEW":
@@ -438,7 +406,7 @@ class CSiBORG1Reader(BaseReader):
 
 class CSiBORG2Reader(BaseReader):
     """
-    Object to read in Quijote snapshots from the binary files.
+    Object to read in CSiBORG2 snapshots.
 
     Parameters
     ----------
@@ -452,7 +420,23 @@ class CSiBORG2Reader(BaseReader):
         """
         Read simulation snapshot info.
         """
-        pass
+        snapshot = self.paths.snapshot(nsnap, nsim, "quijote")
+
+        header = readgadget.header(snapshot)
+        out = {"BoxSize": header.boxsize / 1e3,       # Mpc/h
+               "Nall": header.nall[1],                # Tot num of particles
+               "PartMass": header.massarr[1] * 1e10,  # Part mass in Msun/h
+               "Omega_m": header.omega_m,
+               "Omega_l": header.omega_l,
+               "h": header.hubble,
+               "redshift": header.redshift,
+               }
+        out["TotMass"] = out["Nall"] * out["PartMass"]
+        out["Hubble"] = (100.0 * numpy.sqrt(
+            header.omega_m * (1.0 + header.redshift)**3 + header.omega_l))
+        return out
+
+
 
     @abstractmethod
     def read_snapshot(self, nsnap, nsim, kind, sort_like_final=False):
