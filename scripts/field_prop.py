@@ -53,6 +53,7 @@ def density_field(nsim, parser_args, to_save=True):
     fname = paths.processed_output(nsim, "csiborg", "halo_catalogue")
 
     if not parser_args.in_rsp:
+        # TODO I removed this function
         snap = csiborgtools.read.read_h5(fname)["snapshot_final"]
         pos = snap["pos"]
         mass = snap["mass"]
