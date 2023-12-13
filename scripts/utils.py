@@ -38,13 +38,8 @@ def get_nsims(args, paths):
     """
     Get simulation indices from the command line arguments.
     """
-    try:
-        from_quijote_backup = args.from_quijote_backup
-    except AttributeError:
-        from_quijote_backup = False
-
     if args.nsims is None or args.nsims[0] == -1:
-        nsims = paths.get_ics(args.simname, from_quijote_backup)
+        nsims = paths.get_ics(args.simname)
     else:
         nsims = args.nsims
     return list(nsims)
