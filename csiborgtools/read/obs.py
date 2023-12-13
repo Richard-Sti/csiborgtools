@@ -26,7 +26,6 @@ from astropy.io import fits
 from astropy.cosmology import FlatLambdaCDM
 from scipy import constants
 
-from .utils import cols_to_structured
 
 ###############################################################################
 #                           Text survey base class                            #
@@ -830,3 +829,17 @@ def match_array_to_no_masking(arr, surv):
         out[indx] = arr[i]
 
     return out
+
+
+def cols_to_structured(N, cols):
+    """
+    Allocate a structured array from `cols`, a list of (name, dtype) tuples.
+    """
+    if not (isinstance(cols, list)
+            and all(isinstance(c, tuple) and len(c) == 2 for c in cols)):
+        raise TypeError("`cols` must be a list of (name, dtype) tuples.")
+
+    names, formats = zip(*cols)
+    dtype = {"names": names, "formats": formats}
+
+    return numpy.full(N, numpy.nan, dtype=dtype)
