@@ -17,7 +17,7 @@ CSiBORG paths manager.
 """
 from glob import glob, iglob
 from os import makedirs
-from os.path import isdir, join
+from os.path import basename, isdir, join
 from warnings import warn
 
 import numpy
@@ -40,6 +40,7 @@ class Paths:
 
     Parameters
     ----------
+    # HERE EDIT EVERYTHING
     srcdir : str, optional
         Path to the folder where the RAMSES outputs are stored.
     postdir: str, optional
@@ -49,73 +50,199 @@ class Paths:
     quiote_dir : str, optional
         Path to the folder where Quijote simulations are stored.
     """
-    _srcdir = None
-    _postdir = None
-    _borg_dir = None
-    _quijote_dir = None
-
-    def __init__(self, srcdir=None, postdir=None, borg_dir=None,
-                 quijote_dir=None):
-        self.srcdir = srcdir
-        self.postdir = postdir
-        self.borg_dir = borg_dir
+    def __init__(self,
+                 csiborg1_srcdir=None,
+                 csiborg2_main_srcdir=None,
+                 csiborg2_random_srcdir=None,
+                 csiborg2_varysmall_srcdir=None,
+                 postdir=None,
+                 quijote_dir=None
+                 ):
+        self.csiborg1_srcdir = csiborg1_srcdir
+        self.csiborg2_main_srcdir = csiborg2_main_srcdir
+        self.csiborg2_random_srcdir = csiborg2_random_srcdir
+        self.csiborg2_varysmall_srcdir = csiborg2_varysmall_srcdir
         self.quijote_dir = quijote_dir
 
-    @property
-    def srcdir(self):
-        """Path to the folder where CSiBORG simulations are stored."""
-        if self._srcdir is None:
-            raise ValueError("`srcdir` is not set!")
-        return self._srcdir
+        self.postdir = postdir
 
-    @srcdir.setter
-    def srcdir(self, path):
-        if path is None:
-            return
-        check_directory(path)
-        self._srcdir = path
+    def get_ics(self, simname, from_quijote_backup=False):
+        """
+        Get available IC realisation IDs for a given simulation.
 
-    @property
-    def borg_dir(self):
-        """Path to the folder where BORG MCMC chains are stored."""
-        if self._borg_dir is None:
-            raise ValueError("`borg_dir` is not set!")
-        return self._borg_dir
+        Parameters
+        ----------
+        simname : str
+            Simulation name.
+        from_quijote_backup : bool, optional
+            Whether to return the ICs from the Quijote backup.
 
-    @borg_dir.setter
-    def borg_dir(self, path):
-        if path is None:
-            return
-        check_directory(path)
-        self._borg_dir = path
+        Returns
+        -------
+        ids : 1-dimensional array
+        """
+        if simname == "csiborg":
+            files = glob(join(self.csiborg1_srcdir, "chain_*"))
+            files = [int(basename(f).replace("chain_", "") for f in files)]
+        elif simname == "csiborg2_main":
+            files = glob(join(self.csiborg2_main_srcdir, "chain_*"))
+            files = [int(basename(f).replace("chain_", "") for f in files)]
+        elif simname == "csiborg2_random":
+            raise NotImplementedError("TODO")
+        elif simname == "csiborg2_varysmall":
+            raise NotImplementedError("TODO")
+        elif simname == "quijote" or simname == "quijote_full":
+            if from_quijote_backup:
+                files = glob(join(self.quijote_dir, "halos_backup", "*"))
+            else:
+                warn(("Taking only the snapshots that also have "
+                     "a FoF catalogue!"))
+                files = glob(join(self.quijote_dir, "Snapshots_fiducial", "*"))
+            files = [int(f.split("/")[-1]) for f in files]
+            files = [f for f in files if f < 100]
+        else:
+            raise ValueError(f"Unknown simulation name `{simname}`.")
 
-    @property
-    def quijote_dir(self):
-        """Path to the folder where Quijote simulations are stored."""
-        if self._quijote_dir is None:
-            raise ValueError("`quijote_dir` is not set!")
-        return self._quijote_dir
+        return numpy.sort(files)
 
-    @quijote_dir.setter
-    def quijote_dir(self, path):
-        if path is None:
-            return
-        check_directory(path)
-        self._quijote_dir = path
+    def snapshots(self, nsim, simname):
+        if simname == "csiborg":
+            fname = "ramses_out_{}"
+            if tonew:
+                fname += "_new"
+                return join(self.postdir, "output", fname.format(nsim))
+            return join(self.csiborg1_srcdir, fname.format(nsim))
+        elif simname == "csiborg2_main":
+            return join(self.csiborg2_main_srcdir, f"chain_{nsim}", "output")
+        elif simname == "csiborg2_random":
+            raise NotImplementedError("TODO")
+        elif simname == "csiborg2_varysmall":
+            raise NotImplementedError("TODO")
+        elif simname == "quijote":
+            return join(self.quijote_dir, "Snapshots_fiducial", str(nsim))
+        else:
+            raise ValueError(f"Unknown simulation name `{simname}`.")
 
-    @property
-    def postdir(self):
-        """Path to the folder where post-processed files are stored."""
-        if self._postdir is None:
-            raise ValueError("`postdir` is not set!")
-        return self._postdir
+    def snapshot(self, nsnap, nsim, simname):
+        """
+        Path to an IC realisation snapshot.
 
-    @postdir.setter
-    def postdir(self, path):
-        if path is None:
-            return
-        check_directory(path)
-        self._postdir = path
+        Parameters
+        ----------
+        nsnap : int
+            Snapshot index. For Quijote, `-1` indicates the IC snapshot.
+        nsim : inlot
+            IC realisation index.
+        simname : str
+            Simulation name.
+
+        Returns
+        -------
+        str
+        """
+        if simname == "csiborg":
+            return join(self.csiborg1_srcdir, f"chain_{nsim}",
+                        f"snapshot_{str(nsnap).zfill(5)}")
+        elif simname == "csiborg2_main":
+            return join(self.csiborg1_srcdir, f"chain_{nsim}",
+                        f"snapshot_{str(nsnap).zfill(5)}")
+        elif simname == "csiborg2_random":
+            raise NotImplementedError("TODO")
+        elif simname == "csiborg2_varysmall":
+            raise NotImplementedError("TODO")
+        elif simname == "quijote":
+            raise NotImplementedError("TODO")
+        else:
+            raise ValueError(f"Unknown simulation name `{simname}`.")
+
+
+        # simpath = self.snapshots(nsim, simname, tonew=nsnap == 1)
+        # if simname == "csiborg":
+        #     return join(simpath, f"output_{str(nsnap).zfill(5)}")
+        # else:
+        #     if nsnap == -1:
+        #         return join(simpath, "ICs", "ics")
+        #     nsnap = str(nsnap).zfill(3)
+        #     return join(simpath, f"snapdir_{nsnap}", f"snap_{nsnap}")
+
+
+    def get_snapshots(self, nsim, simname):
+        """
+        List of available snapshots of simulation.
+
+        Parameters
+        ----------
+        nsim : int
+            IC realisation index.
+        simname : str
+            Simulation name.
+
+        Returns
+        -------
+        snapshots : 1-dimensional array
+        """
+        simpath = self.snapshots(nsim, simname, tonew=False)
+
+        if simname == "csiborg":
+            # Get all files in simpath that start with output_
+            snaps = glob(join(simpath, "output_*"))
+            # Take just the last _00XXXX from each file  and strip zeros
+            snaps = [int(snap.split("_")[-1].lstrip("0")) for snap in snaps]
+        elif simname == "csiborg2_main":
+            snaps = glob(join(simpath, "snapshot_*"))
+            snaps = [basename(snap) for snap in snaps]
+            snaps = [int(snap.split("_")[1]) for snap in snaps]
+        elif simname == "csiborg2_random":
+            raise NotImplementedError("TODO")
+        elif simname == "csiborg2_varysmall":
+            raise NotImplementedError("TODO")
+        elif simname == "quijote":
+            snaps = glob(join(simpath, "snapdir_*"))
+            snaps = [int(snap.split("/")[-1].split("snapdir_")[-1])
+                     for snap in snaps]
+        else:
+            raise ValueError(f"Unknown simulation name `{simname}`.")
+        return numpy.sort(snaps)
+
+    def fof_cat(self, nsnap, nsim, simname, from_quijote_backup=False):
+        r"""
+        Path to the FoF halo catalogue.
+
+        Parameters
+        ----------
+        nsnap : int
+            Snapshot index.
+        nsim : int
+            IC realisation index.
+        simname : str
+            Simulation name.
+        from_quijote_backup : bool, optional
+            Whether to return the path to the Quijote FoF catalogue from the
+            backup.
+
+        Returns
+        -------
+        str
+        """
+        if simname == "csiborg":
+            fdir = join(self.postdir, "halo_maker", f"ramses_{nsim}",
+                        f"output_{str(nsnap).zfill(5)}", "FOF")
+            try_create_directory(fdir)
+            return join(fdir, "fort.132")
+        elif simname == "csiborg2_main":
+            return join(self.snapshots(nsim, simname),
+                        f"fof_subhalo_tab_{str(nsnap).zfill(3)}.hdf5")
+        elif simname == "csiborg2_random":
+            raise NotImplementedError("TODO")
+        elif simname == "csiborg2_varysmall":
+            raise NotImplementedError("TODO")
+        elif simname == "quijote":
+            if from_quijote_backup:
+                return join(self.quijote_dir, "halos_backup", str(nsim))
+            else:
+                return join(self.quijote_dir, "Halos_fiducial", str(nsim))
+        else:
+            raise ValueError(f"Unknown simulation name `{simname}`.")
 
     @staticmethod
     def quijote_fiducial_nsim(nsim, nobs=None):
@@ -139,180 +266,6 @@ class Paths:
             assert len(nsim) == 5
             return nsim
         return f"{str(nobs).zfill(2)}{str(nsim).zfill(3)}"
-
-    def borg_mcmc(self, nsim):
-        """
-        Path to the BORG MCMC chain file.
-
-        Parameters
-        ----------
-        nsim : int
-            IC realisation index.
-
-        Returns
-        -------
-        str
-        """
-        return join(self.borg_dir, "mcmc", f"mcmc_{nsim}.h5")
-
-    def fof_cat(self, nsnap, nsim, simname, from_quijote_backup=False):
-        r"""
-        Path to the :math:`z = 0` FoF halo catalogue.
-
-        Parameters
-        ----------
-        nsnap : int
-            Snapshot index.
-        nsim : int
-            IC realisation index.
-        simname : str
-            Simulation name. Must be one of `csiborg` or `quijote`.
-        from_quijote_backup : bool, optional
-            Whether to return the path to the Quijote FoF catalogue from the
-            backup.
-
-        Returns
-        -------
-        str
-        """
-        if simname == "csiborg":
-            fdir = join(self.postdir, "halo_maker", f"ramses_{nsim}",
-                        f"output_{str(nsnap).zfill(5)}", "FOF")
-            try_create_directory(fdir)
-            return join(fdir, "fort.132")
-        elif simname == "quijote":
-            if from_quijote_backup:
-                return join(self.quijote_dir, "halos_backup", str(nsim))
-            else:
-                return join(self.quijote_dir, "Halos_fiducial", str(nsim))
-        else:
-            raise ValueError(f"Unknown simulation name `{simname}`.")
-
-    def get_ics(self, simname, from_quijote_backup=False):
-        """
-        Get available IC realisation IDs for either the CSiBORG or Quijote
-        simulation suite.
-
-        Parameters
-        ----------
-        simname : str
-            Simulation name. Must be `csiborg` or `quijote`.
-        from_quijote_backup : bool, optional
-            Whether to return the ICs from the Quijote backup.
-
-        Returns
-        -------
-        ids : 1-dimensional array
-        """
-        if simname == "csiborg":
-            files = glob(join(self.srcdir, "ramses_out*"))
-            files = [f.split("/")[-1] for f in files]      # Only file names
-            files = [f for f in files if "_inv" not in f]  # Remove inv. ICs
-            files = [f for f in files if "_new" not in f]  # Remove _new
-            files = [f for f in files if "OLD" not in f]   # Remove _old
-            files = [int(f.split("_")[-1]) for f in files]
-            try:
-                files.remove(5511)
-            except ValueError:
-                pass
-        elif simname == "quijote" or simname == "quijote_full":
-            if from_quijote_backup:
-                files = glob(join(self.quijote_dir, "halos_backup", "*"))
-            else:
-                warn(("Taking only the snapshots that also have "
-                     "a FoF catalogue!"))
-                files = glob(join(self.quijote_dir, "Snapshots_fiducial", "*"))
-            files = [int(f.split("/")[-1]) for f in files]
-            files = [f for f in files if f < 100]
-        else:
-            raise ValueError(f"Unknown simulation name `{simname}`.")
-
-        return numpy.sort(files)
-
-    def snapshots(self, nsim, simname, tonew=False):
-        """
-        Path to an IC snapshots folder.
-
-        Parameters
-        ----------
-        nsim : int
-            IC realisation index.
-        simname : str
-            Simulation name. Must be one of `csiborg` or `quijote`.
-        tonew : bool, optional
-            Whether to return the path to the '_new' IC realisation of
-            CSiBORG. Ignored for Quijote.
-
-        Returns
-        -------
-        str
-        """
-        if simname == "csiborg":
-            fname = "ramses_out_{}"
-            if tonew:
-                fname += "_new"
-                return join(self.postdir, "output", fname.format(nsim))
-            return join(self.srcdir, fname.format(nsim))
-        elif simname == "quijote":
-            return join(self.quijote_dir, "Snapshots_fiducial", str(nsim))
-        else:
-            raise ValueError(f"Unknown simulation name `{simname}`.")
-
-    def get_snapshots(self, nsim, simname):
-        """
-        List of available snapshots of simulation.
-
-        Parameters
-        ----------
-        nsim : int
-            IC realisation index.
-        simname : str
-            Simulation name. Must be one of `csiborg` or `quijote`.
-
-        Returns
-        -------
-        snapshots : 1-dimensional array
-        """
-        simpath = self.snapshots(nsim, simname, tonew=False)
-
-        if simname == "csiborg":
-            # Get all files in simpath that start with output_
-            snaps = glob(join(simpath, "output_*"))
-            # Take just the last _00XXXX from each file  and strip zeros
-            snaps = [int(snap.split("_")[-1].lstrip("0")) for snap in snaps]
-        elif simname == "quijote":
-            snaps = glob(join(simpath, "snapdir_*"))
-            snaps = [int(snap.split("/")[-1].split("snapdir_")[-1])
-                     for snap in snaps]
-        else:
-            raise ValueError(f"Unknown simulation name `{simname}`.")
-        return numpy.sort(snaps)
-
-    def snapshot(self, nsnap, nsim, simname):
-        """
-        Path to an IC realisation snapshot.
-
-        Parameters
-        ----------
-        nsnap : int
-            Snapshot index. For Quijote, `-1` indicates the IC snapshot.
-        nsim : int
-            IC realisation index.
-        simname : str
-            Simulation name. Must be one of `csiborg` or `quijote`.
-
-        Returns
-        -------
-        str
-        """
-        simpath = self.snapshots(nsim, simname, tonew=nsnap == 1)
-        if simname == "csiborg":
-            return join(simpath, f"output_{str(nsnap).zfill(5)}")
-        else:
-            if nsnap == -1:
-                return join(simpath, "ICs", "ics")
-            nsnap = str(nsnap).zfill(3)
-            return join(simpath, f"snapdir_{nsnap}", f"snap_{nsnap}")
 
     def processed_output(self, nsim, simname, halo_finder):
         """
@@ -343,23 +296,6 @@ class Paths:
         fname = f"parts_{halo_finder}_{str(nsim).zfill(5)}.hdf5"
         return join(fdir, fname)
 
-    def processed_phew(self, nsim):
-        """
-        Path to the files containing PHEW CSiBORG catalogues.
-
-        Parameters
-        ----------
-        nsim : int
-            IC realisation index.
-
-        Returns
-        -------
-        str
-        """
-        fdir = join(self.postdir, "processed_output")
-        try_create_directory(fdir)
-        return join(fdir, f"phew_{str(nsim).zfill(5)}.hdf5")
-
     def halomaker_particle_membership(self, nsnap, nsim, halo_finder):
         """
         Path to the HaloMaker particle membership file (CSiBORG only).
@@ -381,26 +317,6 @@ class Paths:
                     f"output_{str(nsnap).zfill(5)}", halo_finder)
         fpath = join(fdir, "*particle_membership*")
         return next(iglob(fpath, recursive=True), None)
-
-    def ascii_positions(self, nsim, kind):
-        """
-        Path to ASCII files containing the positions of particles or halos.
-
-        Parameters
-        ----------
-        nsim : int
-            IC realisation index.
-        kind : str
-            Kind of data to extract. Must be one of `particles`,
-            `particles_rsp`, `halos`, `halos_rsp`.
-        """
-        assert kind in ["particles", "particles_rsp", "halos", "halos_rsp"]
-
-        fdir = join(self.postdir, "ascii_positions")
-        try_create_directory(fdir)
-        fname = f"pos_{kind}_{str(nsim).zfill(5)}.txt"
-
-        return join(fdir, fname)
 
     def overlap(self, simname, nsim0, nsimx, min_logmass, smoothed):
         """
