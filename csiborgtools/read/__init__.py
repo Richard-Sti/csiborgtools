@@ -13,7 +13,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 from .halo_cat import (CSiBORGCatalogue, QuijoteCatalogue,                      # noqa
-                       CSiBORGPHEWCatalogue, fiducial_observers)                # noqa
+                       fiducial_observers)                                      # noqa
 from .obs import (SDSS, MCXCClusters, PlanckClusters, TwoMPPGalaxies,           # noqa
                   TwoMPPGroups, ObservedCluster, match_array_to_no_masking)     # noqa
 from .paths import Paths                                                        # noqa
