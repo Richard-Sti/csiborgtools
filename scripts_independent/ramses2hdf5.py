@@ -33,19 +33,14 @@ from abc import ABC, abstractmethod
 from argparse import ArgumentParser
 from datetime import datetime
 from gc import collect
-from os.path import exists, join
+from os.path import exists, join, basename, dirname
 from warnings import catch_warnings, filterwarnings
 
-try:
-    import readgadget
-    from readfof import FoF_catalog
-except ImportError:
-    warn("Could not import `readgadget` and `readfof`. Related routines will not be available", ImportWarning)  # noqa
+import readgadget
+from readfof import FoF_catalog
 
-from datetime import datetime
 from glob import glob, iglob
 from os import makedirs
-from os.path import basename, join
 from warnings import warn
 
 import hdf5plugin
@@ -177,10 +172,10 @@ class CSiBORG1Reader:
             raise ValueError(f"Unknown snapshot option `{which_snapshot}`.")
 
         self.output_dir = f"/mnt/extraspace/rstiskalek/csiborg1/chain_{self.nsim}"  # noqa
-        self.output_path = join(self.output_dir,
+        self.output_snap = join(self.output_dir,
                                 f"snapshot_{str(self.nsnap).zfill(5)}.hdf5")
         self.output_cat = join(self.output_dir,
-                          f"fof_{str(self.nsnap).zfill(5)}.hdf5")
+                               f"fof_{str(self.nsnap).zfill(5)}.hdf5")
         self.halomaker_dir = join(self.output_dir, "FOF")
 
     def read_info(self):
@@ -296,57 +291,68 @@ class CSiBORG1Reader:
 ###############################################################################
 
 
-# class CSiBORG2Reader(BaseReader):
-#     """
-#     Object to read in CSiBORG2 snapshots.
-#
-#     Parameters
-#     ----------
-#     paths : py:class`csiborgtools.read.Paths`
-#     """
-#     def __init__(self, paths):
-#         self.paths = paths
-#
-#     @abstractmethod
-#     def read_info(self, nsnap, nsim):
-#         """
-#         Read simulation snapshot info.
-#         """
-#         snapshot = self.paths.snapshot(nsnap, nsim, "quijote")
-#
-#         header = readgadget.header(snapshot)
-#         out = {"BoxSize": header.boxsize / 1e3,       # Mpc/h
-#                "Nall": header.nall[1],                # Tot num of particles
-#                "PartMass": header.massarr[1] * 1e10,  # Part mass in Msun/h
-#                "Omega_m": header.omega_m,
-#                "Omega_l": header.omega_l,
-#                "h": header.hubble,
-#                "redshift": header.redshift,
-#                }
-#         out["TotMass"] = out["Nall"] * out["PartMass"]
-#         out["Hubble"] = (100.0 * numpy.sqrt(
-#             header.omega_m * (1.0 + header.redshift)**3 + header.omega_l))
-#         return out
-#
-#
-#
-#     @abstractmethod
-#     def read_snapshot(self, nsnap, nsim, kind, sort_like_final=False):
-#         """
-#         Read snapshot.
-#         """
-#
-#     @abstractmethod
-#     def read_halo_id(self, nsnap, nsim, halo_finder, verbose=True):
-#         """
-#         Read the (sub) halo membership of particles.
-#         """
-#
-#     def read_catalogue(self, nsnap, nsim, halo_finder):
-#         """
-#         Read in the halo catalogue.
-#
-#         """
+class CSiBORG2Reader(BaseReader):
+    """
+    Object to read in CSiBORG2 snapshots. Because this is Gadget4 the final
+    snapshot is already sorted, however we still have to sort the initial
+    snapshot.
+
+    Parameters
+    ----------
+    nsim : int
+        IC realisation index.
+    which_snapshot : str
+        Which snapshot to read. Options are `initial` or `final`.
+    """
+    def __init__(self, nsim, which_snapshot, kind):
+        self.nsim = nsim
+        if kind not in ["main", "random", "varysmall"]:
+            raise ValueError(f"Unknown kind `{kind}`.")
+        base_dir = f"/mnt/extraspace/rstiskalek/csiborg2_{kind}"
+
+        if which_snapshot == "initial":
+            self.nsnap = 0
+        elif which_snapshot == "final":
+            self.nsnap = 99
+        else:
+            raise ValueError(f"Unknown snapshot option `{which_snapshot}`.")
+
+        self.source_dir = join(
+            base_dir, f"chain_{nsim}", "output",
+            f"snapshot_{str(self.nsnap).zfill(3)}_full.hdf5")
+
+        self.output_dir = join(base_dir, f"chain_{nsim}", "output")
+        self.output_snap = join(
+            self.output_dir,
+            f"snapshot_{str(self.nsnap).zfill(3)}_sorted.hdf5")
+        self.output_cat = None
+
+    def read_info(self):
+        fpath = join(dirname(self.source_dir), "snapshot_99_full.hdf5")
+
+        with File(fpath, 'r') as f:
+            header = f["Header"]
+            params = f["Parameters"]
+
+            out = {"BoxSize": header.attrs["BoxSize"],
+                   "MassTable": header.attrs["MassTable"],
+                   "NumPart_Total": header.attrs["NumPart_Total"],
+                   "Omega_m": params.attrs["Omega0"],
+                   "Omega_l": params.attrs["OmegaLambda"],
+                   "Omega_b": params.attrs["OmegaBaryon"],
+                   "h": params.attrs["HubbleParam"],
+                   "redshift": header.attrs["Redshift"],
+                   }
+        return out
+
+    def read_snapshot(self, kind):
+        raise RuntimeError("TODO Not implemented.")
+
+    def read_halo_id(self, pids):
+        raise RuntimeError("TODO Not implemented.")
+
+    def read_halos(self):
+        raise RuntimeError("TODO Not implemented.")
 
 
 ###############################################################################
@@ -371,21 +377,22 @@ class QuijoteReader:
 
         if which_snapshot == "initial":
             self.nsnap = -1
+            snap_str = "ICs"
             self.source_dir = join(quijote_dir, "Snapshots_fiducial",
-                                   str(nsim), "ICs")
+                                   str(nsim), "ICs", "ics")
         elif which_snapshot == "final":
             self.nsnap = 4
-            self.source_dir = join(quijote_dir, "Snapshots_fiducial",
-                                   str(nsim), str(self.nsnap).zfill(3))
+            snap_str = str(self.nsnap).zfill(3)
+            self.source_dir = join(
+                quijote_dir, "Snapshots_fiducial",
+                str(nsim), f"snapdir_{snap_str}", f"snap_{snap_str}")
         else:
             raise ValueError(f"Unknown snapshot option `{which_snapshot}`.")
 
         self.fof_dir = join(quijote_dir, "Halos_fiducial", str(nsim))
         self.output_dir = f"/mnt/extraspace/rstiskalek/quijote/fiducial_processed/chain_{self.nsim}"  # noqa
-        self.output_snap = join(self.output_dir,
-                                f"snapshot_{str(self.nsnap).zfill(3)}.hdf5")
-        self.output_cat = join(self.output_dir,
-                               f"fof_{str(self.nsnap).zfill(3)}.hdf5")
+        self.output_snap = join(self.output_dir, f"snapshot_{snap_str}.hdf5")
+        self.output_cat = join(self.output_dir, f"fof_{snap_str}.hdf5")
 
     def read_info(self):
         header = readgadget.header(self.source_dir)
@@ -432,8 +439,11 @@ class QuijoteReader:
         # Create a mapping from particle ID to FoF group ID.
         print(f"{now()}: mapping particle IDs to their indices.")
         ks = numpy.insert(numpy.cumsum(group_len), 0, 0)
-        pid2hid = numpy.full(
-            (group_pids.size, 2), numpy.nan, dtype=numpy.uint64)
+        with catch_warnings():
+            # Ignore because we are casting NaN as integer.
+            filterwarnings("ignore", category=RuntimeWarning)
+            pid2hid = numpy.full((group_pids.size, 2), numpy.nan,
+                                 dtype=numpy.uint64)
         for i, (k0, kf) in enumerate(zip(ks[:-1], ks[1:])):
             pid2hid[k0:kf, 0] = i + 1
             pid2hid[k0:kf, 1] = group_pids[k0:kf]
@@ -442,7 +452,7 @@ class QuijoteReader:
         # Create the final array of hids matchign the snapshot array.
         # Unassigned particles have hid 0.
         print(f"{now()}: mapping HIDs to their array indices.")
-        hids = numpy.full(pids.size, 0, dtype=numpy.uint64)
+        hids = numpy.full(pids.size, 0, dtype=numpy.uint32)
         for i in trange(pids.size):
             hids[i] = pid2hid.get(pids[i], 0)
 
@@ -458,7 +468,7 @@ class QuijoteReader:
                 ("vx", numpy.float32),
                 ("vy", numpy.float32),
                 ("vz", numpy.float32),
-                ("group_mass", numpy.float32),
+                ("GroupMass", numpy.float32),
                 ("npart", numpy.int32),
                 ("index", numpy.int32)
                 ]
@@ -469,11 +479,11 @@ class QuijoteReader:
         for i, p in enumerate(["x", "y", "z"]):
             data[p] = pos[:, i]
             data[f"v{p}"] = vel[:, i]
-        data["group_mass"] = fof.GroupMass * 1e10
+        data["GroupMass"] = fof.GroupMass * 1e10
         data["npart"] = fof.GroupLen
         # We want to start indexing from 1. Index 0 is reserved for
         # particles unassigned to any FoF group.
-        data["index"] = 1 + numpy.arange(data.size, dtype=numpy.int32)
+        data["index"] = 1 + numpy.arange(data.size, dtype=numpy.uint32)
         return data
 
 
@@ -513,8 +523,10 @@ def make_offset_map(part_hids):
     """
     unique_halo_ids = numpy.unique(part_hids)
     unique_halo_ids = unique_halo_ids[unique_halo_ids != 0]
-    halo_map = numpy.full((unique_halo_ids.size, 3), numpy.nan,
-                          dtype=numpy.uint64)
+    with catch_warnings():
+        filterwarnings("ignore", category=RuntimeWarning)
+        halo_map = numpy.full((unique_halo_ids.size, 3), numpy.nan,
+                              dtype=numpy.uint32)
     start_loop, niters = 0, unique_halo_ids.size
     for i in trange(niters):
         hid = unique_halo_ids[i]
@@ -537,7 +549,6 @@ def process_final_snapshot(nsim, simname):
     particle array for fast slicing of the array to acces particles of a single
     halo.
     """
-    # Determine which simulation and where to read and save files
     if simname == "csiborg1":
         reader = CSiBORG1Reader(nsim, "final")
     elif simname == "quijote":
@@ -568,28 +579,29 @@ def process_final_snapshot(nsim, simname):
     # Get a mask that sorts the halo ids and then write the information to
     # the data files sorted by it.
     sort_indxs = numpy.argsort(halo_ids)
+    halo_ids = halo_ids[sort_indxs]
 
     with File(reader.output_snap, 'w') as f:
-        print(f"{datetime.now()}: creating dataset `ParticleIDs`...",
+        print(f"{now()}: creating dataset `ParticleIDs`...",
               flush=True)
         f.create_dataset("ParticleIDs", data=pids[sort_indxs],
                          **hdf5plugin.Blosc(**BLOSC_KWARGS))
         del pids
         collect()
 
-        print(f"{datetime.now()}: creating dataset `Coordinates`...",
+        print(f"{now()}: creating dataset `Coordinates`...",
               flush=True)
         f.create_dataset(
             "Coordinates", data=reader.read_snapshot("pos")[sort_indxs],
             **hdf5plugin.Blosc(**BLOSC_KWARGS))
 
-        print(f"{datetime.now()}: creating dataset `Velocities`...",
+        print(f"{now()}: creating dataset `Velocities`...",
               flush=True)
         f.create_dataset(
             "Velocities", data=reader.read_snapshot("vel")[sort_indxs],
             **hdf5plugin.Blosc(**BLOSC_KWARGS))
 
-        print(f"{datetime.now()}: creating dataset `Masses`...",
+        print(f"{now()}: creating dataset `Masses`...",
               flush=True)
         f.create_dataset(
             "Masses", data=reader.read_snapshot("mass")[sort_indxs],
@@ -616,7 +628,7 @@ def process_final_snapshot(nsim, simname):
         else:
             raise ValueError(f"Unknown simname `{simname}`.")
 
-        print(f"{datetime.now()}: done with `{reader.output_path}`.",
+        print(f"{now()}: done with `{reader.output_snap}`.",
               flush=True)
 
         # Lastly, create the halo mapping and default catalogue.
@@ -624,10 +636,7 @@ def process_final_snapshot(nsim, simname):
         halo_map, unique_halo_ids = make_offset_map(halo_ids)
         # Dump the halo mapping.
         with File(reader.output_cat, "w") as f:
-            dset = f["GroupOffset"].create_dataset("halo_map", data=halo_map)
-            dset.attrs["header"] = """
-            Halo to particle mapping. Columns are HID, start index, end index.
-            """
+            f.create_dataset("GroupOffset", data=halo_map)
 
         # Add the halo finder catalogue
         print(f"{now()}: adding the halo finder catalogue.")
@@ -638,10 +647,66 @@ def process_final_snapshot(nsim, simname):
             for key in cat.dtype.names:
                 x = numpy.full(unique_halo_ids.size, numpy.nan,
                                dtype=cat[key].dtype)
+
                 for i in range(len(cat)):
                     j = hid2pos[cat["index"][i]]
                     x[j] = cat[key][i]
                 f.create_dataset(key, data=x)
+
+
+def process_initial_snapshot(nsim, simname):
+    """
+    Sort the initial snapshot particles according to their final snapshot and
+    add them to the final snapshot's HDF5 file.
+    """
+    if simname == "csiborg1":
+        reader = CSiBORG1Reader(nsim, "initial")
+        output_snap_final = CSiBORG1Reader(nsim, "final").output_snap
+    elif simname == "quijote":
+        reader = QuijoteReader(nsim, "initial")
+        output_snap_final = QuijoteReader(nsim, "final").output_snap
+    elif "csiborg2" in simname:
+        reader = CSiBORG2Reader(nsim, "initial", simname.split("_")[1])
+        output_snap_final = CSiBORG2Reader(nsim, "final", simname.split("_")[1]).output_snap  # noqa
+        raise RuntimeError("TODO Not implemented.")
+    else:
+        raise RuntimeError(f"Simulation `{simname}` is not supported.")
+
+    print(f"{now()}: loading and sorting the initial PID.")
+    sort_indxs = numpy.argsort(reader.read_snapshot("pid"))
+
+    print(f"{now()}: loading the final particles.")
+    with File(output_snap_final, "r") as f:
+        sort_indxs_final = f["ParticleIDs"][:]
+        f.close()
+
+    print(f"{now()}: sorting the particles according to the final snapshot.")
+    sort_indxs_final = numpy.argsort(numpy.argsort(sort_indxs_final))
+    sort_indxs = sort_indxs[sort_indxs_final]
+
+    del sort_indxs_final
+    collect()
+
+    print(f"{now()}: loading and sorting the initial particle position.")
+    pos = reader.read_snapshot("pos")[sort_indxs]
+
+    del sort_indxs
+    collect()
+
+    # In Quijote some particles are positioned precisely at the edge of the
+    # box. Move them to be just inside.
+    if simname == "quijote":
+        boxsize = reader.read_info()["BoxSize"]
+        mask = pos >= boxsize
+        if numpy.any(mask):
+            spacing = numpy.spacing(pos[mask])
+            assert numpy.max(spacing) <= 1e-3
+            pos[mask] -= spacing
+
+    print(f"{now()}: dumping particles `{reader.output_snap}`.")
+    with File(reader.output_snap, 'w') as f:
+        f.create_dataset("Coordinates", data=pos,
+                         **hdf5plugin.Blosc(**BLOSC_KWARGS))
 
 
 ###############################################################################
@@ -656,70 +721,14 @@ if __name__ == "__main__":
     parser.add_argument("--simname", type=str, required=True,
                         choices=["csiborg1", "quijote"],
                         help="Simulation name.")
+    parser.add_argument("--mode", type=int, required=True, choices=[0, 1, 2],
+                        help="0: process final snapshot, 1: process initial snapshot, 2: process both.")  # noqa
     args = parser.parse_args()
 
-    process_final_snapshot(args.nsim, args.simname)
-
-    # addqueue -q berg -n 1x1 -m 64 /mnt/zfsusers/rstiskalek/csiborgtools/venv_csiborg/bin/python ramses2hdf5.py --nsim 7444 --simname csiborg1
-
-# def add_initial_snapshot(nsim, simname, halo_finder, verbose):
-#     """
-#     Sort the initial snapshot particles according to their final snapshot and
-#     add them to the final snapshot's HDF5 file.
-#     """
-#     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-#     fname = paths.processed_output(nsim, simname, halo_finder)
-
-#     if simname == "csiborg":
-#         partreader = csiborgtools.read.CSiBORGReader(paths)
-#     else:
-#         partreader = csiborgtools.read.QuijoteReader(paths)
-
-#     fprint(f"processing simulation `{nsim}`.", verbose)
-#     if simname == "csiborg":
-#         nsnap0 = 1
-#     elif simname == "quijote":
-#         nsnap0 = -1
-#     else:
-#         raise ValueError(f"Unknown simulation `{simname}`.")
-
-#     fprint("loading and sorting the initial PID.", verbose)
-#     sort_indxs = numpy.argsort(partreader.read_snapshot(nsnap0, nsim, "pid"))
-
-#     fprint("loading the final particles.", verbose)
-#     with h5py.File(fname, "r") as f:
-#         sort_indxs_final = f["snapshot_final/pid"][:]
-#         f.close()
-
-#     fprint("sorting the particles according to the final snapshot.", verbose)
-#     sort_indxs_final = numpy.argsort(numpy.argsort(sort_indxs_final))
-#     sort_indxs = sort_indxs[sort_indxs_final]
-
-#     del sort_indxs_final
-#     collect()
-
-#     fprint("loading and sorting the initial particle position.", verbose)
-#     pos = partreader.read_snapshot(nsnap0, nsim, "pos")[sort_indxs]
-
-#     del sort_indxs
-#     collect()
-
-#     # In Quijote some particles are position precisely at the edge of the
-#     # box. Move them to be just inside.
-#     if simname == "quijote":
-#         mask = pos >= 1
-#         if numpy.any(mask):
-#             spacing = numpy.spacing(pos[mask])
-#             assert numpy.max(spacing) <= 1e-5
-#             pos[mask] -= spacing
-
-#     fprint(f"dumping particles for `{nsim}` to `{fname}`.", verbose)
-#     with h5py.File(fname, "r+") as f:
-#         if "snapshot_initial" in f.keys():
-#             del f["snapshot_initial"]
-#         group = f.create_group("snapshot_initial")
-#         group.attrs["header"] = "Initial snapshot data."
-#         dset = group.create_dataset("pos", data=pos)
-#         dset.attrs["header"] = "DM particle positions in box units."
-
-#         f.close()
+    if args.mode == 0:
+        process_final_snapshot(args.nsim, args.simname)
+    elif args.mode == 1:
+        process_initial_snapshot(args.nsim, args.simname)
+    else:
+        process_final_snapshot(args.nsim, args.simname)
+        process_initial_snapshot(args.nsim, args.simname)
