@@ -13,42 +13,32 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-Script to convert a RAMSES snapshot to a compressed HDF5 file. Be careful
-because reading the HDF5 file requires `hdf5plugin` package to be installed.
-If `halomaker_path` is provided, particles will be sorted by their halo ID to
-allow for fast halo lookups.
+Script to process simulation snapshots to sorted HDF5 files. Be careful
+because reading the HDF5 file may require `hdf5plugin` package to be installed.
+The snapshot particles are sorted by their halo ID, so that particles of a halo
+can be accessed by slicing the array.
 
-
-TODO:
-
-CSiBORG1 reader will complain unless it can find the halomaker FOF files where it expects them.
-        fdir = f"/mnt/extraspace/rstiskalek/csiborg1/chain_{self.nsim}/FOF"
-
-This is also the directory where processed data is saved, not where the
-RAMSES binary files are stored.
-
-
+CSiBORG1 reader will complain unless it can find the halomaker FOF files
+where it expects them:
+    fdir = f"/mnt/extraspace/rstiskalek/csiborg1/chain_{self.nsim}/FOF"
 """
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser
 from datetime import datetime
 from gc import collect
-from os.path import exists, join, basename, dirname
-from warnings import catch_warnings, filterwarnings
-
-import readgadget
-from readfof import FoF_catalog
-
 from glob import glob, iglob
 from os import makedirs
-from warnings import warn
+from os.path import basename, dirname, exists, join
+from warnings import catch_warnings, filterwarnings, warn
 
 import hdf5plugin
 import numpy
 import pynbody
+import readgadget
 from astropy import constants, units
 from h5py import File
 from numba import jit
+from readfof import FoF_catalog
 from tqdm import tqdm, trange
 
 MSUNCGS = constants.M_sun.cgs.value
@@ -56,6 +46,11 @@ BLOSC_KWARGS = {"cname": "blosclz",
                 "clevel": 9,
                 "shuffle": hdf5plugin.Blosc.SHUFFLE,
                 }
+
+
+###############################################################################
+#                               Utility functions                             #
+###############################################################################
 
 
 def now():
@@ -119,7 +114,7 @@ def cols_to_structured(N, cols):
 
 
 class BaseReader(ABC):
-
+    """Base reader layout that every subsequent reader should follow."""
     @abstractmethod
     def read_info(self):
         pass
