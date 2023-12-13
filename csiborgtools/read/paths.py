@@ -15,7 +15,7 @@
 """
 CSiBORG paths manager.
 """
-from glob import glob, iglob
+from glob import glob
 from os import makedirs
 from os.path import basename, isdir, join
 from warnings import warn
@@ -165,7 +165,6 @@ class Paths:
         #     nsnap = str(nsnap).zfill(3)
         #     return join(simpath, f"snapdir_{nsnap}", f"snap_{nsnap}")
 
-
     def get_snapshots(self, nsim, simname):
         """
         List of available snapshots of simulation.
@@ -204,46 +203,6 @@ class Paths:
             raise ValueError(f"Unknown simulation name `{simname}`.")
         return numpy.sort(snaps)
 
-    def fof_cat(self, nsnap, nsim, simname, from_quijote_backup=False):
-        r"""
-        Path to the FoF halo catalogue.
-
-        Parameters
-        ----------
-        nsnap : int
-            Snapshot index.
-        nsim : int
-            IC realisation index.
-        simname : str
-            Simulation name.
-        from_quijote_backup : bool, optional
-            Whether to return the path to the Quijote FoF catalogue from the
-            backup.
-
-        Returns
-        -------
-        str
-        """
-        if simname == "csiborg":
-            fdir = join(self.postdir, "halo_maker", f"ramses_{nsim}",
-                        f"output_{str(nsnap).zfill(5)}", "FOF")
-            try_create_directory(fdir)
-            return join(fdir, "fort.132")
-        elif simname == "csiborg2_main":
-            return join(self.snapshots(nsim, simname),
-                        f"fof_subhalo_tab_{str(nsnap).zfill(3)}.hdf5")
-        elif simname == "csiborg2_random":
-            raise NotImplementedError("TODO")
-        elif simname == "csiborg2_varysmall":
-            raise NotImplementedError("TODO")
-        elif simname == "quijote":
-            if from_quijote_backup:
-                return join(self.quijote_dir, "halos_backup", str(nsim))
-            else:
-                return join(self.quijote_dir, "Halos_fiducial", str(nsim))
-        else:
-            raise ValueError(f"Unknown simulation name `{simname}`.")
-
     @staticmethod
     def quijote_fiducial_nsim(nsim, nobs=None):
         """
@@ -266,57 +225,6 @@ class Paths:
             assert len(nsim) == 5
             return nsim
         return f"{str(nobs).zfill(2)}{str(nsim).zfill(3)}"
-
-    def processed_output(self, nsim, simname, halo_finder):
-        """
-        Path to the files containing all particles of a CSiBORG realisation at
-        :math:`z = 0`.
-
-        Parameters
-        ----------
-        nsim : int
-            IC realisation index.
-        simname : str
-            Simulation name. Must be one of `csiborg` or `quijote`.
-        halo_finder : str
-            Halo finder name.
-
-        Returns
-        -------
-        str
-        """
-        if simname == "csiborg":
-            fdir = join(self.postdir, "processed_output")
-        elif simname == "quijote":
-            fdir = join(self.quijote_dir, "Particles_fiducial")
-        else:
-            raise ValueError(f"Unknown simulation name `{simname}`.")
-
-        try_create_directory(fdir)
-        fname = f"parts_{halo_finder}_{str(nsim).zfill(5)}.hdf5"
-        return join(fdir, fname)
-
-    def halomaker_particle_membership(self, nsnap, nsim, halo_finder):
-        """
-        Path to the HaloMaker particle membership file (CSiBORG only).
-
-        Parameters
-        ----------
-        nsnap : int
-            Snapshot index.
-        nsim : int
-            IC realisation index.
-        halo_finder : str
-            Halo finder name.
-
-        Returns
-        -------
-        str
-        """
-        fdir = join(self.postdir, "halo_maker", f"ramses_{nsim}",
-                    f"output_{str(nsnap).zfill(5)}", halo_finder)
-        fpath = join(fdir, "*particle_membership*")
-        return next(iglob(fpath, recursive=True), None)
 
     def overlap(self, simname, nsim0, nsimx, min_logmass, smoothed):
         """

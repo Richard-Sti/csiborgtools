@@ -28,9 +28,9 @@ from sklearn.neighbors import NearestNeighbors
 from ..utils import (cartesian_to_radec, fprint, great_circle_distance,
                      number_counts, periodic_distance_two_points,
                      real2redshift)
+# TODO: removing these
 from .box_units import CSiBORG1Box, QuijoteBox
 from .paths import Paths
-from .readsim import load_halo_particles, make_halomap_dict
 
 ###############################################################################
 #                           Base catalogue                                    #
@@ -626,74 +626,6 @@ class CSiBORGCatalogue(BaseCatalogue):
 
 
 ###############################################################################
-#                    Quijote PHEW without snapshot catalogue                  #
-###############################################################################
-
-
-class CSiBORGPHEWCatalogue(BaseCatalogue):
-    r"""
-    CSiBORG PHEW halo catalogue without snapshot. Units typically used are:
-        - Length: :math:`cMpc / h`
-        - Mass: :math:`M_\odot / h`
-
-    Note that the PHEW catalogue is not very reliable.
-
-    Parameters
-    ----------
-    nsnap : int
-        Snapshot index.
-    nsim : int
-        IC realisation index.
-    paths : py:class`csiborgtools.read.Paths`
-        Paths object.
-    mass_key : str, optional
-        Mass key of the catalogue.
-    bounds : dict, optional
-        Parameter bounds; keys as parameter names, values as (min, max) or
-        a boolean.
-    cache_maxsize : int, optional
-        Maximum number of cached arrays.
-    """
-    def __init__(self, nsnap, nsim, paths, mass_key=None, bounds=None,
-                 cache_maxsize=64):
-        super().__init__()
-        self.simname = "csiborg"
-        self.nsnap = nsnap
-        self.nsim = nsim
-        self.paths = paths
-        self.mass_key = mass_key
-        self.observer_location = [338.85, 338.85, 338.85]
-
-        fname = paths.processed_phew(nsim)
-        self._data = File(fname, "r")
-        if str(nsnap) not in self._data.keys():
-            raise ValueError(f"Snapshot {nsnap} not in the catalogue. "
-                             f"Options are {self.get_snapshots(nsim, paths)}")
-        self.catalogue_name = str(nsnap)
-        self._is_closed = False
-
-        self.cache_maxsize = cache_maxsize
-
-        if bounds is not None:
-            self._make_mask(bounds)
-
-        self._derived_properties = ["cartesian_pos", "spherical_pos", "dist"]
-        self.box = CSiBORG1Box(self.nsnap, self.nsim, self.paths)
-        self.clear_cache()
-
-    @staticmethod
-    def get_snapshots(nsim, paths):
-        """List of snapshots available for this simulation."""
-        fname = paths.processed_phew(nsim)
-
-        with File(fname, "r") as f:
-            snaps = [int(key) for key in f.keys() if key != "info"]
-            f.close()
-
-        return numpy.sort(snaps)
-
-
-###############################################################################
 #                         Quijote halo catalogue                              #
 ###############################################################################
 
@@ -850,3 +782,43 @@ def find_boxed(pos, center, subbox_size, boxsize):
         start_index = i + 1
 
     return indxs
+
+
+
+
+####################################################
+#                         Supplementary functions                             #
+###############################################################################
+
+
+def make_halomap_dict(halomap):
+    """
+    Make a dictionary mapping halo IDs to their start and end indices in the
+    snapshot particle array.
+    """
+    return {hid: (int(start), int(end)) for hid, start, end in halomap}
+
+
+def load_halo_particles(hid, particles, hid2map):
+    """
+    Load a halo's particles from a particle array. If it is not there, i.e
+    halo has no associated particles, return `None`.
+
+    Parameters
+    ----------
+    hid : int
+        Halo ID.
+    particles : 2-dimensional array
+        Array of particles.
+    hid2map : dict
+        Dictionary mapping halo IDs to `halo_map` array positions.
+
+    Returns
+    -------
+    parts : 1- or 2-dimensional array
+    """
+    try:
+        k0, kf = hid2map[hid]
+        return particles[k0:kf + 1]
+    except KeyError:
+        return None
