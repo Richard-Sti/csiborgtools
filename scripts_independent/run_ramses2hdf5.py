@@ -18,6 +18,7 @@ Submission script for converting CSiBORG 1 RAMSES snapshots to HDF5 files.
 from glob import glob
 from os import system, makedirs
 from os.path import join, basename, exists
+from glob import iglob
 
 
 def main_cosma8():
@@ -48,8 +49,9 @@ def convert_last_snapshot():
     Read in RAMSES binary files and output them as HDF5 files. Works on
     glamdring.
     """
-    chains = [7444 + n * 24 for n in range(2, 101)]
-    chains = [7444]
+    # chains = [7444 + n * 24 for n in range(2, 101)]
+    # chains = [7444]
+    chains = [8092]
     base_dir = "/mnt/extraspace/hdesmond/"
 
     for chain in chains:
@@ -59,6 +61,11 @@ def convert_last_snapshot():
 
         snapshot_path = join(sourcedir, f"output_{str(snap).zfill(5)}")
 
+        halomaker_path = join(
+            f"/mnt/extraspace/rstiskalek/csiborg1/chain_{chain}/FOF",
+            "*particle_membership*")
+        halomaker_path = next(iglob(halomaker_path, recursive=True), None)
+
         output_dir = f"/mnt/extraspace/rstiskalek/csiborg1/chain_{chain}"
 
         if not exists(output_dir):
@@ -66,25 +73,34 @@ def convert_last_snapshot():
 
         output_path = join(output_dir, f"snapshot_{str(snap).zfill(5)}.hdf5")
 
-        cmd = f"addqueue -q berg -n 1x1 -m 64 /mnt/zfsusers/rstiskalek/csiborgtools/venv_csiborg/bin/python ramses2hdf5.py --snapshot_path {snapshot_path} --output_path {output_path}"  # noqa
+        print()
+        print("----------------------------")
+        print(f"Snapshot path:      {snapshot_path}")
+        print(f"Output path:        {output_path}")
+        print(f"Halomaker path:     {halomaker_path}")
+        print("----------------------------")
+        print(flush=True)
+
+        cmd = f"addqueue -q berg -n 1x1 -m 64 /mnt/zfsusers/rstiskalek/csiborgtools/venv_csiborg/bin/python ramses2hdf5.py --snapshot_path {snapshot_path} --output_path {output_path} --halomaker_path {halomaker_path}"  # noqa
         print(cmd)
         system(cmd)
 
 
 def convert_initial_snapshot():
 
-    chains = [7444 + n * 24 for n in range(101)]
-    chains = [7444, 7468]
+    # chains = [7444 + n * 24 for n in range(101)]
+    # chains = [7444, 7468]
+    chains = [8092]
     base_dir = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/output"
 
     for chain in chains:
-        snapshot_path = join(base_dir,
-                             f"ramses_out_{chain}_new", "output_00001")
+        snapshot_path = join(
+            base_dir, f"ramses_out_{chain}_new", "output_00001")
         cmd = f"addqueue -q berg -n 1x1 -m 64 /mnt/zfsusers/rstiskalek/csiborgtools/venv_csiborg/bin/python ramses2hdf5.py --snapshot_path {snapshot_path}"  # noqa
         system(cmd)
 
 
 if __name__ == "__main__":
     # convert_initial_snapshot()
-    # convert_last_snapshot()
-    print("No option selected.")
+    convert_last_snapshot()
+    # print("No option selected.")
