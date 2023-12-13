@@ -12,14 +12,8 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-from warnings import warn
-
-try:
-    import MAS_library as MASL                                                  # noqa
-    from .density import (DensityField, PotentialField, TidalTensorField,       # noqa
-                          VelocityField, power_spectrum)                        # noqa
-    from .interp import (evaluate_cartesian, evaluate_sky, field2rsp,           # noqa
-                         fill_outside, make_sky, observer_vobs)                 # noqa
-    from .utils import nside2radec, smoothen_field                              # noqa
-except ImportError:
-    warn("MAS_library not found, `DensityField` and related Pylians-based routines will not be available")  # noqa
+from .density import (DensityField, PotentialField, TidalTensorField,       # noqa
+                      VelocityField, power_spectrum)                        # noqa
+from .interp import (evaluate_cartesian, evaluate_sky, field2rsp,           # noqa
+                     fill_outside, make_sky, observer_peculiar_velocity)                 # noqa
+from .utils import nside2radec, smoothen_field                              # noqa
