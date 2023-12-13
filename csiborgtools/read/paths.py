@@ -17,8 +17,9 @@ CSiBORG paths manager.
 """
 from glob import glob
 from os import makedirs
-from os.path import basename, isdir, join
+from os.path import isdir, join
 from warnings import warn
+from re import search
 
 import numpy
 
@@ -66,7 +67,7 @@ class Paths:
 
         self.postdir = postdir
 
-    def get_ics(self, simname, from_quijote_backup=False):
+    def get_ics(self, simname):
         """
         Get available IC realisation IDs for a given simulation.
 
@@ -74,96 +75,32 @@ class Paths:
         ----------
         simname : str
             Simulation name.
-        from_quijote_backup : bool, optional
-            Whether to return the ICs from the Quijote backup.
 
         Returns
         -------
         ids : 1-dimensional array
         """
-        if simname == "csiborg":
+        if simname == "csiborg1":
             files = glob(join(self.csiborg1_srcdir, "chain_*"))
-            files = [int(basename(f).replace("chain_", "") for f in files)]
+            files = [int(search(r'chain_(\d+)', f).group(1)) for f in files]
         elif simname == "csiborg2_main":
             files = glob(join(self.csiborg2_main_srcdir, "chain_*"))
-            files = [int(basename(f).replace("chain_", "") for f in files)]
+            files = [int(search(r'chain_(\d+)', f).group(1)) for f in files]
         elif simname == "csiborg2_random":
-            raise NotImplementedError("TODO")
+            files = glob(join(self.csiborg2_random_srcdir, "chain_*"))
+            files = [int(search(r'chain_(\d+)', f).group(1)) for f in files]
         elif simname == "csiborg2_varysmall":
-            raise NotImplementedError("TODO")
-        elif simname == "quijote" or simname == "quijote_full":
-            if from_quijote_backup:
-                files = glob(join(self.quijote_dir, "halos_backup", "*"))
-            else:
-                warn(("Taking only the snapshots that also have "
-                     "a FoF catalogue!"))
-                files = glob(join(self.quijote_dir, "Snapshots_fiducial", "*"))
-            files = [int(f.split("/")[-1]) for f in files]
-            files = [f for f in files if f < 100]
+            files = glob(join(self.csiborg2_varysmall_srcdir, "chain_*"))
+            files = [int(search(r'chain_16417(\d+)', f).group(1))
+                     for f in files]
+        elif simname == "quijote":
+            files = glob(join(self.quijote_dir, "fiducial_processed",
+                              "chain_*"))
+            files = [int(search(r'chain_(\d+)', f).group(1)) for f in files]
         else:
             raise ValueError(f"Unknown simulation name `{simname}`.")
 
         return numpy.sort(files)
-
-    def snapshots(self, nsim, simname):
-        if simname == "csiborg":
-            fname = "ramses_out_{}"
-            if tonew:
-                fname += "_new"
-                return join(self.postdir, "output", fname.format(nsim))
-            return join(self.csiborg1_srcdir, fname.format(nsim))
-        elif simname == "csiborg2_main":
-            return join(self.csiborg2_main_srcdir, f"chain_{nsim}", "output")
-        elif simname == "csiborg2_random":
-            raise NotImplementedError("TODO")
-        elif simname == "csiborg2_varysmall":
-            raise NotImplementedError("TODO")
-        elif simname == "quijote":
-            return join(self.quijote_dir, "Snapshots_fiducial", str(nsim))
-        else:
-            raise ValueError(f"Unknown simulation name `{simname}`.")
-
-    def snapshot(self, nsnap, nsim, simname):
-        """
-        Path to an IC realisation snapshot.
-
-        Parameters
-        ----------
-        nsnap : int
-            Snapshot index. For Quijote, `-1` indicates the IC snapshot.
-        nsim : inlot
-            IC realisation index.
-        simname : str
-            Simulation name.
-
-        Returns
-        -------
-        str
-        """
-        if simname == "csiborg":
-            return join(self.csiborg1_srcdir, f"chain_{nsim}",
-                        f"snapshot_{str(nsnap).zfill(5)}")
-        elif simname == "csiborg2_main":
-            return join(self.csiborg1_srcdir, f"chain_{nsim}",
-                        f"snapshot_{str(nsnap).zfill(5)}")
-        elif simname == "csiborg2_random":
-            raise NotImplementedError("TODO")
-        elif simname == "csiborg2_varysmall":
-            raise NotImplementedError("TODO")
-        elif simname == "quijote":
-            raise NotImplementedError("TODO")
-        else:
-            raise ValueError(f"Unknown simulation name `{simname}`.")
-
-
-        # simpath = self.snapshots(nsim, simname, tonew=nsnap == 1)
-        # if simname == "csiborg":
-        #     return join(simpath, f"output_{str(nsnap).zfill(5)}")
-        # else:
-        #     if nsnap == -1:
-        #         return join(simpath, "ICs", "ics")
-        #     nsnap = str(nsnap).zfill(3)
-        #     return join(simpath, f"snapdir_{nsnap}", f"snap_{nsnap}")
 
     def get_snapshots(self, nsim, simname):
         """
@@ -180,51 +117,79 @@ class Paths:
         -------
         snapshots : 1-dimensional array
         """
-        simpath = self.snapshots(nsim, simname, tonew=False)
+        # simpath = self.snapshots(nsim, simname, tonew=False)
 
-        if simname == "csiborg":
-            # Get all files in simpath that start with output_
-            snaps = glob(join(simpath, "output_*"))
-            # Take just the last _00XXXX from each file  and strip zeros
-            snaps = [int(snap.split("_")[-1].lstrip("0")) for snap in snaps]
+        if simname == "csiborg1":
+            snaps = glob(join(self.csiborg1_srcdir, f"chain_{nsim}",
+                              "snapshot_*"))
+            snaps = [int(search(r'snapshot_(\d+)', f).group(1)) for f in snaps]
+            snaps = sorted(snaps)
         elif simname == "csiborg2_main":
-            snaps = glob(join(simpath, "snapshot_*"))
-            snaps = [basename(snap) for snap in snaps]
-            snaps = [int(snap.split("_")[1]) for snap in snaps]
+            snaps = glob(join(self.csiborg2_main_srcdir, f"chain_{nsim}",
+                              "output", "snapshot_*"))
+            snaps = [int(search(r'snapshot_(\d+)', f).group(1))
+                     for f in snaps]
+            snaps = sorted(snaps)
         elif simname == "csiborg2_random":
-            raise NotImplementedError("TODO")
+            snaps = glob(join(self.csiborg2_random_srcdir, f"chain_{nsim}",
+                              "output", "snapshot_*"))
+            snaps = [int(search(r'snapshot_(\d+)', f).group(1))
+                     for f in snaps]
+            snaps = sorted(snaps)
         elif simname == "csiborg2_varysmall":
-            raise NotImplementedError("TODO")
+            snaps = glob(join(self.csiborg2_random_srcdir, f"chain_{nsim}",
+                              "snapshot_*"))
+            snaps = [int(search(r'snapshot_16417_(\d+)', f).group(1))
+                     for f in snaps]
+            snaps = sorted(snaps)
         elif simname == "quijote":
-            snaps = glob(join(simpath, "snapdir_*"))
-            snaps = [int(snap.split("/")[-1].split("snapdir_")[-1])
-                     for snap in snaps]
+            snaps = glob(join(self.quijote_dir, "fiducial_processed",
+                              f"chain_{nsim}", "snapshot_*"))
+            has_ics = any("snapshot_ICs" in f for f in snaps)
+            snaps = [int(match.group(1))
+                     for f in snaps if (match := search(r'snapshot_(\d+)', f))]
+            snaps = sorted(snaps)
+            if has_ics:
+                snaps.insert(0, "ICs")
         else:
             raise ValueError(f"Unknown simulation name `{simname}`.")
-        return numpy.sort(snaps)
+        return snaps
 
-    @staticmethod
-    def quijote_fiducial_nsim(nsim, nobs=None):
+    def snapshot(self, nsnap, nsim, simname):
         """
-        Fiducial Quijote simulation ID. Combines the IC realisation and
-        observer placement.
+        Path to a simulation snapshot.
 
         Parameters
         ----------
+        nsnap : int
+            Snapshot index. For Quijote, `ICs` indicates the IC snapshot.
         nsim : int
             IC realisation index.
-        nobs : int, optional
-            Fiducial observer index.
+        simname : str
+            Simulation name.
 
         Returns
         -------
         str
         """
-        if nobs is None:
-            assert isinstance(nsim, str)
-            assert len(nsim) == 5
-            return nsim
-        return f"{str(nobs).zfill(2)}{str(nsim).zfill(3)}"
+        if simname == "csiborg1":
+            return join(self.csiborg1_srcdir, f"chain_{nsim}",
+                        f"snapshot_{str(nsnap).zfill(5)}.hdf5")
+        elif simname == "csiborg2_main":
+            return join(self.csiborg2_main_srcdir, f"chain_{nsim}",
+                        f"snapshot_{str(nsnap).zfill(3)}.hdf5")
+        elif simname == "csiborg2_random":
+            return join(self.csiborg2_random_srcdir, f"chain_{nsim}",
+                        f"snapshot_{str(nsnap).zfill(3)}.hdf5")
+        elif simname == "csiborg2_varysmall":
+            return join(self.csiborg2_varysmall_srcdir, f"chain_{nsim}",
+                        f"snapshot_{str(nsnap).zfill(3)}.hdf5")
+        elif simname == "quijote":
+            return join(self.quijote_dir, "fiducial_processed",
+                        f"chain_{nsim}",
+                        f"snapshot_{str(nsnap).zfill(3)}.hdf5")
+        else:
+            raise ValueError(f"Unknown simulation name `{simname}`.")
 
     def overlap(self, simname, nsim0, nsimx, min_logmass, smoothed):
         """
