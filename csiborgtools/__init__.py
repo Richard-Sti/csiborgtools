@@ -21,7 +21,7 @@ from .utils import (center_of_mass, delta2ncells, number_counts,                
 
 # Arguments to csiborgtools.read.Paths.
 paths_glamdring = {
-    "csiborg1_srcdir": "/mnt/extraspace/hdesmond/",
+    "csiborg1_srcdir": "/mnt/extraspace/rstiskalek/csiborg1",
     "csiborg2_main_srcdir": "/mnt/extraspace/rstiskalek/csiborg2_main",
     "csiborg2_varysmall_srcdir": "/mnt/extraspace/rstiskalek/csiborg2_varysmall",   # noqa
     "csiborg2_random_srcdir": "/mnt/extraspace/rstiskalek/csiborg2_random",         # noqa
