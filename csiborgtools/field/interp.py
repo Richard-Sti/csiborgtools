@@ -24,6 +24,11 @@ from .utils import force_single_precision, smoothen_field
 from ..utils import periodic_wrap_grid, radec_to_cartesian
 
 
+###############################################################################
+#                       Cartesian interpolation                               #
+###############################################################################
+
+
 def evaluate_cartesian(*fields, pos, smooth_scales=None, verbose=False):
     """
     Evaluate a scalar field(s) at Cartesian coordinates `pos`.
@@ -76,6 +81,51 @@ def evaluate_cartesian(*fields, pos, smooth_scales=None, verbose=False):
     return interp_fields
 
 
+def observer_peculiar_velocity(velocity_field, smooth_scales=None,
+                               observer=None, verbose=True):
+    """
+    Calculate the peculiar velocity in the centre of the box.
+
+    Parameters
+    ----------
+    velocity_field : 4-dimensional array of shape `(3, grid, grid, grid)`
+        Velocity field in `km / s`.
+    smooth_scales : (list of) float, optional
+        Smoothing scales in box units. If `None`, no smoothing is performed.
+    observer : 1-dimensional array of shape `(3,)`, optional
+        Observer position in box units. If `None`, the observer is assumed to
+        be in the centre of the box.
+    verbose : bool, optional
+        Smoothing verbosity flag.
+
+    Returns
+    -------
+    vpec : 1-dimensional array of shape `(3,)` or `(len(smooth_scales), 3)`
+    """
+    if observer is None:
+        pos = numpy.asanyarray([0.5, 0.5, 0.5]).reshape(1, 3)
+    else:
+        pos = numpy.asanyarray(observer).reshape(1, 3)
+
+    vx, vy, vz = evaluate_cartesian(
+        *velocity_field, pos=pos, smooth_scales=smooth_scales, verbose=verbose)
+
+    # Reshape since we evaluated only one point
+    vx = vx.reshape(-1, )
+    vy = vy.reshape(-1, )
+    vz = vz.reshape(-1, )
+
+    if smooth_scales is None:
+        return numpy.array([vx[0], vy[0], vz[0]])
+
+    return numpy.vstack([vx, vy, vz]).T
+
+
+###############################################################################
+#                              Sky maps                                       #
+###############################################################################
+
+
 def evaluate_sky(*fields, pos, mpc2box, smooth_scales=None, verbose=False):
     """
     Evaluate a scalar field(s) at radial distance `Mpc / h`, right ascensions
@@ -117,26 +167,6 @@ def evaluate_sky(*fields, pos, mpc2box, smooth_scales=None, verbose=False):
 
     return evaluate_cartesian(*fields, pos=cart_pos,
                               smooth_scales=smooth_scales, verbose=verbose)
-
-
-def observer_vobs(velocity_field):
-    """
-    Calculate the observer velocity from a velocity field. Assumes an observer
-    in the centre of the box.
-
-    Parameters
-    ----------
-    velocity_field : 4-dimensional array of shape `(3, grid, grid, grid)`
-
-    Returns
-    -------
-    1-dimensional array of shape `(3,)`
-    """
-    pos = numpy.asanyarray([0.5, 0.5, 0.5]).reshape(1, 3)
-    vobs = numpy.full(3, numpy.nan, dtype=numpy.float32)
-    for i in range(3):
-        vobs[i] = evaluate_cartesian(velocity_field[i, ...], pos=pos)[0]
-    return vobs
 
 
 def make_sky(field, angpos, dist, boxsize, volume_weight=True, verbose=True):
@@ -190,19 +220,9 @@ def make_sky(field, angpos, dist, boxsize, volume_weight=True, verbose=True):
     return out
 
 
-@jit(nopython=True)
-def divide_nonzero(field0, field1):
-    """
-    Perform in-place `field0 /= field1` but only where `field1 != 0`.
-    """
-    assert field0.shape == field1.shape, "Field shapes must match."
-
-    imax, jmax, kmax = field0.shape
-    for i in range(imax):
-        for j in range(jmax):
-            for k in range(kmax):
-                if field1[i, j, k] != 0:
-                    field0[i, j, k] /= field1[i, j, k]
+###############################################################################
+#                     Real-to-redshift space field dragging                   #
+###############################################################################
 
 
 @jit(nopython=True)
@@ -276,6 +296,25 @@ def field2rsp(field, radvel_field, box, MAS, init_value=0.):
     divide_nonzero(rsp_field, cell_counts)
 
     return rsp_field
+
+###############################################################################
+#                          Supplementary function                             #
+###############################################################################
+
+
+@jit(nopython=True)
+def divide_nonzero(field0, field1):
+    """
+    Perform in-place `field0 /= field1` but only where `field1 != 0`.
+    """
+    assert field0.shape == field1.shape, "Field shapes must match."
+
+    imax, jmax, kmax = field0.shape
+    for i in range(imax):
+        for j in range(jmax):
+            for k in range(kmax):
+                if field1[i, j, k] != 0:
+                    field0[i, j, k] /= field1[i, j, k]
 
 
 @jit(nopython=True)
