@@ -667,6 +667,14 @@ def process_initial_snapshot(nsim, simname):
     else:
         raise RuntimeError(f"Simulation `{simname}` is not supported.")
 
+    print("---- Processing Initial Snapshot Information ----")
+    print(f"Simulation index:      {nsim}")
+    print(f"Simulation name:       {simname}")
+    print(f"Output snapshot:       {reader.output_snap}")
+    print(f"Output catalogue:      {reader.output_cat}")
+    print("-----------------------------------------------")
+    print(flush=True)
+
     print(f"{now()}: loading and sorting the initial PID.")
     sort_indxs = numpy.argsort(reader.read_snapshot("pid"))
 
