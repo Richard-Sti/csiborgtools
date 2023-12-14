@@ -15,14 +15,15 @@
 """
 Tools for interpolating 3D fields at arbitrary positions.
 """
+import healpy
 import MAS_library as MASL
 import numpy
+import smoothing_library as SL
 from numba import jit
-from tqdm import trange, tqdm
+from tqdm import tqdm, trange
 
-from .utils import force_single_precision, smoothen_field
 from ..utils import periodic_wrap_grid, radec_to_cartesian
-
+from .density import force_single_precision
 
 ###############################################################################
 #                       Cartesian interpolation                               #
@@ -220,6 +221,20 @@ def make_sky(field, angpos, dist, boxsize, volume_weight=True, verbose=True):
     return out
 
 
+def nside2radec(nside):
+    """
+    Generate RA [0, 360] deg. and declination [-90, 90] deg. for HEALPix pixel
+    centres at a given nside.
+    """
+    pixs = numpy.arange(healpy.nside2npix(nside))
+    theta, phi = healpy.pix2ang(nside, pixs)
+
+    ra = 180 / numpy.pi * phi
+    dec = 90 - 180 / numpy.pi * theta
+
+    return numpy.vstack([ra, dec]).T
+
+
 ###############################################################################
 #                     Real-to-redshift space field dragging                   #
 ###############################################################################
@@ -339,3 +354,16 @@ def fill_outside(field, fill_value, rmax, boxsize):
                 if idist2 + jdist2 + kdist2 > rmax_box2:
                     field[i, j, k] = fill_value
     return field
+
+
+def smoothen_field(field, smooth_scale, boxsize, threads=1, make_copy=False):
+    """
+    Smooth a field with a Gaussian filter.
+    """
+    W_k = SL.FT_filter(boxsize, smooth_scale, field.shape[0], "Gaussian",
+                       threads)
+
+    if make_copy:
+        field = numpy.copy(field)
+
+    return SL.field_smoothing(field, W_k, threads)
