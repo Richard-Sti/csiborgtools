@@ -12,8 +12,8 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-from .density import (DensityField, PotentialField, TidalTensorField,       # noqa
-                      VelocityField, power_spectrum)                        # noqa
-from .interp import (evaluate_cartesian, evaluate_sky, field2rsp,           # noqa
-                     fill_outside, make_sky, observer_peculiar_velocity)                 # noqa
-from .utils import nside2radec, smoothen_field                              # noqa
+from .density import (DensityField, PotentialField, TidalTensorField,           # noqa
+                      VelocityField, power_spectrum, overdensity_field)         # noqa
+from .interp import (evaluate_cartesian, evaluate_sky, field2rsp,               # noqa
+                     fill_outside, make_sky, observer_peculiar_velocity,        # noqa
+                     nside2radec, smoothen_field)                               # noqa
