@@ -37,6 +37,31 @@ neighbour_kwargs = {"rmax_radial": 155 / 0.705,
                     "paths_kind": paths_glamdring}
 
 
+def simname2boxsize(simname):
+    """
+    Return boxsize in `Mpc/h` for a given simname.
+
+    Parameters
+    ----------
+    simname : str
+        Simulation name.
+
+    Returns
+    -------
+    boxsize : float
+    """
+    0
+    d = {"csiborg1": 677.7,
+         "quijote": 1000.}
+
+    boxsize = d.get(simname, None)
+
+    if boxsize is None:
+        raise ValueError("Unknown simname: {}".format(simname))
+
+    return boxsize
+
+
 ###############################################################################
 #                             Surveys                                         #
 ###############################################################################
@@ -84,3 +109,4 @@ clusters = {"Virgo": read.ObservedCluster(RA=hms_to_degrees(12, 27),
                                            dist=19 * 0.7,
                                            name="Fornax"),
             }
+
