@@ -191,6 +191,33 @@ class Paths:
         else:
             raise ValueError(f"Unknown simulation name `{simname}`.")
 
+    def snapshot_catalogue(self, nsnap, nsim, simname):
+        """
+        Path to the halo catalogue of a simulation snapshot.
+
+        Parameters
+        ----------
+        nsnap : int
+            Snapshot index.
+        nsim : int
+            IC realisation index.
+        simname : str
+            Simulation name.
+
+        Returns
+        -------
+        str
+        """
+        if simname == "csiborg1":
+            return join(self.csiborg1_srcdir, f"chain_{nsim}",
+                        f"fof_{str(nsnap).zfill(5)}.hdf5")
+        elif simname == "quijote":
+            return join(self.quijote_dir, "fiducial_processed",
+                        f"chain_{nsim}",
+                        f"fof_{str(nsnap).zfill(3)}.hdf5")
+        else:
+            raise ValueError(f"Unknown simulation name `{simname}`.")
+
     def overlap(self, simname, nsim0, nsimx, min_logmass, smoothed):
         """
         Path to the overlap files between two CSiBORG simulations.
@@ -301,7 +328,8 @@ class Paths:
         if kind not in ["density", "velocity", "potential", "radvel", "environment"]:  # noqa
             raise ValueError(f"Unknown field type `{kind}`.")
 
-        # TODO add some exception for the SPH field, that one goes directly from the chains.
+        # TODO add some exception for the SPH field, that one goes directly
+        # from the chains.
         fdir = join(self.postdir, "environment")
 
         try_create_directory(fdir)
