@@ -820,3 +820,8 @@ def load_halo_particles(hid, particles, hid2map):
         return particles[k0:kf + 1]
     except KeyError:
         return None
+
+
+###############################################################################
+#                    Specific loaders of particles and haloes                 #
+###############################################################################
