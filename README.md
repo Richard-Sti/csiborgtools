@@ -10,6 +10,8 @@ however with little effort it can support other simulations as well.
 ## TODO
 - [x] Prune old CSiBORG1 merger tree things.
 - [x] Add visualiastion of the density field.
+- [ ] Clear out `density` support.
+- [ ] Add sorting of Gadget4 initial snapshot like final snapshot.
 - [ ] Add full support for CSiBORG2 suite of simulations.
 - [ ] Add SPH field calculation from cosmotools.
 
