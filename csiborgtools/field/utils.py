@@ -13,7 +13,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-Utility functions used in the rest of the `density` module to avoid circular
+Utility functions used in the rest of the `field` module to avoid circular
 imports.
 """
 from numba import jit
