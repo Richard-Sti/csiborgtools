@@ -13,37 +13,35 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-Density field and cross-correlation calculations.
+Density field, potential and tidal tensor field calculations. Most routines
+here do not support SPH-calculated density fields because of the unknown
+corrrections necessary when performing the fast Fourier transform.
 """
 from abc import ABC
 
 import MAS_library as MASL
-import Pk_library as PKL
 import numpy
+import Pk_library as PKL
 from numba import jit
 from tqdm import trange
 
 from .interp import divide_nonzero
-from .utils import force_single_precision
 
 
 class BaseField(ABC):
     """Base class for density field calculations."""
-    _box = None
     _MAS = None
+    _boxsize = None
 
     @property
-    def box(self):
-        """Simulation box information and transformations."""
-        return self._box
+    def boxsize(self):
+        """Size of the box in units matching the particle coordinates."""
+        return self._boxsize
 
-    @box.setter
-    def box(self, box):
-        try:
-            assert box._name == "box_units"
-            self._box = box
-        except AttributeError as err:
-            raise TypeError from err
+    @boxsize.setter
+    def boxsize(self, value):
+        if not isinstance(value, (int, float)):
+            raise ValueError("`boxsize` must be an integer.")
 
     @property
     def MAS(self):
@@ -54,7 +52,12 @@ class BaseField(ABC):
 
     @MAS.setter
     def MAS(self, MAS):
-        assert MAS in ["NGP", "CIC", "TSC", "PCS"]
+        if MAS == "SPH":
+            raise ValueError("`SPH` is not supported. Use `cosmotool` scripts to calculate the density field with SPH.")  # noqa
+
+        if MAS not in ["NGP", "CIC", "TSC", "PCS"]:
+            raise ValueError(f"Invalid `MAS` value: {MAS}")
+
         self._MAS = MAS
 
 
@@ -69,48 +72,27 @@ class DensityField(BaseField):
 
     Parameters
     ----------
-    box : :py:class:`csiborgtools.read.CSiBORG1Box`
-        The simulation box information and transformations.
+    boxsize : float
+        Size of the periodic box.
     MAS : str
-        Mass assignment scheme. Options are Options are: 'NGP' (nearest grid
-        point), 'CIC' (cloud-in-cell), 'TSC' (triangular-shape cloud), 'PCS'
+        Mass assignment scheme. Options are: 'NGP' (nearest grid point),
+        'CIC' (cloud-in-cell), 'TSC' (triangular-shape cloud), 'PCS'
         (piecewise cubic spline).
-    paths : :py:class:`csiborgtools.read.Paths`
-        The simulation paths.
 
     References
     ----------
     [1] https://pylians3.readthedocs.io/
     """
 
-    def __init__(self, box, MAS):
-        self.box = box
+    def __init__(self, boxsize, MAS):
+        self.boxsize = boxsize
         self.MAS = MAS
-
-    def overdensity_field(self, delta):
-        r"""
-        Calculate the overdensity field from the density field.
-        Defined as :math:`\rho/ <\rho> - 1`. Overwrites the input array.
-
-        Parameters
-        ----------
-        delta : 3-dimensional array of shape `(grid, grid, grid)`
-            The density field.
-
-        Returns
-        -------
-        3-dimensional array of shape `(grid, grid, grid)`.
-        """
-        delta /= delta.mean()
-        delta -= 1
-        return delta
 
     def __call__(self, pos, mass, grid, nbatch=30, verbose=True):
         """
-        Calculate the density field using a Pylians routine [1, 2].
-        Iteratively loads the particles into memory, flips their `x` and `z`
-        coordinates. Particles are assumed to be in box units, with positions
-        in [0, 1]
+        Calculate the density field using a Pylians routine [1, 2]. Iteratively
+        loads the particles into memory. Particle coordinates units should
+        match that of `boxsize`.
 
         Parameters
         ----------
@@ -150,113 +132,43 @@ class DensityField(BaseField):
             batch_pos = force_single_precision(batch_pos)
             batch_mass = force_single_precision(batch_mass)
 
-            MASL.MA(batch_pos, rho, 1., self.MAS, W=batch_mass, verbose=False)
+            MASL.MA(batch_pos, rho, self.boxsize, self.MAS, W=batch_mass,
+                    verbose=False)
+
             if end == nparts:
                 break
+
             start = end
 
         # Divide by the cell volume in (kpc / h)^3
-        rho /= (self.box.boxsize / grid * 1e3)**3
+        rho /= (self.boxsize / grid * 1e3)**3
 
         return rho
 
 
-# class SPHDensityVelocity(BaseField):
-#     r"""
-#     Density field calculation. Based primarily on routines of Pylians [1].
-#
-#     Parameters
-#     ----------
-#     box : :py:class:`csiborgtools.read.CSiBORG1Box`
-#         The simulation box information and transformations.
-#     MAS : str
-#         Mass assignment scheme. Options are Options are: 'NGP' (nearest grid
-#         point), 'CIC' (cloud-in-cell), 'TSC' (triangular-shape cloud), 'PCS'
-#         (piecewise cubic spline).
-#     paths : :py:class:`csiborgtools.read.Paths`
-#         The simulation paths.
-#
-#     References
-#     ----------
-#     [1] https://pylians3.readthedocs.io/
-#     """
-#
-#     def __init__(self, box, MAS):
-#         self.box = box
-#         self.MAS = MAS
-#
-#     def overdensity_field(self, delta):
-#         r"""
-#         Calculate the overdensity field from the density field.
-#         Defined as :math:`\rho/ <\rho> - 1`. Overwrites the input array.
-#
-#         Parameters
-#         ----------
-#         delta : 3-dimensional array of shape `(grid, grid, grid)`
-#             The density field.
-#
-#         Returns
-#         -------
-#         3-dimensional array of shape `(grid, grid, grid)`.
-#         """
-#         delta /= delta.mean()
-#         delta -= 1
-#         return delta
-#
-#     def __call__(self, pos, mass, grid, nbatch=30, verbose=True):
-#         """
-#         Calculate the density field using a Pylians routine [1, 2].
-#         Iteratively loads the particles into memory, flips their `x` and `z`
-#         coordinates. Particles are assumed to be in box units, with positions
-#         in [0, 1]
-#
-#         Parameters
-#         ----------
-#         pos : 2-dimensional array of shape `(n_parts, 3)`
-#             Particle positions
-#         mass : 1-dimensional array of shape `(n_parts,)`
-#             Particle masses
-#         grid : int
-#             Grid size.
-#         nbatch : int, optional
-#             Number of batches to split the particle loading into.
-#         verbose : bool, optional
-#             Verbosity flag.
-#
-#         Returns
-#         -------
-#         3-dimensional array of shape `(grid, grid, grid)`.
-#
-#         References
-#         ----------
-#         [1] https://pylians3.readthedocs.io/
-#         [2] https://github.com/franciscovillaescusa/Pylians3/blob/master
-#             /library/MAS_library/MAS_library.pyx
-#         """
-#         rho = numpy.zeros((grid, grid, grid), dtype=numpy.float32)
-#
-#         nparts = pos.shape[0]
-#         batch_size = nparts // nbatch
-#         start = 0
-#
-#         for __ in trange(nbatch + 1, disable=not verbose,
-#                          desc="Loading particles for the density field"):
-#             end = min(start + batch_size, nparts)
-#             batch_pos = pos[start:end]
-#             batch_mass = mass[start:end]
-#
-#             batch_pos = force_single_precision(batch_pos)
-#             batch_mass = force_single_precision(batch_mass)
-#
-#             MASL.MA(batch_pos, rho, 1., self.MAS, W=batch_mass, verbose=False)
-#             if end == nparts:
-#                 break
-#             start = end
-#
-#         # Divide by the cell volume in (kpc / h)^3
-#         rho /= (self.box.boxsize / grid * 1e3)**3
-#
-#         return rho
+def overdensity_field(delta, make_copy=True):
+    r"""
+    Get the overdensity field from the density field as `rho / <rho> - 1`.
+
+    Parameters
+    ----------
+    delta : 3-dimensional array of shape `(grid, grid, grid)`
+        The density field.
+    make_copy : bool, optional
+        Whether to make a copy of the input array.
+
+    Returns
+    -------
+    3-dimensional array of shape `(grid, grid, grid)`.
+    """
+    if make_copy:
+        delta = numpy.copy(delta)
+
+    delta /= delta.mean()
+    delta -= 1
+
+    return delta
+
 
 ###############################################################################
 #                         Velocity field calculation                          #
@@ -269,11 +181,11 @@ class VelocityField(BaseField):
 
     Parameters
     ----------
-    box : :py:class:`csiborgtools.read.CSiBORG1Box`
-        The simulation box information and transformations.
+    boxsize : float
+        Size of the periodic box.
     MAS : str
-        Mass assignment scheme. Options are Options are: 'NGP' (nearest grid
-        point), 'CIC' (cloud-in-cell), 'TSC' (triangular-shape cloud), 'PCS'
+        Mass assignment scheme. Options are: 'NGP' (nearest grid point),
+        'CIC' (cloud-in-cell), 'TSC' (triangular-shape cloud), 'PCS'
         (piecewise cubic spline).
 
     References
@@ -281,49 +193,11 @@ class VelocityField(BaseField):
     [1] https://pylians3.readthedocs.io/
     """
 
-    def __init__(self, box, MAS):
-        self.box = box
+    def __init__(self, boxsize, MAS):
+        self.boxsize = boxsize
         self.MAS = MAS
 
-    @staticmethod
-    @jit(nopython=True)
-    def radial_velocity(rho_vel, observer_velocity):
-        """
-        Calculate the radial velocity field around the observer in the centre
-        of the box.
-
-        Parameters
-        ----------
-        rho_vel : 4-dimensional array of shape `(3, grid, grid, grid)`.
-            Velocity field along each axis.
-        observer_velocity : 3-dimensional array of shape `(3,)`
-            Observer velocity.
-
-        Returns
-        -------
-        3-dimensional array of shape `(grid, grid, grid)`.
-        """
-        grid = rho_vel.shape[1]
-        radvel = numpy.zeros((grid, grid, grid), dtype=numpy.float32)
-        vx0, vy0, vz0 = observer_velocity
-
-        for i in range(grid):
-            px = i - 0.5 * (grid - 1)
-            for j in range(grid):
-                py = j - 0.5 * (grid - 1)
-                for k in range(grid):
-                    pz = k - 0.5 * (grid - 1)
-
-                    vx = rho_vel[0, i, j, k] - vx0
-                    vy = rho_vel[1, i, j, k] - vy0
-                    vz = rho_vel[2, i, j, k] - vz0
-
-                    radvel[i, j, k] = ((px * vx + py * vy + pz * vz)
-                                       / numpy.sqrt(px**2 + py**2 + pz**2))
-        return radvel
-
-    def __call__(self, pos, vel, mass, grid, flip_xz=True, nbatch=30,
-                 verbose=True):
+    def __call__(self, pos, vel, mass, grid, nbatch=30, verbose=True):
         """
         Calculate the velocity field using a Pylians routine [1, 2].
         Iteratively loads the particles into memory, flips their `x` and `z`
@@ -339,8 +213,6 @@ class VelocityField(BaseField):
             Particle masses.
         grid : int
             Grid size.
-        flip_xz : bool, optional
-            Whether to flip the `x` and `z` coordinates.
         nbatch : int, optional
             Number of batches to split the particle loading into.
         verbose : bool, optional
@@ -379,11 +251,12 @@ class VelocityField(BaseField):
             vel *= mass.reshape(-1, 1)
 
             for i in range(3):
-                MASL.MA(pos, rho_vel[i], 1., self.MAS, W=vel[:, i],
+                MASL.MA(pos, rho_vel[i], self.boxsize, self.MAS, W=vel[:, i],
                         verbose=False)
 
-            MASL.MA(pos, cellcounts, 1., self.MAS, W=mass,
+            MASL.MA(pos, cellcounts, self.boxsize, self.MAS, W=mass,
                     verbose=False)
+
             if end == nparts:
                 break
             start = end
@@ -392,6 +265,43 @@ class VelocityField(BaseField):
             divide_nonzero(rho_vel[i], cellcounts)
 
         return numpy.stack(rho_vel)
+
+
+@jit(nopython=True)
+def radial_velocity(rho_vel, observer_velocity):
+    """
+    Calculate the radial velocity field around the observer in the centre
+    of the box.
+
+    Parameters
+    ----------
+    rho_vel : 4-dimensional array of shape `(3, grid, grid, grid)`.
+        Velocity field along each axis.
+    observer_velocity : 3-dimensional array of shape `(3,)`
+        Observer velocity.
+
+    Returns
+    -------
+    3-dimensional array of shape `(grid, grid, grid)`.
+    """
+    grid = rho_vel.shape[1]
+    radvel = numpy.zeros((grid, grid, grid), dtype=numpy.float32)
+    vx0, vy0, vz0 = observer_velocity
+
+    for i in range(grid):
+        px = i - 0.5 * (grid - 1)
+        for j in range(grid):
+            py = j - 0.5 * (grid - 1)
+            for k in range(grid):
+                pz = k - 0.5 * (grid - 1)
+
+                vx = rho_vel[0, i, j, k] - vx0
+                vy = rho_vel[1, i, j, k] - vy0
+                vz = rho_vel[2, i, j, k] - vz0
+
+                radvel[i, j, k] = ((px * vx + py * vy + pz * vz)
+                                   / numpy.sqrt(px**2 + py**2 + pz**2))
+    return radvel
 
 
 ###############################################################################
@@ -405,18 +315,18 @@ class PotentialField(BaseField):
 
     Parameters
     ----------
-    box : :py:class:`csiborgtools.read.CSiBORG1Box`
-        The simulation box information and transformations.
+    boxsize : float
+        Size of the periodic box.
     MAS : str
-        Mass assignment scheme. Options are Options are: 'NGP' (nearest grid
-        point), 'CIC' (cloud-in-cell), 'TSC' (triangular-shape cloud), 'PCS'
+        Mass assignment scheme. Options are: 'NGP' (nearest grid point),
+        'CIC' (cloud-in-cell), 'TSC' (triangular-shape cloud), 'PCS'
         (piecewise cubic spline).
     """
-    def __init__(self, box, MAS):
-        self.box = box
+    def __init__(self, boxsize, MAS):
+        self.boxsize = boxsize
         self.MAS = MAS
 
-    def __call__(self, overdensity_field):
+    def __call__(self, overdensity_field, omega_m, aexp):
         """
         Calculate the potential field.
 
@@ -424,13 +334,16 @@ class PotentialField(BaseField):
         ----------
         overdensity_field : 3-dimensional array of shape `(grid, grid, grid)`
             The overdensity field.
+        omega_m : float
+            TODO
+        aexp : float
+            TODO
 
         Returns
         -------
         3-dimensional array of shape `(grid, grid, grid)`.
         """
-        return MASL.potential(overdensity_field, self.box._omega_m,
-                              self.box._aexp, self.MAS)
+        return MASL.potential(overdensity_field, omega_m, aexp, self.MAS)
 
 
 ###############################################################################
@@ -444,15 +357,15 @@ class TidalTensorField(BaseField):
 
     Parameters
     ----------
-    box : :py:class:`csiborgtools.read.CSiBORG1Box`
-        The simulation box information and transformations.
+    boxsize : float
+        Size of the periodic box.
     MAS : str
-        Mass assignment scheme used to calculate the density field. Options
-        are: 'NGP' (nearest grid point), 'CIC' (cloud-in-cell), 'TSC'
-        (triangular-shape cloud), 'PCS' (piecewise cubic spline).
+        Mass assignment scheme. Options are Options are: 'NGP' (nearest grid
+        point), 'CIC' (cloud-in-cell), 'TSC' (triangular-shape cloud), 'PCS'
+        (piecewise cubic spline).
     """
-    def __init__(self, box, MAS):
-        self.box = box
+    def __init__(self, boxsize, MAS):
+        self.boxsize = boxsize
         self.MAS = MAS
 
     @staticmethod
@@ -494,7 +407,7 @@ class TidalTensorField(BaseField):
         """
         return eigenvalues_to_environment(eigvals, threshold)
 
-    def __call__(self, overdensity_field):
+    def __call__(self, overdensity_field, omega_m, aexp):
         """
         Calculate the tidal tensor field.
 
@@ -502,6 +415,10 @@ class TidalTensorField(BaseField):
         ----------
         overdensity_field : 3-dimensional array of shape `(grid, grid, grid)`
             The overdensity field.
+        omega_m : float
+            TODO
+        aexp : float
+            TODO
 
         Returns
         -------
@@ -509,8 +426,7 @@ class TidalTensorField(BaseField):
             Tidal tensor object, whose attributes `tidal_tensor.Tij` contain
             the relevant tensor components.
         """
-        return MASL.tidal_tensor(overdensity_field, self.box._omega_m,
-                                 self.box._aexp, self.MAS)
+        return MASL.tidal_tensor(overdensity_field, omega_m, aexp, self.MAS)
 
 
 @jit(nopython=True)
@@ -606,7 +522,9 @@ def power_spectrum(delta, boxsize, MAS, threads=1, verbose=True):
     boxsize : float
         The simulation box size in `Mpc / h`.
     MAS : str
-        Mass assignment scheme used to calculate the density field.
+        Mass assignment scheme used to calculate the density field. Options
+        are: 'NGP' (nearest grid point), 'CIC' (cloud-in-cell), 'TSC'
+        (triangular-shape cloud), 'PCS' (piecewise cubic spline).
     threads : int, optional
         Number of threads to use.
     verbose : bool, optional
@@ -617,6 +535,22 @@ def power_spectrum(delta, boxsize, MAS, threads=1, verbose=True):
     k, Pk : 1-dimensional arrays of shape `(grid,)`
         The wavenumbers and the power spectrum.
     """
-    axis = 2  # Axis along which compute the quadrupole and hexadecapole
+    # Axis along which compute the quadrupole and hexadecapole, is not used
+    # for the monopole that we calculat here.
+    axis = 2
     Pk = PKL.Pk(delta, boxsize, axis, MAS, threads, verbose)
     return Pk.k3D, Pk.Pk[:, 0]
+
+
+###############################################################################
+#                       Various utility functions                             #
+###############################################################################
+
+
+def force_single_precision(x):
+    """
+    Attempt to convert an array `x` to float 32.
+    """
+    if x.dtype != numpy.float32:
+        x = x.astype(numpy.float32)
+    return x
