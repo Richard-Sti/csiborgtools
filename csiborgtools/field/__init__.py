@@ -13,7 +13,8 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 from .density import (DensityField, PotentialField, TidalTensorField,           # noqa
-                      VelocityField, power_spectrum, overdensity_field)         # noqa
+                      VelocityField, radial_velocity, power_spectrum,           # noqa
+                      overdensity_field)                                        # noqa
 from .interp import (evaluate_cartesian, evaluate_sky, field2rsp,               # noqa
                      fill_outside, make_sky, observer_peculiar_velocity,        # noqa
                      nside2radec, smoothen_field)                               # noqa
