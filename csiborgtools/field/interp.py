@@ -23,7 +23,8 @@ from numba import jit
 from tqdm import tqdm, trange
 
 from ..utils import periodic_wrap_grid, radec_to_cartesian
-from .density import force_single_precision
+from .utils import divide_nonzero, force_single_precision
+
 
 ###############################################################################
 #                       Cartesian interpolation                               #
@@ -315,21 +316,6 @@ def field2rsp(field, radvel_field, box, MAS, init_value=0.):
 ###############################################################################
 #                          Supplementary function                             #
 ###############################################################################
-
-
-@jit(nopython=True)
-def divide_nonzero(field0, field1):
-    """
-    Perform in-place `field0 /= field1` but only where `field1 != 0`.
-    """
-    assert field0.shape == field1.shape, "Field shapes must match."
-
-    imax, jmax, kmax = field0.shape
-    for i in range(imax):
-        for j in range(jmax):
-            for k in range(kmax):
-                if field1[i, j, k] != 0:
-                    field0[i, j, k] /= field1[i, j, k]
 
 
 @jit(nopython=True)

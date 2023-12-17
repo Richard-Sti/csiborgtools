@@ -25,7 +25,7 @@ import Pk_library as PKL
 from numba import jit
 from tqdm import trange
 
-from .interp import divide_nonzero
+from .utils import divide_nonzero, force_single_precision
 
 
 class BaseField(ABC):
@@ -540,17 +540,3 @@ def power_spectrum(delta, boxsize, MAS, threads=1, verbose=True):
     axis = 2
     Pk = PKL.Pk(delta, boxsize, axis, MAS, threads, verbose)
     return Pk.k3D, Pk.Pk[:, 0]
-
-
-###############################################################################
-#                       Various utility functions                             #
-###############################################################################
-
-
-def force_single_precision(x):
-    """
-    Attempt to convert an array `x` to float 32.
-    """
-    if x.dtype != numpy.float32:
-        x = x.astype(numpy.float32)
-    return x
