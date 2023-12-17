@@ -290,7 +290,7 @@ class Paths:
         nsim : int
             IC realisation index.
         in_rsp : bool
-            Whether the calculation is performed in redshift space.
+            Whether the field was dragged to redshift space.
         smooth_scale : float, optional
             Smoothing scale in Mpc/h.
 
@@ -298,8 +298,10 @@ class Paths:
         -------
         str
         """
-        assert kind in ["density", "velocity", "potential", "radvel",
-                        "environment"]
+        if kind not in ["density", "velocity", "potential", "radvel", "environment"]:  # noqa
+            raise ValueError(f"Unknown field type `{kind}`.")
+
+        # TODO add some exception for the SPH field, that one goes directly from the chains.
         fdir = join(self.postdir, "environment")
 
         try_create_directory(fdir)
