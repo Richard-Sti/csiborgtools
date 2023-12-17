@@ -30,7 +30,12 @@ import csiborgtools
 from utils import get_nsims
 
 # TODO get rid of this.
-MPC2BOX = 1 / 677.7
+# MPC2BOX = 1 / 677.7
+SIM2BOXSIZE = {"csiborg1": 677.7,
+               "csiborg2_main": None,
+               "csiborg2_random": None,
+               "csiborg2_varysmall": None,
+               }
 
 
 def steps(cls, survey_name):
