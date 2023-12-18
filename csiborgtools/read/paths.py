@@ -117,8 +117,6 @@ class Paths:
         -------
         snapshots : 1-dimensional array
         """
-        # simpath = self.snapshots(nsim, simname, tonew=False)
-
         if simname == "csiborg1":
             snaps = glob(join(self.csiborg1_srcdir, f"chain_{nsim}",
                               "snapshot_*"))
