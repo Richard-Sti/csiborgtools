@@ -625,6 +625,7 @@ class CSiBORG2Field(BaseField):
 
         if MAS == "SPH":
             with File(fpath, "r") as f:
+                # TODO: the x and z still have to be flipped.
                 density = f["density"][:]
                 v0 = f["p0"][:] / density
                 v1 = f["p1"][:] / density
