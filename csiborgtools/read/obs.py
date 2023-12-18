@@ -109,8 +109,7 @@ class TwoMPPGalaxies(TextSurvey):
         cat = cat[cat[:, 12] == 0, :]
         # Pre=allocate array and fillt it
         cols = [("RA", numpy.float64), ("DEC", numpy.float64),
-                ("Ksmag", numpy.float64), ("ZCMB", numpy.float64),
-                ("DIST", numpy.float64)]
+                ("Ksmag", numpy.float64), ("ZCMB", numpy.float64)]
         data = cols_to_structured(cat.shape[0], cols)
         data["RA"] = cat[:, 1]
         data["DEC"] = cat[:, 2]
