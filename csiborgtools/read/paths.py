@@ -311,51 +311,53 @@ class Paths:
 
         return join(fdir, fname)
 
-    def field(self, kind, MAS, grid, nsim, in_rsp, smooth_scale=None):
+    def field(self, kind, MAS, grid, nsim, simname):
         r"""
         Path to the files containing the calculated fields in CSiBORG.
 
         Parameters
         ----------
         kind : str
-            Field type. Must be one of: `density`, `velocity`, `potential`,
-            `radvel`, `environment`.
+            Field type.
         MAS : str
            Mass-assignment scheme.
         grid : int
             Grid size.
         nsim : int
             IC realisation index.
-        in_rsp : bool
-            Whether the field was dragged to redshift space.
-        smooth_scale : float, optional
-            Smoothing scale in Mpc/h.
+        simname : str
+            Simulation name.
 
         Returns
         -------
         str
         """
-        if kind not in ["density", "velocity", "potential", "radvel", "environment"]:  # noqa
-            raise ValueError(f"Unknown field type `{kind}`.")
+        if MAS == "SPH":
+            if kind not in ["density", "momentum"]:
+                raise ValueError("SPH field must be either `density` or `momentum`.")  # noqa
 
-        # TODO add some exception for the SPH field, that one goes directly
-        # from the chains.
+            if simname == "csiborg1":
+                raise ValueError("SPH field not available for CSiBORG1.")
+            elif simname == "csiborg2_main":
+                return join(self.csiborg2_main_srcdir, "fields",
+                            f"chain_{nsim}_{grid}.hdf5")
+            elif simname == "csiborg2_random":
+                return join(self.csiborg2_random_srcdir, "fields",
+                            f"chain_{nsim}_{grid}.hdf5")
+            elif simname == "csiborg2_varysmall":
+                return join(self.csiborg2_varysmall_srcdir, "fields",
+                            f"chain_{nsim}_{grid}.hdf5")
+            elif simname == "quijote":
+                raise ValueError("SPH field not available for CSiBORG1.")
+
         fdir = join(self.postdir, "environment")
-
         try_create_directory(fdir)
 
-        if in_rsp:
-            kind = kind + "_rsp"
-
-        fname = f"{kind}_{MAS}_{str(nsim).zfill(5)}_grid{grid}.npy"
-
-        if smooth_scale is not None:
-            fname = fname.replace(".npy", f"_smooth{smooth_scale}.npy")
+        fname = f"{kind}_{simname}_{MAS}_{str(nsim).zfill(5)}_{grid}.npy"
 
         return join(fdir, fname)
 
-    def field_interpolated(self, survey, kind, MAS, grid, nsim, in_rsp,
-                           smooth_scale=None):
+    def field_interpolated(self, survey, kind, MAS, grid, nsim, in_rsp):
         """
         Path to the files containing the CSiBORG interpolated field for a given
         survey.
@@ -375,13 +377,12 @@ class Paths:
             IC realisation index.
         in_rsp : bool
             Whether the calculation is performed in redshift space.
-        smooth_scale : float, optional
-            Smoothing scale in Mpc/h.
 
         Returns
         -------
         str
         """
+        raise NotImplementedError("This function is not implemented yet.")
         assert kind in ["density", "velocity", "potential", "radvel",
                         "environment"]
         fdir = join(self.postdir, "environment_interpolated")
@@ -392,9 +393,6 @@ class Paths:
             kind = kind + "_rsp"
 
         fname = f"{survey}_{kind}_{MAS}_{str(nsim).zfill(5)}_grid{grid}.npz"
-
-        if smooth_scale is not None:
-            fname = fname.replace(".npz", f"_smooth{smooth_scale}.npz")
 
         return join(fdir, fname)
 
