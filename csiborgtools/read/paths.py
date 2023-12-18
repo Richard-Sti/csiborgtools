@@ -41,23 +41,26 @@ class Paths:
 
     Parameters
     ----------
-    # HERE EDIT EVERYTHING
-    srcdir : str, optional
-        Path to the folder where the RAMSES outputs are stored.
-    postdir: str, optional
-        Path to the folder where post-processed files are stored.
-    borg_dir : str, optional
-        Path to the folder where BORG MCMC chains are stored.
-    quiote_dir : str, optional
-        Path to the folder where Quijote simulations are stored.
+    csiborg1_srcdir : str
+        Path to the CSiBORG1 simulation directory.
+    csiborg2_main_srcdir : str
+        Path to the CSiBORG2 main simulation directory.
+    csiborg2_random_srcdir : str
+        Path to the CSiBORG2 random simulation directory.
+    csiborg2_varysmall_srcdir : str
+        Path to the CSiBORG2 varysmall simulation directory.
+    postdir : str
+        Path to the CSiBORG post-processing directory.
+    quijote_dir : str
+        Path to the Quijote simulation directory.
     """
     def __init__(self,
-                 csiborg1_srcdir=None,
-                 csiborg2_main_srcdir=None,
-                 csiborg2_random_srcdir=None,
-                 csiborg2_varysmall_srcdir=None,
-                 postdir=None,
-                 quijote_dir=None
+                 csiborg1_srcdir,
+                 csiborg2_main_srcdir,
+                 csiborg2_random_srcdir,
+                 csiborg2_varysmall_srcdir,
+                 postdir,
+                 quijote_dir,
                  ):
         self.csiborg1_srcdir = csiborg1_srcdir
         self.csiborg2_main_srcdir = csiborg2_main_srcdir
