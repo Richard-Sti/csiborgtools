@@ -60,16 +60,6 @@ def now():
     return datetime.now()
 
 
-def flip_cols(arr, col1, col2):
-    """
-    Flip values in columns `col1` and `col2` of a structured array `arr`.
-    """
-    if col1 not in arr.dtype.names or col2 not in arr.dtype.names:
-        raise ValueError(f"Both `{col1}` and `{col2}` must exist in `arr`.")
-
-    arr[col1], arr[col2] = numpy.copy(arr[col2]), numpy.copy(arr[col1])
-
-
 def convert_str_to_num(s):
     """
     Convert a string representation of a number to its appropriate numeric type
@@ -221,11 +211,6 @@ class CSiBORG1Reader:
             raise ValueError(f"Unknown kind `{kind}`. "
                              "Options are: `pid`, `pos`, `vel` or `mass`.")
 
-        # Because of a RAMSES bug x and z are flipped.
-        if kind in ["pos", "vel"]:
-            print(f"For kind `{kind}` flipping x and z.")
-            x[:, [0, 2]] = x[:, [2, 0]]
-
         del sim
         collect()
 
@@ -273,8 +258,6 @@ class CSiBORG1Reader:
         out["y"] = pos[:, 1] * h + 677.7 / 2
         out["z"] = pos[:, 2] * h + 677.7 / 2
 
-        # Because of a RAMSES bug x and z are flipped.
-        flip_cols(out, "x", "z")
         out["totpartmass"] = totmass * 1e11 * h
         out["m200c"] = m200c * 1e11 * h
 
