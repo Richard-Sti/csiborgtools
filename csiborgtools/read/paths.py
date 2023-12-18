@@ -337,13 +337,13 @@ class Paths:
             if simname == "csiborg1":
                 raise ValueError("SPH field not available for CSiBORG1.")
             elif simname == "csiborg2_main":
-                return join(self.csiborg2_main_srcdir, "fields",
+                return join(self.csiborg2_main_srcdir, "field",
                             f"chain_{nsim}_{grid}.hdf5")
             elif simname == "csiborg2_random":
-                return join(self.csiborg2_random_srcdir, "fields",
+                return join(self.csiborg2_random_srcdir, "field",
                             f"chain_{nsim}_{grid}.hdf5")
             elif simname == "csiborg2_varysmall":
-                return join(self.csiborg2_varysmall_srcdir, "fields",
+                return join(self.csiborg2_varysmall_srcdir, "field",
                             f"chain_{nsim}_{grid}.hdf5")
             elif simname == "quijote":
                 raise ValueError("SPH field not available for CSiBORG1.")
