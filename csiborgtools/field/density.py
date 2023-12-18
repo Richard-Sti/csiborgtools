@@ -42,6 +42,7 @@ class BaseField(ABC):
     def boxsize(self, value):
         if not isinstance(value, (int, float)):
             raise ValueError("`boxsize` must be an integer.")
+        self._boxsize = value
 
     @property
     def MAS(self):
@@ -124,7 +125,7 @@ class DensityField(BaseField):
         start = 0
 
         for __ in trange(nbatch + 1, disable=not verbose,
-                         desc="Loading particles for the density field"):
+                         desc="Processing particles for the density field"):
             end = min(start + batch_size, nparts)
             batch_pos = pos[start:end]
             batch_mass = mass[start:end]
