@@ -209,10 +209,13 @@ def make_sky(field, angpos, dist, boxsize, verbose=True):
         dir_loop[:, 0] = dist
         dir_loop[:, 1] = angpos[i, 0]
         dir_loop[:, 2] = angpos[i, 1]
+
         out[i] = numpy.sum(
             dist**2 * evaluate_sky(field, pos=dir_loop, mpc2box=1 / boxsize))
 
-    out *= dx
+    # Assuming the field is in h^2 Msun / kpc**3, we need to convert Mpc / h
+    # to kpc / h and multiply by the pixel area.
+    out *= dx * 1e9 * 4 * numpy.pi / len(angpos)
     return out
 
 
