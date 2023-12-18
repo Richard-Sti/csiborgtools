@@ -15,9 +15,8 @@
 from os import system
 
 if __name__ == "__main__":
-    # Quijote chains
-    chains = [1]
-    simname = "quijote"
+    chains = [7444]
+    simname = "csiborg1"
     mode = 2
 
     env = "/mnt/zfsusers/rstiskalek/csiborgtools/venv_csiborg/bin/python"
