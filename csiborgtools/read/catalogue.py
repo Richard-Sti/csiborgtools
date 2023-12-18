@@ -28,8 +28,6 @@ from sklearn.neighbors import NearestNeighbors
 from ..utils import (cartesian_to_radec, fprint, great_circle_distance,
                      number_counts, periodic_distance_two_points,
                      real2redshift)
-# TODO: removing these
-# from .box_units import CSiBORG1Box, QuijoteBox
 from .paths import Paths
 
 ###############################################################################
