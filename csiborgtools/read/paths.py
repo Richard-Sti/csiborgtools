@@ -357,6 +357,30 @@ class Paths:
 
         return join(fdir, fname)
 
+    def observer_peculiar_velocity(self, MAS, grid, nsim, simname):
+        """
+        Path to the files containing the observer peculiar velocity.
+
+        Parameters
+        ----------
+        MAS : str
+            Mass-assignment scheme.
+        grid : int
+            Grid size.
+        nsim : int
+            IC realisation index.
+        simname : str
+            Simulation name.
+
+        Returns
+        -------
+        str
+        """
+        fdir = join(self.postdir, "environment")
+        try_create_directory(fdir)
+        fname = f"observer_peculiar_velocity_{simname}_{MAS}_{str(nsim).zfill(5)}_{grid}.npz"  # noqa
+        return join(fdir, fname)
+
     def field_interpolated(self, survey, kind, MAS, grid, nsim, in_rsp):
         """
         Path to the files containing the CSiBORG interpolated field for a given
