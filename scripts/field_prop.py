@@ -56,9 +56,6 @@ def density_field(nsim, parser_args):
     gen = csiborgtools.field.DensityField(boxsize, parser_args.MAS)
     field = gen(pos, mass, parser_args.grid)
 
-    # Normalize so that the field is in units of `h^2 Msun / kpc^3`
-    field /= (boxsize * 1000 / parser_args.grid)**3
-
     fout = paths.field("density", parser_args.MAS, parser_args.grid,
                        nsim, parser_args.simname)
 
