@@ -14,13 +14,9 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 Classes for reading in snapshots and unifying the snapshot interface.
-
-
-TODO: What to do here since some snapshots all have substructure?
-
-
 """
 from abc import ABC, abstractmethod, abstractproperty
+import numpy
 
 from h5py import File
 
@@ -202,6 +198,7 @@ class BaseSnapshot(ABC):
 class CSIBORG1Snapshot(BaseSnapshot):
     """
     CSiBORG1 snapshot class with the FoF halo finder particle assignment.
+    CSiBORG1 was run with RAMSES.
 
     Parameters
     ----------
@@ -217,43 +214,31 @@ class CSIBORG1Snapshot(BaseSnapshot):
         self._snapshot_path = self.paths.snapshot(
             self.nsnap, self.nsim, "csiborg1")
 
-    def coordinates(self, halo_id=None):
+    def _get_particles(self, kind):
         with File(self._snapshot_path, "r") as f:
-            if halo_id is None:
-                coords = f["Coordinates"][...]
-            else:
-                raise RuntimeError("Not implemented yet")
+            x = f[kind][...]
 
-        return coords
+        return x
 
-    def velocities(self, halo_id=None):
+    def coordinates(self):
+        return self._get_particles("Coordinates")
+
+    def velocities(self):
+        return self._get_particles("Velocities")
+
+    def masses(self):
+        return self._get_particles("Masses")
+
+    def particle_ids(self):
         with File(self._snapshot_path, "r") as f:
-            if halo_id is None:
-                vel = f["Velocities"][...]
-            else:
-                raise RuntimeError("Not implemented yet")
-
-        return vel
-
-    def masses(self, halo_id=None):
-        with File(self._snapshot_path, "r") as f:
-            if halo_id is None:
-                mass = f["Masses"][...]
-            else:
-                raise RuntimeError("Not implemented yet")
-
-        return mass
-
-    def particle_ids(self, halo_id=None):
-        with File(self._snapshot_path, "r") as f:
-            if halo_id is None:
-                ids = f["ParticleIDs"][...]
-            else:
-                raise RuntimeError("Not implemented yet")
+            ids = f["ParticleIDs"][...]
 
         return ids
 
-    def _get_halo_particles(self, halo_id, kind):
+    def _get_halo_particles(self, halo_id, kind, is_group):
+        if not is_group:
+            raise ValueError("There is no subhalo catalogue for CSiBORG1.")
+
         with File(self._snapshot_path, "r") as f:
             i, j = self.hid2offset.get(halo_id, (None, None))
 
@@ -265,22 +250,13 @@ class CSIBORG1Snapshot(BaseSnapshot):
         return x
 
     def halo_coordinates(self, halo_id, is_group=True):
-        if not is_group:
-            raise ValueError("There is no subhalo catalogue for CSiBORG1.")
-
-        return self._get_halo_particles(halo_id, "Coordinates")
+        return self._get_halo_particles(halo_id, "Coordinates", is_group)
 
     def halo_velocities(self, halo_id, is_group=True):
-        if not is_group:
-            raise ValueError("There is no subhalo catalogue for CSiBORG1.")
-
-        return self._get_halo_particles(halo_id, "Velocities")
+        return self._get_halo_particles(halo_id, "Velocities", is_group)
 
     def halo_masses(self, halo_id, is_group=True):
-        if not is_group:
-            raise ValueError("There is no subhalo catalogue for CSiBORG1.")
-
-        return self._get_halo_particles(halo_id, "Masses")
+        return self._get_halo_particles(halo_id, "Masses", is_group)
 
     def _make_hid2offset(self):
         catalogue_path = self.paths.snapshot_catalogue(
@@ -298,17 +274,26 @@ class CSIBORG1Snapshot(BaseSnapshot):
 
 class CSIBORG2Snapshot(BaseSnapshot):
     """
-    CSiBORG2 snapshot class with the FoF halo finder particle assignment.
+    CSiBORG2 snapshot class with the FoF halo finder particle assignment and
+    SUBFIND subhalo finder. The simulations were run with Gadget4.
 
-
-
-
-    Read CSiBORG1 snapshots FOF SNAPSHOT
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+    nsnap : int
+        Snapshot index.
+    paths : Paths
+        Paths object.
+    kind : str
+        CSiBORG2 run kind. One of `main`, `random`, or `varysmall`.
     """
     def __init__(self, nsim, nsnap, paths, kind):
         super().__init__(nsim, nsnap, paths)
-        self._snapshot_path = self.paths.snapshot(self.nsnap, self.nsim,
-                                                  "quijote")
+        self.kind = kind
+
+        self._snapshot_path = self.paths.snapshot(
+            self.nsnap, self.nsim, f"csiborg2_{self.kind}")
 
     @property
     def kind(self):
@@ -328,21 +313,98 @@ class CSIBORG2Snapshot(BaseSnapshot):
 
         self._kind = value
 
+    def _get_particles(self, kind):
+        with File(self._snapshot_path, "r") as f:
+            if kind == "Masses":
+                npart = f["Header"].attrs["NumPart_Total"][1]
+                x = numpy.ones(npart, dtype=numpy.float32)
+                x *= f["Header"].attrs["MassTable"][1]
+            else:
+                x = f[f"PartType1/{kind}"][...]
 
-#         # First do the high-resolution particles
-#         pos = snapshot["PartType1"]["Coordinates"]
-#         mass = numpy.ones(len(pos), dtype=pos.dtype)
-#         mass *= snapshot.header.attrs["MassTable"][1]
-#         field = gen(pos, mass, parser_args.grid, verbose=parser_args.verbose)
-#
-#         # And then the low-resolution particles
-#         pos = snapshot["PartType5"]["Coordinates"]
-#         mass = snapshot["PartType5"]["Masses"]
-#         field += gen(pos, mass, parser_args.grid,
-# verbose=parser_args.verbose)
-#
-#         # Convert to `Msun / h`
-#         field *= 1e10
+            if x.ndim == 1:
+                x = numpy.hstack([x, f[f"PartType5/{kind}"][...]])
+            else:
+                x = numpy.vstack([x, f[f"PartType5/{kind}"][...]])
+
+        return x
+
+    def coordinates(self):
+        return self._get_particles("Coordinates")
+
+    def velocities(self):
+        return self._get_particles("Velocities")
+
+    def masses(self):
+        return self._get_particles("Masses") * 1e10
+
+    def particle_ids(self):
+        return self._get_particles("ParticleIDs")
+
+    def _get_halo_particles(self, halo_id, kind, is_group):
+        if not is_group:
+            raise RuntimeError("While the CSiBORG2 subhalo catalogue exists, it is not currently implemented.")  # noqa
+
+        with File(self._snapshot_path, "r") as f:
+            i1, j1 = self.hid2offset["type1"].get(halo_id, (None, None))
+            i5, j5 = self.hid2offset["type5"].get(halo_id, (None, None))
+
+            # Check if this is a valid halo
+            if i1 is None and i5 is None:
+                raise ValueError(f"Halo `{halo_id}` not found.")
+            if j1 - i1 == 0 and j5 - i5 == 0:
+                raise ValueError(f"Halo `{halo_id}` has no particles.")
+
+            if i1 is not None and j1 - i1 > 0:
+                if kind == "Masses":
+                    x1 = numpy.ones(j1 - i1, dtype=numpy.float32)
+                    x1 *= f["Header"].attrs["MassTable"][1]
+                else:
+                    x1 = f[f"PartType1/{kind}"][i1:j1]
+
+            if i5 is not None and j5 - i5 > 0:
+                x5 = f[f"PartType5/{kind}"][i5:j5]
+
+        if i5 is None or j5 - i5 == 0:
+            return x1
+
+        if i1 is None or j1 - i1 == 0:
+            return x5
+
+        if x1.ndim > 1:
+            x1 = numpy.vstack([x1, x5])
+        else:
+            x1 = numpy.hstack([x1, x5])
+
+        return x1
+
+    def halo_coordinates(self, halo_id, is_group=True):
+        return self._get_halo_particles(halo_id, "Coordinates", is_group)
+
+    def halo_velocities(self, halo_id, is_group=True):
+        return self._get_halo_particles(halo_id, "Velocities", is_group)
+
+    def halo_masses(self, halo_id, is_group=True):
+        return self._get_halo_particles(halo_id, "Masses", is_group) * 1e10
+
+    def _make_hid2offset(self):
+        catalogue_path = self.paths.snapshot_catalogue(
+            self.nsnap, self.nsim, f"csiborg2_{self.kind}")
+        with File(catalogue_path, "r") as f:
+
+            offset = f["Group/GroupOffsetType"][:, 1]
+            lenghts = f["Group/GroupLenType"][:, 1]
+            hid2offset_type1 = {i: (offset[i], offset[i] + lenghts[i])
+                                for i in range(len(offset))}
+
+            offset = f["Group/GroupOffsetType"][:, 5]
+            lenghts = f["Group/GroupLenType"][:, 5]
+            hid2offset_type5 = {i: (offset[i], offset[i] + lenghts[i])
+                                for i in range(len(offset))}
+
+        self._hid2offset = {"type1": hid2offset_type1,
+                            "type5": hid2offset_type5,
+                            }
 
 
 ###############################################################################
@@ -377,4 +439,4 @@ class QuijoteSnapshot(CSIBORG1Snapshot):
         with File(catalogue_path, "r") as f:
             offset = f["GroupOffset"][:]
 
-        self._hid2offset = {i: (j, k) for i, j, k in offset}
+        self._hid2offset = {int(i): (int(j), int(k)) for i, j, k in offset}
