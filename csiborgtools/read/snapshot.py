@@ -13,7 +13,9 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-Classes for reading in snapshots and unifying the snapshot interface.
+Classes for reading in snapshots and unifying the snapshot interface. Here
+should be implemented things such as flipping x- and z-axes, to make sure that
+observed RA-dec can be mapped into the simulation box.
 """
 from abc import ABC, abstractmethod, abstractproperty
 import numpy
@@ -440,3 +442,215 @@ class QuijoteSnapshot(CSIBORG1Snapshot):
             offset = f["GroupOffset"][:]
 
         self._hid2offset = {int(i): (int(j), int(k)) for i, j, k in offset}
+
+
+###############################################################################
+#                          Base field class                                   #
+###############################################################################
+
+class BaseField(ABC):
+    """
+    Base class for reading fields such as density or velocity fields.
+    """
+    def __init__(self, nsim, paths):
+        if not isinstance(nsim, int):
+            raise TypeError("`nsim` must be an integer")
+        self._nsim = nsim
+
+        self._paths = paths
+
+    @property
+    def nsim(self):
+        """
+        Simulation index.
+
+        Returns
+        -------
+        int
+        """
+        return self._nsim
+
+    @property
+    def paths(self):
+        """
+        Paths manager.
+
+        Returns
+        -------
+        Paths
+        """
+        return self._paths
+
+    @abstractmethod
+    def density_field(self, MAS, grid):
+        """
+        Return the pre-computed density field.
+
+        Parameters
+        ----------
+        MAS : str
+            Mass assignment scheme.
+        grid : int
+            Grid size.
+
+        Returns
+        -------
+        field : 3-dimensional array
+        """
+        pass
+
+    @abstractmethod
+    def velocity_field(self, MAS, grid):
+        """
+        Return the pre-computed velocity field.
+
+        Parameters
+        ----------
+        MAS : str
+            Mass assignment scheme.
+        grid : int
+            Grid size.
+
+        Returns
+        -------
+        field : 4-dimensional array
+        """
+        pass
+
+
+###############################################################################
+#                          CSiBORG1 field class                               #
+###############################################################################
+
+
+class CSiBORG1Field(BaseField):
+    """
+    CSiBORG1 `z = 0` field class.
+
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+    paths : Paths
+        Paths object.
+    """
+    def __init__(self, nsim, paths):
+        super().__init__(nsim, paths)
+
+    def density_field(self, MAS, grid):
+        fpath = self.paths.field("density", MAS, grid, self.nsim, "csiborg1")
+
+        if MAS == "SPH":
+            with File(fpath, "r") as f:
+                field = f["density"][:]
+        else:
+            field = numpy.load(fpath)
+
+        return field
+
+    def velocity_field(self, MAS, grid):
+        fpath = self.paths.field("velocity", MAS, grid, self.nsim, "csiborg1")
+
+        if MAS == "SPH":
+            with File(fpath, "r") as f:
+                density = f["density"][:]
+                v0 = f["p0"][:] / density
+                v1 = f["p1"][:] / density
+                v2 = f["p2"][:] / density
+            field = numpy.array([v0, v1, v2])
+        else:
+            field = numpy.load(fpath)
+
+        return field
+
+
+###############################################################################
+#                          CSiBORG2 field class                               #
+###############################################################################
+
+
+class CSiBORG2Field(BaseField):
+    """
+    CSiBORG2 `z = 0` field class.
+
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+    paths : Paths
+        Paths object.
+    kind : str
+        CSiBORG2 run kind. One of `main`, `random`, or `varysmall`.
+    """
+
+    def __init__(self, nsim, paths, kind):
+        super().__init__(nsim, paths)
+        self.kind = kind
+
+    @property
+    def kind(self):
+        """
+        CSiBORG2 run kind.
+
+        Returns
+        -------
+        str
+        """
+        return self._kind
+
+    @kind.setter
+    def kind(self, value):
+        if value not in ["main", "random", "varysmall"]:
+            raise ValueError("`kind` must be one of `main`, `random`, or `varysmall`.")  # noqa
+        self._kind = value
+
+    def density_field(self, MAS, grid):
+        fpath = self.paths.field("density", MAS, grid, self.nsim,
+                                 f"csiborg2_{self.kind}")
+
+        if MAS == "SPH":
+            with File(fpath, "r") as f:
+                field = f["density"][:]
+            field *= 1e10                     # Convert to Msun / h
+            field /= (676.6 * 1e3 / 1024)**3  # Convert to h^2 Msun / kpc^3
+            field = field.T                   # Flip x- and z-axes
+        else:
+            field = numpy.load(fpath)
+
+        return field
+
+    def velocity_field(self, MAS, grid):
+        fpath = self.paths.field("velocity", MAS, grid, self.nsim,
+                                 f"csiborg2_{self.kind}")
+
+        if MAS == "SPH":
+            with File(fpath, "r") as f:
+                density = f["density"][:]
+                v0 = f["p0"][:] / density
+                v1 = f["p1"][:] / density
+                v2 = f["p2"][:] / density
+            field = numpy.array([v0, v1, v2])
+        else:
+            field = numpy.load(fpath)
+
+        return field
+
+
+###############################################################################
+#                          Quijote field class                                #
+###############################################################################
+
+
+class QuijoteField(CSiBORG1Field):
+    """
+    Quijote `z = 0` field class.
+
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+    paths : Paths
+        Paths object.
+    """
+    def __init__(self, nsim, paths):
+        super().__init__(nsim, paths)
