@@ -50,9 +50,12 @@ def simname2boxsize(simname):
     -------
     boxsize : float
     """
-    0
     d = {"csiborg1": 677.7,
-         "quijote": 1000.}
+         "csiborg2_main": 676.6,
+         "csiborg2_varysmall": 676.6,
+         "csiborg2_random": 676.6,
+         "quijote": 1000.
+         }
 
     boxsize = d.get(simname, None)
 
