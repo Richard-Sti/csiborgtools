@@ -171,7 +171,7 @@ def evaluate_sky(*fields, pos, mpc2box, smooth_scales=None, verbose=False):
                               smooth_scales=smooth_scales, verbose=verbose)
 
 
-def make_sky(field, angpos, dist, boxsize, volume_weight=True, verbose=True):
+def make_sky(field, angpos, dist, boxsize, verbose=True):
     r"""
     Make a sky map of a scalar field. The observer is in the centre of the
     box the field is evaluated along directions `angpos` (RA [0, 360) deg,
@@ -188,8 +188,6 @@ def make_sky(field, angpos, dist, boxsize, volume_weight=True, verbose=True):
         Uniformly spaced radial distances to evaluate the field in `Mpc / h`.
     boxsize : float
         Box size in `Mpc / h`.
-    volume_weight : bool, optional
-        Whether to weight the field by the volume of the pixel.
     verbose : bool, optional
         Verbosity flag.
 
@@ -211,13 +209,9 @@ def make_sky(field, angpos, dist, boxsize, volume_weight=True, verbose=True):
         dir_loop[:, 0] = dist
         dir_loop[:, 1] = angpos[i, 0]
         dir_loop[:, 2] = angpos[i, 1]
-        if volume_weight:
-            out[i] = numpy.sum(
-                dist**2
-                * evaluate_sky(field, pos=dir_loop, mpc2box=1 / boxsize))
-        else:
-            out[i] = numpy.sum(
-                evaluate_sky(field, pos=dir_loop, mpc2box=1 / boxsize))
+        out[i] = numpy.sum(
+            dist**2 * evaluate_sky(field, pos=dir_loop, mpc2box=1 / boxsize))
+
     out *= dx
     return out
 
