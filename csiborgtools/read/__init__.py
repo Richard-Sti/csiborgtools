@@ -12,7 +12,7 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-from .catalogue import CSiBORG1Catalogue, QuijoteCatalogue                      # noqa
+from .catalogue import CSiBORG1Catalogue, CSiBORG2Catalogue, QuijoteCatalogue   # noqa
 from .snapshot import (CSIBORG1Snapshot, CSIBORG2Snapshot, QuijoteSnapshot,     # noqa
                        CSiBORG1Field, CSiBORG2Field, QuijoteField)              # noqa
 from .obs import (SDSS, MCXCClusters, PlanckClusters, TwoMPPGalaxies,           # noqa
