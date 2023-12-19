@@ -717,7 +717,6 @@ class CSiBORG2Catalogue(BaseCatalogue):
 
         with File(fpath, 'r') as f:
             grp = f["Group"]
-            print(grp.keys())
             if kind not in grp.keys():
                 raise ValueError(f"Group catalogue key '{kind}' not available. Available keys are: {list(f.keys())}")  # noqa
             out = grp[kind][...]
