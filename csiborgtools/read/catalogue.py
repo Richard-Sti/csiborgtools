@@ -26,8 +26,10 @@ import numpy
 from h5py import File
 from sklearn.neighbors import NearestNeighbors
 
+from ..params import paths_glamdring
 from ..utils import (cartesian_to_radec, great_circle_distance, number_counts,
                      periodic_distance_two_points, real2redshift)
+from .paths import Paths
 
 ###############################################################################
 #                           Base catalogue                                    #
@@ -155,7 +157,7 @@ class BaseCatalogue(ABC):
         py:class:`csiborgtools.read.Paths`
         """
         if self._paths is None:
-            raise RuntimeError("`paths` is not set!")
+            return Paths(**paths_glamdring)
         return self._paths
 
     @property
@@ -601,13 +603,13 @@ class BaseCatalogue(ABC):
 
 class CSiBORG1Catalogue(BaseCatalogue):
     r"""
-    CSiBORG1 FoF halo catalogue.
+    CSiBORG1 `z = 0` FoF halo catalogue.
 
     Parameters
     ----------
     nsim : int
         IC realisation index.
-    paths : py:class`csiborgtools.read.Paths`
+    paths : py:class`csiborgtools.read.Paths`, optional
         Paths object.
     bounds : dict, optional
         Parameter bounds; keys as parameter names, values as (min, max) or
@@ -617,7 +619,7 @@ class CSiBORG1Catalogue(BaseCatalogue):
     cache_maxsize : int, optional
         Maximum number of cached arrays.
     """
-    def __init__(self, nsim, paths, bounds=None, observer_velocity=None,
+    def __init__(self, nsim, paths=None, bounds=None, observer_velocity=None,
                  cache_maxsize=64):
         super().__init__()
         super().init_with_snapshot(
@@ -629,7 +631,7 @@ class CSiBORG1Catalogue(BaseCatalogue):
 
     def _read_fof_catalogue(self, kind):
         fpath = self.paths.snapshot_catalogue(self.nsnap, self.nsim,
-                                              self._simname)
+                                              self.simname)
 
         with File(fpath, 'r') as f:
             if kind not in f.keys():
@@ -674,14 +676,101 @@ class CSiBORG1Catalogue(BaseCatalogue):
 ###############################################################################
 
 class CSiBORG2Catalogue(BaseCatalogue):
-    """
-    z = 0!
-    """
+    r"""
+    CSiBORG2 FoF halo catalogue.
 
-    def __init__(self, nsim, nsnap, paths, bounds=None, observer_velocity=None,
-                 cache_maxsize=64):
-        # TODO
-        pass
+    Parameters
+    ----------
+    nsim : int
+        IC realisation index.
+    nsnap : int
+        Snapshot index.
+    kind : str
+        Simulation kind. Must be one of 'main', 'varysmall', or 'random'.
+    paths : py:class`csiborgtools.read.Paths`, optional
+        Paths object.
+    bounds : dict, optional
+        Parameter bounds; keys as parameter names, values as (min, max) or
+        a boolean.
+    observer_velocity : 1-dimensional array, optional
+        Observer's velocity in :math:`\mathrm{km} / \mathrm{s}`.
+    cache_maxsize : int, optional
+        Maximum number of cached arrays.
+    """
+    def __init__(self, nsim, nsnap, kind, paths=None, bounds=None,
+                 observer_velocity=None, cache_maxsize=64):
+        super().__init__()
+        super().init_with_snapshot(
+            f"csiborg2_{kind}", nsim, nsnap, paths, bounds, 676.6,
+            [338.3, 338.3, 338.3], observer_velocity, cache_maxsize)
+
+        self._custom_keys = ["GroupFirstSub", "GroupContamination",
+                             "GroupNsubs"]
+
+    @property
+    def kind(self):
+        return self._simname.split("_")[-1]
+
+    def _read_fof_catalogue(self, kind):
+        fpath = self.paths.snapshot_catalogue(self.nsnap, self.nsim,
+                                              self._simname)
+
+        with File(fpath, 'r') as f:
+            grp = f["Group"]
+            print(grp.keys())
+            if kind not in grp.keys():
+                raise ValueError(f"Group catalogue key '{kind}' not available. Available keys are: {list(f.keys())}")  # noqa
+            out = grp[kind][...]
+        return out
+
+    @property
+    def coordinates(self):
+        # We flip x and z to undo MUSIC bug.
+        out = self._read_fof_catalogue("GroupPos")
+        out[:, [0, 2]] = out[:, [2, 0]]
+        return out
+
+    @property
+    def velocities(self):
+        # We flip x and z to undo MUSIC bug.
+        out = self._read_fof_catalogue("GroupVel")
+        out[:, [0, 2]] = out[:, [2, 0]]
+        return out
+
+    @property
+    def npart(self):
+        return self._read_fof_catalogue("GroupLen")
+
+    @property
+    def totmass(self):
+        return self._read_fof_catalogue("GroupMass") * 1e10
+
+    @property
+    def index(self):
+        # To grab the size, read some example column.
+        nhalo = self._read_fof_catalogue("GroupMass").size
+        return numpy.arange(nhalo, dtype=numpy.int32)
+
+    @property
+    def lagpatch_coordinates(self):
+        raise RuntimeError("Lagrangian patch coordinates are not available.")
+
+    @property
+    def lagpatch_radius(self):
+        raise RuntimeError("Lagrangian patch radius is not available.")
+
+    @property
+    def GroupFirstSub(self):
+        return self._read_fof_catalogue("GroupFirstSub")
+
+    @property
+    def GroupNsubs(self):
+        return self._read_fof_catalogue("GroupNsubs")
+
+    @property
+    def GroupContamination(self):
+        mass_type = self._read_fof_catalogue("GroupMassType")
+        return mass_type[:, 5] / (mass_type[:, 1] + mass_type[:, 5])
 
 
 ###############################################################################
@@ -691,13 +780,13 @@ class CSiBORG2Catalogue(BaseCatalogue):
 
 class QuijoteCatalogue(BaseCatalogue):
     r"""
-    Quijote halo catalogue.
+    Quijote `z = 0` halo catalogue.
 
     Parameters
     ----------
     nsim : int
         IC realisation index.
-    paths : py:class`csiborgtools.read.Paths`
+    paths : py:class`csiborgtools.read.Paths`, optional
         Paths object.
     bounds : dict
         Parameter bounds; keys as parameter names, values as (min, max)
@@ -707,7 +796,7 @@ class QuijoteCatalogue(BaseCatalogue):
     cache_maxsize : int, optional
         Maximum number of cached arrays.
     """
-    def __init__(self, nsim, paths, bounds=None, observer_velocity=None,
+    def __init__(self, nsim, paths=None, bounds=None, observer_velocity=None,
                  cache_maxsize=64):
         super().__init__()
         super().init_with_snapshot(
@@ -719,7 +808,7 @@ class QuijoteCatalogue(BaseCatalogue):
 
     def _read_fof_catalogue(self, kind):
         fpath = self.paths.snapshot_catalogue(self.nsnap, self.nsim,
-                                              self._simname)
+                                              self.simname)
 
         with File(fpath, 'r') as f:
             if kind not in f.keys():
