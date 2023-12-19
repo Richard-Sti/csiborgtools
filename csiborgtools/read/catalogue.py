@@ -13,7 +13,9 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-Unified simulation catalogues.
+Unified interface for simulation catalogues. Currently supports CSiBORG1,
+CSiBORG2 and Quijote. For specific implementation always check the relevant
+classes in this module.
 """
 from abc import ABC, abstractproperty
 from collections import OrderedDict
