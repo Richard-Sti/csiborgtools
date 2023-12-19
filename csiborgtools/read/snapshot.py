@@ -22,8 +22,9 @@ from abc import ABC, abstractmethod, abstractproperty
 import numpy
 from h5py import File
 
+from ..params import paths_glamdring, simname2boxsize
+from .paths import Paths
 from .util import find_boxed
-from .. import simname2boxsize
 
 ###############################################################################
 #                          Base snapshot class                                #
@@ -101,6 +102,8 @@ class BaseSnapshot(ABC):
         -------
         Paths
         """
+        if self._paths is None:
+            self._paths = Paths(**paths_glamdring)
         return self._paths
 
     @abstractproperty
@@ -256,10 +259,10 @@ class CSIBORG1Snapshot(BaseSnapshot):
         Simulation index.
     nsnap : int
         Snapshot index.
-    paths : Paths
+    paths : Paths, optional
         Paths object.
     """
-    def __init__(self, nsim, nsnap, paths):
+    def __init__(self, nsim, nsnap, paths=None):
         super().__init__(nsim, nsnap, paths)
         self._snapshot_path = self.paths.snapshot(
             self.nsnap, self.nsim, "csiborg1")
@@ -334,12 +337,12 @@ class CSIBORG2Snapshot(BaseSnapshot):
         Simulation index.
     nsnap : int
         Snapshot index.
-    paths : Paths
-        Paths object.
     kind : str
         CSiBORG2 run kind. One of `main`, `random`, or `varysmall`.
+    paths : Paths, optional
+        Paths object.
     """
-    def __init__(self, nsim, nsnap, paths, kind):
+    def __init__(self, nsim, nsnap, kind, paths=None):
         super().__init__(nsim, nsnap, paths)
         self.kind = kind
 
@@ -476,10 +479,10 @@ class QuijoteSnapshot(CSIBORG1Snapshot):
         Simulation index.
     nsnap : int
         Snapshot index.
-    paths : Paths
+    paths : Paths, optional
         Paths object.
     """
-    def __init__(self, nsim, nsnap, paths):
+    def __init__(self, nsim, nsnap, paths=None):
         super().__init__(nsim, nsnap, paths)
         self._snapshot_path = self.paths.snapshot(self.nsnap, self.nsim,
                                                   "quijote")
