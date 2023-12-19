@@ -13,7 +13,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """Simulation catalogues."""
-from abc import ABC
+from abc import ABC, abstractproperty
 from collections import OrderedDict
 from functools import lru_cache
 from gc import collect
@@ -21,14 +21,12 @@ from itertools import product
 from math import floor
 
 import numpy
-from h5py import File
-from numba import jit
 from sklearn.neighbors import NearestNeighbors
 
-from ..utils import (cartesian_to_radec, fprint, great_circle_distance,
+from ..utils import (cartesian_to_radec, great_circle_distance,
                      number_counts, periodic_distance_two_points,
                      real2redshift)
-from .paths import Paths
+
 
 ###############################################################################
 #                           Base catalogue                                    #
@@ -71,25 +69,18 @@ class BaseCatalogue(ABC):
         self._load_filtered = False
         self._filter_mask = None
 
-    def init_with_snapshot(self, simname, nsim, nsnap, halo_finder,
-                           catalogue_name, paths, mass_key, bounds,
+    def init_with_snapshot(self, simname, nsim, nsnap,
+                           paths, bounds,
                            observer_location, observer_velocity,
                            cache_maxsize=64):
         self.simname = simname
         self.nsim = nsim
         self.nsnap = nsnap
-        self.paths = paths
+        self._paths = paths
         self.observer_location = observer_location
         self.observer_velocity = observer_velocity
 
-        fname = self.paths.processed_output(nsim, simname, halo_finder)
-        fprint(f"opening `{fname}`.")
-        self._data = File(fname, "r")
-        self._is_closed = False
-
         self.cache_maxsize = cache_maxsize
-        self.catalogue_name = catalogue_name
-        self.mass_key = mass_key
 
         if bounds is not None:
             self._make_mask(bounds)
@@ -103,7 +94,8 @@ class BaseCatalogue(ABC):
 
     @simname.setter
     def simname(self, simname):
-        assert isinstance(simname, str)
+        if not isinstance(simname, str):
+            raise TypeError("`simname` must be a string.")
         self._simname = simname
 
     @property
@@ -115,8 +107,9 @@ class BaseCatalogue(ABC):
 
     @nsim.setter
     def nsim(self, nsim):
-        assert isinstance(nsim, (int, numpy.integer))
-        self._nsim = nsim
+        if not isinstance(nsim, (int, numpy.integer)):
+            raise TypeError("`nsim` must be an integer.")
+        self._nsim = int(nsim)
 
     @property
     def nsnap(self):
@@ -127,21 +120,9 @@ class BaseCatalogue(ABC):
 
     @nsnap.setter
     def nsnap(self, nsnap):
-        assert isinstance(nsnap, (int, numpy.integer))
-        self._nsnap = nsnap
-
-    @property
-    def catalogue_name(self):
-        """Name of the halo catalogue."""
-        if self._catalogue_name is None:
-            raise RuntimeError("`catalogue_name` is not set!")
-        return self._catalogue_name
-
-    @catalogue_name.setter
-    def catalogue_name(self, catalogue_name):
-        assert isinstance(catalogue_name, str)
-        assert catalogue_name in self.data.keys()
-        self._catalogue_name = catalogue_name
+        if not isinstance(nsnap, (int, numpy.integer)):
+            raise TypeError("`nsnap` must be an integer.")
+        self._nsnap = int(nsnap)
 
     @property
     def paths(self):
@@ -150,26 +131,12 @@ class BaseCatalogue(ABC):
             raise RuntimeError("`paths` is not set!")
         return self._paths
 
-    @paths.setter
-    def paths(self, paths):
-        assert isinstance(paths, Paths)
-        self._paths = paths
-
     @property
-    def box(self):
-        """Box object."""
-        return self._box
-
-    @box.setter
-    def box(self, box):
-        self._box = box
-
-    @property
-    def data(self):
-        """The HDF5 catalogue."""
-        if self._data is None:
-            raise RuntimeError("`data` is not set!")
-        return self._data
+    def boxsize(self):
+        """Box size in `cMpc / h`."""
+        if self._boxsize is None:
+            raise RuntimeError("`boxsize` is not set!")
+        return self._boxsize
 
     @property
     def cache_maxsize(self):
@@ -190,6 +157,50 @@ class BaseCatalogue(ABC):
     def cache_length(self):
         """Length of the cache dictionary."""
         return len(self._cache)
+
+    @abstractproperty
+    def coordinates(self):
+        """
+        Halo coordinates.
+
+        Returns
+        -------
+        2-dimensional array
+        """
+        pass
+
+    @abstractproperty
+    def velocities(self):
+        """
+        Halo peculiar velocities.
+
+        Returns
+        -------
+        2-dimensional array
+        """
+        pass
+
+    @abstractproperty
+    def npart(self):
+        """
+        Number of particles in a halo.
+
+        Returns
+        -------
+        1-dimensional array
+        """
+        pass
+
+    @abstractproperty
+    def totmass(self):
+        """
+        Total particle mass of a halo.
+
+        Returns
+        -------
+        1-dimensional array
+        """
+        pass
 
     @property
     def observer_location(self):
@@ -273,34 +284,6 @@ class BaseCatalogue(ABC):
 
         return x, y, yerr
 
-    def halo_particles(self, hid, kind, in_initial=False):
-        """
-        Load particle information for a given halo. If the halo ID is invalid,
-        returns `None`.
-
-        Parameters
-        ----------
-        hid : int
-            Halo ID.
-        kind : str
-            Must be position, velocity or mass, i.e. either 'pos', 'vel', or
-            'mass'.
-        in_initial : bool, optional
-            Whether to load the initial or final snapshot.
-
-        Returns
-        -------
-        out : 2-dimensional array
-        """
-        if hid == 0:
-            raise ValueError("ID 0 is reserved for unassigned particles.")
-
-        if kind not in ["pos", "vel", "mass"]:
-            raise ValueError("`kind` must be either 'pos', 'vel' or 'mass'.")
-
-        key = f"snapshot_{'initial' if in_initial else 'final'}/{kind}"
-        return load_halo_particles(hid, self[key], self["particle_offset"])
-
     @lru_cache(maxsize=4)
     def knn(self, in_initial, angular=False):
         r"""
@@ -330,27 +313,6 @@ class BaseCatalogue(ABC):
 
         knn.fit(pos)
         return knn
-
-    def select_in_box(self, center, boxwidth, in_initial=False):
-        """
-        Find array indices of haloes in a box of size `boxwidth` centered on
-        `center`.
-
-        Parameters
-        ----------
-        center : 1-dimensional array
-            Center of the box.
-        boxwidth : float
-            Width of the box.
-        in_initial : bool, optional
-            Whether to find haloes in the initial or final snapshot.
-
-        Returns
-        -------
-        indxs : 1-dimensional array
-        """
-        pos = self["lagpatch_pos"] if in_initial else self["cartesian_pos"]
-        return find_boxed(pos, center, boxwidth, self.box.boxsize)
 
     def nearest_neighbours(self, X, radius, in_initial, knearest=False):
         r"""
@@ -455,15 +417,6 @@ class BaseCatalogue(ABC):
     def keys(self):
         """Catalogue keys."""
         keys = []
-
-        if "snapshot_final" in self.data.keys():
-            for key in self.data["snapshot_final"].keys():
-                keys.append(f"snapshot_final/{key}")
-
-        if "snapshot_initial" in self.data.keys():
-            for key in self.data["snapshot_initial"].keys():
-                keys.append(f"snapshot_initial/{key}")
-
         for key in self.data[f"{self.catalogue_name}"].keys():
             keys.append(f"{self.catalogue_name}/{key}")
 
@@ -473,13 +426,6 @@ class BaseCatalogue(ABC):
         return keys
 
     def __getitem__(self, key):
-        # We do not cache the snapshot keys.
-        if "snapshot" in key:
-            if key in self.data:
-                return self.data[key]
-            else:
-                raise KeyError(f"Key '{key}' is not available.")
-
         # For internal calls we don't want to load the filtered data and use
         # the __ prefixed keys. The internal calls are not being cached.
         if key.startswith("__"):
@@ -492,11 +438,7 @@ class BaseCatalogue(ABC):
             return self._cache[key]
         else:
             if key == "cartesian_pos":
-                try:
-                    out = self["__cm_shrink"]
-                except KeyError:
-                    out = numpy.vstack([self["__x"], self["__y"],
-                                        self["__z"]]).T
+                out = self.coordinates
             elif key == "spherical_pos":
                 out = cartesian_to_radec(
                     self["__cartesian_pos"] - self.observer_location)
@@ -504,7 +446,7 @@ class BaseCatalogue(ABC):
                 out = numpy.linalg.norm(
                     self["__cartesian_pos"] - self.observer_location, axis=1)
             elif key == "cartesian_vel":
-                out = numpy.vstack([self["__vx"], self["__vy"], self["__vz"]])
+                return self.velocities
             elif key == "cartesian_redshift_pos":
                 out = real2redshift(
                     self["__cartesian_pos"], self["__cartesian_vel"],
@@ -516,23 +458,12 @@ class BaseCatalogue(ABC):
             elif key == "redshift_dist":
                 out = self["__cartesian_redshift_pos"]
                 out = numpy.linalg.norm(out - self.observer_location, axis=1)
-            elif key == "angular_momentum":
-                out = numpy.vstack(
-                    [self["__Lx"], self["__Ly"], self["__Lz"]]).T
-            elif key == "is_main":
-                out = self["__index"] == self["__parent"]
-            elif key == "particle_offset":
-                out = make_halomap_dict(self["snapshot_final/halo_map"][:])
+            # elif key == "is_main":
+            #     out = self["__index"] == self["__parent"]
             elif key == "npart":
-                halomap = self["particle_offset"]
-                out = numpy.zeros(len(halomap), dtype=numpy.int32)
-                for i, hid in enumerate(self["__index"]):
-                    if hid == 0:
-                        continue
-                    start, end = halomap[hid]
-                    out[i] = end - start
-            elif key == "hid_to_array_index":
-                out = {hid: i for i, hid in enumerate(self["index"])}
+                out = self.npart
+            elif key == "totmass":
+                out = self.totmass
             elif key in self.data[self.catalogue_name].keys():
                 out = self.data[f"{self.catalogue_name}/{key}"][:]
             else:
@@ -586,7 +517,7 @@ class BaseCatalogue(ABC):
 ###############################################################################
 
 
-class CSiBORGCatalogue(BaseCatalogue):
+class CSiBORG1Catalogue(BaseCatalogue):
     r"""
     CSiBORG halo catalogue. Units typically used are:
         - Length: :math:`cMpc / h`
@@ -613,14 +544,43 @@ class CSiBORGCatalogue(BaseCatalogue):
     cache_maxsize : int, optional
         Maximum number of cached arrays.
     """
-    def __init__(self, nsim, paths, catalogue_name, halo_finder, mass_key=None,
+    def __init__(self, nsim, paths,
                  bounds=None, observer_velocity=None, cache_maxsize=64):
         super().__init__()
         super().init_with_snapshot(
-            "csiborg", nsim, max(paths.get_snapshots(nsim, "csiborg")),
-            halo_finder, catalogue_name, paths, mass_key, bounds,
+            "csiborg1", nsim, max(paths.get_snapshots(nsim, "csiborg1")),
+            paths, bounds,
             [338.85, 338.85, 338.85], observer_velocity, cache_maxsize)
-        self.box = CSiBORG1Box(self.nsnap, self.nsim, self.paths)
+        self._boxsize = 677.7
+
+    @property
+    def coordinates(self):
+        raise RuntimeError("TODO")
+
+    @property
+    def velocities(self):
+        raise RuntimeError("TODO")
+
+    @property
+    def npart(self):
+        raise RuntimeError("TODO")
+
+    @property
+    def totmass(self):
+        raise RuntimeError("TODO")
+
+
+###############################################################################
+#                        CSiBORG2 catalogue                                   #
+###############################################################################
+
+class CSiBORG2Catalogue(BaseCatalogue):
+    """
+    z = 0!
+    """
+
+    def __init__(self, nsim, paths, ):
+        pass
 
 
 ###############################################################################
@@ -628,71 +588,71 @@ class CSiBORGCatalogue(BaseCatalogue):
 ###############################################################################
 
 
-class QuijoteCatalogue(BaseCatalogue):
-    r"""
-    Quijote halo catalogue. Units typically are:
-        - Length: :math:`cMpc / h`
-        - Velocity: :math:`km / s`
-        - Mass: :math:`M_\odot / h`
-
-    Parameters
-    ----------
-    nsim : int
-        IC realisation index.
-    paths : py:class`csiborgtools.read.Paths`
-        Paths object.
-    nsnap : int
-        Snapshot index.
-    observer_location : array, optional
-        Observer's location in :math:`\mathrm{Mpc} / h`.
-    bounds : dict
-        Parameter bounds; keys as parameter names, values as (min, max)
-        tuples. Use `dist` for radial distance, `None` for no bound.
-    load_fitted : bool, optional
-        Load fitted quantities from `fit_halos.py`.
-    load_initial : bool, optional
-        Load initial positions from `fit_init.py`.
-    with_lagpatch : bool, optional
-        Load halos with a resolved Lagrangian patch.
-    load_backup : bool, optional
-        Load halos from the backup catalogue that do not have corresponding
-        snapshots.
-    """
-    def __init__(self, nsim, paths, catalogue_name, halo_finder,
-                 mass_key=None, bounds=None, observer_velocity=None,
-                 cache_maxsize=64):
-        super().__init__()
-        super().init_with_snapshot(
-            "quijote", nsim, 4,
-            halo_finder, catalogue_name, paths, mass_key, bounds,
-            [500., 500., 500.,], observer_velocity, cache_maxsize)
-
-        # NOTE watch out about here setting nsim = 0 ?
-        self.box = QuijoteBox(self.nsnap, self.nsim, self.paths)
-        self._bounds = bounds
-
-    def pick_fiducial_observer(self, n, rmax):
-        r"""
-        Select a new fiducial observer in the box.
-
-        Parameters
-        ----------
-        n : int
-            Fiducial observer index.
-        rmax : float
-            Max. distance from the fiducial obs. in :math:`\mathrm{cMpc} / h`.
-        """
-        self.clear_cache()
-        # cat = deepcopy(self)
-        self.observer_location = fiducial_observers(self.box.boxsize, rmax)[n]
-        self.observer_velocity = None
-
-        if self._bounds is None:
-            bounds = {"dist": (0, rmax)}
-        else:
-            bounds = {**self._bounds, "dist": (0, rmax)}
-
-        self._make_mask(bounds)
+# class QuijoteCatalogue(BaseCatalogue):
+#     r"""
+#     Quijote halo catalogue. Units typically are:
+#         - Length: :math:`cMpc / h`
+#         - Velocity: :math:`km / s`
+#         - Mass: :math:`M_\odot / h`
+#
+#     Parameters
+#     ----------
+#     nsim : int
+#         IC realisation index.
+#     paths : py:class`csiborgtools.read.Paths`
+#         Paths object.
+#     nsnap : int
+#         Snapshot index.
+#     observer_location : array, optional
+#         Observer's location in :math:`\mathrm{Mpc} / h`.
+#     bounds : dict
+#         Parameter bounds; keys as parameter names, values as (min, max)
+#         tuples. Use `dist` for radial distance, `None` for no bound.
+#     load_fitted : bool, optional
+#         Load fitted quantities from `fit_halos.py`.
+#     load_initial : bool, optional
+#         Load initial positions from `fit_init.py`.
+#     with_lagpatch : bool, optional
+#         Load halos with a resolved Lagrangian patch.
+#     load_backup : bool, optional
+#         Load halos from the backup catalogue that do not have corresponding
+#         snapshots.
+#     """
+#     def __init__(self, nsim, paths, catalogue_name, halo_finder,
+#                  mass_key=None, bounds=None, observer_velocity=None,
+#                  cache_maxsize=64):
+#         super().__init__()
+#         super().init_with_snapshot(
+#             "quijote", nsim, 4,
+#             halo_finder, catalogue_name, paths, mass_key, bounds,
+#             [500., 500., 500.,], observer_velocity, cache_maxsize)
+#
+#         # NOTE watch out about here setting nsim = 0 ?
+#         self.box = QuijoteBox(self.nsnap, self.nsim, self.paths)
+#         self._bounds = bounds
+#
+#     def pick_fiducial_observer(self, n, rmax):
+#         r"""
+#         Select a new fiducial observer in the box.
+#
+#         Parameters
+#         ----------
+#         n : int
+#             Fiducial observer index.
+#         rmax : float
+#             Max. distance from the fiducial obs. in :math:`\mathrm{cMpc} / h`.
+#         """
+#         self.clear_cache()
+#         # cat = deepcopy(self)
+#         self.observer_location = fiducial_observers(self.box.boxsize, rmax)[n]
+#         self.observer_velocity = None
+#
+#         if self._bounds is None:
+#             bounds = {"dist": (0, rmax)}
+#         else:
+#             bounds = {**self._bounds, "dist": (0, rmax)}
+#
+#         self._make_mask(bounds)
 
 
 ###############################################################################
@@ -719,107 +679,3 @@ def fiducial_observers(boxwidth, radius):
     nobs = floor(boxwidth / (2 * radius))
     return [[val * radius for val in position]
             for position in product([1, 3, 5], repeat=nobs)]
-
-
-@jit(nopython=True, fastmath=True, boundscheck=False)
-def pbc_distance(x1, x2, boxsize):
-    """Calculate periodic distance between two points."""
-    delta = abs(x1 - x2)
-    return min(delta, boxsize - delta)
-
-
-@jit(nopython=True, fastmath=True, boundscheck=False)
-def find_next_particle(start_index, end_index, pos, x0, y0, z0,
-                       half_width, boxsize):
-    """
-    Find the next particle in a box of size `half_width` centered on `x0`,
-    `y0`, `z0`, where the periodic simulation box size is `boxsize`.
-    """
-    for i in range(start_index, end_index):
-        x, y, z = pos[i]
-        if ((pbc_distance(x, x0, boxsize) < half_width) and (pbc_distance(y, y0, boxsize) < half_width) and (pbc_distance(z, z0, boxsize) < half_width)):  # noqa
-            return i
-
-    return None
-
-
-def find_boxed(pos, center, subbox_size, boxsize):
-    """
-    Find indicies of positions in a box of size `subbox_size` centered on
-    `center`, where the simulation box size is `boxsize`.
-
-    Parameters
-    ----------
-    pos : 2-dimensional array of shape (nsamples, 3)
-        Positions of all particles in the simulation.
-    center : 1-dimensional array
-        Center of the sub-box.
-    subbox_size : float
-        Size of the sub-box.
-    boxsize : float
-        Size of the simulation box.
-
-    Returns
-    -------
-    indxs : 1-dimensional array of shape
-    """
-    if isinstance(center, list):
-        center = numpy.asanyarray(center)
-
-    half_width = subbox_size / 2.
-
-    indxs, start_index, end_index = [], 0, len(pos)
-    while True:
-        i = find_next_particle(start_index, end_index, pos,
-                               *center, half_width, boxsize)
-
-        if i is None:
-            break
-
-        indxs.append(i)
-        start_index = i + 1
-
-    return indxs
-
-
-###############################################################################
-#                         Supplementary functions                             #
-###############################################################################
-
-
-def make_halomap_dict(halomap):
-    """
-    Make a dictionary mapping halo IDs to their start and end indices in the
-    snapshot particle array.
-    """
-    return {hid: (int(start), int(end)) for hid, start, end in halomap}
-
-
-def load_halo_particles(hid, particles, hid2map):
-    """
-    Load a halo's particles from a particle array. If it is not there, i.e
-    halo has no associated particles, return `None`.
-
-    Parameters
-    ----------
-    hid : int
-        Halo ID.
-    particles : 2-dimensional array
-        Array of particles.
-    hid2map : dict
-        Dictionary mapping halo IDs to `halo_map` array positions.
-
-    Returns
-    -------
-    parts : 1- or 2-dimensional array
-    """
-    try:
-        k0, kf = hid2map[hid]
-        return particles[k0:kf + 1]
-    except KeyError:
-        return None
-
-
-###############################################################################
-#                    Specific loaders of particles and haloes                 #
-###############################################################################
