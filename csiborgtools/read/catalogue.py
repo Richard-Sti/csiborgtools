@@ -12,7 +12,9 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-"""Simulation catalogues."""
+"""
+Unified simulation catalogues.
+"""
 from abc import ABC, abstractproperty
 from collections import OrderedDict
 from functools import lru_cache
@@ -21,12 +23,11 @@ from itertools import product
 from math import floor
 
 import numpy
+from h5py import File
 from sklearn.neighbors import NearestNeighbors
 
-from ..utils import (cartesian_to_radec, great_circle_distance,
-                     number_counts, periodic_distance_two_points,
-                     real2redshift)
-
+from ..utils import (cartesian_to_radec, great_circle_distance, number_counts,
+                     periodic_distance_two_points, real2redshift)
 
 ###############################################################################
 #                           Base catalogue                                    #
@@ -37,46 +38,48 @@ class BaseCatalogue(ABC):
     """
     Base halo catalogue.
     """
-    _derived_properties = ["cartesian_pos",
-                           "spherical_pos",
-                           "dist",
-                           "cartesian_redshiftspace_pos",
-                           "spherical_redshiftspace_pos",
-                           "redshiftspace_dist",
-                           "cartesian_vel",
-                           "angular_momentum",
-                           "particle_offset"
-                           ]
+    _properties = ["cartesian_pos",
+                   "spherical_pos",
+                   "dist",
+                   "cartesian_redshiftspace_pos",
+                   "spherical_redshiftspace_pos",
+                   "redshiftspace_dist",
+                   "cartesian_vel",
+                   "particle_offset"
+                   "npart",
+                   "totmass",
+                   "index",
+                   "lagpatch_coordinates",
+                   "lagpatch_radius"
+                   ]
 
     def __init__(self):
         self._simname = None
         self._nsim = None
         self._nsnap = None
-        self._catalogue_name = None
 
         self._paths = None
-        self._box = None
 
-        self._data = None
         self._observer_location = None
         self._observer_velocity = None
-        self._mass_key = None
+        self._boxsize = None
 
         self._cache = OrderedDict()
         self._cache_maxsize = None
         self._catalogue_length = None
-        self._is_closed = None
         self._load_filtered = False
         self._filter_mask = None
 
-    def init_with_snapshot(self, simname, nsim, nsnap,
-                           paths, bounds,
+        self._custom_keys = []
+
+    def init_with_snapshot(self, simname, nsim, nsnap, paths, bounds, boxsize,
                            observer_location, observer_velocity,
                            cache_maxsize=64):
         self.simname = simname
         self.nsim = nsim
         self.nsnap = nsnap
         self._paths = paths
+        self.boxsize = boxsize
         self.observer_location = observer_location
         self.observer_velocity = observer_velocity
 
@@ -87,7 +90,13 @@ class BaseCatalogue(ABC):
 
     @property
     def simname(self):
-        """Simulation name."""
+        """
+        Simulation name.
+
+        Returns
+        -------
+        str
+        """
         if self._simname is None:
             raise RuntimeError("`simname` is not set!")
         return self._simname
@@ -100,7 +109,13 @@ class BaseCatalogue(ABC):
 
     @property
     def nsim(self):
-        """The IC realisation index."""
+        """
+        Simulation IC realisation index.
+
+        Returns
+        -------
+        int
+        """
         if self._nsim is None:
             raise RuntimeError("`nsim` is not set!")
         return self._nsim
@@ -113,7 +128,13 @@ class BaseCatalogue(ABC):
 
     @property
     def nsnap(self):
-        """Catalogue's snapshot index."""
+        """
+        Catalogue snapshot index.
+
+        Returns
+        -------
+        int
+        """
         if self._nsnap is None:
             raise RuntimeError("`nsnap` is not set!")
         return self._nsnap
@@ -126,21 +147,45 @@ class BaseCatalogue(ABC):
 
     @property
     def paths(self):
-        """Paths manager."""
+        """
+        Paths manager.
+
+        Returns
+        -------
+        py:class:`csiborgtools.read.Paths`
+        """
         if self._paths is None:
             raise RuntimeError("`paths` is not set!")
         return self._paths
 
     @property
     def boxsize(self):
-        """Box size in `cMpc / h`."""
+        """
+        Box size in `cMpc / h`.
+
+        Returns
+        -------
+        float
+        """
         if self._boxsize is None:
             raise RuntimeError("`boxsize` is not set!")
         return self._boxsize
 
+    @boxsize.setter
+    def boxsize(self, boxsize):
+        if not isinstance(boxsize, (int, float)):
+            raise TypeError("`boxsize` must be an integer or float.")
+        self._boxsize = float(boxsize)
+
     @property
     def cache_maxsize(self):
-        """Maximum size of the cache."""
+        """
+        Maximum length of the cache dictionary.
+
+        Returns
+        -------
+        int
+        """
         if self._cache_maxsize is None:
             raise RuntimeError("`cache_maxsize` is not set!")
         return self._cache_maxsize
@@ -151,11 +196,23 @@ class BaseCatalogue(ABC):
         self._cache_maxsize = cache_maxsize
 
     def cache_keys(self):
-        """Keys of the cache dictionary."""
+        """
+        Current keys of the cache dictionary.
+
+        Parameters
+        ----------
+        list of str
+        """
         return list(self._cache.keys())
 
     def cache_length(self):
-        """Length of the cache dictionary."""
+        """
+        Current length of the cache dictionary.
+
+        Returns
+        -------
+        int
+        """
         return len(self._cache)
 
     @abstractproperty
@@ -202,9 +259,48 @@ class BaseCatalogue(ABC):
         """
         pass
 
+    @abstractproperty
+    def index(self):
+        """
+        Halo index.
+
+        Returns
+        -------
+        1-dimensional array
+        """
+        pass
+
+    @abstractproperty
+    def lagpatch_coordinates(self):
+        """
+        Lagrangian patch coordinates.
+
+        Returns
+        -------
+        2-dimensional array
+        """
+        pass
+
+    @abstractproperty
+    def lagpatch_radius(self):
+        """
+        Lagrangian patch radius.
+
+        Returns
+        -------
+        1-dimensional array
+        """
+        pass
+
     @property
     def observer_location(self):
-        """Observer location."""
+        """
+        Observer location.
+
+        Returns
+        -------
+        1-dimensional array
+        """
         if self._observer_location is None:
             raise RuntimeError("`observer_location` is not set!")
         return self._observer_location
@@ -218,7 +314,13 @@ class BaseCatalogue(ABC):
 
     @property
     def observer_velocity(self):
-        """Observer velocity."""
+        """
+        Observer velocity.
+
+        Returns
+        -------
+        1-dimensional array
+        """
         if self._observer_velocity is None:
             raise RuntimeError("`observer_velocity` is not set!")
         return self._observer_velocity
@@ -233,24 +335,6 @@ class BaseCatalogue(ABC):
         obs_vel = numpy.asanyarray(obs_vel)
         assert obs_vel.shape == (3,)
         self._observer_velocity = obs_vel
-
-    @property
-    def mass_key(self):
-        """Mass key of this catalogue."""
-        if self._mass_key is None:
-            raise RuntimeError("`mass_key` is not set!")
-        return self._mass_key
-
-    @mass_key.setter
-    def mass_key(self, mass_key):
-        if mass_key is None:
-            self._mass_key = None
-            return
-
-        if mass_key not in self.data[self.catalogue_name].keys():
-            raise ValueError(f"Mass key '{mass_key}' is not available.")
-
-        self._mass_key = mass_key
 
     def halo_mass_function(self, bin_edges, volume, mass_key=None):
         """
@@ -302,12 +386,16 @@ class BaseCatalogue(ABC):
         :py:class:`sklearn.neighbors.NearestNeighbors`
         """
         if angular:
-            assert not in_initial, "Angular kNN not available for initial."
+            if in_initial:
+                raise ValueError("Angular kNN is not available for initial snapshot.")  # noqa
             pos = self["spherical_pos"][:, 1:]
             knn = NearestNeighbors(metric=great_circle_distance)
         else:
-            pos = self["lagpatch_pos"] if in_initial else self["cartesian_pos"]
-            L = self.box.boxsize
+            if in_initial:
+                pos = self["lagpatch_coordinates"]
+            else:
+                pos = self["cartesian_pos"]
+            L = self.boxsize
             knn = NearestNeighbors(
                 metric=lambda a, b: periodic_distance_two_points(a, b, L))
 
@@ -317,7 +405,7 @@ class BaseCatalogue(ABC):
     def nearest_neighbours(self, X, radius, in_initial, knearest=False):
         r"""
         Return nearest neighbours within `radius` of `X` from this catalogue.
-        Units of `X` are cMpc / h.
+        Units of `X` are `cMpc / h`.
 
         Parameters
         ----------
@@ -354,7 +442,7 @@ class BaseCatalogue(ABC):
                            radial_tolerance=None):
         """
         Find nearest angular neighbours of query points. Optionally applies
-        radial distance tolerance. Units of `X` are cMpc / h and degrees.
+        radial distance tolerance. Units of `X` are `cMpc / h` and degrees.
 
         Parameters
         ----------
@@ -391,7 +479,9 @@ class BaseCatalogue(ABC):
         return dist, indxs
 
     def _make_mask(self, bounds):
-        """Make an internal mask for the catalogue data."""
+        """
+        Make an internal mask for the catalogue data.
+        """
         self._load_filtered = False
 
         self._catalogue_length = None
@@ -414,16 +504,26 @@ class BaseCatalogue(ABC):
         self._filter_mask = mask
         self._load_filtered = True
 
+    def clear_cache(self):
+        """
+        Clear the cache dictionary.
+
+        Returns
+        -------
+        None
+        """
+        self._cache.clear()
+        collect()
+
     def keys(self):
-        """Catalogue keys."""
-        keys = []
-        for key in self.data[f"{self.catalogue_name}"].keys():
-            keys.append(f"{self.catalogue_name}/{key}")
+        """
+        Catalogue keys.
 
-        for key in self._derived_properties:
-            keys.append(key)
-
-        return keys
+        Returns
+        -------
+        list
+        """
+        return self._properties + self._custom_keys
 
     def __getitem__(self, key):
         # For internal calls we don't want to load the filtered data and use
@@ -458,14 +558,14 @@ class BaseCatalogue(ABC):
             elif key == "redshift_dist":
                 out = self["__cartesian_redshift_pos"]
                 out = numpy.linalg.norm(out - self.observer_location, axis=1)
-            # elif key == "is_main":
-            #     out = self["__index"] == self["__parent"]
             elif key == "npart":
                 out = self.npart
             elif key == "totmass":
                 out = self.totmass
-            elif key in self.data[self.catalogue_name].keys():
-                out = self.data[f"{self.catalogue_name}/{key}"][:]
+            elif key == "index":
+                out = self.index
+            elif key in self._custom_keys:
+                out = getattr(self, key)
             else:
                 raise KeyError(f"Key '{key}' is not available.")
 
@@ -479,24 +579,6 @@ class BaseCatalogue(ABC):
             self._cache.popitem(last=False)
 
         return out
-
-    @property
-    def is_closed(self):
-        """Whether the HDF5 catalogue is closed."""
-        return self._is_closed
-
-    def close(self):
-        """Close the HDF5 catalogue file and clear the cache."""
-        if not self._is_closed:
-            self.data.close()
-            self._is_closed = True
-        self._cache.clear()
-        collect()
-
-    def clear_cache(self):
-        """Clear the cache dictionary."""
-        self._cache.clear()
-        collect()
 
     def __repr__(self):
         return (f"<{self.__class__.__name__}> "
@@ -519,10 +601,7 @@ class BaseCatalogue(ABC):
 
 class CSiBORG1Catalogue(BaseCatalogue):
     r"""
-    CSiBORG halo catalogue. Units typically used are:
-        - Length: :math:`cMpc / h`
-        - Velocity: :math:`km / s`
-        - Mass: :math:`M_\odot / h`
+    CSiBORG1 FoF halo catalogue.
 
     Parameters
     ----------
@@ -530,12 +609,6 @@ class CSiBORG1Catalogue(BaseCatalogue):
         IC realisation index.
     paths : py:class`csiborgtools.read.Paths`
         Paths object.
-    catalogue_name : str
-        Name of the halo catalogue.
-    halo_finder : str
-        Halo finder name.
-    mass_key : str, optional
-        Mass key of the catalogue.
     bounds : dict, optional
         Parameter bounds; keys as parameter names, values as (min, max) or
         a boolean.
@@ -544,30 +617,56 @@ class CSiBORG1Catalogue(BaseCatalogue):
     cache_maxsize : int, optional
         Maximum number of cached arrays.
     """
-    def __init__(self, nsim, paths,
-                 bounds=None, observer_velocity=None, cache_maxsize=64):
+    def __init__(self, nsim, paths, bounds=None, observer_velocity=None,
+                 cache_maxsize=64):
         super().__init__()
         super().init_with_snapshot(
             "csiborg1", nsim, max(paths.get_snapshots(nsim, "csiborg1")),
-            paths, bounds,
-            [338.85, 338.85, 338.85], observer_velocity, cache_maxsize)
-        self._boxsize = 677.7
+            paths, bounds, 677.7, [338.85, 338.85, 338.85], observer_velocity,
+            cache_maxsize)
+
+        self._custom_keys = []
+
+    def _read_fof_catalogue(self, kind):
+        fpath = self.paths.snapshot_catalogue(self.nsnap, self.nsim,
+                                              self._simname)
+
+        with File(fpath, 'r') as f:
+            if kind not in f.keys():
+                raise ValueError(f"FoF catalogue key '{kind}' not available. Available keys are: {list(f.keys())}")  # noqa
+            out = f[kind][...]
+        return out
 
     @property
     def coordinates(self):
-        raise RuntimeError("TODO")
+        # NOTE: We flip x and z to undo MUSIC bug.
+        z, y, x = [self._read_fof_catalogue(key) for key in ["x", "y", "z"]]
+        return numpy.vstack([x, y, z]).T
 
     @property
     def velocities(self):
-        raise RuntimeError("TODO")
+        raise RuntimeError("Velocities are not available in the FoF catalogue.")  # noqa
 
     @property
     def npart(self):
-        raise RuntimeError("TODO")
+        offset = self._read_fof_catalogue("GroupOffset")
+        return offset[:, 2] - offset[:, 1]
 
     @property
     def totmass(self):
-        raise RuntimeError("TODO")
+        return self._read_fof_catalogue("totpartmass")
+
+    @property
+    def index(self):
+        return self._read_fof_catalogue("index")
+
+    @property
+    def lagpatch_coordinates(self):
+        raise RuntimeError("Lagrangian patch coordinates are not available.")
+
+    @property
+    def lagpatch_radius(self):
+        raise RuntimeError("Lagrangian patch radius is not available.")
 
 
 ###############################################################################
@@ -579,7 +678,9 @@ class CSiBORG2Catalogue(BaseCatalogue):
     z = 0!
     """
 
-    def __init__(self, nsim, paths, ):
+    def __init__(self, nsim, nsnap, paths, bounds=None, observer_velocity=None,
+                 cache_maxsize=64):
+        # TODO
         pass
 
 
@@ -588,71 +689,96 @@ class CSiBORG2Catalogue(BaseCatalogue):
 ###############################################################################
 
 
-# class QuijoteCatalogue(BaseCatalogue):
-#     r"""
-#     Quijote halo catalogue. Units typically are:
-#         - Length: :math:`cMpc / h`
-#         - Velocity: :math:`km / s`
-#         - Mass: :math:`M_\odot / h`
-#
-#     Parameters
-#     ----------
-#     nsim : int
-#         IC realisation index.
-#     paths : py:class`csiborgtools.read.Paths`
-#         Paths object.
-#     nsnap : int
-#         Snapshot index.
-#     observer_location : array, optional
-#         Observer's location in :math:`\mathrm{Mpc} / h`.
-#     bounds : dict
-#         Parameter bounds; keys as parameter names, values as (min, max)
-#         tuples. Use `dist` for radial distance, `None` for no bound.
-#     load_fitted : bool, optional
-#         Load fitted quantities from `fit_halos.py`.
-#     load_initial : bool, optional
-#         Load initial positions from `fit_init.py`.
-#     with_lagpatch : bool, optional
-#         Load halos with a resolved Lagrangian patch.
-#     load_backup : bool, optional
-#         Load halos from the backup catalogue that do not have corresponding
-#         snapshots.
-#     """
-#     def __init__(self, nsim, paths, catalogue_name, halo_finder,
-#                  mass_key=None, bounds=None, observer_velocity=None,
-#                  cache_maxsize=64):
-#         super().__init__()
-#         super().init_with_snapshot(
-#             "quijote", nsim, 4,
-#             halo_finder, catalogue_name, paths, mass_key, bounds,
-#             [500., 500., 500.,], observer_velocity, cache_maxsize)
-#
-#         # NOTE watch out about here setting nsim = 0 ?
-#         self.box = QuijoteBox(self.nsnap, self.nsim, self.paths)
-#         self._bounds = bounds
-#
-#     def pick_fiducial_observer(self, n, rmax):
-#         r"""
-#         Select a new fiducial observer in the box.
-#
-#         Parameters
-#         ----------
-#         n : int
-#             Fiducial observer index.
-#         rmax : float
-#             Max. distance from the fiducial obs. in :math:`\mathrm{cMpc} / h`.
-#         """
-#         self.clear_cache()
-#         # cat = deepcopy(self)
-#         self.observer_location = fiducial_observers(self.box.boxsize, rmax)[n]
-#         self.observer_velocity = None
-#
-#         if self._bounds is None:
-#             bounds = {"dist": (0, rmax)}
-#         else:
-#             bounds = {**self._bounds, "dist": (0, rmax)}
-#
-#         self._make_mask(bounds)
+class QuijoteCatalogue(BaseCatalogue):
+    r"""
+    Quijote halo catalogue.
+
+    Parameters
+    ----------
+    nsim : int
+        IC realisation index.
+    paths : py:class`csiborgtools.read.Paths`
+        Paths object.
+    bounds : dict
+        Parameter bounds; keys as parameter names, values as (min, max)
+        tuples. Use `dist` for radial distance, `None` for no bound.
+    observer_velocity : array, optional
+        Observer's velocity in :math:`\mathrm{km} / \mathrm{s}`.
+    cache_maxsize : int, optional
+        Maximum number of cached arrays.
+    """
+    def __init__(self, nsim, paths, bounds=None, observer_velocity=None,
+                 cache_maxsize=64):
+        super().__init__()
+        super().init_with_snapshot(
+            "quijote", nsim, 4, paths, bounds, 1000, [500., 500., 500.,],
+            observer_velocity, cache_maxsize)
+
+        self._custom_keys = []
+        self._bounds = bounds
+
+    def _read_fof_catalogue(self, kind):
+        fpath = self.paths.snapshot_catalogue(self.nsnap, self.nsim,
+                                              self._simname)
+
+        with File(fpath, 'r') as f:
+            if kind not in f.keys():
+                raise ValueError(f"FoF catalogue key '{kind}' not available. Available keys are: {list(f.keys())}")  # noqa
+            out = f[kind][...]
+        return out
+
+    @property
+    def coordinates(self):
+        return numpy.vstack([self._read_fof_catalogue(key)
+                             for key in ["x", "y", "z"]]).T
+
+    @property
+    def velocities(self):
+        return numpy.vstack([self._read_fof_catalogue(key)
+                             for key in ["vx", "vy", "vz"]]).T
+
+    @property
+    def npart(self):
+        offset = self._read_fof_catalogue("GroupOffset")
+        return offset[:, 2] - offset[:, 1]
+
+    @property
+    def totmass(self):
+        return self._read_fof_catalogue("group_mass")
+
+    @property
+    def index(self):
+        return self._read_fof_catalogue("index")
+
+    @property
+    def lagpatch_coordinates(self):
+        raise RuntimeError("Lagrangian patch coordinates are not available.")
+
+    @property
+    def lagpatch_radius(self):
+        raise RuntimeError("Lagrangian patch radius is not available.")
+
+    def pick_fiducial_observer(self, n, rmax):
+        r"""
+        Select a new fiducial observer in the box.
+
+        Parameters
+        ----------
+        n : int
+            Fiducial observer index.
+        rmax : float
+            Max. distance from the fiducial obs. in :math:`\mathrm{cMpc} / h`.
+        """
+        self.clear_cache()
+        self.observer_location = fiducial_observers(self.box.boxsize, rmax)[n]
+        self.observer_velocity = None
+
+        if self._bounds is None:
+            bounds = {"dist": (0, rmax)}
+        else:
+            bounds = {**self._bounds, "dist": (0, rmax)}
+
+        self._make_mask(bounds)
 
 
 ###############################################################################
