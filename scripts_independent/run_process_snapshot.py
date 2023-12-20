@@ -15,9 +15,9 @@
 from os import system
 
 if __name__ == "__main__":
-    chains = [7444]
-    simname = "csiborg1"
-    mode = 2
+    chains = [15517]
+    simname = "csiborg2_main"
+    mode = 1
 
     env = "/mnt/zfsusers/rstiskalek/csiborgtools/venv_csiborg/bin/python"
     memory = 64
