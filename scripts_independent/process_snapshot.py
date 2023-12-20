@@ -843,6 +843,9 @@ if __name__ == "__main__":
                         help="0: process final snapshot, 1: process initial snapshot, 2: process both.")  # noqa
     args = parser.parse_args()
 
+    if "csiborg2" in args.simname and args.mode in [0, 2]:
+        raise RuntimeError("Processing the final snapshot for CSiBORG2 is not supported.")  # noqa
+
     if args.mode == 0:
         process_final_snapshot(args.nsim, args.simname)
     elif args.mode == 1:
