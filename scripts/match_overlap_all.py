@@ -22,7 +22,7 @@ from mpi4py import MPI
 from taskmaster import work_delegation
 
 import csiborgtools
-from match_singlematch import pair_match, pair_match_max
+from match_overlap_single import pair_match, pair_match_max
 
 
 def get_combs(simname):
