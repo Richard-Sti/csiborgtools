@@ -324,12 +324,11 @@ class CSiBORG2Reader(BaseReader):
         else:
             raise ValueError(f"Unknown snapshot option `{which_snapshot}`.")
 
-        if which_snapshot == "initial":
-            self.source_dir = "/mnt/extraspace/rstiskalek/csiborg2_main/snapshot_000.hdf5"
-        else:
-            self.source_dir = join(
+        self.source_dir = join(
                 self.base_dir, f"chain_{nsim}", "output",
                 f"snapshot_{str(self.nsnap).zfill(3)}_full.hdf5")
+        if which_snapshot == "initial":
+            self.source_dir = self.source_dir.replace("_full.hdf5", ".hdf5")
 
         self.output_dir = join(self.base_dir, f"chain_{nsim}", "output")
         self.output_snap = join(
@@ -708,7 +707,7 @@ def process_initial_snapshot(nsim, simname):
         reader = QuijoteReader(nsim, "initial")
         output_snap_final = QuijoteReader(nsim, "final").output_snap
     elif "csiborg2" in simname:
-        process_initial_snapshot_csiborg2(nsim, simname)
+        return process_initial_snapshot_csiborg2(nsim, simname)
     else:
         raise RuntimeError(f"Simulation `{simname}` is not supported.")
 
@@ -772,12 +771,11 @@ def process_initial_snapshot_csiborg2(nsim, simname):
     print(f"Simulation index:      {nsim}")
     print(f"Simulation name:       {simname}")
     print(f"Output snapshot:       {reader_initial.output_snap}")
-    print(f"Output catalogue:      {reader_initial.output_cat}")
     print("-----------------------------------------------")
     print(flush=True)
 
     print(f"{now()}: loading and sorting the initial PID.")
-    pids_high, pids_low = reader_final.read_snapshot("pid")
+    pids_high, pids_low = reader_initial.read_snapshot("pid")
     sort_indxs_high = numpy.argsort(pids_high)
     sort_indxs_low = numpy.argsort(pids_low)
     del pids_high, pids_low
@@ -802,7 +800,7 @@ def process_initial_snapshot_csiborg2(nsim, simname):
     # resolution particles.
     print(f"{now()}: loading, sorting and writing the initial particles.")
     src_fname = reader_initial.source_dir
-    dest_fname = reader_initial.source_dir.replace(".hdf5", "sorted.hdf5")
+    dest_fname = reader_initial.output_snap
     copy_hdf5_file(src_fname, dest_fname,
                    exclude_headers=["PartType1", "PartType5"])
 
@@ -838,7 +836,8 @@ if __name__ == "__main__":
     parser.add_argument("--nsim", type=int, required=True,
                         help="Simulation index.")
     parser.add_argument("--simname", type=str, required=True,
-                        choices=["csiborg1", "quijote"],
+                        choices=["csiborg1", "quijote", "csiborg2_main",
+                                 "csiborg2_random", "csiborg2_varysmall"],
                         help="Simulation name.")
     parser.add_argument("--mode", type=int, required=True, choices=[0, 1, 2],
                         help="0: process final snapshot, 1: process initial snapshot, 2: process both.")  # noqa
