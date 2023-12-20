@@ -17,7 +17,7 @@ Script to construct the density and velocity fields for a simulation snapshot.
 The SPH filter is implemented in the cosmotool package.
 """
 from argparse import ArgumentParser
-from os import environ, remove
+from os import remove
 from os.path import join, exists
 import subprocess
 from datetime import datetime
