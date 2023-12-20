@@ -178,13 +178,13 @@ class Paths:
                         f"snapshot_{str(nsnap).zfill(5)}.hdf5")
         elif simname == "csiborg2_main":
             return join(self.csiborg2_main_srcdir, f"chain_{nsim}", "output",
-                        f"snapshot_{str(nsnap).zfill(3)}_full.hdf5")
+                        f"snapshot_{str(nsnap).zfill(3)}.hdf5")
         elif simname == "csiborg2_random":
             return join(self.csiborg2_random_srcdir, f"chain_{nsim}", "output",
-                        f"snapshot_{str(nsnap).zfill(3)}_full.hdf5")
+                        f"snapshot_{str(nsnap).zfill(3)}.hdf5")
         elif simname == "csiborg2_varysmall":
             return join(self.csiborg2_varysmall_srcdir, f"chain_{nsim}",
-                        "output", f"snapshot_{str(nsnap).zfill(3)}_full.hdf5")
+                        "output", f"snapshot_{str(nsnap).zfill(3)}.hdf5")
         elif simname == "quijote":
             return join(self.quijote_dir, "fiducial_processed",
                         f"chain_{nsim}",
