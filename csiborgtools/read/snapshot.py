@@ -346,8 +346,16 @@ class CSIBORG2Snapshot(BaseSnapshot):
         super().__init__(nsim, nsnap, paths)
         self.kind = kind
 
-        self._snapshot_path = self.paths.snapshot(
-            self.nsnap, self.nsim, f"csiborg2_{self.kind}")
+        fpath = self.paths.snapshot(self.nsnap, self.nsim,
+                                    f"csiborg2_{self.kind}")
+        if nsnap == 99:
+            fpath = fpath.replace(".hdf5", "_full.hdf5")
+        elif nsnap == 0:
+            fpath = fpath.replace(".hdf5", "_sorted.hdf5")
+        else:
+            fpath = fpath.replace(".hdf5", "_cut.hdf5")
+
+        self._snapshot_path = fpath
         self._simname = f"csiborg2_{self.kind}"
 
     @property
@@ -444,7 +452,7 @@ class CSIBORG2Snapshot(BaseSnapshot):
 
     def _make_hid2offset(self):
         catalogue_path = self.paths.snapshot_catalogue(
-            self.nsnap, self.nsim, f"csiborg2_{self.kind}")
+            99, self.nsim, f"csiborg2_{self.kind}")
         with File(catalogue_path, "r") as f:
 
             offset = f["Group/GroupOffsetType"][:, 1]
@@ -501,6 +509,7 @@ class QuijoteSnapshot(CSIBORG1Snapshot):
 ###############################################################################
 #                          Base field class                                   #
 ###############################################################################
+
 
 class BaseField(ABC):
     """
