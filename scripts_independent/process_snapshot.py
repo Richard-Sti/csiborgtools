@@ -192,6 +192,8 @@ class CSiBORG1Reader:
                                f"fof_{str(self.nsnap).zfill(5)}.hdf5")
         self.halomaker_dir = join(self.output_dir, "FOF")
 
+        self.sph_file = f"/mnt/extraspace/rstiskalek/csiborg1/sph_temp/chain_{self.nsim}.hdf5"  # noqa
+
     def read_info(self):
         filename = glob(join(self.source_dir, "info_*"))
         if len(filename) > 1:
@@ -692,6 +694,11 @@ def process_final_snapshot(nsim, simname):
                 f.create_dataset(key, data=x)
 
 
+###############################################################################
+#               Sort the initial snapshot like the final snapshot             #
+###############################################################################
+
+
 def process_initial_snapshot(nsim, simname):
     """
     Sort the initial snapshot particles according to their final snapshot and
@@ -771,7 +778,7 @@ def process_initial_snapshot_csiborg2(nsim, simname):
     print(f"Simulation index:      {nsim}")
     print(f"Simulation name:       {simname}")
     print(f"Output snapshot:       {reader_initial.output_snap}")
-    print("-----------------------------------------------")
+    print("-------------------------------------------------")
     print(flush=True)
 
     print(f"{now()}: loading and sorting the initial PID.")
@@ -827,7 +834,40 @@ def process_initial_snapshot_csiborg2(nsim, simname):
 
 
 ###############################################################################
-#         Process the initial snapshot and sort it like the final snapshot    #
+#               Prepare CSiBORG1 RAMSES for SPH density field                 #
+###############################################################################
+
+
+def prepare_csiborg1_for_sph(nsim):
+    """
+    Prepare a RAMSES snapshot for cosmotool SPH density & velocity field
+    calculation.
+    """
+    reader = CSiBORG1Reader(nsim, "final")
+
+    print("-------     Preparing CSiBORG1 for SPH    -------")
+    print(f"Simulation index:      {nsim}")
+    print(f"Output file:           {reader.sph_file}")
+    print("-------------------------------------------------")
+    print(flush=True)
+
+    with File(reader.sph_file, 'w') as dest:
+        # We need to read pos first to get the dataset size
+        pos = reader.read_snapshot("pos")
+
+        dset = dest.create_dataset("particles", (len(pos), 7),
+                                   dtype=numpy.float32)
+        dset[:, :3] = pos
+
+        del pos
+        collect()
+
+        dset[:, 3:6] = reader.read_snapshot("vel")
+        dset[:, 6] = reader.read_snapshot("mass")
+
+
+###############################################################################
+#                         Command line interface                              #
 ###############################################################################
 
 
@@ -839,17 +879,23 @@ if __name__ == "__main__":
                         choices=["csiborg1", "quijote", "csiborg2_main",
                                  "csiborg2_random", "csiborg2_varysmall"],
                         help="Simulation name.")
-    parser.add_argument("--mode", type=int, required=True, choices=[0, 1, 2],
-                        help="0: process final snapshot, 1: process initial snapshot, 2: process both.")  # noqa
+    parser.add_argument("--mode", type=int, required=True,
+                        choices=[0, 1, 2, 3],
+                        help="0: process final snapshot, 1: process initial snapshot, 2: process both, 3: prepare CSiBORG1 for SPH.")  # noqa
     args = parser.parse_args()
 
     if "csiborg2" in args.simname and args.mode in [0, 2]:
         raise RuntimeError("Processing the final snapshot for CSiBORG2 is not supported.")  # noqa
 
+    if args.simname != "csiborg1" and args.mode == 3:
+        raise RuntimeError("Preparing for SPH is only supported for CSiBORG1.")
+
     if args.mode == 0:
         process_final_snapshot(args.nsim, args.simname)
     elif args.mode == 1:
         process_initial_snapshot(args.nsim, args.simname)
-    else:
+    elif args.mode == 2:
         process_final_snapshot(args.nsim, args.simname)
         process_initial_snapshot(args.nsim, args.simname)
+    else:
+        prepare_csiborg1_for_sph(args.nsim)
