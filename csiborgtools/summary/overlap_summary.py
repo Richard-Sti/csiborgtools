@@ -62,8 +62,6 @@ class PairOverlap:
         Halo catalogue corresponding to the reference simulation.
     catx : :py:class:`csiborgtools.read.CSiBORGHaloCatalogue`
         Halo catalogue corresponding to the cross simulation.
-    paths : py:class`csiborgtools.read.Paths`
-        CSiBORG paths object.
     min_logmass : float
         Minimum halo mass in :math:`\log_{10} M_\odot / h` to consider.
     maxdist : float, optional
@@ -75,15 +73,15 @@ class PairOverlap:
     _data = None
     _paths = None
 
-    def __init__(self, cat0, catx, paths, min_logmass, maxdist=None):
+    def __init__(self, cat0, catx, min_logmass, maxdist=None):
         if cat0.simname != catx.simname:
             raise ValueError("The two catalogues must be from the same "
                              "simulation.")
 
         self._cat0 = cat0
         self._catx = catx
-        self._paths = paths
-        self.load(cat0, catx, paths, min_logmass, maxdist)
+        self._paths = cat0.paths
+        self.load(cat0, catx, min_logmass, maxdist)
 
     def load(self, cat0, catx, paths, min_logmass, maxdist=None):
         r"""
@@ -96,8 +94,6 @@ class PairOverlap:
             Halo catalogue corresponding to the reference simulation.
         catx : instance of :py:class:`csiborgtools.read.BaseCatalogue`
             Halo catalogue corresponding to the cross simulation.
-        paths : py:class`csiborgtools.read.Paths`
-            CSiBORG paths object.
         min_logmass : float
             Minimum halo mass in :math:`\log_{10} M_\odot / h` to consider.
         maxdist : float, optional
@@ -110,6 +106,7 @@ class PairOverlap:
         """
         nsim0 = cat0.nsim
         nsimx = catx.nsim
+        paths = cat0.paths
 
         # We first load in the output files. We need to find the right
         # combination of the reference and cross simulation.
@@ -473,7 +470,7 @@ class PairOverlap:
 ###############################################################################
 
 
-def max_overlap_agreement(cat0, catx, min_logmass, maxdist, paths):
+def max_overlap_agreement(cat0, catx, min_logmass, maxdist):
     r"""
     Calculate whether for a halo `A` from catalogue `cat0` that has a maximum
     overlap with halo `B` from catalogue `catx` it is also `B` that has a
@@ -490,14 +487,12 @@ def max_overlap_agreement(cat0, catx, min_logmass, maxdist, paths):
     maxdist : float, optional
         Maximum halo distance in :math:`\mathrm{Mpc} / h` from the centre
         of the high-resolution region.
-    paths : py:class`csiborgtools.read.Paths`
-        CSiBORG paths object.
 
     Returns
     -------
     agreement : 1-dimensional array of shape `(nhalos, )`
     """
-    kwargs = {"paths": paths, "min_logmass": min_logmass, "maxdist": maxdist}
+    kwargs = {"min_logmass": min_logmass, "maxdist": maxdist}
     pair_forward = PairOverlap(cat0, catx, **kwargs)
     pair_backward = PairOverlap(catx, cat0, **kwargs)
 
@@ -522,8 +517,7 @@ def max_overlap_agreement(cat0, catx, min_logmass, maxdist, paths):
     return agreement
 
 
-def max_overlap_agreements(cat0, catxs, min_logmass, maxdist, paths,
-                           verbose=True):
+def max_overlap_agreements(cat0, catxs, min_logmass, maxdist, verbose=True):
     """
     Repeat `max_overlap_agreement` for many cross simulations.
 
@@ -538,8 +532,7 @@ def max_overlap_agreements(cat0, catxs, min_logmass, maxdist, paths,
     agreements = [None] * len(catxs)
     desc = "Calculating maximum overlap agreement"
     for i, catx in enumerate(tqdm(catxs, desc=desc, disable=not verbose)):
-        agreements[i] = max_overlap_agreement(cat0, catx, min_logmass,
-                                              maxdist, paths)
+        agreements[i] = max_overlap_agreement(cat0, catx, min_logmass, maxdist)
 
     return numpy.asanyarray(agreements)
 
@@ -596,8 +589,6 @@ class NPairsOverlap:
         Single reference simulation halo catalogue.
     catxs : list of :py:class:`csiborgtools.read.CSiBORGHaloCatalogue`
         List of cross simulation halo catalogues.
-    paths : py:class`csiborgtools.read.Paths`
-        CSiBORG paths object.
     min_logmass : float
         Minimum log mass of halos to consider.
     verbose : bool, optional
@@ -605,11 +596,11 @@ class NPairsOverlap:
     """
     _pairs = None
 
-    def __init__(self, cat0, catxs, paths, min_logmass, verbose=True):
+    def __init__(self, cat0, catxs, min_logmass, verbose=True):
         pairs = [None] * len(catxs)
         for i, catx in enumerate(tqdm(catxs, desc="Loading overlap objects",
                                       disable=not verbose)):
-            pairs[i] = PairOverlap(cat0, catx, paths, min_logmass)
+            pairs[i] = PairOverlap(cat0, catx, min_logmass)
 
         self._pairs = pairs
 
