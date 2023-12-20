@@ -17,7 +17,7 @@ Unified interface for simulation catalogues. Currently supports CSiBORG1,
 CSiBORG2 and Quijote. For specific implementation always check the relevant
 classes in this module.
 """
-from abc import ABC, abstractproperty, abstractmethod
+from abc import ABC, abstractproperty
 from collections import OrderedDict
 from functools import lru_cache
 from gc import collect
