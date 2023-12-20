@@ -43,39 +43,30 @@ def pair_match_max(nsim0, nsimx, simname, min_logmass, mult, verbose):
     verbose : bool
         Verbosity flag.
     """
-    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-
-    if simname == "csiborg":
-        mass_kind = "fof_totpartmass"
+    if simname == "csiborg1":
         maxdist = 155
         periodic = False
-        bounds = {"dist": (0, maxdist), mass_kind: (10**min_logmass, None)}
-        cat0 = csiborgtools.read.CSiBORGHaloCatalogue(
-            nsim0, paths, bounds=bounds, load_fitted=True, load_initial=False)
-        catx = csiborgtools.read.CSiBORGHaloCatalogue(
-            nsimx, paths, bounds=bounds, load_fitted=True, load_initial=False)
+        bounds = {"dist": (0, maxdist), "totmass": (10**min_logmass, None)}
+        cat0 = csiborgtools.read.CSiBORG1Catalogue(nsim0, bounds=bounds)
+        catx = csiborgtools.read.CSiBORG1Catalogue(nsimx, bounds=bounds)
+    elif "csiborg2" in simname:
+        raise RuntimeError("CSiBORG2 currently not implemented..")
     elif simname == "quijote":
-        mass_kind = "group_mass"
         maxdist = None
         periodic = True
-        bounds = {mass_kind: (10**min_logmass, None)}
-        cat0 = csiborgtools.read.QuijoteHaloCatalogue(
-            nsim0, paths, 4, bounds=bounds, load_fitted=True,
-            load_initial=False)
-        catx = csiborgtools.read.QuijoteHaloCatalogue(
-            nsimx, paths, 4, bounds=bounds, load_fitted=True,
-            load_initial=False)
+        bounds = {"totmass": (10**min_logmass, None)}
+        cat0 = csiborgtools.read.QuijoteCatalogue(nsim0, bounds=bounds)
+        catx = csiborgtools.read.QuijoteHaloCatalogue(nsimx, bounds=bounds)
     else:
         raise ValueError(f"Unknown simulation `{simname}`.")
 
-    reader = csiborgtools.summary.PairOverlap(cat0, catx, paths, min_logmass,
-                                              maxdist=maxdist)
+    reader = csiborgtools.summary.PairOverlap(cat0, catx, min_logmass, maxdist)
     out = csiborgtools.match.matching_max(
-        cat0, catx, mass_kind, mult=mult, periodic=periodic,
+        cat0, catx, "totmass", mult=mult, periodic=periodic,
         overlap=reader.overlap(from_smoothed=True),
         match_indxs=reader["match_indxs"], verbose=verbose)
 
-    fout = paths.match_max(simname, nsim0, nsimx, min_logmass, mult)
+    fout = cat0.paths.match_max(simname, nsim0, nsimx, min_logmass, mult)
     if verbose:
         print(f"{datetime.now()}: saving to ... `{fout}`.", flush=True)
     numpy.savez(fout, **{p: out[p] for p in out.dtype.names})
@@ -108,23 +99,30 @@ def pair_match(nsim0, nsimx, simname, min_logmass, sigma, verbose):
     smooth_kwargs = {"sigma": sigma, "mode": "constant", "cval": 0}
     bounds = {"lagpatch_size": (0, None)}
 
-    if simname == "csiborg":
+    if simname == "csiborg1":
         overlapper_kwargs = {"box_size": 2048, "bckg_halfsize": 512}
-        mass_kind = "fof_totpartmass"
-        bounds |= {"dist": (0, 155), mass_kind: (10**min_logmass, None)}
-        cat0 = csiborgtools.read.CSiBORGCatalogue(
-            nsim0, paths, "halo_catalogue", "FOF", mass_kind, bounds)
-        catx = csiborgtools.read.CSiBORGCatalogue(
-            nsimx, paths, "halo_catalogue", "FOF", mass_kind, bounds)
+        bounds |= {"dist": (0, 150), "totmass": (10**min_logmass, None)}
+
+        snap0 = csiborgtools.read.CSIBORG1Snapshot(nsim0, 0)
+        cat0 = csiborgtools.read.CSiBORG1Catalogue(nsim0, snapshot=snap0,
+                                                   bounds=bounds)
+
+        snapx = csiborgtools.read.CSIBORG1Snapshot(nsimx, 0)
+        catx = csiborgtools.read.CSiBORGCatalogue(nsimx, snapshot=snapx,
+                                                  bounds=bounds)
+    elif "csiborg2" in simname:
+        raise RuntimeError("CSiBORG2 currently not implemented..")
     elif simname == "quijote":
         overlapper_kwargs = {"box_size": 512, "bckg_halfsize": 256}
-        mass_kind = "group_mass"
-        bounds |= {mass_kind: (10**min_logmass, None)}
+        bounds |= {"totmass": (10**min_logmass, None)}
 
-        cat0 = csiborgtools.read.QuijoteCatalogue(
-            nsim0, paths, "halo_catalogue", "FOF", mass_kind, bounds=bounds)
-        catx = csiborgtools.read.QuijoteCatalogue(
-            nsimx, paths, "halo_catalogue", "FOF", mass_kind, bounds=bounds)
+        snap0 = csiborgtools.read.QuijoteSnapshot(nsim0, "ICs")
+        cat0 = csiborgtools.read.QuijoteCatalogue(nsim0, snapshot=snap0,
+                                                  bounds=bounds)
+
+        snapx = csiborgtools.read.QuijoteSnapshot(nsimx, "ICs")
+        catx = csiborgtools.read.QuijoteCatalogue(nsimx, snapshot=snapx,
+                                                  bounds=bounds)
     else:
         raise ValueError(f"Unknown simulation name: `{simname}`.")
 
@@ -133,8 +131,7 @@ def pair_match(nsim0, nsimx, simname, min_logmass, sigma, verbose):
     delta_bckg = overlapper.make_bckg_delta(catx, delta=delta_bckg,
                                             verbose=verbose)
 
-    matcher = csiborgtools.match.RealisationsMatcher(mass_kind=mass_kind,
-                                                     **overlapper_kwargs)
+    matcher = csiborgtools.match.RealisationsMatcher(**overlapper_kwargs)
     match_indxs, ngp_overlap = matcher.cross(cat0, catx, delta_bckg,
                                              verbose=verbose)
 
