@@ -92,22 +92,22 @@ class RealisationsMatcher(BaseMatcher):
     dlogmass : float, optional
         Tolerance on the absolute logarithmic mass difference of potential
         matches.
-    mass_kind : str, optional
+    mass_key : str, optional
         Mass kind whose similarity is to be checked. Must be a valid key in the
         halo catalogue.
     """
     _nmult = None
     _dlogmass = None
-    _mass_kind = None
+    _mass_key = None
     _overlapper = None
 
     def __init__(self, box_size, bckg_halfsize, nmult=1.0, dlogmass=2.0,
-                 mass_kind="totpartmass"):
+                 mass_key="totpartmass"):
         self.box_size = box_size
         self.bckg_halfsize = bckg_halfsize
         self.nmult = nmult
         self.dlogmass = dlogmass
-        self.mass_kind = mass_kind
+        self.mass_key = mass_key
 
         self._overlapper = ParticleOverlap(box_size, bckg_halfsize)
 
@@ -130,6 +130,10 @@ class RealisationsMatcher(BaseMatcher):
         """
         Tolerance on the absolute logarithmic mass difference of potential
         matches.
+
+        Returns
+        -------
+        float
         """
         return self._dlogmass
 
@@ -140,18 +144,22 @@ class RealisationsMatcher(BaseMatcher):
         self._dlogmass = float(value)
 
     @property
-    def mass_kind(self):
+    def mass_key(self):
         """
-        Mass kind whose similarity is to be checked. Must be a valid key in the
+        Mass key whose similarity is to be checked. Must be a valid key in the
         halo catalogue.
-        """
-        return self._mass_kind
 
-    @mass_kind.setter
-    def mass_kind(self, value):
+        Returns
+        -------
+        str
+        """
+        return self._mass_key
+
+    @mass_key.setter
+    def mass_key(self, value):
         if not isinstance(value, str):
-            raise ValueError("`mass_kind` must be a string.")
-        self._mass_kind = value
+            raise ValueError("`mass_key` must be a string.")
+        self._mass_key = value
 
     @property
     def overlapper(self):
@@ -203,7 +211,7 @@ class RealisationsMatcher(BaseMatcher):
         if self.dlogmass is not None:
             for i, indx in enumerate(match_indxs):
                 # |log(M1 / M2)|
-                p = self.mass_kind
+                p = self.mass_key
                 aratio = numpy.abs(numpy.log10(catx[p][indx] / cat0[p][i]))
                 match_indxs[i] = match_indxs[i][aratio < self.dlogmass]
 
@@ -946,7 +954,7 @@ def find_neighbour(nsim0, cats):
 ###############################################################################
 
 
-def matching_max(cat0, catx, mass_kind, mult, periodic, overlap=None,
+def matching_max(cat0, catx, mass_key, mult, periodic, overlap=None,
                  match_indxs=None, verbose=True):
     """
     Halo matching algorithm based on [1].
@@ -957,7 +965,7 @@ def matching_max(cat0, catx, mass_kind, mult, periodic, overlap=None,
         Halo catalogue of the reference simulation.
     catx : instance of :py:class:`csiborgtools.read.BaseCatalogue`
         Halo catalogue of the cross simulation.
-    mass_kind : str
+    mass_key : str
         Name of the mass column.
     mult : float
         Multiple of R200c below which to consider a match.
@@ -990,8 +998,8 @@ def matching_max(cat0, catx, mass_kind, mult, periodic, overlap=None,
                     periodic=periodic)
     rad0 = cat0["r200c"]
 
-    mass0 = numpy.log10(cat0[mass_kind])
-    massx = numpy.log10(catx[mass_kind])
+    mass0 = numpy.log10(cat0[mass_key])
+    massx = numpy.log10(catx[mass_key])
 
     assert numpy.all(numpy.isfinite(mass0)) & numpy.all(numpy.isfinite(massx))
 
