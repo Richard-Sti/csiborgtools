@@ -718,3 +718,17 @@ class QuijoteField(CSiBORG1Field):
     """
     def __init__(self, nsim, paths):
         super().__init__(nsim, paths)
+
+
+###############################################################################
+#                        Supplementary functions                              #
+###############################################################################
+
+
+def is_instance_of_base_snapshot_subclass(obj):
+    """
+    Check if `obj` is an instance of a subclass of `BaseSnapshot`.
+    """
+    return isinstance(obj, BaseSnapshot) and any(
+        issubclass(cls, BaseSnapshot) for cls in obj.__class__.__bases__
+    )
