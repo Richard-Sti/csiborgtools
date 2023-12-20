@@ -380,9 +380,15 @@ class ParticleOverlap(BaseMatcher):
             disable=not verbose
             )
         for hid in iterator:
-            pos = cat.snapshot.halo_coordinates(hid, is_group=True)
-            if pos is None:
-                continue
+            try:
+                pos = cat.snapshot.halo_coordinates(hid, is_group=True)
+            except ValueError as e:
+                # If not particles found for this halo, just skip it.
+                if str(e).startswith("Halo "):
+                    continue
+                else:
+                    # If the error does not start with "Halo ", re-raise it
+                    raise
 
             mass = cat.snapshot.halo_masses(hid, is_group=True)
 
