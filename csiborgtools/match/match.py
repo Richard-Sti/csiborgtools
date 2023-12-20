@@ -116,6 +116,10 @@ class RealisationsMatcher(BaseMatcher):
         """
         Multiplier of the sum of the initial Lagrangian patch sizes of a halo
         pair. Determines the range within which neighbors are returned.
+
+        Returns
+        -------
+        float
         """
         return self._nmult
 
@@ -203,9 +207,9 @@ class RealisationsMatcher(BaseMatcher):
         # snapshot.
         match_indxs = radius_neighbours(
             catx.knn(in_initial=True, subtract_observer=False, periodic=True),
-            cat0.position(in_initial=True),
-            radiusX=cat0["lagpatch_size"], radiusKNN=catx["lagpatch_size"],
-            nmult=self.nmult, enforce_int32=True, verbose=verbose)
+            cat0["lagpatch_coordinates"], radiusX=cat0["lagpatch_radius"],
+            radiusKNN=catx["lagpatch_radius"], nmult=self.nmult,
+            enforce_int32=True, verbose=verbose)
 
         # We next remove neighbours whose mass is too large/small.
         if self.dlogmass is not None:
@@ -843,8 +847,8 @@ def load_processed_halo(hid, cat, ncells, nshift):
     maxs : len-3 tuple
         Maximum cell indices of the halo.
     """
-    pos = cat.halo_particles(hid, "pos", in_initial=True)
-    mass = cat.halo_particles(hid, "mass", in_initial=True)
+    pos = cat.snapshot.halo_coordinates(hid, is_group=True)
+    mass = cat.snapshot.halo_masses(hid, is_group=True)
 
     pos = pos2cell(pos, ncells)
     mins, maxs = get_halo_cell_limits(pos, ncells=ncells, nshift=nshift)
@@ -929,7 +933,7 @@ def find_neighbour(nsim0, cats):
     assert all(isinstance(cat, type(cats[nsim0])) for cat in cats.values())
 
     cat0 = cats[nsim0]
-    X = cat0.position(in_initial=False)
+    X = cat0["lagpatch_coordinates"]
 
     nhalos = X.shape[0]
     num_cats = len(cats) - 1
@@ -993,7 +997,7 @@ def matching_max(cat0, catx, mass_key, mult, periodic, overlap=None,
     Monthly Notices of the Royal Astronomical Society, Volume 516, Issue 3,
     November 2022, Pages 3592–3601, https://doi.org/10.1093/mnras/stac2407
     """
-    pos0 = cat0.position(in_initial=False)
+    pos0 = cat0["cartesian_pos"]
     knnx = catx.knn(in_initial=False, subtract_observer=False,
                     periodic=periodic)
     rad0 = cat0["r200c"]
