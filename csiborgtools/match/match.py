@@ -92,22 +92,18 @@ class RealisationsMatcher(BaseMatcher):
     dlogmass : float, optional
         Tolerance on the absolute logarithmic mass difference of potential
         matches.
-    mass_key : str, optional
-        Mass kind whose similarity is to be checked. Must be a valid key in the
-        halo catalogue.
     """
     _nmult = None
     _dlogmass = None
     _mass_key = None
     _overlapper = None
 
-    def __init__(self, box_size, bckg_halfsize, nmult=1.0, dlogmass=2.0,
-                 mass_key="totpartmass"):
+    def __init__(self, box_size, bckg_halfsize, nmult=1.0, dlogmass=2.0):
         self.box_size = box_size
         self.bckg_halfsize = bckg_halfsize
         self.nmult = nmult
         self.dlogmass = dlogmass
-        self.mass_key = mass_key
+        self.mass_key = "totmass"
 
         self._overlapper = ParticleOverlap(box_size, bckg_halfsize)
 
@@ -384,11 +380,11 @@ class ParticleOverlap(BaseMatcher):
             disable=not verbose
             )
         for hid in iterator:
-            pos = cat.halo_particles(hid, "pos", in_initial=True)
+            pos = cat.snapshot.halo_coordinates(hid, is_group=True)
             if pos is None:
                 continue
 
-            mass = cat.halo_particles(hid, "mass", in_initial=True)
+            mass = cat.snapshot.halo_masses(hid, is_group=True)
 
             pos = pos2cell(pos, self.box_size)
 
