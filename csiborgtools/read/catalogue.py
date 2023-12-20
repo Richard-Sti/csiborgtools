@@ -17,7 +17,7 @@ Unified interface for simulation catalogues. Currently supports CSiBORG1,
 CSiBORG2 and Quijote. For specific implementation always check the relevant
 classes in this module.
 """
-from abc import ABC, abstractproperty
+from abc import ABC, abstractproperty, abstractmethod
 from collections import OrderedDict
 from functools import lru_cache
 from gc import collect
@@ -32,6 +32,8 @@ from ..params import paths_glamdring
 from ..utils import (cartesian_to_radec, great_circle_distance, number_counts,
                      periodic_distance_two_points, real2redshift)
 from .paths import Paths
+from .snapshot import is_instance_of_base_snapshot_subclass
+
 
 ###############################################################################
 #                           Base catalogue                                    #
@@ -61,6 +63,7 @@ class BaseCatalogue(ABC):
         self._simname = None
         self._nsim = None
         self._nsnap = None
+        self._snapshot = None
 
         self._paths = None
 
@@ -76,9 +79,9 @@ class BaseCatalogue(ABC):
 
         self._custom_keys = []
 
-    def init_with_snapshot(self, simname, nsim, nsnap, paths, bounds, boxsize,
-                           observer_location, observer_velocity,
-                           cache_maxsize=64):
+    def init_with_snapshot(self, simname, nsim, nsnap, paths, snapshot,
+                           bounds, boxsize, observer_location,
+                           observer_velocity, cache_maxsize=64):
         self.simname = simname
         self.nsim = nsim
         self.nsnap = nsnap
@@ -88,6 +91,8 @@ class BaseCatalogue(ABC):
         self.observer_velocity = observer_velocity
 
         self.cache_maxsize = cache_maxsize
+
+        self.snapshot = snapshot
 
         if bounds is not None:
             self._make_mask(bounds)
@@ -148,6 +153,31 @@ class BaseCatalogue(ABC):
         if not isinstance(nsnap, (int, numpy.integer)):
             raise TypeError("`nsnap` must be an integer.")
         self._nsnap = int(nsnap)
+
+    @property
+    def snapshot(self):
+        """
+        Corresponding particle snapshot. Can be either the final or initial
+        one, depending on `which_snapshot`.
+
+        Returns
+        -------
+        subclass of py:class:`csiborgtools.read.snapshot.BaseSnapshot`
+        """
+        if self._snapshot is None:
+            raise RuntimeError("`snapshot` is not set!")
+        return self._snapshot
+
+    @snapshot.setter
+    def snapshot(self, snapshot):
+        if snapshot is None:
+            self._snapshot = None
+            return
+
+        if not is_instance_of_base_snapshot_subclass(snapshot):
+            raise TypeError("`snapshot` must be a subclass of `BaseSnapshot`.")
+
+        self._snapshot = snapshot
 
     @property
     def paths(self):
@@ -351,7 +381,7 @@ class BaseCatalogue(ABC):
         volume : float
             Volume in :math:`(cMpc / h)^3`.
         mass_key : str, optional
-            Mass key of the catalogue.
+            Mass key to get the halo masses.
 
         Returns
         -------
@@ -613,6 +643,8 @@ class CSiBORG1Catalogue(BaseCatalogue):
         IC realisation index.
     paths : py:class`csiborgtools.read.Paths`, optional
         Paths object.
+    snapshot : subclass of py:class:`BaseSnapshot`, optional
+        Snapshot object corresponding to the catalogue.
     bounds : dict, optional
         Parameter bounds; keys as parameter names, values as (min, max) or
         a boolean.
@@ -621,13 +653,13 @@ class CSiBORG1Catalogue(BaseCatalogue):
     cache_maxsize : int, optional
         Maximum number of cached arrays.
     """
-    def __init__(self, nsim, paths=None, bounds=None, observer_velocity=None,
-                 cache_maxsize=64):
+    def __init__(self, nsim, paths=None, snapshot=None, bounds=None,
+                 observer_velocity=None, cache_maxsize=64):
         super().__init__()
         super().init_with_snapshot(
             "csiborg1", nsim, max(paths.get_snapshots(nsim, "csiborg1")),
-            paths, bounds, 677.7, [338.85, 338.85, 338.85], observer_velocity,
-            cache_maxsize)
+            paths, snapshot, bounds, 677.7, [338.85, 338.85, 338.85],
+            observer_velocity, cache_maxsize)
 
         self._custom_keys = []
 
@@ -691,6 +723,8 @@ class CSiBORG2Catalogue(BaseCatalogue):
         Simulation kind. Must be one of 'main', 'varysmall', or 'random'.
     paths : py:class`csiborgtools.read.Paths`, optional
         Paths object.
+    snapshot : subclass of py:class:`BaseSnapshot`, optional
+        Snapshot object corresponding to the catalogue.
     bounds : dict, optional
         Parameter bounds; keys as parameter names, values as (min, max) or
         a boolean.
@@ -699,12 +733,12 @@ class CSiBORG2Catalogue(BaseCatalogue):
     cache_maxsize : int, optional
         Maximum number of cached arrays.
     """
-    def __init__(self, nsim, nsnap, kind, paths=None, bounds=None,
-                 observer_velocity=None, cache_maxsize=64):
+    def __init__(self, nsim, nsnap, kind, paths=None, snapshot=None,
+                 bounds=None, observer_velocity=None, cache_maxsize=64):
         super().__init__()
         super().init_with_snapshot(
-            f"csiborg2_{kind}", nsim, nsnap, paths, bounds, 676.6,
-            [338.3, 338.3, 338.3], observer_velocity, cache_maxsize)
+            f"csiborg2_{kind}", nsim, nsnap, paths, snapshot, bounds,
+            676.6, [338.3, 338.3, 338.3], observer_velocity, cache_maxsize)
 
         self._custom_keys = ["GroupFirstSub", "GroupContamination",
                              "GroupNsubs"]
@@ -726,14 +760,14 @@ class CSiBORG2Catalogue(BaseCatalogue):
 
     @property
     def coordinates(self):
-        # We flip x and z to undo MUSIC bug.
+        # Loading directly the Gadget4 output, flip x and z to undo MUSIC bug.
         out = self._read_fof_catalogue("GroupPos")
         out[:, [0, 2]] = out[:, [2, 0]]
         return out
 
     @property
     def velocities(self):
-        # We flip x and z to undo MUSIC bug.
+        # Loading directly the Gadget4 output, flip x and z to undo MUSIC bug.
         out = self._read_fof_catalogue("GroupVel")
         out[:, [0, 2]] = out[:, [2, 0]]
         return out
@@ -789,6 +823,8 @@ class QuijoteCatalogue(BaseCatalogue):
         IC realisation index.
     paths : py:class`csiborgtools.read.Paths`, optional
         Paths object.
+    snapshot : subclass of py:class:`BaseSnapshot`, optional
+        Snapshot object corresponding to the catalogue.
     bounds : dict
         Parameter bounds; keys as parameter names, values as (min, max)
         tuples. Use `dist` for radial distance, `None` for no bound.
@@ -797,12 +833,13 @@ class QuijoteCatalogue(BaseCatalogue):
     cache_maxsize : int, optional
         Maximum number of cached arrays.
     """
-    def __init__(self, nsim, paths=None, bounds=None, observer_velocity=None,
+    def __init__(self, nsim, paths=None, snapshot=None, bounds=None,
+                 observer_velocity=None,
                  cache_maxsize=64):
         super().__init__()
         super().init_with_snapshot(
-            "quijote", nsim, 4, paths, bounds, 1000, [500., 500., 500.,],
-            observer_velocity, cache_maxsize)
+            "quijote", nsim, 4, paths, snapshot, bounds, 1000,
+            [500., 500., 500.,], observer_velocity, cache_maxsize)
 
         self._custom_keys = []
         self._bounds = bounds
