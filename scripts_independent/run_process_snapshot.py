@@ -15,9 +15,13 @@
 from os import system
 
 if __name__ == "__main__":
-    chains = [15717, 15817, 15917, 16017, 16117, 16217, 16317, 16417, 16517,
-              16617, 16717, 16817, 16917, 17017, 17117, 17217, 17317, 17417]
-    simname = "csiborg2_main"
+    # chains = [15717, 15817, 15917, 16017, 16117, 16217, 16317, 16417, 16517,
+    #           16617, 16717, 16817, 16917, 17017, 17117, 17217, 17317, 17417]
+    # simname = "csiborg2_main"
+    # mode = 1
+
+    chains = [1] + [25 + n * 25 for n in range(19)]
+    simname = "csiborg2_varysmall"
     mode = 1
 
     # chains = [7444 + n * 24 for n in range(1, 101)]
