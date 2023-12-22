@@ -21,6 +21,4 @@ from .overlap_summary import (NPairsOverlap, PairOverlap, get_cross_sims,       
                               find_peak)                                        # noqa
 from .pk_summary import PKReader                                                # noqa
 from .tpcf_summary import TPCFReader                                            # noqa
-from .field_interp import (read_interpolated_field,                             # noqa
-                           bayesian_bootstrap_correlation,                      # noqa
-                           correlate_at_fixed_smoothing)                        # noqa
+from .field_interp import read_interpolated_field                               # noqa
