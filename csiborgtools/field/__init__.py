@@ -18,3 +18,4 @@ from .density import (DensityField, PotentialField, TidalTensorField,           
 from .interp import (evaluate_cartesian, evaluate_sky, field2rsp,               # noqa
                      fill_outside, make_sky, observer_peculiar_velocity,        # noqa
                      nside2radec, smoothen_field)                               # noqa
+from .corr import bayesian_bootstrap_correlation                                # noqa
