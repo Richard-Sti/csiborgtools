@@ -94,7 +94,7 @@ class Paths:
             files = [int(search(r'chain_(\d+)', f).group(1)) for f in files]
         elif simname == "csiborg2_varysmall":
             files = glob(join(self.csiborg2_varysmall_srcdir, "chain_*"))
-            files = [int(search(r'chain_16417(\d+)', f).group(1))
+            files = [int(search(r'chain_16417_(\d+)', f).group(1))
                      for f in files]
         elif simname == "quijote":
             files = glob(join(self.quijote_dir, "fiducial_processed",
@@ -138,7 +138,8 @@ class Paths:
                      for f in snaps]
             snaps = sorted(snaps)
         elif simname == "csiborg2_varysmall":
-            snaps = glob(join(self.csiborg2_random_srcdir, f"chain_{nsim}",
+            snaps = glob(join(self.csiborg2_random_srcdir,
+                              f"chain_16417_{str(nsim).zfill(3)}",
                               "snapshot_*"))
             snaps = [int(search(r'snapshot_16417_(\d+)', f).group(1))
                      for f in snaps]
@@ -183,8 +184,9 @@ class Paths:
             return join(self.csiborg2_random_srcdir, f"chain_{nsim}", "output",
                         f"snapshot_{str(nsnap).zfill(3)}.hdf5")
         elif simname == "csiborg2_varysmall":
-            return join(self.csiborg2_varysmall_srcdir, f"chain_{nsim}",
-                        "output", f"snapshot_{str(nsnap).zfill(3)}.hdf5")
+            return join(self.csiborg2_varysmall_srcdir,
+                        f"chain_16417_{str(nsim).zfill(3)}", "output",
+                        f"snapshot_{str(nsnap).zfill(3)}.hdf5")
         elif simname == "quijote":
             return join(self.quijote_dir, "fiducial_processed",
                         f"chain_{nsim}",
@@ -219,8 +221,8 @@ class Paths:
             return join(self.csiborg2_ranodm_srcdir, f"chain_{nsim}", "output",
                         f"fof_subhalo_tab_{str(nsnap).zfill(3)}.hdf5")
         elif simname == "csiborg2_varysmall":
-            return join(self.csiborg2_varysmall_srcdir, f"chain_{nsim}",
-                        "output",
+            return join(self.csiborg2_varysmall_srcdir,
+                        f"chain_16417_{str(nsim).zfill(3)}", "output",
                         f"fof_subhalo_tab_{str(nsnap).zfill(3)}.hdf5")
         elif simname == "quijote":
             return join(self.quijote_dir, "fiducial_processed",

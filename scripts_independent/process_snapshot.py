@@ -319,6 +319,9 @@ class CSiBORG2Reader(BaseReader):
             raise ValueError(f"Unknown kind `{kind}`.")
         self.base_dir = f"/mnt/extraspace/rstiskalek/csiborg2_{kind}"
 
+        if kind == "varysmall":
+            self.nsim = f"16417_{str(self.nsim).zfill(3)}"
+
         if which_snapshot == "initial":
             self.nsnap = 0
         elif which_snapshot == "final":
@@ -327,19 +330,19 @@ class CSiBORG2Reader(BaseReader):
             raise ValueError(f"Unknown snapshot option `{which_snapshot}`.")
 
         self.source_dir = join(
-                self.base_dir, f"chain_{nsim}", "output",
+                self.base_dir, f"chain_{self.nsim}", "output",
                 f"snapshot_{str(self.nsnap).zfill(3)}_full.hdf5")
         if which_snapshot == "initial":
             self.source_dir = self.source_dir.replace("_full.hdf5", ".hdf5")
 
-        self.output_dir = join(self.base_dir, f"chain_{nsim}", "output")
+        self.output_dir = join(self.base_dir, f"chain_{self.nsim}", "output")
         self.output_snap = join(
             self.output_dir,
             f"snapshot_{str(self.nsnap).zfill(3)}_sorted.hdf5")
         self.output_cat = None
 
         self.offset_path = join(
-            self.base_dir, f"chain_{nsim}", "output",
+            self.base_dir, f"chain_{self.nsim}", "output",
             f"fof_subhalo_tab_{str(self.nsnap).zfill(3)}_full.hdf5")
 
     def read_info(self):
