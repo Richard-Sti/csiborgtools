@@ -741,10 +741,17 @@ class CSiBORG2Catalogue(BaseCatalogue):
             676.6, [338.3, 338.3, 338.3], observer_velocity, cache_maxsize)
 
         self._custom_keys = ["GroupFirstSub", "GroupContamination",
-                             "GroupNsubs"]
+                             "GroupNsubs", "Group_M_Crit200"]
 
     @property
     def kind(self):
+        """
+        Simulation kind.
+
+        Returns
+        -------
+        str
+        """
         return self._simname.split("_")[-1]
 
     def _read_fof_catalogue(self, kind):
@@ -803,9 +810,254 @@ class CSiBORG2Catalogue(BaseCatalogue):
         return self._read_fof_catalogue("GroupNsubs")
 
     @property
+    def Group_M_Crit200(self):
+        return self._read_fof_catalogue("Group_M_Crit200")
+
+    @property
     def GroupContamination(self):
         mass_type = self._read_fof_catalogue("GroupMassType")
         return mass_type[:, 5] / (mass_type[:, 1] + mass_type[:, 5])
+
+
+###############################################################################
+#                      CSiBORG2 merger tree reader                            #
+###############################################################################
+
+
+class CSiBORG2MergerTreeReader:
+    """
+    Merger tree reader for CSiBORG2. Currently supports reading the main branch
+    of the most massive FoF member at `z = 99`. Documentation of the merger
+    trees can be found at:
+
+        https://www.mtng-project.org/03_output/#descendant-and-progenitor-information       # noqa
+
+    Parameters
+    ----------
+    nsim : int
+        IC realisation index.
+    kind : str
+        Simulation kind. Must be one of 'main', 'varysmall', or 'random'.
+    paths : py:class`csiborgtools.read.Paths`, optional
+        Paths object.
+    """
+    _simname = None
+    _nsim = None
+
+    def __init__(self, nsim, kind, paths=None):
+        self.simname = f"csiborg2_{kind}"
+        self.nsim = nsim
+        self._paths = paths
+
+        self._group2treeid = self.make_group_to_treeid()
+
+    @property
+    def simname(self):
+        """
+        Simulation name.
+
+        Returns
+        -------
+        str
+        """
+        if self._simname is None:
+            raise RuntimeError("`simname` is not set!")
+        return self._simname
+
+    @simname.setter
+    def simname(self, simname):
+        if not isinstance(simname, str):
+            raise TypeError("`simname` must be a string.")
+        self._simname = simname
+
+    @property
+    def nsim(self):
+        """
+        Simulation IC realisation index.
+
+        Returns
+        -------
+        int
+        """
+        if self._nsim is None:
+            raise RuntimeError("`nsim` is not set!")
+        return self._nsim
+
+    @nsim.setter
+    def nsim(self, nsim):
+        if not isinstance(nsim, (int, numpy.integer)):
+            raise TypeError("`nsim` must be an integer.")
+        self._nsim = int(nsim)
+
+    @property
+    def kind(self):
+        """
+        Simulation kind.
+
+        Returns
+        -------
+        str
+        """
+        return self._simname.split("_")[-1]
+
+    @property
+    def paths(self):
+        """
+        Paths manager.
+
+        Returns
+        -------
+        py:class:`csiborgtools.read.Paths`
+        """
+        if self._paths is None:
+            return Paths(**paths_glamdring)
+        return self._paths
+
+    def make_group_to_treeid(self):
+        """
+        Create a mapping from group number at snapshot 99 to its tree ID.
+
+        Returns
+        -------
+        group2treeid : dict
+            Dictionary with group number as key and tree ID as value.
+        """
+        print("Creating group to tree ID mapping...")
+        with File(self.paths.trees(self.nsim, self.simname), 'r') as f:
+            groupnr = f["TreeHalos/GroupNr"][:]
+            snapnum = f["TreeHalos/SnapNum"][:]
+            treeid = f["TreeHalos/TreeID"][:]
+
+            # Select only groups in the last snapshot
+            mask = snapnum == 99
+            groupnr = groupnr[mask]
+            treeid = treeid[mask]
+
+            group2treeid = {g: t for g, t in zip(groupnr, treeid)}
+
+        return group2treeid
+
+    def get_tree(self, tree_id):
+        """
+        Extract a tree from the merger tree file.
+
+        Parameters
+        ----------
+        tree_id : int
+            Tree ID.
+
+        Returns
+        -------
+        dict
+        """
+        keys_extract = ["GroupNr",
+                        "SnapNum",
+                        "TreeFirstHaloInFOFgroup",
+                        "TreeMainProgenitor",
+                        "TreeNextProgenitor",
+                        "TreeProgenitor",
+                        "SubhaloMass",
+                        ]
+
+        with File(self.paths.trees(self.nsim, self.simname), 'r') as f:
+            max_treeid = f["TreeTable/TreeID"][-1]
+            if not (0 <= tree_id <= max_treeid):
+                raise ValueError(f"Tree ID must be between 0 and {max_treeid}.")  # noqa
+
+            i = f["TreeTable/StartOffset"][tree_id]
+            j = i + f["TreeTable/Length"][tree_id]
+
+            tree = {}
+            for key in keys_extract:
+                tree[key] = f[f"TreeHalos/{key}"][i:j]
+
+            tree["Redshift"] = f["TreeTimes/Redshift"][:]
+            tree["Time"] = f["TreeTimes/Time"][:]
+
+        return tree
+
+    def find_first_fof_member(self, group_nr, tree):
+        """
+        Find the first FOF member of a group at snapshot 99.
+
+        Parameters
+        ----------
+        group_nr : int
+            Group number at snapshot 99.
+        tree : dict
+            Merger tree.
+
+        Returns
+        -------
+        int
+        """
+        fsnap_mask = tree["SnapNum"] == 99
+        group_mask = tree["GroupNr"][fsnap_mask] == group_nr
+        first_fof = tree["TreeFirstHaloInFOFgroup"][fsnap_mask][group_mask]
+
+        if not numpy.all(first_fof == first_fof[0]):
+            raise RuntimeError("We get non-unique first FOF group.")
+
+        return first_fof[0]
+
+    def main_progenitor(self, group_nr):
+        """
+        Return the mass and redshift of the main progenitor of a group.
+
+        Parameters
+        ----------
+        group_nr : int
+            Group number at snapshot 99.
+
+        Returns
+        -------
+        dict
+        """
+        tree_id = self._group2treeid[group_nr]
+        tree = self.get_tree(tree_id)
+        first_fof = self.find_first_fof_member(group_nr, tree)
+
+        n = first_fof  # Index of the current main progenitor
+
+        time, redshift, main_progenitor_mass = [], [], []
+        max_next_progenitor_mass, total_next_progenitor_mass = [], []
+        while True:
+            # First off attempt to find the next progenitors of the current
+            # halo. Deal with the main progenitor later.
+            next_prog = tree["TreeNextProgenitor"][n]
+            if next_prog != -1:
+                minors = []
+                while True:
+                    minors.append(tree["SubhaloMass"][next_prog])
+
+                    next_prog = tree["TreeNextProgenitor"][next_prog]
+
+                    if next_prog == -1:
+                        break
+            else:
+                # Fiducially set it to zero.
+                minors = [0]
+
+            # Update data with information from the current main progenitor.
+            major = tree["SubhaloMass"][n]
+            main_progenitor_mass.append(major)
+            max_next_progenitor_mass.append(max(minors))
+            total_next_progenitor_mass.append(sum(minors))
+            redshift.append(tree["Redshift"][tree["SnapNum"][n]])
+            time.append(tree["Time"][tree["SnapNum"][n]])
+
+            # Update n to the next main progenitor.
+            n = tree["TreeMainProgenitor"][n]
+
+            if n == -1:
+                break
+
+        return {"Time": numpy.array(time),
+                "Redshift": numpy.array(redshift),
+                "MainProgenitorMass": numpy.array(main_progenitor_mass) * 1e10,
+                "MaxNextProgenitorMass": numpy.array(max_next_progenitor_mass) * 1e10,  # noqa
+                "TotalNextProgenitorMass": numpy.array(total_next_progenitor_mass) * 1e10,  # noqa
+                }
 
 
 ###############################################################################
