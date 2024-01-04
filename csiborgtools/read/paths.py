@@ -231,6 +231,38 @@ class Paths:
         else:
             raise ValueError(f"Unknown simulation name `{simname}`.")
 
+    def trees(self, nsim, simname):
+        """
+        Path to the halo trees of a simulation snapshot.
+
+        Parameters
+        ----------
+        nsim : int
+            IC realisation index.
+        simname : str
+            Simulation name.
+
+        Returns
+        -------
+        str
+        """
+        if simname == "csiborg1":
+            raise ValueError("Trees not available for CSiBORG1.")
+        elif simname == "csiborg2_main":
+            return join(self.csiborg2_main_srcdir, f"chain_{nsim}", "output",
+                        "trees.hdf5")
+        elif simname == "csiborg2_random":
+            return join(self.csiborg2_ranodm_srcdir, f"chain_{nsim}", "output",
+                        "trees.hdf5")
+        elif simname == "csiborg2_varysmall":
+            return join(self.csiborg2_varysmall_srcdir,
+                        f"chain_16417_{str(nsim).zfill(3)}", "output",
+                        "trees.hdf5")
+        elif simname == "quijote":
+            raise ValueError("Trees not available for Quijote.")
+        else:
+            raise ValueError(f"Unknown simulation name `{simname}`.")
+
     def overlap(self, simname, nsim0, nsimx, min_logmass, smoothed):
         """
         Path to the overlap files between two CSiBORG simulations.
