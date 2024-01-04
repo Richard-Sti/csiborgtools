@@ -20,8 +20,12 @@ if __name__ == "__main__":
     # simname = "csiborg2_main"
     # mode = 1
 
+    # chains = [1] + [25 + n * 25 for n in range(19)]
+    # simname = "csiborg2_varysmall"
+    # mode = 1
+
     chains = [1] + [25 + n * 25 for n in range(19)]
-    simname = "csiborg2_varysmall"
+    simname = "csiborg2_random"
     mode = 1
 
     # chains = [7444 + n * 24 for n in range(1, 101)]
