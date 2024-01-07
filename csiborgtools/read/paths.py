@@ -416,7 +416,7 @@ class Paths:
         fname = f"observer_peculiar_velocity_{simname}_{MAS}_{str(nsim).zfill(5)}_{grid}.npz"  # noqa
         return join(fdir, fname)
 
-    def field_interpolated(self, survey, kind, MAS, grid, nsim, in_rsp):
+    def field_interpolated(self, survey, simname, nsim, kind, MAS, grid):
         """
         Path to the files containing the CSiBORG interpolated field for a given
         survey.
@@ -425,35 +425,32 @@ class Paths:
         ----------
         survey : str
             Survey name.
+        simname : str
+            Simulation name.
+        nsim : int
+            IC realisation index.
         kind : str
-            Field type. Must be one of: `density`, `velocity`, `potential`,
-            `radvel`, `environment`.
+            Field type.
         MAS : str
            Mass-assignment scheme.
         grid : int
             Grid size.
-        nsim : int
-            IC realisation index.
-        in_rsp : bool
-            Whether the calculation is performed in redshift space.
 
         Returns
         -------
         str
         """
-        raise NotImplementedError("This function is not implemented yet.")
-        assert kind in ["density", "velocity", "potential", "radvel",
-                        "environment"]
-        fdir = join(self.postdir, "environment_interpolated")
+        if "csiborg" not in simname:
+            raise ValueError("Interpolated field only available for CSiBORG.")
 
+        if kind not in ["density", "potential", "radvel"]:
+            raise ValueError("Unsupported field type.")
+
+        fdir = join(self.postdir, "field_interpolated")
         try_create_directory(fdir)
 
-        if in_rsp:
-            kind = kind + "_rsp"
-
-        fname = f"{survey}_{kind}_{MAS}_{str(nsim).zfill(5)}_grid{grid}.npz"
-
-        return join(fdir, fname)
+        nsim = str(nsim).zfill(5)
+        return join(fdir, f"{survey}_{simname}_{kind}_{MAS}_{nsim}_{grid}.npz")
 
     def cross_nearest(self, simname, run, kind, nsim=None, nobs=None):
         """
