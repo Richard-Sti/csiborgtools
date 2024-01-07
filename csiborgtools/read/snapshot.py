@@ -542,6 +542,8 @@ class BaseField(ABC):
         -------
         Paths
         """
+        if self._paths is None:
+            self._paths = Paths(**paths_glamdring)
         return self._paths
 
     @abstractmethod
@@ -594,10 +596,10 @@ class CSiBORG1Field(BaseField):
     ----------
     nsim : int
         Simulation index.
-    paths : Paths
-        Paths object.
+    paths : Paths, optional
+        Paths object. By default, the paths are set to the `glamdring` paths.
     """
-    def __init__(self, nsim, paths):
+    def __init__(self, nsim, paths=None):
         super().__init__(nsim, paths)
 
     def density_field(self, MAS, grid):
@@ -640,13 +642,13 @@ class CSiBORG2Field(BaseField):
     ----------
     nsim : int
         Simulation index.
-    paths : Paths
-        Paths object.
     kind : str
         CSiBORG2 run kind. One of `main`, `random`, or `varysmall`.
+    paths : Paths, optional
+        Paths object. By default, the paths are set to the `glamdring` paths.
     """
 
-    def __init__(self, nsim, paths, kind):
+    def __init__(self, nsim, kind, paths=None):
         super().__init__(nsim, paths)
         self.kind = kind
 
