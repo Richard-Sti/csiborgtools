@@ -115,7 +115,7 @@ def radvel_field(nsim, parser_args):
         field = csiborgtools.read.CSiBORG1Field(nsim, paths)
     elif "csiborg2" in parser_args.simname:
         kind = parser_args.simname.split("_")[-1]
-        field = csiborgtools.read.CSiBORG2Field(nsim, paths, kind)
+        field = csiborgtools.read.CSiBORG2Field(nsim, kind, paths)
     elif parser_args.simname == "quijote":
         field = csiborgtools.read.QuijoteField(nsim, paths)
     else:
