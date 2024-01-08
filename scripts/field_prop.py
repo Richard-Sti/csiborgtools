@@ -139,8 +139,8 @@ def observer_peculiar_velocity(nsim, parser_args):
     for several smoothing scales.
     """
     boxsize = csiborgtools.simname2boxsize(parser_args.simname)
-    # NOTE thevse values are hard-coded.
-    smooth_scales = numpy.array([0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0])
+    # NOTE these values are hard-coded.
+    smooth_scales = numpy.array([0., 2.0, 4.0, 8.0, 16.])
     smooth_scales /= boxsize
 
     if parser_args.simname == "csiborg1":
