@@ -18,7 +18,6 @@ should be implemented things such as flipping x- and z-axes, to make sure that
 observed RA-dec can be mapped into the simulation box.
 """
 from abc import ABC, abstractmethod, abstractproperty
-from warnings import warn
 
 import numpy
 from h5py import File
@@ -623,9 +622,6 @@ class CSiBORG1Field(BaseField):
 
     def velocity_field(self, MAS, grid):
         fpath = self.paths.field("velocity", MAS, grid, self.nsim, "csiborg1")
-        if self._simname == "csiborg1":
-            warn("The velocity field x- and z-axes are not yet flipped.",
-                 RuntimeWarning)
 
         if MAS == "SPH":
             with File(fpath, "r") as f:
@@ -636,6 +632,13 @@ class CSiBORG1Field(BaseField):
             field = numpy.array([v0, v1, v2])
         else:
             field = numpy.load(fpath)
+
+        if self._simname == "csiborg1":
+            # TODO: this flipping of x- and z-axes is YET to be checked.
+            field[0, ...] = field[0, ...].T
+            field[1, ...] = field[1, ...].T
+            field[2, ...] = field[2, ...].T
+            field[[0, 2], ...] = field[[2, 0], ...]
 
         return field
 
@@ -698,8 +701,6 @@ class CSiBORG2Field(BaseField):
     def velocity_field(self, MAS, grid):
         fpath = self.paths.field("velocity", MAS, grid, self.nsim,
                                  f"csiborg2_{self.kind}")
-        warn("The velocity field x- and z-axes are not yet flipped.",
-             RuntimeWarning)
 
         if MAS == "SPH":
             with File(fpath, "r") as f:
@@ -711,6 +712,12 @@ class CSiBORG2Field(BaseField):
             field = numpy.array([v0, v1, v2])
         else:
             field = numpy.load(fpath)
+
+        # TODO: this flipping of x- and z-axes is YET to be checked.
+        field[0, ...] = field[0, ...].T
+        field[1, ...] = field[1, ...].T
+        field[2, ...] = field[2, ...].T
+        field[[0, 2], ...] = field[[2, 0], ...]
 
         return field
 
