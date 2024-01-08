@@ -517,10 +517,12 @@ class BaseField(ABC):
     Base class for reading fields such as density or velocity fields.
     """
     def __init__(self, nsim, paths):
+        if isinstance(nsim, numpy.integer):
+            nsim = int(nsim)
         if not isinstance(nsim, int):
             raise TypeError(f"`nsim` must be an integer. Received `{type(nsim)}`.")  # noqa
-        self._nsim = nsim
 
+        self._nsim = nsim
         self._paths = paths
 
     @property
