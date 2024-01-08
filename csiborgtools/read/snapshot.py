@@ -633,8 +633,8 @@ class CSiBORG1Field(BaseField):
         else:
             field = numpy.load(fpath)
 
+        # Flip x- and z-axes
         if self._simname == "csiborg1":
-            # TODO: this flipping of x- and z-axes is YET to be checked.
             field[0, ...] = field[0, ...].T
             field[1, ...] = field[1, ...].T
             field[2, ...] = field[2, ...].T
@@ -704,7 +704,6 @@ class CSiBORG2Field(BaseField):
 
         if MAS == "SPH":
             with File(fpath, "r") as f:
-                # TODO: the x and z still have to be flipped.
                 density = f["density"][:]
                 v0 = f["p0"][:] / density
                 v1 = f["p1"][:] / density
@@ -713,7 +712,7 @@ class CSiBORG2Field(BaseField):
         else:
             field = numpy.load(fpath)
 
-        # TODO: this flipping of x- and z-axes is YET to be checked.
+        # Flip x- and z-axes
         field[0, ...] = field[0, ...].T
         field[1, ...] = field[1, ...].T
         field[2, ...] = field[2, ...].T
