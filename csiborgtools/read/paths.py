@@ -367,10 +367,7 @@ class Paths:
         -------
         str
         """
-        if MAS == "SPH":
-            if kind not in ["density", "velocity"]:
-                raise ValueError("SPH field must be either `density` or `velocity`.")  # noqa
-
+        if MAS == "SPH" and kind in ["density", "velocity"]:
             if simname == "csiborg1":
                 raise ValueError("SPH field not available for CSiBORG1.")
             elif simname == "csiborg2_main":
