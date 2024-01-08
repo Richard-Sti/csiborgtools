@@ -195,7 +195,7 @@ class CSiBORG1Reader:
         self.sph_file = f"/mnt/extraspace/rstiskalek/csiborg1/sph_temp/chain_{self.nsim}.hdf5"  # noqa
 
     def read_info(self):
-        filename = glob(join(self.source_dir, "info_*"))
+        filename = glob(join(self.source_dir, "info_*.txt"))
         if len(filename) > 1:
             raise ValueError("Found too many `info` files.")
         filename = filename[0]
