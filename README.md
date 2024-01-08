@@ -30,3 +30,7 @@ Tools for analysing the suite of Constrained Simulations in BORG (CSiBORG) simul
 
 ### CSiBORG meets X-ray
 - [ ] Make available one example snapshot from the simulation. Mention the issue with x- and z-coordinates.
+
+### CSiBORG advertising
+- [ ] Decide on the webpage design and what to store there.
+- [ ] Write a short letter describing the simulations.
