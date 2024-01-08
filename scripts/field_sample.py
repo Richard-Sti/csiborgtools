@@ -13,12 +13,13 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-Sample a CSiBORG field at galaxy positions and save the result to disk.
+Script to sample a CSiBORG field at galaxy positions and save the result.
+Supports additional smoothing of the field as well.
 """
 from argparse import ArgumentParser
-from distutils.util import strtobool
 from os.path import join
 
+import csiborgtools
 import numpy
 from astropy.cosmology import FlatLambdaCDM
 from h5py import File
@@ -26,34 +27,24 @@ from mpi4py import MPI
 from taskmaster import work_delegation
 from tqdm import tqdm
 
-import csiborgtools
 from utils import get_nsims
-
-# TODO get rid of this.
-# MPC2BOX = 1 / 677.7
-SIM2BOXSIZE = {"csiborg1": 677.7,
-               "csiborg2_main": None,
-               "csiborg2_random": None,
-               "csiborg2_varysmall": None,
-               }
-
-
-def steps(cls, survey_name):
-    """Make a list of selection criteria to apply to a survey."""
-    if survey_name == "SDSS":
-        return [
-            # (lambda x: cls[x], ("IN_DR7_LSS",)),
-            # (lambda x: cls[x] < 17.6, ("ELPETRO_APPMAG_r", )),
-            (lambda x: cls[x] < 155.5, ("DIST", ))
-            ]
-    else:
-        raise NotImplementedError(f"Survey `{survey_name}` not implemented.")
 
 
 def open_galaxy_positions(survey_name, comm):
     """
-    Load the survey galaxy positions and indices, broadcasting them to all
-    ranks.
+    Load the survey's galaxy positions , broadcasting them to all ranks.
+
+    Parameters
+    ----------
+    survey_name : str
+        Name of the survey.
+    comm : mpi4py.MPI.Comm
+        MPI communicator.
+
+    Returns
+    -------
+    pos : 2-dimensional array
+        Galaxy positions in the form of (distance, RA, DEC).
     """
     rank, size = comm.Get_rank(), comm.Get_size()
 
@@ -65,15 +56,13 @@ def open_galaxy_positions(survey_name, comm):
                                 survey["DEC"]],
                                ).T
             pos = pos.astype(numpy.float32)
-            indxs = survey["INDEX"]
-        if survey_name == "SDSSxALFALFA":
+        elif survey_name == "SDSSxALFALFA":
             survey = csiborgtools.SDSSxALFALFA()()
             pos = numpy.vstack([survey["DIST_UNCORRECTED"],
                                 survey["RA_1"],
                                 survey["DEC_1"]],
                                ).T
             pos = pos.astype(numpy.float32)
-            indxs = survey["INDEX"]
         elif survey_name == "GW170817":
             samples = File("/mnt/extraspace/rstiskalek/GWLSS/H1L1V1-EXTRACT_POSTERIOR_GW170817-1187008600-400.hdf", 'r')["samples"]  # noqa
             cosmo = FlatLambdaCDM(H0=100, Om0=0.3175)
@@ -82,121 +71,155 @@ def open_galaxy_positions(survey_name, comm):
                 samples["ra"][:] * 180 / numpy.pi,
                 samples["dec"][:] * 180 / numpy.pi],
                                ).T
-            indxs = numpy.arange(pos.shape[0])
         else:
             raise NotImplementedError(f"Survey `{survey_name}` not "
                                       "implemented.")
     else:
         pos = None
-        indxs = None
 
     comm.Barrier()
 
     if size > 1:
         pos = comm.bcast(pos, root=0)
-        indxs = comm.bcast(indxs, root=0)
 
-    return pos, indxs
+    return pos
 
 
-def evaluate_field(field, pos, nrand, smooth_scales=None, seed=42,
-                   verbose=True):
+def evaluate_field(field, pos, boxsize, smooth_scales, verbose=True):
     """
-    Evaluate the field at the given sky positions. Additionally, evaluate the
-    field at `nrand` random positions.
+    Evaluate the field at the given galaxy positions.
+
+    Parameters
+    ----------
+    field : 3-dimensional array
+        Cartesian field to be evaluated.
+    pos : 2-dimensional array
+        Galaxy positions in the form of (distance, RA, DEC).
+    boxsize : float
+        Box size in `Mpc / h`.
+    smooth_scales : list
+        List of smoothing scales in `Mpc / h`.
+    verbose : bool
+        Verbosity flag.
+
+    Returns
+    -------
+    val : 2-dimensional array
+        Evaluated field.
     """
-    if smooth_scales is None:
-        smooth_scales = [0.]
-
-    nsample = pos.shape[0]
-    nsmooth = len(smooth_scales)
-
-    val = numpy.full((nsample, nsmooth), numpy.nan, dtype=field.dtype)
-    if nrand > 0:
-        rand_val = numpy.full((nsample, nsmooth, nrand), numpy.nan,
-                              dtype=field.dtype)
-    else:
-        rand_val = None
+    mpc2box = 1. / boxsize
+    val = numpy.full((pos.shape[0], len(smooth_scales)), numpy.nan,
+                     dtype=field.dtype)
 
     for i, scale in enumerate(tqdm(smooth_scales, desc="Smoothing",
                                    disable=not verbose)):
         if scale > 0:
             field_smoothed = csiborgtools.field.smoothen_field(
-                field, scale * MPC2BOX, boxsize=1, make_copy=True)
+                field, scale * mpc2box, boxsize=1, make_copy=True)
         else:
             field_smoothed = numpy.copy(field)
 
         val[:, i] = csiborgtools.field.evaluate_sky(
-            field_smoothed, pos=pos, mpc2box=MPC2BOX)
+            field_smoothed, pos=pos, mpc2box=mpc2box)
 
-        if nrand == 0:
-            continue
-
-        for j in range(nrand):
-            gen = numpy.random.default_rng(seed + j)
-            pos_rand = numpy.vstack([
-                gen.permutation(pos[:, 0]),
-                gen.uniform(0, 360, nsample),
-                90 - numpy.rad2deg(numpy.arccos(gen.uniform(-1, 1, nsample))),
-                ]).T
-
-            rand_val[:, i, j] = csiborgtools.field.evaluate_sky(
-                field_smoothed, pos=pos_rand, mpc2box=MPC2BOX)
-
-    return val, rand_val, smooth_scales
+    return val
 
 
-def match_to_no_selection(val, rand_val, parser_args):
-    if parser_args.survey == "SDSSxALFALFA":
+def match_to_no_selection(val, parser_args):
+    """
+    Match the shape of the evaluated field to the shape of the survey without
+    any masking. Missing values are filled with `numpy.nan`.
+
+    Parameters
+    ----------
+    val : n-dimensional array
+        Evaluated field.
+    parser_args : argparse.Namespace
+        Command line arguments.
+
+    Returns
+    -------
+    n-dimensional array
+    """
+    if parser_args.survey == "SDSS":
+        survey = csiborgtools.SDSS()()
+    elif parser_args.survey == "SDSSxALFALFA":
         survey = csiborgtools.SDSSxALFALFA()()
     else:
         raise NotImplementedError(
             f"Survey `{parser_args.survey}` not implemented for matching to no selection.")  # noqa
 
-    if val is not None:
-        val = csiborgtools.read.match_array_to_no_masking(val, survey)
-    if rand_val is not None:
-        rand_val = csiborgtools.read.match_array_to_no_masking(rand_val,
-                                                               survey)
-
-    return val, rand_val
+    return csiborgtools.read.match_array_to_no_masking(val, survey)
 
 
-def main(nsim, parser_args, pos, indxs, paths, verbose):
-    """Load the field, interpolate it and save it to disk."""
-    fpath_field = paths.field(parser_args.kind, parser_args.MAS,
-                              parser_args.grid, nsim, parser_args.in_rsp)
-    field = numpy.load(fpath_field)
+def main(nsim, parser_args, pos, verbose):
+    """
+    Main function to load the field, interpolate (and smooth it) it and save
+    the results to the disk.
 
-    val, rand_val, smooth_scales = evaluate_field(
-        field, pos, nrand=parser_args.nrand,
-        smooth_scales=parser_args.smooth_scales, verbose=verbose)
+    Parameters
+    ----------
+    nsim : int
+        IC realisation.
+    parser_args : argparse.Namespace
+        Command line arguments.
+    pos : numpy.ndarray
+        Galaxy coordinates in the form of (distance, RA, DEC) where to evaluate
+        the field.
+    verbose : bool
+        Verbosity flag.
+
+    Returns
+    -------
+    None
+    """
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    boxsize = csiborgtools.simname2boxsize(parser_args.simname)
+
+    # Get the appropriate field loader
+    if parser_args.simname == "csiborg1":
+        freader = csiborgtools.read.CSiBORG1Field(nsim)
+    elif "csiborg2" in parser_args.simname:
+        kind = parser_args.simname.split("_")[-1]
+        freader = csiborgtools.read.CSiBORG2Field(nsim, kind)
+    else:
+        raise NotImplementedError(f"Simulation `{parser_args.simname}` is not supported.")  # noqa
+
+    # Get the appropriate field
+    if parser_args.kind == "density":
+        field = freader.density_field(parser_args.MAS, parser_args.grid)
+    else:
+        raise NotImplementedError(f"Field `{parser_args.kind}` is not supported.")  # noqa
+
+    val = evaluate_field(field, pos, boxsize, parser_args.smooth_scales,
+                         verbose=verbose)
 
     if parser_args.survey == "GW170817":
-        kind = parser_args.kind
-        kind = kind + "_rsp" if parser_args.in_rsp else kind
-
         fout = join(
             "/mnt/extraspace/rstiskalek/GWLSS/",
-            f"{kind}_{parser_args.MAS}_{parser_args.grid}_{nsim}_H1L1V1-EXTRACT_POSTERIOR_GW170817-1187008600-400.npz")  # noqa
+            f"{parser_args.kind}_{parser_args.MAS}_{parser_args.grid}_{nsim}_H1L1V1-EXTRACT_POSTERIOR_GW170817-1187008600-400.npz")  # noqa
     else:
-        fout = paths.field_interpolated(parser_args.survey, parser_args.kind,
-                                        parser_args.MAS, parser_args.grid,
-                                        nsim, parser_args.in_rsp)
+        fout = paths.field_interpolated(
+            parser_args.survey, parser_args.simname, nsim, parser_args.kind,
+            parser_args.MAS, parser_args.grid)
+
         # The survey above had some cuts, however for compatibility we want
         # the same shape as the `uncut` survey
-        val, rand_val = match_to_no_selection(val, rand_val, parser_args)
+        val = match_to_no_selection(val, parser_args)
 
     if verbose:
         print(f"Saving to ... `{fout}`.")
-    numpy.savez(fout, val=val, rand_val=rand_val, indxs=indxs,
-                smooth_scales=smooth_scales)
+
+    numpy.savez(fout, val=val, smooth_scales=parser_args.smooth_scales)
 
 
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--nsims", type=int, nargs="+", default=None,
                         help="IC realisations. If `-1` processes all.")
+    parser.add_argument("--simname", type=str, default="csiborg1",
+                        choices=["csiborg1", "csiborg2_main", "csiborg2_random", "csiborg2_varysmall"],  # noqa
+                        help="Simulation name")
     parser.add_argument("--survey", type=str, required=True,
                         choices=["SDSS", "SDSSxALFALFA", "GW170817"],
                         help="Galaxy survey")
@@ -207,24 +230,17 @@ if __name__ == "__main__":
                                  "potential"],
                         help="What field to interpolate.")
     parser.add_argument("--MAS", type=str,
-                        choices=["NGP", "CIC", "TSC", "PCS"],
+                        choices=["NGP", "CIC", "TSC", "PCS", "SPH"],
                         help="Mass assignment scheme.")
     parser.add_argument("--grid", type=int, help="Grid resolution.")
-    parser.add_argument("--in_rsp", type=lambda x: bool(strtobool(x)),
-                        help="Field in RSP?")
-    parser.add_argument("--nrand", type=int, required=True,
-                        help="Number of rand. positions to evaluate the field")
-    parser.add_argument("--simname", type=str, default="csiborg1",
-                        choices=["csiborg1"], help="Simulation name")
     args = parser.parse_args()
 
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsims = get_nsims(args, paths)
 
-    pos, indxs = open_galaxy_positions(args.survey, MPI.COMM_WORLD)
+    pos = open_galaxy_positions(args.survey, MPI.COMM_WORLD)
 
     def _main(nsim):
-        main(nsim, args, pos, indxs, paths,
-             verbose=MPI.COMM_WORLD.Get_size() == 1)
+        main(nsim, args, pos, verbose=MPI.COMM_WORLD.Get_size() == 1)
 
     work_delegation(_main, nsims, MPI.COMM_WORLD)
