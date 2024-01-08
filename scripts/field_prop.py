@@ -30,7 +30,21 @@ from utils import get_nsims
 
 
 def density_field(nsim, parser_args):
-    """Calculate the density field."""
+    """
+    Calculate and save the density field from the particle positions and
+    masses.
+
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+    parser_args : argparse.Namespace
+        Command line arguments.
+
+    Returns
+    -------
+    density_field : 3-dimensional array
+    """
     if parser_args.MAS == "SPH":
         raise NotImplementedError("SPH is not implemented here. Use cosmotool")
 
@@ -70,7 +84,21 @@ def density_field(nsim, parser_args):
 
 
 def velocity_field(nsim, parser_args):
-    """Calculate the velocity field."""
+    """
+    Calculate and save the velocity field from the particle positions,
+    velocities and masses.
+
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+    parser_args : argparse.Namespace
+        Command line arguments.
+
+    Returns
+    -------
+    velocity_field : 4-dimensional array
+    """
     if parser_args.MAS == "SPH":
         raise NotImplementedError("SPH is not implemented here. Use cosmotool")
 
@@ -108,7 +136,20 @@ def velocity_field(nsim, parser_args):
 
 
 def radvel_field(nsim, parser_args):
-    """Calculate the radial velocity field."""
+    """
+    Calculate and save the radial velocity field.
+
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+    parser_args : argparse.Namespace
+        Command line arguments.
+
+    Returns
+    -------
+    radvel_field : 3-dimensional array
+    """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 
     if parser_args.simname == "csiborg1":
@@ -136,7 +177,18 @@ def radvel_field(nsim, parser_args):
 def observer_peculiar_velocity(nsim, parser_args):
     """
     Calculate the peculiar velocity of an observer in the centre of the box
-    for several smoothing scales.
+    for several hard-coded smoothing scales.
+
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+    parser_args : argparse.Namespace
+        Command line arguments.
+
+    Returns
+    -------
+    observer_vp : 4-dimensional array
     """
     boxsize = csiborgtools.simname2boxsize(parser_args.simname)
     # NOTE these values are hard-coded.
