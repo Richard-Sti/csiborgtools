@@ -272,7 +272,7 @@ class VelocityField(BaseField):
 def radial_velocity(rho_vel, observer_velocity):
     """
     Calculate the radial velocity field around the observer in the centre
-    of the box.
+    of the box, such that the observer velocity is 0.
 
     Parameters
     ----------
