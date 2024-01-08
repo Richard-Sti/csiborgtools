@@ -1,26 +1,32 @@
 # CSiBORG Tools
 
-Tools for analysing the suite of Constrained Simulations in BORG (CSiBORG) simulations. The interface is designed to work with the following suites of simulations:
-- CSiBORG1 dark matter-only RAMSES simulations (full support),
-- CSiBORG2 dark matter-only Gadget4 simulations (planned full support),
-- Quijote dark matter-only Gadget2 simulations (partial support),
-however with little effort it can support other simulations as well.
+Tools for analysing the suite of Constrained Simulations in BORG (CSiBORG) simulations. The interface is designed to work with the following suites of simulations: *CSiBORG1* (dark matter-only RAMSES), *CSiBORG2* (dark matter-only Gadget4), *Quijote* (dark-matter only Gadget2), however with little effort it can support other simulations as well.
+
+## Ongoing projects
+
+### Consistent halo reconstruction
+- [ ] Make a sketch of the overlap definition and add it to the paper.
+- [ ] Improve the storage system for overlaps and calculate it for all simulations.
+
+### Enviromental dependence of galaxy properties
+- [ ] Calculate the SPH density field for CSiBORG1.
+- [ ] Check that the velocity-field flipping of x and z coordinates is correct.
+- [ ] Evaluate and share the density field for SDSS & SDSSxALFALFA for both CSiBORG2 and random fields.
+- [ ] Check and verify the density field of galaxy colours.
 
 
-## TODO
-- [x] Prune old CSiBORG1 merger tree things.
-- [x] Add visualiastion of the density field.
-- [ ] Clear out `density` support.
-- [ ] Add sorting of Gadget4 initial snapshot like final snapshot.
-- [ ] Add full support for CSiBORG2 suite of simulations.
-- [ ] Add SPH field calculation from cosmotools.
+### Mass-assembly of massive clusters
+- [ ] Make a list of nearby most-massive clusters.
+- [ ] Write code to identify a counterpart of such clusters.
+- [ ] Write code to make a plot of mass-assembly of all clusters within a certain mass range from the random simulations.
+- [ ] Write code to compare mass-assembly of a specific cluster with respect to random ones.
 
 
-## Adding a new simulation suite
+### Effect of small-scale noise
+- [ ] Study how the small-scale noise variation affects the overlap measure, halo concentration and spin.
 
-box units
-paths
-readsim
-halo_cat
+### Gravitational-wave and large-scale structure
+- [ ] Make the velocity field data available.
 
-
+### CSiBORG meets X-ray
+- [ ] Make available one example snapshot from the simulation. Mention the issue with x- and z-coordinates.
