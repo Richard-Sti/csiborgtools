@@ -13,7 +13,7 @@ Tools for analysing the suite of Constrained Simulations in BORG (CSiBORG) simul
 - [ ] Transfer, calculate the SPH density field for CSiBORG1 and transfer back.
 - [x] Check that the velocity-field flipping of x and z coordinates is correct.
 - [x] Evaluate and share the density field for SDSS and SDSSxALFALFA for both CSiBORG2 and random fields.
-- [ ] Check and verify the density field of galaxy colours (cannot do this now! Glamdring is super slow.)
+- [x] Check and verify the density field of galaxy colours (cannot do this now! Glamdring is super slow.)
 
 #### Calculated data
 ##### SPH-density & velocity field
