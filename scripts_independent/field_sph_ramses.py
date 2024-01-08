@@ -51,13 +51,16 @@ def prepare_csiborg1(nsim, output_path):
         print(f"{now()}: loading masses.")
         mass = reader.read_snapshot("mass")
 
-        print(f"Writting {len(pos)} particles to {output_path}.")
+        print(f"Writing {len(pos)} particles to {output_path}.")
         dset = target.create_dataset("particles", (len(pos), 7),
                                      dtype=np.float32)
 
         dset[:, :3] = pos
+        print(f"{now()}: written positions.")
         dset[:, 3:6] = vel
+        print(f"{now()}: written velocities.")
         dset[:, 6] = mass
+        print(f"{now()}: written masses.")
 
 
 if __name__ == "__main__":
