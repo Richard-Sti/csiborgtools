@@ -18,6 +18,7 @@ should be implemented things such as flipping x- and z-axes, to make sure that
 observed RA-dec can be mapped into the simulation box.
 """
 from abc import ABC, abstractmethod, abstractproperty
+from warnings import warn
 
 import numpy
 from h5py import File
@@ -601,6 +602,7 @@ class CSiBORG1Field(BaseField):
     """
     def __init__(self, nsim, paths=None):
         super().__init__(nsim, paths)
+        self._simname = "csiborg1"
 
     def density_field(self, MAS, grid):
         fpath = self.paths.field("density", MAS, grid, self.nsim, "csiborg1")
@@ -611,10 +613,17 @@ class CSiBORG1Field(BaseField):
         else:
             field = numpy.load(fpath)
 
+        # Flip x- and z-axes
+        if self._simname == "csiborg1":
+            field = field.T
+
         return field
 
     def velocity_field(self, MAS, grid):
         fpath = self.paths.field("velocity", MAS, grid, self.nsim, "csiborg1")
+        if self._simname == "csiborg1":
+            warn("The velocity field x- and z-axes are not yet flipped.",
+                 RuntimeWarning)
 
         if MAS == "SPH":
             with File(fpath, "r") as f:
@@ -678,15 +687,17 @@ class CSiBORG2Field(BaseField):
                 field = f["density"][:]
             field *= 1e10                     # Convert to Msun / h
             field /= (676.6 * 1e3 / 1024)**3  # Convert to h^2 Msun / kpc^3
-            field = field.T                   # Flip x- and z-axes
         else:
             field = numpy.load(fpath)
 
+        field = field.T                       # Flip x- and z-axes
         return field
 
     def velocity_field(self, MAS, grid):
         fpath = self.paths.field("velocity", MAS, grid, self.nsim,
                                  f"csiborg2_{self.kind}")
+        warn("The velocity field x- and z-axes are not yet flipped.",
+             RuntimeWarning)
 
         if MAS == "SPH":
             with File(fpath, "r") as f:
@@ -720,6 +731,7 @@ class QuijoteField(CSiBORG1Field):
     """
     def __init__(self, nsim, paths):
         super().__init__(nsim, paths)
+        self._simname = "quijote"
 
 
 ###############################################################################
