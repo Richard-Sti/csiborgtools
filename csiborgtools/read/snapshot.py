@@ -611,6 +611,7 @@ class CSiBORG1Field(BaseField):
         if MAS == "SPH":
             with File(fpath, "r") as f:
                 field = f["density"][:]
+                field /= (677.7 * 1e3 / grid)**3  # Convert to h^2 Msun / kpc^3
         else:
             field = numpy.load(fpath)
 
@@ -691,7 +692,7 @@ class CSiBORG2Field(BaseField):
             with File(fpath, "r") as f:
                 field = f["density"][:]
             field *= 1e10                     # Convert to Msun / h
-            field /= (676.6 * 1e3 / 1024)**3  # Convert to h^2 Msun / kpc^3
+            field /= (676.6 * 1e3 / grid)**3  # Convert to h^2 Msun / kpc^3
         else:
             field = numpy.load(fpath)
 
