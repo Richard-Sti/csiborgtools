@@ -52,7 +52,9 @@ class SDSSxALFALFA:
         if fpath is None:
             fpath = "/mnt/extraspace/rstiskalek/catalogs/5asfullmatch.fits"
         sel_steps = self.steps if apply_selection else None
-        return read.SDSS(fpath, h=1, sel_steps=sel_steps)
+        survey = read.SDSS(fpath, h=1, sel_steps=sel_steps)
+        survey.name = "SDSSxALFALFA"
+        return survey
 
 
 ###############################################################################
