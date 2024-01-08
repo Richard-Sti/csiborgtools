@@ -518,7 +518,7 @@ class BaseField(ABC):
     """
     def __init__(self, nsim, paths):
         if not isinstance(nsim, int):
-            raise TypeError("`nsim` must be an integer")
+            raise TypeError(f"`nsim` must be an integer. Received `{type(nsim)}`.")  # noqa
         self._nsim = nsim
 
         self._paths = paths
