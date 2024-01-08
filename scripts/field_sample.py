@@ -51,14 +51,14 @@ def open_galaxy_positions(survey_name, comm):
     if rank == 0:
         if survey_name == "SDSS":
             survey = csiborgtools.SDSS()()
-            pos = numpy.vstack([survey["DIST_UNCORRECTED"],
+            pos = numpy.vstack([survey["DIST"],
                                 survey["RA"],
                                 survey["DEC"]],
                                ).T
             pos = pos.astype(numpy.float32)
         elif survey_name == "SDSSxALFALFA":
             survey = csiborgtools.SDSSxALFALFA()()
-            pos = numpy.vstack([survey["DIST_UNCORRECTED"],
+            pos = numpy.vstack([survey["DIST"],
                                 survey["RA_1"],
                                 survey["DEC_1"]],
                                ).T
