@@ -7,9 +7,11 @@ Tools for analysing the suite of Constrained Simulations in BORG (CSiBORG) simul
 ### Consistent halo reconstruction
 - [ ] Make a sketch of the overlap definition and add it to the paper.
 - [ ] Improve the storage system for overlaps and calculate it for all simulations.
+- [ ] Re-calculate the overlaps for CSiBORG1, Quijote and CSiBORG2
+- [ ] Calculate halo properties again.
 
 ### Enviromental dependence of galaxy properties
-- [ ] Prepare the CSiBORG one particle files for SPH.
+- [x] Prepare the CSiBORG one particle files for SPH.
 - [ ] Transfer, calculate the SPH density field for CSiBORG1 and transfer back.
 - [x] Check that the velocity-field flipping of x and z coordinates is correct.
 - [x] Evaluate and share the density field for SDSS and SDSSxALFALFA for both CSiBORG2 and random fields.
@@ -36,6 +38,7 @@ Tools for analysing the suite of Constrained Simulations in BORG (CSiBORG) simul
 
 ### Gravitational-wave and large-scale structure
 - [ ] Make the velocity field data available.
+- [ ] Validate the velocity field results.
 
 ### CSiBORG meets X-ray
 - [ ] Make available one example snapshot from the simulation. Mention the issue with x- and z-coordinates.
