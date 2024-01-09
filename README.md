@@ -40,6 +40,8 @@ Tools for analysing the suite of Constrained Simulations in BORG (CSiBORG) simul
 ### Gravitational-wave and large-scale structure
 - [ ] Make the velocity field data available.
 - [ ] Validate the velocity field results.
+- [ ] Estimate the amplitude of the velocity field in radial shells around the observer, estimate analogous results for random simulations, and see if they agree within cosmic variance.
+- [ ] Calculate power spectra of velocities and maybe velocity dispersion.
 
 ### CSiBORG meets X-ray
 - [ ] Make available one example snapshot from the simulation. Mention the issue with x- and z-coordinates.
