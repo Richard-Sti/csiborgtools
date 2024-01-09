@@ -17,5 +17,6 @@ from .catalogue import (CSiBORG1Catalogue, CSiBORG2Catalogue,                   
 from .snapshot import (CSIBORG1Snapshot, CSIBORG2Snapshot, QuijoteSnapshot,     # noqa
                        CSiBORG1Field, CSiBORG2Field, QuijoteField)              # noqa
 from .obs import (SDSS, MCXCClusters, PlanckClusters, TwoMPPGalaxies,           # noqa
-                  TwoMPPGroups, ObservedCluster, match_array_to_no_masking)     # noqa
+                  TwoMPPGroups, ObservedCluster, match_array_to_no_masking,     # noqa
+                  cols_to_structured)                                           # noqa
 from .paths import Paths                                                        # noqa
