@@ -103,11 +103,11 @@ def pair_match(nsim0, nsimx, simname, min_logmass, sigma, verbose):
         overlapper_kwargs = {"box_size": 2048, "bckg_halfsize": 512}
         bounds |= {"dist": (0, 150), "totmass": (10**min_logmass, None)}
 
-        snap0 = csiborgtools.read.CSIBORG1Snapshot(nsim0, 0)
+        snap0 = csiborgtools.read.CSiBORG1Snapshot(nsim0, 0)
         cat0 = csiborgtools.read.CSiBORG1Catalogue(nsim0, snapshot=snap0,
                                                    bounds=bounds)
 
-        snapx = csiborgtools.read.CSIBORG1Snapshot(nsimx, 0)
+        snapx = csiborgtools.read.CSiBORG1Snapshot(nsimx, 0)
         catx = csiborgtools.read.CSiBORGCatalogue(nsimx, snapshot=snapx,
                                                   bounds=bounds)
     elif "csiborg2" in simname:

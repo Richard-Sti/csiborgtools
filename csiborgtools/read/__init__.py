@@ -14,7 +14,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 from .catalogue import (CSiBORG1Catalogue, CSiBORG2Catalogue,                   # noqa
                         CSiBORG2MergerTreeReader, QuijoteCatalogue)             # noqa
-from .snapshot import (CSIBORG1Snapshot, CSIBORG2Snapshot, QuijoteSnapshot,     # noqa
+from .snapshot import (CSiBORG1Snapshot, CSiBORG2Snapshot, QuijoteSnapshot,     # noqa
                        CSiBORG1Field, CSiBORG2Field, QuijoteField)              # noqa
 from .obs import (SDSS, MCXCClusters, PlanckClusters, TwoMPPGalaxies,           # noqa
                   TwoMPPGroups, ObservedCluster, match_array_to_no_masking,     # noqa

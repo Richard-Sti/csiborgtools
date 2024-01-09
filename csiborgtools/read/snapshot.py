@@ -248,7 +248,7 @@ class BaseSnapshot(ABC):
 ###############################################################################
 
 
-class CSIBORG1Snapshot(BaseSnapshot):
+class CSiBORG1Snapshot(BaseSnapshot):
     """
     CSiBORG1 snapshot class with the FoF halo finder particle assignment.
     CSiBORG1 was run with RAMSES.
@@ -326,7 +326,7 @@ class CSIBORG1Snapshot(BaseSnapshot):
 #                          CSiBORG2 snapshot class                            #
 ###############################################################################
 
-class CSIBORG2Snapshot(BaseSnapshot):
+class CSiBORG2Snapshot(BaseSnapshot):
     """
     CSiBORG2 snapshot class with the FoF halo finder particle assignment and
     SUBFIND subhalo finder. The simulations were run with Gadget4.
@@ -475,7 +475,7 @@ class CSIBORG2Snapshot(BaseSnapshot):
 ###############################################################################
 
 
-class QuijoteSnapshot(CSIBORG1Snapshot):
+class QuijoteSnapshot(CSiBORG1Snapshot):
     """
     Quijote snapshot class with the FoF halo finder particle assignment.
     Because of similarities with how the snapshot is processed with CSiBORG1,
