@@ -13,14 +13,14 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-Script to calculate the particle centre of mass, Lagrangian patch size in the
-initial snapshot.
-
-The initial snapshot particles are read from the sorted files.
+Script to calculate the particle centre of mass and Lagrangian patch size in
+the initial snapshot. The initial snapshot particles are read from the sorted
+files.
 """
 from argparse import ArgumentParser
 from datetime import datetime
 
+import csiborgtools
 import numpy
 from mpi4py import MPI
 from taskmaster import work_delegation
@@ -28,19 +28,24 @@ from tqdm import tqdm
 
 from utils import get_nsims
 
-try:
-    import csiborgtools
-except ModuleNotFoundError:
-    import sys
-
-    sys.path.append("../")
-    import csiborgtools
-
 
 def _main(nsim, simname, verbose):
     """
-    Calculate the Lagrangian halo centre of mass and Lagrangian patch size in
-    the initial snapshot.
+    Calculate and save the Lagrangian halo centre of mass and Lagrangian patch
+    size in the initial snapshot.
+
+    Parameters
+    ----------
+    nsim : int
+        IC realisation index.
+    simname : str
+        Simulation name.
+    verbose : bool
+        Verbosity flag.
+
+    Returns
+    -------
+    None
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     cols = [("index", numpy.int32),
@@ -50,22 +55,28 @@ def _main(nsim, simname, verbose):
             ("lagpatch_size", numpy.float32),
             ("lagpatch_ncells", numpy.int32),]
 
-    fname = paths.initmatch(nsim, simname, "particles")
-    parts = csiborgtools.read.read_h5(fname)
-    parts = parts['particles']
-    halo_map = csiborgtools.read.read_h5(paths.particles(nsim, simname))
-    halo_map = halo_map["halomap"]
-
-    if simname == "csiborg":
-        cat = csiborgtools.read.CSiBORGHaloCatalogue(
-            nsim, paths, bounds=None, load_fitted=False, load_initial=False)
+    if simname == "csiborg1":
+        snap = csiborgtools.read.CSiBORG1Snapshot(nsim, 1, paths)
+        cat = csiborgtools.read.CSiBORG1Catalogue(nsim, paths, snapshot=snap)
+        fout = f"/mnt/extraspace/rstiskalek/csiborg1/chain_{nsim}/initial_lagpatch.npy"  # noqa
+    elif "csiborg2" in simname:
+        kind = simname.split("_")[-1]
+        snap = csiborgtools.read.CSiBORG2Snapshot(nsim, 0, kind, paths)
+        cat = csiborgtools.read.CSiBORG2Catalogue(nsim, 99, kind, paths,
+                                                  snapshot=snap)
+        fout = f"/mnt/extraspace/rstiskalek/csiborg2_{kind}/catalogues/initial_lagpatch_{nsim}.npy"  # noqa
+    elif simname == "quijote":
+        snap = csiborgtools.read.QuijoteSnapshot(nsim, "ICs", paths)
+        cat = csiborgtools.read.QuijoteHaloCatalogue(nsim, paths,
+                                                     snapshot=snap)
+        fout = f"/mnt/extraspace/rstiskalek/quijote/fiducial_processed/chain_{nsim}.npy"  # noqa
     else:
-        cat = csiborgtools.read.QuijoteHaloCatalogue(
-            nsim, paths, nsnap=4, load_fitted=False, load_initial=False)
-    hid2map = {hid: i for i, hid in enumerate(halo_map[:, 0])}
+        raise ValueError(f"Unknown simulation name `{simname}`.")
+
+    boxsize = csiborgtools.simname2boxsize(simname)
 
     # Initialise the overlapper.
-    if simname == "csiborg":
+    if simname == "csiborg" or "csiborg2" in simname:
         kwargs = {"box_size": 2048, "bckg_halfsize": 512}
     else:
         kwargs = {"box_size": 512, "bckg_halfsize": 256}
@@ -74,17 +85,13 @@ def _main(nsim, simname, verbose):
     out = csiborgtools.read.cols_to_structured(len(cat), cols)
     for i, hid in enumerate(tqdm(cat["index"]) if verbose else cat["index"]):
         out["index"][i] = hid
-        part = csiborgtools.read.load_halo_particles(hid, parts, halo_map,
-                                                     hid2map)
 
-        # Skip if the halo has no particles or is too small.
-        if part is None or part.size < 40:
-            continue
+        pos = cat.snapshot.halo_coordinates(hid)
+        mass = cat.snapshot.halo_masses(hid)
 
-        pos, mass = part[:, :3], part[:, 3]
         # Calculate the centre of mass and the Lagrangian patch size.
-        cm = csiborgtools.center_of_mass(pos, mass, boxsize=1.0)
-        distances = csiborgtools.periodic_distance(pos, cm, boxsize=1.0)
+        cm = csiborgtools.center_of_mass(pos, mass, boxsize=boxsize)
+        distances = csiborgtools.periodic_distance(pos, cm, boxsize=boxsize)
         out["x"][i], out["y"][i], out["z"][i] = cm
         out["lagpatch_size"][i] = numpy.percentile(distances, 99)
 
@@ -93,7 +100,6 @@ def _main(nsim, simname, verbose):
         out["lagpatch_ncells"][i] = csiborgtools.delta2ncells(delta)
 
     # Now save it
-    fout = paths.initmatch(nsim, simname, "fit")
     if verbose:
         print(f"{datetime.now()}: dumping fits to .. `{fout}`.", flush=True)
     with open(fout, "wb") as f:
@@ -102,8 +108,8 @@ def _main(nsim, simname, verbose):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--simname", type=str, default="csiborg",
-                        choices=["csiborg", "quijote"],
+    parser.add_argument("--simname", type=str,
+                        choices=["csiborg1", "csiborg2_main", "csiborg2_random", "csiborg2_varysmalll", "quijote"],  # noqa
                         help="Simulation name")
     parser.add_argument("--nsims", type=int, nargs="+", default=None,
                         help="IC realisations. If `-1` processes all.")
