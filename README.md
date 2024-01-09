@@ -9,6 +9,7 @@ Tools for analysing the suite of Constrained Simulations in BORG (CSiBORG) simul
 - [ ] Improve the storage system for overlaps and calculate it for all simulations.
 - [ ] Re-calculate the overlaps for CSiBORG1, Quijote and CSiBORG2
 - [ ] Calculate halo properties again.
+- [ ] Fix the script to calculate the initial lagrangian positions etc.
 
 ### Enviromental dependence of galaxy properties
 - [x] Prepare the CSiBORG one particle files for SPH.
