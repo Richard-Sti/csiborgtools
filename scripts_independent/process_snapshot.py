@@ -837,39 +837,6 @@ def process_initial_snapshot_csiborg2(nsim, simname):
 
 
 ###############################################################################
-#               Prepare CSiBORG1 RAMSES for SPH density field                 #
-###############################################################################
-
-
-def prepare_csiborg1_for_sph(nsim):
-    """
-    Prepare a RAMSES snapshot for cosmotool SPH density & velocity field
-    calculation.
-    """
-    reader = CSiBORG1Reader(nsim, "final")
-
-    print("-------     Preparing CSiBORG1 for SPH    -------")
-    print(f"Simulation index:      {nsim}")
-    print(f"Output file:           {reader.sph_file}")
-    print("-------------------------------------------------")
-    print(flush=True)
-
-    with File(reader.sph_file, 'w') as dest:
-        # We need to read pos first to get the dataset size
-        pos = reader.read_snapshot("pos")
-
-        dset = dest.create_dataset("particles", (len(pos), 7),
-                                   dtype=numpy.float32)
-        dset[:, :3] = pos
-
-        del pos
-        collect()
-
-        dset[:, 3:6] = reader.read_snapshot("vel")
-        dset[:, 6] = reader.read_snapshot("mass")
-
-
-###############################################################################
 #                         Command line interface                              #
 ###############################################################################
 
@@ -883,8 +850,8 @@ if __name__ == "__main__":
                                  "csiborg2_random", "csiborg2_varysmall"],
                         help="Simulation name.")
     parser.add_argument("--mode", type=int, required=True,
-                        choices=[0, 1, 2, 3],
-                        help="0: process final snapshot, 1: process initial snapshot, 2: process both, 3: prepare CSiBORG1 for SPH.")  # noqa
+                        choices=[0, 1, 2],
+                        help="0: process final snapshot, 1: process initial snapshot, 2: process both")  # noqa
     args = parser.parse_args()
 
     if "csiborg2" in args.simname and args.mode in [0, 2]:
@@ -897,8 +864,6 @@ if __name__ == "__main__":
         process_final_snapshot(args.nsim, args.simname)
     elif args.mode == 1:
         process_initial_snapshot(args.nsim, args.simname)
-    elif args.mode == 2:
+    else:
         process_final_snapshot(args.nsim, args.simname)
         process_initial_snapshot(args.nsim, args.simname)
-    else:
-        prepare_csiborg1_for_sph(args.nsim)
