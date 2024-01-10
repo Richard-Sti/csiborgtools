@@ -5,7 +5,7 @@ Tools for analysing the suite of Constrained Simulations in BORG (CSiBORG) simul
 ## Ongoing projects
 
 ### Data to calculate
-- [ ] Process all CSiBORG1 catalogues (running).
+- [ ] Process all CSiBORG1 snapshots (running).
 - [ ] Calculate halo properties for CSiBORG1
 - [ ] Calculate initial properties for CSiBORG1
 - [ ] Calculate halo properties for CSiBORG2
