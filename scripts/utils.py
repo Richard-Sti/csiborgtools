@@ -68,7 +68,7 @@ def read_single_catalogue(args, config, nsim, run, rmax, paths, nobs=None):
 
     Returns
     -------
-    `csiborgtools.read.CSiBORGHaloCatalogue` or `csiborgtools.read.QuijoteHaloCatalogue`  # noqa
+    instance of `csiborgtools.read.BaseCatalogue`
     """
     selection = config.get(run, None)
     if selection is None:
