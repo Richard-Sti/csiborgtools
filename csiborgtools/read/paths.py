@@ -236,6 +236,40 @@ class Paths:
         else:
             raise ValueError(f"Unknown simulation name `{simname}`.")
 
+    def initial_lagpatch(self, nsim, simname):
+        """
+        Path to the Lagrangain patch information of a simulation for halos
+        defined at z = 0.
+
+        Parameters
+        ----------
+        nsim : int
+            IC realisation index.
+        simname : str
+            Simulation name.
+
+        Returns
+        -------
+        str
+        """
+        if simname == "csiborg1":
+            return join(self.csiborg1_srcdir, f"chain_{nsim}",
+                        "initial_lagpatch.npy")
+        elif simname == "csiborg2_main":
+            return join(self.csiborg2_main_srcdir, "catalogues",
+                        f"initial_lagpatch_{nsim}.npy")
+        elif simname == "csiborg2_random":
+            return join(self.csiborg2_random_srcdir, "catalogues",
+                        f"initial_lagpatch_{nsim}.npy")
+        elif simname == "csiborg2_varysmall":
+            return join(self.csiborg2_varysmall_srcdir, "catalogues",
+                        f"initial_lagpatch_{nsim}.npy")
+        elif simname == "quijote":
+            return join(self.quijote_dir, "fiducial_processed",
+                        f"chain_{nsim}", "initial_lagpatch.npy")
+        else:
+            raise ValueError(f"Unknown simulation name `{simname}`.")
+
     def trees(self, nsim, simname):
         """
         Path to the halo trees of a simulation snapshot.
