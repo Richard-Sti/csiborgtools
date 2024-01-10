@@ -69,7 +69,7 @@ def _main(nsim, simname, verbose):
         snap = csiborgtools.read.QuijoteSnapshot(nsim, "ICs", paths)
         cat = csiborgtools.read.QuijoteHaloCatalogue(nsim, paths,
                                                      snapshot=snap)
-        fout = f"/mnt/extraspace/rstiskalek/quijote/fiducial_processed/chain_{nsim}.npy"  # noqa
+        fout = f"/mnt/extraspace/rstiskalek/quijote/fiducial_processed/chain_{nsim}/initial_lagpatch.npy"  # noqa
     else:
         raise ValueError(f"Unknown simulation name `{simname}`.")
 
