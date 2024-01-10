@@ -592,6 +592,10 @@ class BaseCatalogue(ABC):
             elif key == "redshift_dist":
                 out = self["__cartesian_redshift_pos"]
                 out = numpy.linalg.norm(out - self.observer_location, axis=1)
+            elif key == "lagpatch_radius":
+                out = self.lagpatch_radius
+            elif key == "lagpatch_coordinates":
+                out = self.lagpatch_coordinates
             elif key == "npart":
                 out = self.npart
             elif key == "totmass":
@@ -698,11 +702,14 @@ class CSiBORG1Catalogue(BaseCatalogue):
 
     @property
     def lagpatch_coordinates(self):
-        raise RuntimeError("Lagrangian patch coordinates are not available.")
+        fpath = self.paths.initial_lagpatch(self.nsim, self.simname)
+        data = numpy.load(fpath)
+        return numpy.vstack([data["x"], data["y"], data["z"]]).T
 
     @property
     def lagpatch_radius(self):
-        raise RuntimeError("Lagrangian patch radius is not available.")
+        fpath = self.paths.initial_lagpatch(self.nsim, self.simname)
+        return numpy.load(fpath)["lagpatch_size"]
 
 
 ###############################################################################
