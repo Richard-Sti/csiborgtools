@@ -675,6 +675,7 @@ def process_final_snapshot(nsim, simname):
               flush=True)
 
         # Lastly, create the halo mapping and default catalogue.
+        print(f"{now()}: writing `{reader.output_cat}`.")
         print(f"{datetime.now()}: creating `GroupOffset`...")
         halo_map, unique_halo_ids = make_offset_map(halo_ids)
         # Dump the halo mapping.
