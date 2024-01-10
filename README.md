@@ -13,6 +13,11 @@ Tools for analysing the suite of Constrained Simulations in BORG (CSiBORG) simul
 - [ ] Calculate halo properties for Quijote
 - [ ] Calculate initial properties for Quijote
 
+
+### General
+- [ ] Add new halo properties to the catalogues.
+- [ ] Add initial halo properties to the catalogues.
+
 ### Consistent halo reconstruction
 - [ ] Make a sketch of the overlap definition and add it to the paper.
 - [ ] Re-calculate the overlaps for CSiBORG1, Quijote and CSiBORG2
@@ -24,6 +29,7 @@ Tools for analysing the suite of Constrained Simulations in BORG (CSiBORG) simul
 - [x] Check that the velocity-field flipping of x and z coordinates is correct.
 - [x] Evaluate and share the density field for SDSS and SDSSxALFALFA for both CSiBORG2 and random fields.
 - [x] Check and verify the density field of galaxy colours (cannot do this now! Glamdring is super slow.)
+- [ ] Calculate the radial velocity field for random realizations (submitted)
 
 #### Calculated data
 ##### SPH-density & velocity field
@@ -43,12 +49,13 @@ Tools for analysing the suite of Constrained Simulations in BORG (CSiBORG) simul
 
 ### Effect of small-scale noise
 - [ ] Study how the small-scale noise variation affects the overlap measure, halo concentration and spin.
+- [ ] Add uncertainty on the halo concentration.
 
 ### Gravitational-wave and large-scale structure
-- [ ] Make the velocity field data available.
-- [ ] Validate the velocity field results.
+- [ ] Validate the velocity field results agains Supranta data sets.
 - [ ] Estimate the amplitude of the velocity field in radial shells around the observer, estimate analogous results for random simulations, and see if they agree within cosmic variance.
 - [ ] Calculate power spectra of velocities and maybe velocity dispersion.
+- [ ] Make the velocity field data available.
 
 ### CSiBORG meets X-ray
 - [ ] Make available one example snapshot from the simulation. Mention the issue with x- and z-coordinates.
