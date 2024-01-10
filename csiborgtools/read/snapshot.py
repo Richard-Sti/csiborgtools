@@ -36,13 +36,13 @@ class BaseSnapshot(ABC):
     Base class for reading snapshots.
     """
     def __init__(self, nsim, nsnap, paths):
-        if not isinstance(nsim, int):
+        if not isinstance(nsim, (int, numpy.integer)):
             raise TypeError("`nsim` must be an integer")
-        self._nsim = nsim
+        self._nsim = int(nsim)
 
-        if not isinstance(nsnap, int):
+        if not isinstance(nsnap, (int, numpy.integer)):
             raise TypeError("`nsnap` must be an integer")
-        self._nsnap = nsnap
+        self._nsnap = int(nsnap)
 
         self._paths = paths
         self._hid2offset = None
