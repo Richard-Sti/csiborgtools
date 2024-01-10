@@ -174,8 +174,7 @@ class CSiBORG1Reader:
 
         if which_snapshot == "initial":
             self.nsnap = 1
-            raise RuntimeError("TODO not implemented")
-            self.source_dir = None
+            self.source_dir = f"/mnt/extraspace/rstiskalek/csiborg1/initial/ramses_out_{nsim}_new/output_00001"  # noqa
         elif which_snapshot == "final":
             sourcedir = join(base_dir, f"ramses_out_{nsim}")
             self.nsnap = max([int(basename(f).replace("output_", ""))
