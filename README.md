@@ -5,10 +5,13 @@ Tools for analysing the suite of Constrained Simulations in BORG (CSiBORG) simul
 ## Ongoing projects
 
 ### Data to calculate
-- [ ] Process all CSiBORG1 catalogues.
-- [ ] Calculate halo and initial properties for CSiBORG1
-- [ ] Calculate halo and initial properties for CSiBORG2
-- [ ] Calculate halo and initial properties for Quijote
+- [ ] Process all CSiBORG1 catalogues (running).
+- [ ] Calculate halo properties for CSiBORG1
+- [ ] Calculate initial properties for CSiBORG1
+- [ ] Calculate halo properties for CSiBORG2
+- [ ] Calculate initial properties for CSiBORG2
+- [ ] Calculate halo properties for Quijote
+- [ ] Calculate initial properties for Quijote
 
 ### Consistent halo reconstruction
 - [ ] Make a sketch of the overlap definition and add it to the paper.
