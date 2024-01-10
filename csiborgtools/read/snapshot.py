@@ -251,7 +251,8 @@ class BaseSnapshot(ABC):
 class CSiBORG1Snapshot(BaseSnapshot):
     """
     CSiBORG1 snapshot class with the FoF halo finder particle assignment.
-    CSiBORG1 was run with RAMSES.
+    CSiBORG1 was run with RAMSES. Note that the haloes are defined at z = 0 and
+    index from 1.
 
     Parameters
     ----------
@@ -313,8 +314,9 @@ class CSiBORG1Snapshot(BaseSnapshot):
         return self._get_halo_particles(halo_id, "Masses", is_group)
 
     def _make_hid2offset(self):
+        nsnap = max(self.paths.get_snapshots(self.nsim, "csiborg1"))
         catalogue_path = self.paths.snapshot_catalogue(
-            self.nsnap, self.nsim, "csiborg1")
+            nsnap, self.nsim, "csiborg1")
 
         with File(catalogue_path, "r") as f:
             offset = f["GroupOffset"][:]
