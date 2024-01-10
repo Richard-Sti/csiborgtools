@@ -744,8 +744,9 @@ def process_initial_snapshot(nsim, simname):
     del sort_indxs_final
     collect()
 
-    print(f"{now()}: loading and sorting the initial particle position.")
+    print(f"{now()}: loading and sorting the initial particle information.")
     pos = reader.read_snapshot("pos")[sort_indxs]
+    mass = reader.read_snapshot("mass")[sort_indxs]
 
     del sort_indxs
     collect()
@@ -763,6 +764,8 @@ def process_initial_snapshot(nsim, simname):
     print(f"{now()}: dumping particles `{reader.output_snap}`.")
     with File(reader.output_snap, 'w') as f:
         f.create_dataset("Coordinates", data=pos,
+                         **hdf5plugin.Blosc(**BLOSC_KWARGS))
+        f.create_dataset("Masses", data=mass,
                          **hdf5plugin.Blosc(**BLOSC_KWARGS))
 
 
