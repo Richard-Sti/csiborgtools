@@ -24,13 +24,13 @@ if __name__ == "__main__":
     # simname = "csiborg2_varysmall"
     # mode = 1
 
-    chains = [1] + [25 + n * 25 for n in range(19)]
-    simname = "csiborg2_random"
-    mode = 1
+    # chains = [1] + [25 + n * 25 for n in range(19)]
+    # simname = "csiborg2_random"
+    # mode = 1
 
-    # chains = [7444 + n * 24 for n in range(1, 101)]
-    # simname = "csiborg1"
-    # mode = 3
+    chains = [7444 + n * 24 for n in range(101)]
+    simname = "csiborg1"
+    mode = 2
 
     env = "/mnt/zfsusers/rstiskalek/csiborgtools/venv_csiborg/bin/python"
     memory = 64
