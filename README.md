@@ -5,7 +5,7 @@ Tools for analysing the suite of Constrained Simulations in BORG (CSiBORG) simul
 ## Ongoing projects
 
 ### Data to calculate
-- [ ] Process all CSiBORG1 snapshots (running).
+- [x] Process all CSiBORG1 snapshots (running).
 - [ ] Calculate halo properties for CSiBORG1
 - [ ] Calculate initial properties for CSiBORG1
 - [ ] Calculate halo properties for CSiBORG2
@@ -37,7 +37,7 @@ Tools for analysing the suite of Constrained Simulations in BORG (CSiBORG) simul
 - Evaluated for SDSS and SDSSxALFALFA in: *CSiBORG2_main*, *CSiBORG2_random*
 
 #### Radial velocity field
-- *CSiBORG2_main
+- *CSiBORG2_main, *CSiBORG2_random*
 
 
 ### Mass-assembly of massive clusters
@@ -58,7 +58,7 @@ Tools for analysing the suite of Constrained Simulations in BORG (CSiBORG) simul
 - [ ] Make the velocity field data available.
 
 ### CSiBORG meets X-ray
-- [ ] Make available one example snapshot from the simulation. Mention the issue with x- and z-coordinates.
+- [x] Make available one example snapshot from the simulation. Mention the issue with x- and z-coordinates.
 
 ### CSiBORG advertising
 - [ ] Decide on the webpage design and what to store there.
