@@ -95,6 +95,7 @@ def _main(nsim, simname, verbose):
         out["x"][i], out["y"][i], out["z"][i] = cm
         out["lagpatch_size"][i] = numpy.percentile(distances, 99)
 
+        pos /= boxsize  # need to normalize the positions to be [0, 1).
         # Calculate the number of cells with > 0 density.
         delta = overlapper.make_delta(pos, mass, subbox=True)
         out["lagpatch_ncells"][i] = csiborgtools.delta2ncells(delta)
