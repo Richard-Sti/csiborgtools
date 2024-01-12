@@ -35,7 +35,9 @@ class BaseSnapshot(ABC):
     """
     Base class for reading snapshots.
     """
-    def __init__(self, nsim, nsnap, paths):
+    def __init__(self, nsim, nsnap, paths, keep_snapshot_open=False):
+        self._keep_snapshot_open = None
+
         if not isinstance(nsim, (int, numpy.integer)):
             raise TypeError("`nsim` must be an integer")
         self._nsim = int(nsim)
@@ -43,6 +45,11 @@ class BaseSnapshot(ABC):
         if not isinstance(nsnap, (int, numpy.integer)):
             raise TypeError("`nsnap` must be an integer")
         self._nsnap = int(nsnap)
+
+        if not isinstance(keep_snapshot_open, bool):
+            raise TypeError("`keep_snapshot_open` must be a boolean.")
+        self._keep_snapshot_open = keep_snapshot_open
+        self._snapshot_file = None
 
         self._paths = paths
         self._hid2offset = None
@@ -105,6 +112,18 @@ class BaseSnapshot(ABC):
         if self._paths is None:
             self._paths = Paths(**paths_glamdring)
         return self._paths
+
+    @property
+    def keep_snapshot_open(self):
+        """
+        Whether to keep the snapshot file open when reading halo particles.
+        This is useful for repeated access to the snapshot.
+
+        Returns
+        -------
+        bool
+        """
+        return self._keep_snapshot_open
 
     @abstractproperty
     def coordinates(self):
@@ -221,6 +240,43 @@ class BaseSnapshot(ABC):
         """
         pass
 
+    def open_snapshot(self):
+        """
+        Open the snapshot file, particularly used in the context of loading in
+        particles of individual haloes.
+
+        Returns
+        -------
+        h5py.File
+        """
+        if not self.keep_snapshot_open:
+            # Check if the snapshot path is set
+            if not hasattr(self, "_snapshot_path"):
+                raise RuntimeError("Snapshot path not set.")
+
+            return File(self._snapshot_path, "r")
+
+        # Here if we want to keep the snapshot open
+        if self._snapshot_file is None:
+            self._snapshot_file = File(self._snapshot_path, "r")
+
+        return self._snapshot_file
+
+    def close_snapshot(self):
+        """
+        Close the snapshot file opened with `open_snapshot`.
+
+        Returns
+        -------
+        None
+        """
+        if not self.keep_snapshot_open:
+            return
+
+        if self._snapshot_file is not None:
+            self._snapshot_file.close()
+            self._snapshot_file = None
+
     def select_box(self, center, boxwidth):
         """
         Find particle coordinates of particles within a box of size `boxwidth`
@@ -262,9 +318,12 @@ class CSiBORG1Snapshot(BaseSnapshot):
         Snapshot index.
     paths : Paths, optional
         Paths object.
+    keep_snapshot_open : bool, optional
+        Whether to keep the snapshot file open when reading halo particles.
+        This is useful for repeated access to the snapshot.
     """
-    def __init__(self, nsim, nsnap, paths=None):
-        super().__init__(nsim, nsnap, paths)
+    def __init__(self, nsim, nsnap, paths=None, keep_snapshot_open=False):
+        super().__init__(nsim, nsnap, paths, keep_snapshot_open)
         self._snapshot_path = self.paths.snapshot(
             self.nsnap, self.nsim, "csiborg1")
         self._simname = "csiborg1"
@@ -294,13 +353,15 @@ class CSiBORG1Snapshot(BaseSnapshot):
         if not is_group:
             raise ValueError("There is no subhalo catalogue for CSiBORG1.")
 
-        with File(self._snapshot_path, "r") as f:
-            i, j = self.hid2offset.get(halo_id, (None, None))
+        f = self.open_snapshot()
+        i, j = self.hid2offset.get(halo_id, (None, None))
+        if i is None:
+            raise ValueError(f"Halo `{halo_id}` not found.")
 
-            if i is None:
-                raise ValueError(f"Halo `{halo_id}` not found.")
+        x = f[kind][i:j + 1]
 
-            x = f[kind][i:j + 1]
+        if not self.keep_snapshot_open:
+            self.close_snapshot()
 
         return x
 
@@ -343,9 +404,13 @@ class CSiBORG2Snapshot(BaseSnapshot):
         CSiBORG2 run kind. One of `main`, `random`, or `varysmall`.
     paths : Paths, optional
         Paths object.
+    keep_snapshot_open : bool, optional
+        Whether to keep the snapshot file open when reading halo particles.
+        This is useful for repeated access to the snapshot.
     """
-    def __init__(self, nsim, nsnap, kind, paths=None):
-        super().__init__(nsim, nsnap, paths)
+    def __init__(self, nsim, nsnap, kind, paths=None,
+                 keep_snapshot_open=False):
+        super().__init__(nsim, nsnap, paths, keep_snapshot_open)
         self.kind = kind
 
         fpath = self.paths.snapshot(self.nsnap, self.nsim,
@@ -410,26 +475,31 @@ class CSiBORG2Snapshot(BaseSnapshot):
         if not is_group:
             raise RuntimeError("While the CSiBORG2 subhalo catalogue exists, it is not currently implemented.")  # noqa
 
-        with File(self._snapshot_path, "r") as f:
-            i1, j1 = self.hid2offset["type1"].get(halo_id, (None, None))
-            i5, j5 = self.hid2offset["type5"].get(halo_id, (None, None))
+        f = self.open_snapshot()
+        i1, j1 = self.hid2offset["type1"].get(halo_id, (None, None))
+        i5, j5 = self.hid2offset["type5"].get(halo_id, (None, None))
 
-            # Check if this is a valid halo
-            if i1 is None and i5 is None:
-                raise ValueError(f"Halo `{halo_id}` not found.")
-            if j1 - i1 == 0 and j5 - i5 == 0:
-                raise ValueError(f"Halo `{halo_id}` has no particles.")
+        # Check if this is a valid halo
+        if i1 is None and i5 is None:
+            raise ValueError(f"Halo `{halo_id}` not found.")
+        if j1 - i1 == 0 and j5 - i5 == 0:
+            raise ValueError(f"Halo `{halo_id}` has no particles.")
 
-            if i1 is not None and j1 - i1 > 0:
-                if kind == "Masses":
-                    x1 = numpy.ones(j1 - i1, dtype=numpy.float32)
-                    x1 *= f["Header"].attrs["MassTable"][1]
-                else:
-                    x1 = f[f"PartType1/{kind}"][i1:j1]
+        if i1 is not None and j1 - i1 > 0:
+            if kind == "Masses":
+                x1 = numpy.ones(j1 - i1, dtype=numpy.float32)
+                x1 *= f["Header"].attrs["MassTable"][1]
+            else:
+                x1 = f[f"PartType1/{kind}"][i1:j1]
 
-            if i5 is not None and j5 - i5 > 0:
-                x5 = f[f"PartType5/{kind}"][i5:j5]
+        if i5 is not None and j5 - i5 > 0:
+            x5 = f[f"PartType5/{kind}"][i5:j5]
 
+        # Close the snapshot file if we don't want to keep it open
+        if not self.keep_snapshot_open:
+            self.close_snapshot()
+
+        # Are we stacking high-resolution and low-resolution particles?
         if i5 is None or j5 - i5 == 0:
             return x1
 
@@ -491,9 +561,12 @@ class QuijoteSnapshot(CSiBORG1Snapshot):
         Snapshot index.
     paths : Paths, optional
         Paths object.
+    keep_snapshot_open : bool, optional
+        Whether to keep the snapshot file open when reading halo particles.
+        This is useful for repeated access to the snapshot.
     """
-    def __init__(self, nsim, nsnap, paths=None):
-        super().__init__(nsim, nsnap, paths)
+    def __init__(self, nsim, nsnap, paths=None, keep_snapshot_open=False):
+        super().__init__(nsim, nsnap, paths, keep_snapshot_open)
         self._snapshot_path = self.paths.snapshot(self.nsnap, self.nsim,
                                                   "quijote")
         self._simname = "quijote"
