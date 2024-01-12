@@ -17,7 +17,8 @@ from csiborgtools import clustering, field, halo, match, read, summary          
 from .utils import (center_of_mass, delta2ncells, number_counts,                # noqa
                     periodic_distance, periodic_distance_two_points,            # noqa
                     binned_statistic, cosine_similarity, fprint,                # noqa
-                    hms_to_degrees, dms_to_degrees, great_circle_distance)      # noqa
+                    hms_to_degrees, dms_to_degrees, great_circle_distance,      # noqa
+                    radec_to_cartesian)                                         # noqa
 from .params import paths_glamdring, simname2boxsize                            # noqa
 
 
