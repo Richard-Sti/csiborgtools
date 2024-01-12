@@ -220,7 +220,7 @@ class Paths:
             return join(self.csiborg2_main_srcdir, f"chain_{nsim}", "output",
                         f"fof_subhalo_tab_{str(nsnap).zfill(3)}.hdf5")
         elif simname == "csiborg2_random":
-            return join(self.csiborg2_ranodm_srcdir, f"chain_{nsim}", "output",
+            return join(self.csiborg2_random_srcdir, f"chain_{nsim}", "output",
                         f"fof_subhalo_tab_{str(nsnap).zfill(3)}.hdf5")
         elif simname == "csiborg2_varysmall":
             return join(self.csiborg2_varysmall_srcdir,
