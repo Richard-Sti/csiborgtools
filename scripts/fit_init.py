@@ -113,7 +113,7 @@ def _main(nsim, simname, verbose):
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--simname", type=str,
-                        choices=["csiborg1", "csiborg2_main", "csiborg2_random", "csiborg2_varysmalll", "quijote"],  # noqa
+                        choices=["csiborg1", "csiborg2_main", "csiborg2_random", "csiborg2_varysmall", "quijote"],  # noqa
                         help="Simulation name")
     parser.add_argument("--nsims", type=int, nargs="+", default=None,
                         help="IC realisations. If `-1` processes all.")
