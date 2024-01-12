@@ -103,11 +103,13 @@ def pair_match(nsim0, nsimx, simname, min_logmass, sigma, verbose):
         overlapper_kwargs = {"box_size": 2048, "bckg_halfsize": 512}
         bounds |= {"dist": (0, 150), "totmass": (10**min_logmass, None)}
 
-        snap0 = csiborgtools.read.CSiBORG1Snapshot(nsim0, 0)
+        snap0 = csiborgtools.read.CSiBORG1Snapshot(
+            nsim0, 0, keep_snapshot_open=True)
         cat0 = csiborgtools.read.CSiBORG1Catalogue(nsim0, snapshot=snap0,
                                                    bounds=bounds)
 
-        snapx = csiborgtools.read.CSiBORG1Snapshot(nsimx, 0)
+        snapx = csiborgtools.read.CSiBORG1Snapshot(
+            nsimx, 0, keep_snapshot_open=True)
         catx = csiborgtools.read.CSiBORGCatalogue(nsimx, snapshot=snapx,
                                                   bounds=bounds)
     elif "csiborg2" in simname:
@@ -116,11 +118,13 @@ def pair_match(nsim0, nsimx, simname, min_logmass, sigma, verbose):
         overlapper_kwargs = {"box_size": 512, "bckg_halfsize": 256}
         bounds |= {"totmass": (10**min_logmass, None)}
 
-        snap0 = csiborgtools.read.QuijoteSnapshot(nsim0, "ICs")
+        snap0 = csiborgtools.read.QuijoteSnapshot(
+            nsim0, "ICs", keep_snapshot_open=True)
         cat0 = csiborgtools.read.QuijoteCatalogue(nsim0, snapshot=snap0,
                                                   bounds=bounds)
 
-        snapx = csiborgtools.read.QuijoteSnapshot(nsimx, "ICs")
+        snapx = csiborgtools.read.QuijoteSnapshot(nsimx, "ICs",
+                                                  keep_snapshot_open=True)
         catx = csiborgtools.read.QuijoteCatalogue(nsimx, snapshot=snapx,
                                                   bounds=bounds)
     else:
