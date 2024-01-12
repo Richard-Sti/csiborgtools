@@ -54,6 +54,7 @@ class BaseSnapshot(ABC):
 
         if not isinstance(flip_xz, bool):
             raise TypeError("`flip_xz` must be a boolean.")
+        self._flip_xz = flip_xz
 
         self._paths = paths
         self._hid2offset = None
