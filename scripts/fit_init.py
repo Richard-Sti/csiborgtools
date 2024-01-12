@@ -89,8 +89,8 @@ def _main(nsim, simname, verbose):
     for i, hid in enumerate(tqdm(cat["index"]) if verbose else cat["index"]):
         out["index"][i] = hid
 
-        pos = cat.snapshot.halo_coordinates(hid)
-        mass = cat.snapshot.halo_masses(hid)
+        pos = snap.halo_coordinates(hid)
+        mass = snap.halo_masses(hid)
 
         # Calculate the centre of mass and the Lagrangian patch size.
         cm = csiborgtools.center_of_mass(pos, mass, boxsize=boxsize)
