@@ -69,6 +69,7 @@ class BaseCatalogue(ABC):
 
         self._observer_location = None
         self._observer_velocity = None
+        self._flip_xz = False
         self._boxsize = None
 
         self._cache = OrderedDict()
@@ -81,7 +82,7 @@ class BaseCatalogue(ABC):
 
     def init_with_snapshot(self, simname, nsim, nsnap, paths, snapshot,
                            bounds, boxsize, observer_location,
-                           observer_velocity, cache_maxsize=64):
+                           observer_velocity, flip_xz, cache_maxsize=64):
         self.simname = simname
         self.nsim = nsim
         self.nsnap = nsnap
@@ -89,6 +90,7 @@ class BaseCatalogue(ABC):
         self.boxsize = boxsize
         self.observer_location = observer_location
         self.observer_velocity = observer_velocity
+        self.flip_xz = flip_xz
 
         self.cache_maxsize = cache_maxsize
 
@@ -210,6 +212,24 @@ class BaseCatalogue(ABC):
         if not isinstance(boxsize, (int, float)):
             raise TypeError("`boxsize` must be an integer or float.")
         self._boxsize = float(boxsize)
+
+    @property
+    def flip_xz(self):
+        """
+        Whether to flip the x- and z-coordinates to undo the MUSIC bug to match
+        observations.
+
+        Returns
+        -------
+        bool
+        """
+        return self._flip_xz
+
+    @flip_xz.setter
+    def flip_xz(self, flip_xz):
+        if not isinstance(flip_xz, bool):
+            raise TypeError("`flip_xz` must be a boolean.")
+        self._flip_xz = flip_xz
 
     @property
     def cache_maxsize(self):
@@ -654,16 +674,19 @@ class CSiBORG1Catalogue(BaseCatalogue):
         a boolean.
     observer_velocity : 1-dimensional array, optional
         Observer's velocity in :math:`\mathrm{km} / \mathrm{s}`.
+    flip_xz : bool, optional
+        Whether to flip the x- and z-coordinates to undo the MUSIC bug to match
+        observations.
     cache_maxsize : int, optional
         Maximum number of cached arrays.
     """
     def __init__(self, nsim, paths=None, snapshot=None, bounds=None,
-                 observer_velocity=None, cache_maxsize=64):
+                 observer_velocity=None, flip_xz=True, cache_maxsize=64):
         super().__init__()
         super().init_with_snapshot(
             "csiborg1", nsim, max(paths.get_snapshots(nsim, "csiborg1")),
             paths, snapshot, bounds, 677.7, [338.85, 338.85, 338.85],
-            observer_velocity, cache_maxsize)
+            observer_velocity, flip_xz, cache_maxsize)
 
         self._custom_keys = []
 
@@ -679,9 +702,12 @@ class CSiBORG1Catalogue(BaseCatalogue):
 
     @property
     def coordinates(self):
-        # NOTE: We flip x and z to undo MUSIC bug.
-        z, y, x = [self._read_fof_catalogue(key) for key in ["x", "y", "z"]]
-        return numpy.vstack([x, y, z]).T
+        x, y, z = [self._read_fof_catalogue(key) for key in ["x", "y", "z"]]
+
+        if self.flip_xz:
+            return numpy.vstack([z, y, x]).T
+        else:
+            return numpy.vstack([x, y, z]).T
 
     @property
     def velocities(self):
@@ -704,8 +730,11 @@ class CSiBORG1Catalogue(BaseCatalogue):
     def lagpatch_coordinates(self):
         fpath = self.paths.initial_lagpatch(self.nsim, self.simname)
         data = numpy.load(fpath)
-        # Flip x and z to undo MUSIC bug.
-        return numpy.vstack([data["z"], data["y"], data["x"]]).T
+
+        if self.flip_xz:
+            return numpy.vstack([data["z"], data["y"], data["x"]]).T
+        else:
+            return numpy.vstack([data["x"], data["y"], data["z"]]).T
 
     @property
     def lagpatch_radius(self):
@@ -738,15 +767,20 @@ class CSiBORG2Catalogue(BaseCatalogue):
         a boolean.
     observer_velocity : 1-dimensional array, optional
         Observer's velocity in :math:`\mathrm{km} / \mathrm{s}`.
+    flip_xz : bool, optional
+        Whether to flip the x- and z-coordinates to undo the MUSIC bug to match
+        observations.
     cache_maxsize : int, optional
         Maximum number of cached arrays.
     """
     def __init__(self, nsim, nsnap, kind, paths=None, snapshot=None,
-                 bounds=None, observer_velocity=None, cache_maxsize=64):
+                 bounds=None, observer_velocity=None, flip_xz=True,
+                 cache_maxsize=64):
         super().__init__()
         super().init_with_snapshot(
             f"csiborg2_{kind}", nsim, nsnap, paths, snapshot, bounds,
-            676.6, [338.3, 338.3, 338.3], observer_velocity, cache_maxsize)
+            676.6, [338.3, 338.3, 338.3], observer_velocity, flip_xz,
+            cache_maxsize)
 
         self._custom_keys = ["GroupFirstSub", "GroupContamination",
                              "GroupNsubs", "Group_M_Crit200"]
@@ -775,16 +809,16 @@ class CSiBORG2Catalogue(BaseCatalogue):
 
     @property
     def coordinates(self):
-        # Loading directly the Gadget4 output, flip x and z to undo MUSIC bug.
         out = self._read_fof_catalogue("GroupPos")
-        out[:, [0, 2]] = out[:, [2, 0]]
+        if self.flip_xz:
+            out[:, [0, 2]] = out[:, [2, 0]]
         return out
 
     @property
     def velocities(self):
-        # Loading directly the Gadget4 output, flip x and z to undo MUSIC bug.
         out = self._read_fof_catalogue("GroupVel")
-        out[:, [0, 2]] = out[:, [2, 0]]
+        if self.flip_xz:
+            out[:, [0, 2]] = out[:, [2, 0]]
         return out
 
     @property
@@ -810,8 +844,11 @@ class CSiBORG2Catalogue(BaseCatalogue):
 
         fpath = self.paths.initial_lagpatch(self.nsim, self.simname)
         data = numpy.load(fpath)
-        # Flip x and z to undo MUSIC bug.
-        return numpy.vstack([data["z"], data["y"], data["x"]]).T
+
+        if self.flip_xz:
+            return numpy.vstack([data["z"], data["y"], data["x"]]).T
+        else:
+            return numpy.vstack([data["x"], data["y"], data["z"]]).T
 
     @property
     def lagpatch_radius(self):
@@ -1108,12 +1145,11 @@ class QuijoteCatalogue(BaseCatalogue):
         Maximum number of cached arrays.
     """
     def __init__(self, nsim, paths=None, snapshot=None, bounds=None,
-                 observer_velocity=None,
-                 cache_maxsize=64):
+                 observer_velocity=None, cache_maxsize=64):
         super().__init__()
         super().init_with_snapshot(
             "quijote", nsim, 4, paths, snapshot, bounds, 1000,
-            [500., 500., 500.,], observer_velocity, cache_maxsize)
+            [500., 500., 500.,], observer_velocity, False, cache_maxsize)
 
         self._custom_keys = []
         self._bounds = bounds

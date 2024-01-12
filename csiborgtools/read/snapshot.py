@@ -35,7 +35,8 @@ class BaseSnapshot(ABC):
     """
     Base class for reading snapshots.
     """
-    def __init__(self, nsim, nsnap, paths, keep_snapshot_open=False):
+    def __init__(self, nsim, nsnap, paths, keep_snapshot_open=False,
+                 flip_xz=False):
         self._keep_snapshot_open = None
 
         if not isinstance(nsim, (int, numpy.integer)):
@@ -50,6 +51,9 @@ class BaseSnapshot(ABC):
             raise TypeError("`keep_snapshot_open` must be a boolean.")
         self._keep_snapshot_open = keep_snapshot_open
         self._snapshot_file = None
+
+        if not isinstance(flip_xz, bool):
+            raise TypeError("`flip_xz` must be a boolean.")
 
         self._paths = paths
         self._hid2offset = None
@@ -124,6 +128,18 @@ class BaseSnapshot(ABC):
         bool
         """
         return self._keep_snapshot_open
+
+    @property
+    def flip_xz(self):
+        """
+        Whether to flip the x- and z-axes to undo the MUSIC bug so that the
+        coordinates are consistent with observations.
+
+        Returns
+        -------
+        bool
+        """
+        return self._flip_xz
 
     @abstractproperty
     def coordinates(self):
@@ -321,9 +337,13 @@ class CSiBORG1Snapshot(BaseSnapshot):
     keep_snapshot_open : bool, optional
         Whether to keep the snapshot file open when reading halo particles.
         This is useful for repeated access to the snapshot.
+    flip_xz : bool, optional
+        Whether to flip the x- and z-axes to undo the MUSIC bug so that the
+        coordinates are consistent with observations.
     """
-    def __init__(self, nsim, nsnap, paths=None, keep_snapshot_open=False):
-        super().__init__(nsim, nsnap, paths, keep_snapshot_open)
+    def __init__(self, nsim, nsnap, paths=None, keep_snapshot_open=False,
+                 flip_xz=False):
+        super().__init__(nsim, nsnap, paths, keep_snapshot_open, flip_xz)
         self._snapshot_path = self.paths.snapshot(
             self.nsnap, self.nsim, "csiborg1")
         self._simname = "csiborg1"
@@ -331,6 +351,9 @@ class CSiBORG1Snapshot(BaseSnapshot):
     def _get_particles(self, kind):
         with File(self._snapshot_path, "r") as f:
             x = f[kind][...]
+
+        if self.flip_xz and kind in ["Coordinates", "Velocities"]:
+            x[:, [0, 2]] = x[:, [2, 0]]
 
         return x
 
@@ -362,6 +385,9 @@ class CSiBORG1Snapshot(BaseSnapshot):
 
         if not self.keep_snapshot_open:
             self.close_snapshot()
+
+        if self.flip_xz and kind in ["Coordinates", "Velocities"]:
+            x[:, [0, 2]] = x[:, [2, 0]]
 
         return x
 
@@ -407,10 +433,13 @@ class CSiBORG2Snapshot(BaseSnapshot):
     keep_snapshot_open : bool, optional
         Whether to keep the snapshot file open when reading halo particles.
         This is useful for repeated access to the snapshot.
+    flip_xz : bool, optional
+        Whether to flip the x- and z-axes to undo the MUSIC bug so that the
+        coordinates are consistent with observations.
     """
     def __init__(self, nsim, nsnap, kind, paths=None,
-                 keep_snapshot_open=False):
-        super().__init__(nsim, nsnap, paths, keep_snapshot_open)
+                 keep_snapshot_open=False, flip_xz=False):
+        super().__init__(nsim, nsnap, paths, keep_snapshot_open, flip_xz)
         self.kind = kind
 
         fpath = self.paths.snapshot(self.nsnap, self.nsim,
@@ -457,6 +486,9 @@ class CSiBORG2Snapshot(BaseSnapshot):
             else:
                 x = numpy.vstack([x, f[f"PartType5/{kind}"][...]])
 
+        if self.flip_xz and kind in ["Coordinates", "Velocities"]:
+            x[:, [0, 2]] = x[:, [2, 0]]
+
         return x
 
     def coordinates(self):
@@ -492,8 +524,16 @@ class CSiBORG2Snapshot(BaseSnapshot):
             else:
                 x1 = f[f"PartType1/{kind}"][i1:j1]
 
+                # Flipping of x- and z-axes
+                if self.flip_xz:
+                    x1[:, [0, 2]] = x1[:, [2, 0]]
+
         if i5 is not None and j5 - i5 > 0:
             x5 = f[f"PartType5/{kind}"][i5:j5]
+
+            # Flipping of x- and z-axes
+            if self.flip_xz and kind in ["Coordinates", "Velocities"]:
+                x5[:, [0, 2]] = x5[:, [2, 0]]
 
         # Close the snapshot file if we don't want to keep it open
         if not self.keep_snapshot_open:
@@ -566,7 +606,7 @@ class QuijoteSnapshot(CSiBORG1Snapshot):
         This is useful for repeated access to the snapshot.
     """
     def __init__(self, nsim, nsnap, paths=None, keep_snapshot_open=False):
-        super().__init__(nsim, nsnap, paths, keep_snapshot_open)
+        super().__init__(nsim, nsnap, paths, keep_snapshot_open, flip_xz=False)
         self._snapshot_path = self.paths.snapshot(self.nsnap, self.nsim,
                                                   "quijote")
         self._simname = "quijote"
@@ -590,13 +630,17 @@ class BaseField(ABC):
     """
     Base class for reading fields such as density or velocity fields.
     """
-    def __init__(self, nsim, paths):
+    def __init__(self, nsim, paths, flip_xz=False):
         if isinstance(nsim, numpy.integer):
             nsim = int(nsim)
         if not isinstance(nsim, int):
             raise TypeError(f"`nsim` must be an integer. Received `{type(nsim)}`.")  # noqa
-
         self._nsim = nsim
+
+        if not isinstance(flip_xz, bool):
+            raise TypeError("`flip_xz` must be a boolean.")
+        self._flip_xz = flip_xz
+
         self._paths = paths
 
     @property
@@ -622,6 +666,18 @@ class BaseField(ABC):
         if self._paths is None:
             self._paths = Paths(**paths_glamdring)
         return self._paths
+
+    @property
+    def flip_xz(self):
+        """
+        Whether to flip the x- and z-axes to undo the MUSIC bug so that the
+        coordinates are consistent with observations.
+
+        Returns
+        -------
+        bool
+        """
+        return self._flip_xz
 
     @abstractmethod
     def density_field(self, MAS, grid):
@@ -675,9 +731,12 @@ class CSiBORG1Field(BaseField):
         Simulation index.
     paths : Paths, optional
         Paths object. By default, the paths are set to the `glamdring` paths.
+    flip_xz : bool, optional
+        Whether to flip the x- and z-axes to undo the MUSIC bug so that the
+        coordinates are consistent with observations.
     """
-    def __init__(self, nsim, paths=None):
-        super().__init__(nsim, paths)
+    def __init__(self, nsim, paths=None, flip_xz=True):
+        super().__init__(nsim, paths, flip_xz)
         self._simname = "csiborg1"
 
     def density_field(self, MAS, grid):
@@ -690,8 +749,7 @@ class CSiBORG1Field(BaseField):
         else:
             field = numpy.load(fpath)
 
-        # Flip x- and z-axes
-        if self._simname == "csiborg1":
+        if self.flip_xz:
             field = field.T
 
         return field
@@ -709,8 +767,7 @@ class CSiBORG1Field(BaseField):
         else:
             field = numpy.load(fpath)
 
-        # Flip x- and z-axes
-        if self._simname == "csiborg1":
+        if self.flip_xz:
             field[0, ...] = field[0, ...].T
             field[1, ...] = field[1, ...].T
             field[2, ...] = field[2, ...].T
@@ -736,10 +793,12 @@ class CSiBORG2Field(BaseField):
         CSiBORG2 run kind. One of `main`, `random`, or `varysmall`.
     paths : Paths, optional
         Paths object. By default, the paths are set to the `glamdring` paths.
+    flip_xz : bool, optional
+        Whether to flip the x- and z-axes to undo the MUSIC bug so that the
+        coordinates are consistent with observations.
     """
-
-    def __init__(self, nsim, kind, paths=None):
-        super().__init__(nsim, paths)
+    def __init__(self, nsim, kind, paths=None, flip_xz=True):
+        super().__init__(nsim, paths, flip_xz)
         self.kind = kind
 
     @property
@@ -771,7 +830,9 @@ class CSiBORG2Field(BaseField):
         else:
             field = numpy.load(fpath)
 
-        field = field.T                       # Flip x- and z-axes
+        if self.flip_xz:
+            field = field.T
+
         return field
 
     def velocity_field(self, MAS, grid):
@@ -788,11 +849,11 @@ class CSiBORG2Field(BaseField):
         else:
             field = numpy.load(fpath)
 
-        # Flip x- and z-axes
-        field[0, ...] = field[0, ...].T
-        field[1, ...] = field[1, ...].T
-        field[2, ...] = field[2, ...].T
-        field[[0, 2], ...] = field[[2, 0], ...]
+        if self.flip_xz:
+            field[0, ...] = field[0, ...].T
+            field[1, ...] = field[1, ...].T
+            field[2, ...] = field[2, ...].T
+            field[[0, 2], ...] = field[[2, 0], ...]
 
         return field
 
@@ -814,7 +875,7 @@ class QuijoteField(CSiBORG1Field):
         Paths object.
     """
     def __init__(self, nsim, paths):
-        super().__init__(nsim, paths)
+        super().__init__(nsim, paths, flip_xz=False)
         self._simname = "quijote"
 
 
