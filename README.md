@@ -16,7 +16,7 @@ Tools for analysing the suite of Constrained Simulations in BORG (CSiBORG) simul
 
 ### General
 - [ ] Add new halo properties to the catalogues.
-- [ ] Add initial halo properties to the catalogues.
+- [x] Add initial halo properties to the catalogues.
 - [x] Add a new flag for flipping x- and z-coordinates fro catalogues, snapshots and field readers.
 - [x] Add radial velocity field loader.
 
