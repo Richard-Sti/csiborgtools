@@ -704,7 +704,8 @@ class CSiBORG1Catalogue(BaseCatalogue):
     def lagpatch_coordinates(self):
         fpath = self.paths.initial_lagpatch(self.nsim, self.simname)
         data = numpy.load(fpath)
-        return numpy.vstack([data["x"], data["y"], data["z"]]).T
+        # Flip x and z to undo MUSIC bug.
+        return numpy.vstack([data["z"], data["y"], data["x"]]).T
 
     @property
     def lagpatch_radius(self):
@@ -802,11 +803,25 @@ class CSiBORG2Catalogue(BaseCatalogue):
 
     @property
     def lagpatch_coordinates(self):
-        raise RuntimeError("Lagrangian patch coordinates are not available.")
+        if self.nsnap != 99:
+            raise RuntimeError("Lagrangian patch information is only "
+                               "available for haloes defined at the final "
+                               f"snapshot (indexed 99). Chosen {self.nsnap}.")
+
+        fpath = self.paths.initial_lagpatch(self.nsim, self.simname)
+        data = numpy.load(fpath)
+        # Flip x and z to undo MUSIC bug.
+        return numpy.vstack([data["z"], data["y"], data["x"]]).T
 
     @property
     def lagpatch_radius(self):
-        raise RuntimeError("Lagrangian patch radius is not available.")
+        if self.nsnap != 99:
+            raise RuntimeError("Lagrangian patch information is only "
+                               "available for haloes defined at the final "
+                               f"snapshot (indexed 99). Chosen {self.nsnap}.")
+
+        fpath = self.paths.initial_lagpatch(self.nsim, self.simname)
+        return numpy.load(fpath)["lagpatch_size"]
 
     @property
     def GroupFirstSub(self):
