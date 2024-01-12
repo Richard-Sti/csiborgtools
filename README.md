@@ -33,6 +33,7 @@ Tools for analysing the suite of Constrained Simulations in BORG (CSiBORG) simul
 - [x] Check and verify the density field of galaxy colours (cannot do this now! Glamdring is super slow.)
 - [x] Calculate the radial velocity field for random realizations (submitted)
 - [x] Send Catherine concatenated data.
+- [ ] Start analyzing DiSPERSE results.
 
 #### Calculated data
 ##### SPH-density & velocity field
@@ -56,6 +57,8 @@ Tools for analysing the suite of Constrained Simulations in BORG (CSiBORG) simul
 
 ### Gravitational-wave and large-scale structure
 - [ ] Validate the velocity field results agains Supranta data sets.
+- [ ] Write code to estimate the average radial velocity in a spherical shell.
+- [ ] Write code to calculate the power spectrum of velocities.
 - [ ] Estimate the amplitude of the velocity field in radial shells around the observer, estimate analogous results for random simulations, and see if they agree within cosmic variance.
 - [ ] Calculate power spectra of velocities and maybe velocity dispersion.
 - [ ] Make the velocity field data available.
