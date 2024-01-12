@@ -56,17 +56,20 @@ def _main(nsim, simname, verbose):
             ("lagpatch_ncells", numpy.int32),]
 
     if simname == "csiborg1":
-        snap = csiborgtools.read.CSiBORG1Snapshot(nsim, 1, paths)
+        snap = csiborgtools.read.CSiBORG1Snapshot(nsim, 1, paths,
+                                                  keep_snapshot_open=True)
         cat = csiborgtools.read.CSiBORG1Catalogue(nsim, paths, snapshot=snap)
         fout = f"/mnt/extraspace/rstiskalek/csiborg1/chain_{nsim}/initial_lagpatch.npy"  # noqa
     elif "csiborg2" in simname:
         kind = simname.split("_")[-1]
-        snap = csiborgtools.read.CSiBORG2Snapshot(nsim, 0, kind, paths)
+        snap = csiborgtools.read.CSiBORG2Snapshot(nsim, 0, kind, paths,
+                                                  keep_snapshot_open=True)
         cat = csiborgtools.read.CSiBORG2Catalogue(nsim, 99, kind, paths,
                                                   snapshot=snap)
         fout = f"/mnt/extraspace/rstiskalek/csiborg2_{kind}/catalogues/initial_lagpatch_{nsim}.npy"  # noqa
     elif simname == "quijote":
-        snap = csiborgtools.read.QuijoteSnapshot(nsim, "ICs", paths)
+        snap = csiborgtools.read.QuijoteSnapshot(nsim, "ICs", paths,
+                                                 keep_snapshot_open=True)
         cat = csiborgtools.read.QuijoteHaloCatalogue(nsim, paths,
                                                      snapshot=snap)
         fout = f"/mnt/extraspace/rstiskalek/quijote/fiducial_processed/chain_{nsim}/initial_lagpatch.npy"  # noqa
