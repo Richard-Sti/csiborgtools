@@ -194,9 +194,6 @@ class Paths:
         else:
             raise ValueError(f"Unknown simulation name `{simname}`.")
 
-        if "csiborg2" in simname:
-            fpath = fpath.replace(".hdf5", "_sorted.hdf5")
-
         return fpath
 
     def snapshot_catalogue(self, nsnap, nsim, simname):
