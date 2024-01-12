@@ -715,6 +715,24 @@ class BaseField(ABC):
         """
         pass
 
+    @abstractmethod
+    def radial_velocity_field(self, MAS, grid):
+        """
+        Return the pre-computed radial velocity field.
+
+        Parameters
+        ----------
+        MAS : str
+            Mass assignment scheme.
+        grid : int
+            Grid size.
+
+        Returns
+        -------
+        field : 3-dimensional array
+        """
+        pass
+
 
 ###############################################################################
 #                          CSiBORG1 field class                               #
@@ -774,6 +792,14 @@ class CSiBORG1Field(BaseField):
             field[[0, 2], ...] = field[[2, 0], ...]
 
         return field
+
+    def radial_velocity_field(self, MAS, grid):
+        if not self.flip_xz and self._simname == "csiborg1":
+            raise ValueError("The radial velocity field is only implemented "
+                             "for the flipped x- and z-axes.")
+
+        fpath = self.paths.field("radvel", MAS, grid, self.nsim, "csiborg1")
+        return numpy.load(fpath)
 
 
 ###############################################################################
@@ -856,6 +882,15 @@ class CSiBORG2Field(BaseField):
             field[[0, 2], ...] = field[[2, 0], ...]
 
         return field
+
+    def radial_velocity_field(self, MAS, grid):
+        if not self.flip_xz:
+            raise ValueError("The radial velocity field is only implemented "
+                             "for the flipped x- and z-axes.")
+
+        fpath = self.paths.field("radvel", MAS, grid, self.nsim,
+                                 f"csiborg2_{self.kind}")
+        return numpy.load(fpath)
 
 
 ###############################################################################
