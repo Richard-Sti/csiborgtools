@@ -1189,11 +1189,14 @@ class QuijoteCatalogue(BaseCatalogue):
 
     @property
     def lagpatch_coordinates(self):
-        raise RuntimeError("Lagrangian patch coordinates are not available.")
+        fpath = self.paths.initial_lagpatch(self.nsim, self.simname)
+        data = numpy.load(fpath)
+        return numpy.vstack([data["x"], data["y"], data["z"]]).T
 
     @property
     def lagpatch_radius(self):
-        raise RuntimeError("Lagrangian patch radius is not available.")
+        fpath = self.paths.initial_lagpatch(self.nsim, self.simname)
+        return numpy.load(fpath)["lagpatch_size"]
 
     def pick_fiducial_observer(self, n, rmax):
         r"""
