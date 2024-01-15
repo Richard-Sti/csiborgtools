@@ -14,6 +14,8 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
+NOTE: This script is pretty dodgy.
+
 A script to calculate the mean and standard deviation of a field at different
 distances from the center of the box such that at each distance the field is
 evaluated at uniformly-spaced points on a sphere.
@@ -45,12 +47,20 @@ def main(args):
         elif "csiborg2" in args.simname:
             kind = args.simname.split("_")[-1]
             reader = csiborgtools.read.CSiBORG2Field(nsim, kind, paths)
+        elif args.simname == "borg2":
+            reader = csiborgtools.read.BORG2Field(nsim, paths)
         else:
             raise ValueError(f"Unknown simname: `{args.simname}`.")
 
         # Get the field
         if args.field == "density":
             field = reader.density_field(args.MAS, args.grid)
+        elif args.field == "overdensity":
+            if args.simname == "borg2":
+                field = reader.overdensity_field()
+            else:
+                field = reader.density_field(args.MAS, args.grid)
+                csiborgtools.field.overdensity_field(field, make_copy=False)
         elif args.field == "radvel":
             field = reader.radial_velocity_field(args.MAS, args.grid)
         else:
@@ -73,9 +83,9 @@ def main(args):
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--field", type=str, help="Field type.",
-                        choices=["density", "radvel"])
+                        choices=["density", "overdensity", "radvel"])
     parser.add_argument("--simname", type=str, help="Simulation name.",
-                        choices=["csiborg1", "csiborg2_main", "csiborg2_varysmall", "csiborg2_random"])  # noqa
+                        choices=["csiborg1", "csiborg2_main", "csiborg2_varysmall", "csiborg2_random", "borg2"])  # noqa
     parser.add_argument("--MAS", type=str, help="Mass assignment scheme.",
                         choices=["NGP", "CIC", "TSC", "PCS", "SPH"])
     parser.add_argument("--grid", type=int, help="Grid size.")
