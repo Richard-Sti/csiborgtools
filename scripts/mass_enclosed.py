@@ -1,4 +1,3 @@
-
 # Copyright (C) 2022 Richard Stiskalek
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by the
@@ -74,7 +73,7 @@ def get_reader(simname, paths, nsim):
     return reader
 
 
-def get_particles(reader, boxsize, verbose=True):
+def get_particles(reader, boxsize, get_velocity=True, verbose=True):
     """
     Get the distance of particles from the center of the box and their masses.
 
@@ -84,6 +83,8 @@ def get_particles(reader, boxsize, verbose=True):
         Snapshot reader.
     boxsize : float
         Box size in Mpc / h.
+    get_velocity : bool, optional
+        Whether to also return the velocity of particles.
     verbose : bool
         Verbosity flag.
 
@@ -93,12 +94,15 @@ def get_particles(reader, boxsize, verbose=True):
         Distance of particles from the center of the box.
     mass : 1-dimensional array
         Mass of particles.
+    vel : 2-dimensional array, optional
+        Velocity of particles.
     """
     if verbose:
         print(f"{t()},: reading coordinates and calculating radial distance.")
     pos = reader.coordinates()
+    dtype = pos.dtype
     pos -= boxsize / 2
-    dist = numpy.linalg.norm(pos, axis=1)
+    dist = numpy.linalg.norm(pos, axis=1).astype(dtype)
     del pos
     collect()
 
@@ -106,13 +110,24 @@ def get_particles(reader, boxsize, verbose=True):
         print(f"{t()}: reading masses.")
     mass = reader.masses()
 
+    if get_velocity:
+        if verbose:
+            print(f"{t()}: reading velocities.")
+        vel = reader.velocities().astype(dtype)
+
     if verbose:
-        print(f"{t()}: sorting coordinates and masses.")
+        print(f"{t()}: sorting arrays.")
     indxs = numpy.argsort(dist)
     dist = dist[indxs]
     mass = mass[indxs]
+    if get_velocity:
+        vel = vel[indxs]
+
     del indxs
     collect()
+
+    if get_velocity:
+        return dist, mass, vel
 
     return dist, mass
 
@@ -166,6 +181,57 @@ def enclosed_mass(rdist, mass, distances):
 
 
 ###############################################################################
+#              Calculate the enclosed momentum at each distance               #
+###############################################################################
+
+
+@jit(nopython=True, boundscheck=False)
+def _enclosed_momentum(rdist, mass, vel, rmax, start_index):
+    bulk_momentum = numpy.zeros(3, dtype=rdist.dtype)
+
+    for i in range(start_index, len(rdist)):
+        if rdist[i] <= rmax:
+            bulk_momentum += mass[i] * vel[i]
+        else:
+            break
+
+    return bulk_momentum, i
+
+
+def enclosed_momentum(rdist, mass, vel, distances):
+    """
+    Calculate the enclosed momentum at each distance.
+
+    Parameters
+    ----------
+    rdist : 1-dimensional array
+        Distance of particles from the center of the box.
+    mass : 1-dimensional array
+        Mass of particles.
+    vel : 2-dimensional array
+        Velocity of particles.
+    distances : 1-dimensional array
+        Distances at which to calculate the enclosed momentum.
+
+    Returns
+    -------
+    bulk_momentum : 2-dimensional array
+        Enclosed momentum at each distance.
+    """
+    bulk_momentum = numpy.zeros((len(distances), 3))
+    start_index = 0
+    for i, dist in enumerate(distances):
+        if i > 0:
+            bulk_momentum[i] += bulk_momentum[i - 1]
+
+        v, start_index = _enclosed_momentum(rdist, mass, vel, dist,
+                                            start_index)
+        bulk_momentum[i] += v
+
+    return bulk_momentum
+
+
+###############################################################################
 #                       Main & command line interface                         #
 ###############################################################################
 
@@ -173,27 +239,37 @@ def enclosed_mass(rdist, mass, distances):
 def main(args):
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     boxsize = csiborgtools.simname2boxsize(args.simname)
-    distances = numpy.linspace(0, boxsize / 2, 101)
+    distances = numpy.linspace(0, boxsize / 2, 101)[1:]
     nsims = paths.get_ics(args.simname)
     folder = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_shells"
 
+    # Initialize arrays to store the results
     cumulative_mass = numpy.zeros((len(nsims), len(distances)))
     mass135 = numpy.zeros(len(nsims))
     masstot = numpy.zeros(len(nsims))
+    cumulative_velocity = numpy.zeros((len(nsims), len(distances), 3))
+
     for i, nsim in enumerate(tqdm(nsims, desc="Simulations")):
         reader = get_reader(args.simname, paths, nsim)
-        rdist, mass = get_particles(reader, nsim, boxsize)
+        rdist, mass, vel = get_particles(reader, boxsize,  verbose=False)
 
-        # Calculate the cnlosed mass
+        # Calculate masses
         cumulative_mass[i, :] = enclosed_mass(rdist, mass, distances)
         mass135[i] = enclosed_mass(rdist, mass, [135])[0]
         masstot[i] = numpy.sum(mass)
+
+        # Calculate velocities
+        cumulative_velocity[i, ...] = enclosed_momentum(
+            rdist, mass, vel, distances)
+        for j in range(3):  # Normalize the momentum to get velocity out of it.
+            cumulative_velocity[i, :, j] /= cumulative_mass[i, :]
 
     # Finally save the output
     fname = f"enclosed_mass_{args.simname}.npz"
     fname = join(folder, fname)
     numpy.savez(fname, enclosed_mass=cumulative_mass, mass135=mass135,
-                masstot=masstot, distances=distances)
+                masstot=masstot, distances=distances,
+                cumulative_velocity=cumulative_velocity)
 
 
 if __name__ == "__main__":
