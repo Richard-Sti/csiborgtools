@@ -9,7 +9,8 @@ Tools for analysing the suite of Constrained Simulations in BORG (CSiBORG) simul
 - [ ] Calculate halo properties for CSiBORG1
 - [x] Calculate initial properties for CSiBORG1
 - [ ] Calculate halo properties for CSiBORG2
-- [ ] Calculate initial properties for CSiBORG2
+- [x] Calculate initial properties for CSiBORG2
+- [ ] Process all Quijote simulations.
 - [ ] Calculate halo properties for Quijote
 - [ ] Calculate initial properties for Quijote
 
@@ -35,14 +36,6 @@ Tools for analysing the suite of Constrained Simulations in BORG (CSiBORG) simul
 - [x] Send Catherine concatenated data.
 - [ ] Start analyzing DiSPERSE results.
 
-#### Calculated data
-##### SPH-density & velocity field
-- *CSiBORG2_main*, *CSiBORG2_random*, *CSiBORG2_varysmall*
-- Evaluated for SDSS and SDSSxALFALFA in: *CSiBORG2_main*, *CSiBORG2_random*
-
-#### Radial velocity field
-- *CSiBORG2_main, *CSiBORG2_random*
-
 
 ### Mass-assembly of massive clusters
 - [ ] Make a list of nearby most-massive clusters.
@@ -57,11 +50,13 @@ Tools for analysing the suite of Constrained Simulations in BORG (CSiBORG) simul
 
 ### Gravitational-wave and large-scale structure
 - [ ] Validate the velocity field results agains Supranta data sets.
+- [x] Write code to estimate the enclosed mass and bulk flow.
 - [ ] Write code to estimate the average radial velocity in a spherical shell.
 - [ ] Write code to calculate the power spectrum of velocities.
 - [ ] Estimate the amplitude of the velocity field in radial shells around the observer, estimate analogous results for random simulations, and see if they agree within cosmic variance.
 - [ ] Calculate power spectra of velocities and maybe velocity dispersion.
 - [ ] Make the velocity field data available.
+
 
 ### CSiBORG meets X-ray
 - [x] Make available one example snapshot from the simulation. Mention the issue with x- and z-coordinates.
@@ -70,3 +65,16 @@ Tools for analysing the suite of Constrained Simulations in BORG (CSiBORG) simul
 ### CSiBORG advertising
 - [ ] Decide on the webpage design and what to store there.
 - [ ] Write a short letter describing the simulations.
+
+
+### Calculated data
+
+#### Enclosed mass & bulk velocity
+- *CSiBORG2_main*, *CSiBORG2_varysmall*, *CSiBORG2_arandom*
+
+#### SPH-density & velocity field
+- *CSiBORG2_main*, *CSiBORG2_random*, *CSiBORG2_varysmall*
+- Evaluated for SDSS and SDSSxALFALFA in: *CSiBORG2_main*, *CSiBORG2_random*
+
+#### Radial velocity field
+- *CSiBORG2_main, *CSiBORG2_random*
