@@ -98,7 +98,8 @@ if __name__ == "__main__":
 
     if args.mode == "prepare":
         if args.nsim == -1:
-            nsims = [7444 + n * 24 for n in range(101)]
+            # nsims = [7444 + n * 24 for n in range(101)]
+            nsims = [8404 + n * 24 for n in range(61)]
             for nsim in nsims:
                 print(f"Processing simulation {nsim}.")
                 particles_path = join(args.scratch_space,
