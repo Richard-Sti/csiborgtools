@@ -13,9 +13,9 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-A script to calculate the mean and standard deviation of a field at different
-distances from the center of the box such that at each distance the field is
-evaluated at uniformly-spaced points on a sphere.
+A script to calculate the enclosed mass or bulk flow at different distances
+from the center of the box directly from the particles. Note that the velocity
+of an observer is not being subtracted from the bulk flow.
 
 The script is not parallelized in any way but it should not take very long, the
 main bottleneck is reading the data from disk.
