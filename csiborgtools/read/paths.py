@@ -53,6 +53,8 @@ class Paths:
         Path to the CSiBORG post-processing directory.
     quijote_dir : str
         Path to the Quijote simulation directory.
+    borg2_dir : str
+        Path to the BORG2 simulation directory.
     """
     def __init__(self,
                  csiborg1_srcdir,
@@ -61,12 +63,14 @@ class Paths:
                  csiborg2_varysmall_srcdir,
                  postdir,
                  quijote_dir,
+                 borg2_dir,
                  ):
         self.csiborg1_srcdir = csiborg1_srcdir
         self.csiborg2_main_srcdir = csiborg2_main_srcdir
         self.csiborg2_random_srcdir = csiborg2_random_srcdir
         self.csiborg2_varysmall_srcdir = csiborg2_varysmall_srcdir
         self.quijote_dir = quijote_dir
+        self.borg2_dir = borg2_dir
 
         self.postdir = postdir
 
@@ -86,7 +90,7 @@ class Paths:
         if simname == "csiborg1":
             files = glob(join(self.csiborg1_srcdir, "chain_*"))
             files = [int(search(r'chain_(\d+)', f).group(1)) for f in files]
-        elif simname == "csiborg2_main":
+        elif simname == "csiborg2_main" or simname == "borg2":
             files = glob(join(self.csiborg2_main_srcdir, "chain_*"))
             files = [int(search(r'chain_(\d+)', f).group(1)) for f in files]
         elif simname == "csiborg2_random":
@@ -403,6 +407,9 @@ class Paths:
         -------
         str
         """
+        if simname == "borg2":
+            return join(self.borg2_dir, f"mcmc_{nsim}.h5")
+
         if MAS == "SPH" and kind in ["density", "velocity"]:
             if simname == "csiborg1":
                 raise ValueError("SPH field not available for CSiBORG1.")
