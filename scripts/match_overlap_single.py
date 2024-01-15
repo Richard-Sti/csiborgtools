@@ -97,21 +97,21 @@ def pair_match(nsim0, nsimx, simname, min_logmass, sigma, verbose):
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     smooth_kwargs = {"sigma": sigma, "mode": "constant", "cval": 0}
-    bounds = {"lagpatch_size": (0, None)}
+    bounds = {"lagpatch_radius": (0, None)}
 
     if simname == "csiborg1":
         overlapper_kwargs = {"box_size": 2048, "bckg_halfsize": 512}
-        bounds |= {"dist": (0, 150), "totmass": (10**min_logmass, None)}
+        bounds |= {"dist": (0, 135), "totmass": (10**min_logmass, None)}
 
         snap0 = csiborgtools.read.CSiBORG1Snapshot(
-            nsim0, 0, keep_snapshot_open=True)
+            nsim0, 1, keep_snapshot_open=True)
         cat0 = csiborgtools.read.CSiBORG1Catalogue(nsim0, snapshot=snap0,
                                                    bounds=bounds)
 
         snapx = csiborgtools.read.CSiBORG1Snapshot(
-            nsimx, 0, keep_snapshot_open=True)
-        catx = csiborgtools.read.CSiBORGCatalogue(nsimx, snapshot=snapx,
-                                                  bounds=bounds)
+            nsimx, 1, keep_snapshot_open=True)
+        catx = csiborgtools.read.CSiBORG1Catalogue(nsimx, snapshot=snapx,
+                                                   bounds=bounds)
     elif "csiborg2" in simname:
         raise RuntimeError("CSiBORG2 currently not implemented..")
     elif simname == "quijote":
