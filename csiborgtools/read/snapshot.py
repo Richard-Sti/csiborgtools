@@ -895,6 +895,41 @@ class CSiBORG2Field(BaseField):
 
 
 ###############################################################################
+#                           BORG2 field class                                 #
+###############################################################################
+
+
+class BORG2Field(BaseField):
+    """
+    BORG2 `z = 0` field class.
+
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+    paths : Paths, optional
+        Paths object. By default, the paths are set to the `glamdring` paths.
+    """
+    def __init__(self, nsim, paths=None):
+        super().__init__(nsim, paths, False)
+
+    def overdensity_field(self):
+        fpath = self.paths.field(None, None, None, self.nsim, "borg2")
+        with File(fpath, "r") as f:
+            field = f["scalars/BORG_final_density"][:].astype(numpy.float32)
+
+        return field
+
+    def density_field(self):
+        raise RuntimeError("The density field is not available.")
+
+    def velocity_field(self, MAS, grid):
+        raise RuntimeError("The velocity field is not available.")
+
+    def radial_velocity_field(self, MAS, grid):
+        raise RuntimeError("The radial velocity field is not available.")
+
+###############################################################################
 #                          Quijote field class                                #
 ###############################################################################
 
