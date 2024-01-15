@@ -683,6 +683,10 @@ class CSiBORG1Catalogue(BaseCatalogue):
     def __init__(self, nsim, paths=None, snapshot=None, bounds=None,
                  observer_velocity=None, flip_xz=True, cache_maxsize=64):
         super().__init__()
+
+        if paths is None:
+            paths = Paths(**paths_glamdring)
+
         super().init_with_snapshot(
             "csiborg1", nsim, max(paths.get_snapshots(nsim, "csiborg1")),
             paths, snapshot, bounds, 677.7, [338.85, 338.85, 338.85],
