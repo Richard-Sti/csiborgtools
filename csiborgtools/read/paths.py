@@ -324,7 +324,7 @@ class Paths:
         -------
         str
         """
-        if simname == "csiborg":
+        if "csiborg" in simname:
             fdir = join(self.postdir, "overlap")
         elif simname == "quijote":
             fdir = join(self.quijote_dir, "overlap")
@@ -337,7 +337,7 @@ class Paths:
         nsimx = str(nsimx).zfill(5)
         min_logmass = float('%.4g' % min_logmass)
 
-        fname = f"overlap_{nsim0}_{nsimx}_{min_logmass}.npz"
+        fname = f"overlap_{simname}_{nsim0}_{nsimx}_{min_logmass}.npz"
         if smoothed:
             fname = fname.replace("overlap", "overlap_smoothed")
         return join(fdir, fname)
