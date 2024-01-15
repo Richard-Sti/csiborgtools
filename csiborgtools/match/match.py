@@ -202,10 +202,9 @@ class RealisationsMatcher(BaseMatcher):
         # in the reference simulation from the cross simulation in the initial
         # snapshot.
         match_indxs = radius_neighbours(
-            catx.knn(in_initial=True, subtract_observer=False, periodic=True),
-            cat0["lagpatch_coordinates"], radiusX=cat0["lagpatch_radius"],
-            radiusKNN=catx["lagpatch_radius"], nmult=self.nmult,
-            enforce_int32=True, verbose=verbose)
+            catx.knn(in_initial=True), cat0["lagpatch_coordinates"],
+            radiusX=cat0["lagpatch_radius"], radiusKNN=catx["lagpatch_radius"],
+            nmult=self.nmult, enforce_int32=True, verbose=verbose)
 
         # We next remove neighbours whose mass is too large/small.
         if self.dlogmass is not None:
@@ -367,6 +366,7 @@ class ParticleOverlap(BaseMatcher):
         cellmin = self.box_size // 2 - self.bckg_halfsize
         cellmax = self.box_size // 2 + self.bckg_halfsize
         ncells = cellmax - cellmin
+        boxsize_mpc = cat.boxsize
         # We then pre-allocate the density field/check it is of the right shape
         if delta is None:
             delta = numpy.zeros((ncells,) * 3, dtype=numpy.float32)
@@ -382,6 +382,7 @@ class ParticleOverlap(BaseMatcher):
         for hid in iterator:
             try:
                 pos = cat.snapshot.halo_coordinates(hid, is_group=True)
+                pos /= boxsize_mpc
             except ValueError as e:
                 # If not particles found for this halo, just skip it.
                 if str(e).startswith("Halo "):
@@ -851,6 +852,8 @@ def load_processed_halo(hid, cat, ncells, nshift):
     """
     pos = cat.snapshot.halo_coordinates(hid, is_group=True)
     mass = cat.snapshot.halo_masses(hid, is_group=True)
+
+    pos /= cat.boxsize
 
     pos = pos2cell(pos, ncells)
     mins, maxs = get_halo_cell_limits(pos, ncells=ncells, nshift=nshift)
