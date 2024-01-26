@@ -30,6 +30,35 @@ from tqdm import tqdm, trange
 ###############################################################################
 
 
+def find_mcmc_files(basedir):
+    """
+    Find the MCMC files in the BORG run directory. Checks that the samples
+    are consecutive.
+
+    Parameters
+    ----------
+    basedir : str
+        The base directory of the BORG run.
+
+    Returns
+    -------
+    files : list of str
+    """
+    files = glob(join(basedir, "mcmc_*"))
+    print(f"Found {len(files)} BORG samples.")
+
+    # Sort the files by the MCMC iteration number.
+    indxs = [int(search(r"mcmc_(\d+)", f).group(1)) for f in files]
+    argsort_indxs = np.argsort(indxs)
+    indxs = [indxs[i] for i in argsort_indxs]
+    files = [files[i] for i in argsort_indxs]
+
+    if not all((indxs[i] - indxs[i - 1]) == 1 for i in range(1, len(indxs))):
+        raise ValueError("MCMC iteration numbers are not consecutive.")
+
+    return files
+
+
 def load_borg_voxels(basedir, frac=0.25):
     """
     Load the BORG density field samples of the central `frac` of the box.
@@ -48,17 +77,7 @@ def load_borg_voxels(basedir, frac=0.25):
     if frac > 1.0:
         raise ValueError("`frac` must be <= 1.0")
 
-    files = glob(join(basedir, "mcmc_*"))
-    print(f"Found {len(files)} BORG samples.")
-
-    # Sort the files by the MCMC iteration number.
-    indxs = [int(search(r"mcmc_(\d+)", f).group(1)) for f in files]
-    argsort_indxs = np.argsort(indxs)
-    indxs = [indxs[i] for i in argsort_indxs]
-    files = [files[i] for i in argsort_indxs]
-
-    if not all((indxs[i] - indxs[i - 1]) == 1 for i in range(1, len(indxs))):
-        raise ValueError("MCMC iteration numbers are not consecutive.")
+    files = find_mcmc_files(basedir)
 
     start, end, x = None, None, None
     for n, fpath in enumerate(tqdm(files, desc="Loading BORG samples")):
@@ -74,6 +93,34 @@ def load_borg_voxels(basedir, frac=0.25):
                 x = np.full(shape, np.nan, dtype=np.float32)
 
             x[n] = f["scalars/BORG_final_density"][start:end, start:end, start:end]  # noqa
+
+    return x
+
+
+def load_borg_galaxy_nmean(basedir):
+    """
+    Load the BORG `galaxy_nmean` samples.
+
+    Parameters
+    ----------
+    basedir : str
+        The base directory of the BORG run.
+
+    Returns
+    -------
+    samples : 2-dimensional array of shape (n_samples, 10)
+    """
+    files = find_mcmc_files(basedir)
+
+    x = np.full((len(files), 10), np.nan, dtype=np.float32)
+    for n, fpath in enumerate(tqdm(files, desc="Loading BORG samples")):
+        with File(fpath, 'r') as f:
+            for i in range(10):
+                nmean = f[f"scalars/galaxy_nmean_{i}"][...]
+                if nmean.size > 1:
+                    raise ValueError(f"Unknown shape of `galaxy_nmean_{i}`, {nmean.shape}.")  # noqa
+
+                x[n, i] = nmean[0]
 
     return x
 
@@ -167,6 +214,21 @@ def voxel_acl(borg_voxels):
                 voxel_acl[i, j, k] = calculate_acl(borg_voxels[:, i, j, k])
 
     return voxel_acl
+
+
+def galaxy_nmean_acl(galaxy_nmean):
+    nbias = galaxy_nmean.shape[1]
+
+    for i in range(nbias):
+        x = galaxy_nmean[:, i]
+        mu = np.mean(x)
+        sigma = np.std(x)
+        acl = calculate_acl(x)
+
+        print(f"<galaxy_nmean_{i}> = {mu} +- {sigma}")
+        print(f"ACL                = {acl}")
+
+    return
 
 
 def enclosed_density_acl(borg_voxels):
@@ -280,3 +342,19 @@ if __name__ == "__main__":
     with File(fout, 'w') as f:
         f.create_dataset("voxel_dist", data=voxel_dist)
         f.create_dataset("voxel_acl", data=voxel_acl)
+
+    # Now load the galaxy_nmean samples.
+    fname = join(dumpdir, f"{args.kind}_galaxy_nmean_{args.frac}.hdf5")
+    try:
+        with File(fname, 'r') as f:
+            print(f"Loading BORG `galaxy_nmean` samples from `{fname}`.")
+            galaxy_nmean = f["borg_voxels"][...]
+    except FileNotFoundError:
+        print("Loading `galaxy_nmean` directly from BORG samples.")
+        galaxy_nmean = load_borg_galaxy_nmean(basedir)
+
+        with File(fname, 'w') as f:
+            print(f"Saving `galaxy_nmean` BORG samples to to `{fname}`.")
+            f.create_dataset("galaxy_nmean", data=galaxy_nmean)
+
+    galaxy_nmean_acl(galaxy_nmean)
