@@ -75,7 +75,7 @@ def load_borg_voxels(basedir, frac=0.25):
 
             x[n] = f["scalars/BORG_final_density"][start:end, start:end, start:end]  # noqa
 
-    return x, grid, ncentral
+    return x
 
 
 ###############################################################################
@@ -206,7 +206,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("kind", choices=["BORG1", "BORG2"],
                         help="The BORG run.", type=str)
-    parser.add_argument("frac", help="The fraction of the box to load.",
+    parser.add_argument("--frac", help="The fraction of the box to load.",
                         default=0.25, type=float)
     args = parser.parse_args()
 
