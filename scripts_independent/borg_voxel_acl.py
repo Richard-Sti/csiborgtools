@@ -97,9 +97,9 @@ def load_borg_voxels(basedir, frac=0.25):
     return x
 
 
-def load_borg_galaxy_nmean(basedir):
+def load_borg_galaxy_bias(basedir):
     """
-    Load the BORG `galaxy_nmean` samples.
+    Load the BORG `galaxy_bias` samples.
 
     Parameters
     ----------
@@ -108,19 +108,27 @@ def load_borg_galaxy_nmean(basedir):
 
     Returns
     -------
-    samples : 2-dimensional array of shape (n_samples, 10)
+    samples : 2-dimensional array of shape (n_samples, jmax)
     """
     files = find_mcmc_files(basedir)
 
-    x = np.full((len(files), 10), np.nan, dtype=np.float32)
+    x = None
     for n, fpath in enumerate(tqdm(files, desc="Loading BORG samples")):
         with File(fpath, 'r') as f:
-            for i in range(10):
-                nmean = f[f"scalars/galaxy_nmean_{i}"][...]
-                if nmean.size > 1:
-                    raise ValueError(f"Unknown shape of `galaxy_nmean_{i}`, {nmean.shape}.")  # noqa
+            # Figure out how many sub-samples there are.
+            if n == 0:
+                for j in range(100):
+                    try:
+                        bias = f[f"scalars/galaxy_bias_{j}"]
+                        nbias = bias[...].size
+                    except KeyError:
+                        jmax = j - 1
+                        x = np.full((len(files), jmax, nbias), np.nan,
+                                    dtype=np.float32)
+                        break
 
-                x[n, i] = nmean[0]
+            for i in range(jmax):
+                x[n, i, :] = f[f"scalars/galaxy_bias_{i}"][...]
 
     return x
 
@@ -216,19 +224,31 @@ def voxel_acl(borg_voxels):
     return voxel_acl
 
 
-def galaxy_nmean_acl(galaxy_nmean):
-    nbias = galaxy_nmean.shape[1]
+def galaxy_bias_acl(galaxy_bias):
+    """
+    Calculate the ACL of the galaxy bias parameters for each galaxy sub-sample.
 
-    for i in range(nbias):
-        x = galaxy_nmean[:, i]
-        mu = np.mean(x)
-        sigma = np.std(x)
-        acl = calculate_acl(x)
+    Parameters
+    ----------
+    galaxy_bias : 3-dimensional array of shape (n_samples, ncat, nbias)
+        The BORG `galaxy_bias` samples.
 
-        print(f"<galaxy_nmean_{i}> = {mu} +- {sigma}")
-        print(f"ACL                = {acl}")
+    Returns
+    -------
+    acls_all : 2-dimensional array of shape (ncat, nbias)
+    """
+    print("Calculating the ACL of the galaxy bias parameters.")
+    ncat = galaxy_bias.shape[1]
+    nbias = galaxy_bias.shape[2]
 
-    return
+    acls_all = np.full((ncat, nbias), np.nan, dtype=int)
+
+    for i in range(ncat):
+        acls = [calculate_acl(galaxy_bias[:, i, j]) for j in range(nbias)]
+        print(f"`galaxy_bias_{str(i).zfill(2)}` ACLs: {acls}.")
+        acls_all[i] = acls
+
+    return acls_all
 
 
 def enclosed_density_acl(borg_voxels):
@@ -343,18 +363,18 @@ if __name__ == "__main__":
         f.create_dataset("voxel_dist", data=voxel_dist)
         f.create_dataset("voxel_acl", data=voxel_acl)
 
-    # Now load the galaxy_nmean samples.
-    fname = join(dumpdir, f"{args.kind}_galaxy_nmean_{args.frac}.hdf5")
+    # Now load the galaxy_bias samples.
+    fname = join(dumpdir, f"{args.kind}_galaxy_bias_{args.frac}.hdf5")
     try:
         with File(fname, 'r') as f:
-            print(f"Loading BORG `galaxy_nmean` samples from `{fname}`.")
-            galaxy_nmean = f["borg_voxels"][...]
+            print(f"Loading BORG `galaxy_bias` samples from `{fname}`.")
+            galaxy_bias = f["galaxy_bias"][...]
     except FileNotFoundError:
-        print("Loading `galaxy_nmean` directly from BORG samples.")
-        galaxy_nmean = load_borg_galaxy_nmean(basedir)
+        print("Loading `galaxy_bias` directly from BORG samples.")
+        galaxy_bias = load_borg_galaxy_bias(basedir)
 
         with File(fname, 'w') as f:
             print(f"Saving `galaxy_nmean` BORG samples to to `{fname}`.")
-            f.create_dataset("galaxy_nmean", data=galaxy_nmean)
+            f.create_dataset("galaxy_bias", data=galaxy_bias)
 
-    galaxy_nmean_acl(galaxy_nmean)
+    galaxy_bias_acl(galaxy_bias)
