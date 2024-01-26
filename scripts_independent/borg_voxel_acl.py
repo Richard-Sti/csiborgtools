@@ -169,6 +169,34 @@ def voxel_acl(borg_voxels):
     return voxel_acl
 
 
+def enclosed_density_acl(borg_voxels):
+    """
+    Calculate the ACL of the enclosed overdensity of the BORG samples.
+
+    Parameters
+    ----------
+    borg_voxels : 4-dimensional array of shape (n_samples, nvox, nvox, nvox)
+        The BORG density field samples.
+
+    Returns
+    -------
+    acl : int
+    """
+    # Calculate the mean overdensity of the voxels.
+    x = np.asanyarray([np.mean(borg_voxels[i] + 1) - 1
+                       for i in range(len(borg_voxels))])
+
+    mu = np.mean(x)
+    sigma = np.std(x)
+    acl = calculate_acl(x)
+
+    print("Calculating the boxed overdensity ACL.")
+    print(f"<delta_box> = {mu} +- {sigma}")
+    print(f"ACL         = {acl}")
+
+    return acl
+
+
 ###############################################################################
 #                       Voxel distance from the centre                        #
 ###############################################################################
@@ -237,6 +265,8 @@ if __name__ == "__main__":
         with File(fname, 'w') as f:
             print(f"Saving BORG samples to to `{fname}`.")
             f.create_dataset("borg_voxels", data=borg_voxels)
+
+    enclosed_density_acl(borg_voxels)
 
     # Calculate the voxel distance from the centre and their ACLs.
     voxel_size = boxsize / grid
