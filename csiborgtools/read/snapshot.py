@@ -18,6 +18,7 @@ should be implemented things such as flipping x- and z-axes, to make sure that
 observed RA-dec can be mapped into the simulation box.
 """
 from abc import ABC, abstractmethod, abstractproperty
+from os.path import join
 
 import numpy
 from h5py import File
@@ -895,6 +896,47 @@ class CSiBORG2Field(BaseField):
 
 
 ###############################################################################
+#                           BORG1 field class                                 #
+###############################################################################
+
+
+class BORG1Field(BaseField):
+    """
+    BORG2 `z = 0` field class.
+
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+    paths : Paths, optional
+        Paths object. By default, the paths are set to the `glamdring` paths.
+    """
+    def __init__(self, nsim, paths=None):
+        super().__init__(nsim, paths, False)
+
+    def overdensity_field(self):
+        fpath = self.paths.field(None, None, None, self.nsim, "borg1")
+        with File(fpath, "r") as f:
+            field = f["scalars/BORG_final_density"][:].astype(numpy.float32)
+
+        return field
+
+    def density_field(self):
+        field = self.overdensity_field()
+        omega0 = 0.307
+        rho_mean = omega0 * 277.53662724583074  # Msun / kpc^3
+        field += 1
+        field *= rho_mean
+        return field
+
+    def velocity_field(self, MAS, grid):
+        raise RuntimeError("The velocity field is not available.")
+
+    def radial_velocity_field(self, MAS, grid):
+        raise RuntimeError("The radial velocity field is not available.")
+
+
+###############################################################################
 #                           BORG2 field class                                 #
 ###############################################################################
 
@@ -921,7 +963,50 @@ class BORG2Field(BaseField):
         return field
 
     def density_field(self):
-        raise RuntimeError("The density field is not available.")
+        field = self.overdensity_field()
+        omega0 = 0.3111
+        rho_mean = omega0 * 277.53662724583074  # h^2 Msun / kpc^3
+        field += 1
+        field *= rho_mean
+        # return field
+
+    def velocity_field(self, MAS, grid):
+        raise RuntimeError("The velocity field is not available.")
+
+    def radial_velocity_field(self, MAS, grid):
+        raise RuntimeError("The radial velocity field is not available.")
+
+
+###############################################################################
+#                             TNG300-1 field                                  #
+###############################################################################
+
+class TNG300_1Field(BaseField):
+    """
+    TNG300-1 dark matter-only `z = 0` field class.
+
+    Parameters
+    ----------
+    paths : Paths, optional
+        Paths object. By default, the paths are set to the `glamdring` paths.
+    """
+    def __init__(self, paths=None):
+        super().__init__(0, paths, False)
+
+    def overdensity_field(self, MAS, grid):
+        density = self.density_field(MAS, grid)
+        omega_dm = 0.3089 - 0.0486
+        rho_mean = omega_dm * 277.53662724583074  # h^2 Msun / kpc^3
+
+        density /= rho_mean
+        density -= 1
+
+        return density
+
+    def density_field(self, MAS, grid):
+        fpath = join(self.paths.tng300_1, "postprocessing", "density_field",
+                     f"rho_dm_099_{grid}_{MAS}.npy")
+        return numpy.load(fpath)
 
     def velocity_field(self, MAS, grid):
         raise RuntimeError("The velocity field is not available.")
