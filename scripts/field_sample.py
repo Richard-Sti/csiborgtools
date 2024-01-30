@@ -71,6 +71,15 @@ def open_galaxy_positions(survey_name, comm):
                 samples["ra"][:] * 180 / numpy.pi,
                 samples["dec"][:] * 180 / numpy.pi],
                                ).T
+        elif survey_name == "TNG300-1":
+            with File("/mnt/extraspace/rstiskalek/TNG300-1/postprocessing/subhalo_catalogue_099.hdf5", 'r') as f:  # noqa
+                pos = numpy.vstack([f["SubhaloPos"][:, 0],
+                                    f["SubhaloPos"][:, 1],
+                                    f["SubhaloPos"][:, 2]],
+                                   ).T
+                pos -= csiborgtools.simname2boxsize("TNG300-1") / 2
+                pos = csiborgtools.cartesian_to_radec(pos)
+            pass
         else:
             raise NotImplementedError(f"Survey `{survey_name}` not "
                                       "implemented.")
@@ -182,6 +191,8 @@ def main(nsim, parser_args, pos, verbose):
     elif "csiborg2" in parser_args.simname:
         kind = parser_args.simname.split("_")[-1]
         freader = csiborgtools.read.CSiBORG2Field(nsim, kind)
+    elif parser_args.simname == "TNG300-1":
+        freader = csiborgtools.read.TNG300_1Field()
     else:
         raise NotImplementedError(f"Simulation `{parser_args.simname}` is not supported.")  # noqa
 
@@ -205,7 +216,8 @@ def main(nsim, parser_args, pos, verbose):
 
         # The survey above had some cuts, however for compatibility we want
         # the same shape as the `uncut` survey
-        val = match_to_no_selection(val, parser_args)
+        if parser_args.survey != "TNG300-1":
+            val = match_to_no_selection(val, parser_args)
 
     if verbose:
         print(f"Saving to ... `{fout}`.")
@@ -218,10 +230,10 @@ if __name__ == "__main__":
     parser.add_argument("--nsims", type=int, nargs="+", default=None,
                         help="IC realisations. If `-1` processes all.")
     parser.add_argument("--simname", type=str, default="csiborg1",
-                        choices=["csiborg1", "csiborg2_main", "csiborg2_random", "csiborg2_varysmall"],  # noqa
+                        choices=["csiborg1", "csiborg2_main", "csiborg2_random", "csiborg2_varysmall", "TNG300-1"],  # noqa
                         help="Simulation name")
     parser.add_argument("--survey", type=str, required=True,
-                        choices=["SDSS", "SDSSxALFALFA", "GW170817"],
+                        choices=["SDSS", "SDSSxALFALFA", "GW170817", "TNG300-1"],  # noqa
                         help="Galaxy survey")
     parser.add_argument("--smooth_scales", type=float, nargs="+", default=None,
                         help="Smoothing scales in Mpc / h.")
@@ -235,8 +247,14 @@ if __name__ == "__main__":
     parser.add_argument("--grid", type=int, help="Grid resolution.")
     args = parser.parse_args()
 
+    if args.simname == "TNG300-1" and args.survey != "TNG300-1":
+        raise ValueError("TNG300-1 simulation is only supported for TNG300-1 survey.")  # noqa
+
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    nsims = get_nsims(args, paths)
+    if args.simname == "TNG300-1":
+        nsims = [0]
+    else:
+        nsims = get_nsims(args, paths)
 
     pos = open_galaxy_positions(args.survey, MPI.COMM_WORLD)
 
