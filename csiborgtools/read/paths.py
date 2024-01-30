@@ -53,8 +53,12 @@ class Paths:
         Path to the CSiBORG post-processing directory.
     quijote_dir : str
         Path to the Quijote simulation directory.
+    borg1_dir : str
+        Path to the BORG1 simulation directory.
     borg2_dir : str
         Path to the BORG2 simulation directory.
+    tng300_1_dir : str
+        Path to the TNG300-1 simulation directory.
     """
     def __init__(self,
                  csiborg1_srcdir,
@@ -63,15 +67,18 @@ class Paths:
                  csiborg2_varysmall_srcdir,
                  postdir,
                  quijote_dir,
+                 borg1_dir,
                  borg2_dir,
+                 tng300_1_dir
                  ):
         self.csiborg1_srcdir = csiborg1_srcdir
         self.csiborg2_main_srcdir = csiborg2_main_srcdir
         self.csiborg2_random_srcdir = csiborg2_random_srcdir
         self.csiborg2_varysmall_srcdir = csiborg2_varysmall_srcdir
         self.quijote_dir = quijote_dir
+        self.borg1_dir = borg1_dir
         self.borg2_dir = borg2_dir
-
+        self.tng300_1_dir = tng300_1_dir
         self.postdir = postdir
 
     def get_ics(self, simname):
@@ -87,7 +94,7 @@ class Paths:
         -------
         ids : 1-dimensional array
         """
-        if simname == "csiborg1":
+        if simname == "csiborg1" or simname == "borg1":
             files = glob(join(self.csiborg1_srcdir, "chain_*"))
             files = [int(search(r'chain_(\d+)', f).group(1)) for f in files]
         elif simname == "csiborg2_main" or simname == "borg2":
@@ -410,6 +417,10 @@ class Paths:
         if simname == "borg2":
             return join(self.borg2_dir, f"mcmc_{nsim}.h5")
 
+        if simname == "borg1":
+            #
+            return f"/mnt/zfsusers/hdesmond/BORG_final/mcmc_{nsim}.h5"
+
         if MAS == "SPH" and kind in ["density", "velocity"]:
             if simname == "csiborg1":
                 raise ValueError("SPH field not available for CSiBORG1.")
@@ -624,3 +635,13 @@ class Paths:
         files = glob(join(fdir, f"{simname}_tpcf*"))
         run = "__" + run
         return [f for f in files if run in f]
+
+    def tng300_1(self):
+        """
+        Path to the TNG300-1 simulation directory.
+
+        Returns
+        -------
+        str
+        """
+        return self.tng300_1_dir
