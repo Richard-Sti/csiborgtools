@@ -181,6 +181,68 @@ def enclosed_mass(rdist, mass, distances):
 
 
 ###############################################################################
+#                Calculate enclosed mass from a density field                 #
+###############################################################################
+
+
+@jit(nopython=True)
+def _cell_rdist(i, j, k, Ncells, boxsize):
+    """Radial distance of the center of a cell from the center of the box."""
+    xi = boxsize / Ncells * (i + 0.5) - boxsize / 2
+    yi = boxsize / Ncells * (j + 0.5) - boxsize / 2
+    zi = boxsize / Ncells * (k + 0.5) - boxsize / 2
+
+    return (xi**2 + yi**2 + zi**2)**0.5
+
+
+@jit(nopython=True, boundscheck=False)
+def _field_enclosed_mass(field, rmax, boxsize):
+    Ncells = field.shape[0]
+    cell_volume = (1000 * boxsize / Ncells)**3
+
+    mass = 0.
+    volume = 0.
+    for i in range(Ncells):
+        for j in range(Ncells):
+            for k in range(Ncells):
+                if _cell_rdist(i, j, k, Ncells, boxsize) < rmax:
+                    mass += field[i, j, k]
+                    volume += 1.
+
+    return mass * cell_volume, volume * cell_volume
+
+
+def field_enclosed_mass(field, distances, boxsize):
+    """
+    Calculate the approximate enclosed mass within a given radius from a
+    density field.
+
+    Parameters
+    ----------
+    field : 3-dimensional array
+        Density field in units of `h^2 Msun / kpc^3`.
+    rmax : 1-dimensional array
+        Radii to calculate the enclosed mass at in `Mpc / h`.
+    boxsize : float
+        Box size in `Mpc / h`.
+
+    Returns
+    -------
+    enclosed_mass : 1-dimensional array
+        Enclosed mass at each distance.
+    enclosed_volume : 1-dimensional array
+        Enclosed grid-like volume at each distance.
+    """
+    enclosed_mass = numpy.zeros_like(distances)
+    enclosed_volume = numpy.zeros_like(distances)
+    for i, dist in enumerate(distances):
+        enclosed_mass[i], enclosed_volume[i] = _field_enclosed_mass(
+            field, dist, boxsize)
+
+    return enclosed_mass, enclosed_volume
+
+
+###############################################################################
 #              Calculate the enclosed momentum at each distance               #
 ###############################################################################
 
@@ -236,12 +298,39 @@ def enclosed_momentum(rdist, mass, vel, distances):
 ###############################################################################
 
 
-def main(args):
+def main_borg(args, folder):
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     boxsize = csiborgtools.simname2boxsize(args.simname)
-    distances = numpy.linspace(0, boxsize / 2, 101)[1:]
     nsims = paths.get_ics(args.simname)
-    folder = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_shells"
+    distances = numpy.linspace(0, boxsize / 2, 101)[1:]
+
+    cumulative_mass = numpy.zeros((len(nsims), len(distances)))
+    cumulative_volume = numpy.zeros((len(nsims), len(distances)))
+    for i, nsim in enumerate(tqdm(nsims, desc="Simulations")):
+        if args.simname == "borg1":
+            reader = csiborgtools.read.BORG1Field(nsim)
+            field = reader.density_field()
+        elif args.simname == "borg2":
+            reader = csiborgtools.read.BORG2Field(nsim)
+            field = reader.density_field()
+        else:
+            raise ValueError(f"Unknown simname: `{args.simname}`.")
+
+        cumulative_mass[i, :], cumulative_volume[i, :] = field_enclosed_mass(
+            field, distances, boxsize)
+
+    # Finally save the output
+    fname = f"enclosed_mass_{args.simname}.npz"
+    fname = join(folder, fname)
+    numpy.savez(fname, enclosed_mass=cumulative_mass, distances=distances,
+                enclosed_volume=cumulative_volume)
+
+
+def main_csiborg(args, folder):
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    boxsize = csiborgtools.simname2boxsize(args.simname)
+    nsims = paths.get_ics(args.simname)
+    distances = numpy.linspace(0, boxsize / 2, 101)[1:]
 
     # Initialize arrays to store the results
     cumulative_mass = numpy.zeros((len(nsims), len(distances)))
@@ -275,7 +364,13 @@ def main(args):
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--simname", type=str, help="Simulation name.",
-                        choices=["csiborg1", "csiborg2_main", "csiborg2_varysmall", "csiborg2_random"])  # noqa
+                        choices=["csiborg1", "csiborg2_main", "csiborg2_varysmall", "csiborg2_random", "borg1", "borg2"])  # noqa
     args = parser.parse_args()
 
-    main(args)
+    folder = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_shells"
+    if "csiborg" in args.simname:
+        main_csiborg(args, folder)
+    elif "borg" in args.simname:
+        main_borg(args, folder)
+    else:
+        raise ValueError(f"Unknown simname: `{args.simname}`.")
