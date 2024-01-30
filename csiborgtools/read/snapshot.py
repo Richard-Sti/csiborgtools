@@ -1004,7 +1004,7 @@ class TNG300_1Field(BaseField):
         return density
 
     def density_field(self, MAS, grid):
-        fpath = join(self.paths.tng300_1, "postprocessing", "density_field",
+        fpath = join(self.paths.tng300_1(), "postprocessing", "density_field",
                      f"rho_dm_099_{grid}_{MAS}.npy")
         return numpy.load(fpath)
 
