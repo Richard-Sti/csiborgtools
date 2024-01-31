@@ -1,32 +1,38 @@
+# Python virtual environments
+venv/
 venv_csiborg/
-share/
-bin/
-.bashrc
+
+# Compiled Python files
 *.pyc
+
+# Jupyter Notebook checkpoints
 */.ipynb_checkpoints/
-plots/*
-.vscode/settings.json
-csiborgtools/fits/_halo_profile.py
-csiborgtools/fits/_filenames.py
-csiborgtools/fits/analyse_voids_25.py
-scripts/*.out
-build/*
+
+# Egg-info directories
 .eggs/*
 csiborgtools.egg-info/*
-Pylians3/*
-scripts/plot_correlation.ipynb
-scripts/*.sh
-venv/
-.trunk/*
-scripts_test/
-scripts_plots/python.sh
-scripts_plots/submit.sh
-scripts_plots/*.out
-scripts_plots/*.sh
-notebooks/test.ipynb
-scripts/mgtree.py
-scripts/makemerger.py
 
-*.out
-*/python.sh
+# Build directories
+build/*
+bin/*
+share/*
+
+# Scripts and their outputs
+scripts/*.out
+scripts_plots/*.out
 scripts_independent/clear.sh
+
+# Specific script files
+*python.sh
+*python3.sh
+
+# IDE settings
+.vscode/settings.json
+
+# Miscellaneous
+.bashrc
+*.out
+
+# Generated plots
+plots/*
+
