@@ -26,11 +26,58 @@ from h5py import File
 from mpi4py import MPI
 from taskmaster import work_delegation
 from tqdm import tqdm
+from numba import jit
 
 from utils import get_nsims
 
 
-def open_galaxy_positions(survey_name, comm):
+@jit(nopython=True, fastmath=True, boundscheck=False)
+def scatter_along_radial_direction(pos, scatter, boxsize):
+    """
+    Scatter galaxy positions along the radial direction. Enforces that the
+    radial position is always on the same side of the box and that the galaxy
+    is still inside the box.
+
+    Parameters
+    ----------
+    pos : 2-dimensional array
+        Galaxy positions in the form of (distance, RA, DEC).
+    scatter : float
+        Scatter to add to the radial positions of galaxies in same units as
+        `distance` (Mpc / h).
+    boxsize : float
+        Box size in `Mpc / h`.
+    """
+    pos_new = numpy.copy(pos)
+
+    for i in range(len(pos)):
+        r0, ra, dec = pos[i]
+        # Convert to radians
+        ra *= numpy.pi / 180
+        dec *= numpy.pi / 180
+
+        # Convert to normalized Cartesian coordinates
+        xnorm = numpy.cos(dec) * numpy.cos(ra)
+        ynorm = numpy.cos(dec) * numpy.sin(ra)
+        znorm = numpy.sin(dec)
+
+        while True:
+            rnew = numpy.random.normal(r0, scatter)
+            if rnew < 0:
+                continue
+
+            xnew = rnew * xnorm + boxsize / 2
+            ynew = rnew * ynorm + boxsize / 2
+            znew = rnew * znorm + boxsize / 2
+
+            if 0 <= xnew < boxsize and 0 <= ynew < boxsize and 0 <= znew < boxsize:  # noqa
+                pos_new[i, 0] = rnew
+                break
+
+    return pos_new
+
+
+def open_galaxy_positions(survey_name, comm, scatter=None):
     """
     Load the survey's galaxy positions , broadcasting them to all ranks.
 
@@ -40,6 +87,9 @@ def open_galaxy_positions(survey_name, comm):
         Name of the survey.
     comm : mpi4py.MPI.Comm
         MPI communicator.
+    scatter : float
+        Scatter to add to the radial positions of galaxies, supportted only in
+        TNG300-1.
 
     Returns
     -------
@@ -77,9 +127,18 @@ def open_galaxy_positions(survey_name, comm):
                                     f["SubhaloPos"][:, 1],
                                     f["SubhaloPos"][:, 2]],
                                    ).T
-                pos -= csiborgtools.simname2boxsize("TNG300-1") / 2
+                boxsize = csiborgtools.simname2boxsize("TNG300-1")
+                pos -= boxsize / 2
                 pos = csiborgtools.cartesian_to_radec(pos)
-            pass
+                if scatter is not None:
+                    if scatter < 0:
+                        raise ValueError("Scatter must be positive.")
+                    if scatter > 0:
+                        print(f"Adding scatter of {scatter} Mpc / h.",
+                              flush=True)
+                        pos = scatter_along_radial_direction(pos, scatter,
+                                                             boxsize)
+
         else:
             raise NotImplementedError(f"Survey `{survey_name}` not "
                                       "implemented.")
@@ -127,7 +186,7 @@ def evaluate_field(field, pos, boxsize, smooth_scales, verbose=True):
                 field, scale * mpc2box, boxsize=1, make_copy=True)
         else:
             field_smoothed = numpy.copy(field)
-
+        print("Going to evaluate the field....")
         val[:, i] = csiborgtools.field.evaluate_sky(
             field_smoothed, pos=pos, mpc2box=mpc2box)
 
@@ -210,9 +269,14 @@ def main(nsim, parser_args, pos, verbose):
             "/mnt/extraspace/rstiskalek/GWLSS/",
             f"{parser_args.kind}_{parser_args.MAS}_{parser_args.grid}_{nsim}_H1L1V1-EXTRACT_POSTERIOR_GW170817-1187008600-400.npz")  # noqa
     else:
+        if parser_args.simname == "TNG300-1":
+            scatter = parser_args.scatter
+        else:
+            scatter = None
+
         fout = paths.field_interpolated(
             parser_args.survey, parser_args.simname, nsim, parser_args.kind,
-            parser_args.MAS, parser_args.grid)
+            parser_args.MAS, parser_args.grid, scatter)
 
         # The survey above had some cuts, however for compatibility we want
         # the same shape as the `uncut` survey
@@ -245,7 +309,7 @@ if __name__ == "__main__":
                         choices=["NGP", "CIC", "TSC", "PCS", "SPH"],
                         help="Mass assignment scheme.")
     parser.add_argument("--grid", type=int, help="Grid resolution.")
-    parser.add_argument("--scatter", type=float, default=0,
+    parser.add_argument("--scatter", type=float, default=None,
                         help="Scatter to add to the radial positions of galaxies, supportted only in TNG300-1.")  # noqa
     args = parser.parse_args()
 
@@ -258,7 +322,7 @@ if __name__ == "__main__":
     else:
         nsims = get_nsims(args, paths)
 
-    pos = open_galaxy_positions(args.survey, MPI.COMM_WORLD)
+    pos = open_galaxy_positions(args.survey, MPI.COMM_WORLD, args.scatter)
 
     def _main(nsim):
         main(nsim, args, pos, verbose=MPI.COMM_WORLD.Get_size() == 1)
