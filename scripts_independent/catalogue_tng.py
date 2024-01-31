@@ -34,9 +34,11 @@ if __name__ == "__main__":
 
     print("Loading the data.....")
     data = il.groupcat.loadSubhalos(basepath, 99, fields=fields)
+    data["SubhaloPos"] /= 1000.  # Convert to Mpc/h
     print("Finished loading!")
 
-    is_subhalo = data["SubhaloFlag"] == 1
+    # Take only galaxies with stellar mass more than 10^9 Msun / h
+    mask = (data["SubhaloFlag"] == 1) & (data["SubhaloMassType"][:, 4] > 0.1)
 
     print(f"Writing the subfind dataset to '{out_fname}'")
     with File(out_fname, 'w') as f:
@@ -44,7 +46,7 @@ if __name__ == "__main__":
             if key == "SubhaloFlag":
                 continue
 
-            f.create_dataset(key, data=data[key][is_subhalo])
+            f.create_dataset(key, data=data[key][mask])
 
     # HIH2 supplemetary catalogue
     print("Loading the HI & H2 supplementary catalogue.")
@@ -59,4 +61,4 @@ if __name__ == "__main__":
 
     print("Adding the HI & H2 supplementary catalogue.")
     with File(out_fname, 'r+') as f:
-        f.create_dataset("m_neutral_H", data=m_neutral_H[is_subhalo])
+        f.create_dataset("m_neutral_H", data=m_neutral_H[mask])
