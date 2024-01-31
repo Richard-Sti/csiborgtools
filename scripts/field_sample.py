@@ -245,6 +245,8 @@ if __name__ == "__main__":
                         choices=["NGP", "CIC", "TSC", "PCS", "SPH"],
                         help="Mass assignment scheme.")
     parser.add_argument("--grid", type=int, help="Grid resolution.")
+    parser.add_argument("--scatter", type=float, default=0,
+                        help="Scatter to add to the radial positions of galaxies, supportted only in TNG300-1.")  # noqa
     args = parser.parse_args()
 
     if args.simname == "TNG300-1" and args.survey != "TNG300-1":
