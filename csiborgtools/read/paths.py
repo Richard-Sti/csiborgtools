@@ -467,9 +467,10 @@ class Paths:
         fname = f"observer_peculiar_velocity_{simname}_{MAS}_{str(nsim).zfill(5)}_{grid}.npz"  # noqa
         return join(fdir, fname)
 
-    def field_interpolated(self, survey, simname, nsim, kind, MAS, grid):
+    def field_interpolated(self, survey, simname, nsim, kind, MAS, grid,
+                           radial_scatter=None):
         """
-        Path to the files containing the CSiBORG interpolated field for a given
+        Path to the files containing the interpolated field for a given
         survey.
 
         Parameters
@@ -486,13 +487,16 @@ class Paths:
            Mass-assignment scheme.
         grid : int
             Grid size.
+        radial_scatter : float, optional
+            Radial scatter added to the galaxy positions, only supported for
+            TNG300-1.
 
         Returns
         -------
         str
         """
-        if "csiborg" not in simname:
-            raise ValueError("Interpolated field only available for CSiBORG.")
+
+        # # In case the galaxy positions of TNG300-1 were scattered..
 
         if kind not in ["density", "potential", "radvel"]:
             raise ValueError("Unsupported field type.")
@@ -501,7 +505,12 @@ class Paths:
         try_create_directory(fdir)
 
         nsim = str(nsim).zfill(5)
-        return join(fdir, f"{survey}_{simname}_{kind}_{MAS}_{nsim}_{grid}.npz")
+        fname = join(fdir, f"{survey}_{simname}_{kind}_{MAS}_{nsim}_{grid}.npz")  # noqa
+
+        if simname == "TNG300-1" and radial_scatter is not None:
+            fname = fname.replace(".npz", f"_scatter{radial_scatter}.npz")
+
+        return fname
 
     def cross_nearest(self, simname, run, kind, nsim=None, nobs=None):
         """
