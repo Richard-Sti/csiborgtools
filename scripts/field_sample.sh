@@ -13,9 +13,10 @@ smooth_scales="0 2 4 8 16"
 kind="density"
 MAS="PCS"
 grid=1024
+scatter=1
 
 
-pythoncm="$env $file --nsims $nsims --simname $simname --survey $survey --smooth_scales $smooth_scales --kind $kind --MAS $MAS --grid $grid"
+pythoncm="$env $file --nsims $nsims --simname $simname --survey $survey --smooth_scales $smooth_scales --kind $kind --MAS $MAS --grid $grid --scatter $scatter"
 if [ $on_login -eq 1 ]; then
     echo $pythoncm
     $pythoncm
