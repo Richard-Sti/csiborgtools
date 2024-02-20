@@ -18,6 +18,7 @@ imports.
 """
 from numba import jit
 import numpy
+import healpy
 
 
 def force_single_precision(x):
@@ -42,3 +43,26 @@ def divide_nonzero(field0, field1):
             for k in range(kmax):
                 if field1[i, j, k] != 0:
                     field0[i, j, k] /= field1[i, j, k]
+
+
+def nside2radec(nside):
+    """
+    Generate RA [0, 360] deg. and declination [-90, 90] deg for HEALPix pixel
+    centres at a given nside.
+
+    Parameters
+    ----------
+    nside : int
+        HEALPix nside.
+
+    Returns
+    -------
+    angpos : 2-dimensional array of shape (npix, 2)
+    """
+    pixs = numpy.arange(healpy.nside2npix(nside))
+    theta, phi = healpy.pix2ang(nside, pixs)
+
+    ra = 180 / numpy.pi * phi
+    dec = 90 - 180 / numpy.pi * theta
+
+    return numpy.vstack([ra, dec]).T

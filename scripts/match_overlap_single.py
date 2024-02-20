@@ -97,32 +97,54 @@ def pair_match(nsim0, nsimx, simname, min_logmass, sigma, verbose):
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     smooth_kwargs = {"sigma": sigma, "mode": "constant", "cval": 0}
-    bounds = {"lagpatch_size": (0, None)}
+    bounds = {"lagpatch_radius": (0, None)}
 
     if simname == "csiborg1":
         overlapper_kwargs = {"box_size": 2048, "bckg_halfsize": 512}
-        bounds |= {"dist": (0, 150), "totmass": (10**min_logmass, None)}
+        bounds |= {"dist": (0, 135), "totmass": (10**min_logmass, None)}
 
-        snap0 = csiborgtools.read.CSIBORG1Snapshot(nsim0, 0)
-        cat0 = csiborgtools.read.CSiBORG1Catalogue(nsim0, snapshot=snap0,
-                                                   bounds=bounds)
+        # Reference simulation.
+        snap0 = csiborgtools.read.CSiBORG1Snapshot(
+            nsim0, 1, keep_snapshot_open=True)
+        cat0 = csiborgtools.read.CSiBORG1Catalogue(
+            nsim0, snapshot=snap0, bounds=bounds)
 
-        snapx = csiborgtools.read.CSIBORG1Snapshot(nsimx, 0)
-        catx = csiborgtools.read.CSiBORGCatalogue(nsimx, snapshot=snapx,
-                                                  bounds=bounds)
+        # Cross simulation.
+        snapx = csiborgtools.read.CSiBORG1Snapshot(
+            nsimx, 1, keep_snapshot_open=True)
+        catx = csiborgtools.read.CSiBORG1Catalogue(
+            nsimx, snapshot=snapx, bounds=bounds)
     elif "csiborg2" in simname:
-        raise RuntimeError("CSiBORG2 currently not implemented..")
+        kind = simname.split("_")[-1]
+        overlapper_kwargs = {"box_size": 2048, "bckg_halfsize": 512}
+        bounds |= {"dist": (0, 135), "totmass": (10**min_logmass, None)}
+
+        # Reference simulation.
+        snap0 = csiborgtools.read.CSiBORG2Snapshot(
+            nsim0, 99, kind, keep_snapshot_open=True)
+        cat0 = csiborgtools.read.CSiBORG2Catalogue(
+            nsim0, 99, kind, snapshot=snap0, bounds=bounds)
+
+        # Cross simulation.
+        snapx = csiborgtools.read.CSiBORG2Snapshot(
+            nsimx, 99, kind, keep_snapshot_open=True)
+        catx = csiborgtools.read.CSiBORG2Catalogue(
+            nsimx, 99, kind, snapshot=snapx, bounds=bounds)
     elif simname == "quijote":
         overlapper_kwargs = {"box_size": 512, "bckg_halfsize": 256}
         bounds |= {"totmass": (10**min_logmass, None)}
 
-        snap0 = csiborgtools.read.QuijoteSnapshot(nsim0, "ICs")
-        cat0 = csiborgtools.read.QuijoteCatalogue(nsim0, snapshot=snap0,
-                                                  bounds=bounds)
+        # Reference simulation.
+        snap0 = csiborgtools.read.QuijoteSnapshot(
+            nsim0, "ICs", keep_snapshot_open=True)
+        cat0 = csiborgtools.read.QuijoteCatalogue(
+            nsim0, snapshot=snap0, bounds=bounds)
 
-        snapx = csiborgtools.read.QuijoteSnapshot(nsimx, "ICs")
-        catx = csiborgtools.read.QuijoteCatalogue(nsimx, snapshot=snapx,
-                                                  bounds=bounds)
+        # Cross simulation.
+        snapx = csiborgtools.read.QuijoteSnapshot(
+            nsimx, "ICs", keep_snapshot_open=True)
+        catx = csiborgtools.read.QuijoteCatalogue(
+            nsimx, snapshot=snapx, bounds=bounds)
     else:
         raise ValueError(f"Unknown simulation name: `{simname}`.")
 

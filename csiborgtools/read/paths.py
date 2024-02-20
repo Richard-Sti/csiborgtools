@@ -53,6 +53,12 @@ class Paths:
         Path to the CSiBORG post-processing directory.
     quijote_dir : str
         Path to the Quijote simulation directory.
+    borg1_dir : str
+        Path to the BORG1 simulation directory.
+    borg2_dir : str
+        Path to the BORG2 simulation directory.
+    tng300_1_dir : str
+        Path to the TNG300-1 simulation directory.
     """
     def __init__(self,
                  csiborg1_srcdir,
@@ -61,13 +67,18 @@ class Paths:
                  csiborg2_varysmall_srcdir,
                  postdir,
                  quijote_dir,
+                 borg1_dir,
+                 borg2_dir,
+                 tng300_1_dir
                  ):
         self.csiborg1_srcdir = csiborg1_srcdir
         self.csiborg2_main_srcdir = csiborg2_main_srcdir
         self.csiborg2_random_srcdir = csiborg2_random_srcdir
         self.csiborg2_varysmall_srcdir = csiborg2_varysmall_srcdir
         self.quijote_dir = quijote_dir
-
+        self.borg1_dir = borg1_dir
+        self.borg2_dir = borg2_dir
+        self.tng300_1_dir = tng300_1_dir
         self.postdir = postdir
 
     def get_ics(self, simname):
@@ -83,10 +94,10 @@ class Paths:
         -------
         ids : 1-dimensional array
         """
-        if simname == "csiborg1":
+        if simname == "csiborg1" or simname == "borg1":
             files = glob(join(self.csiborg1_srcdir, "chain_*"))
             files = [int(search(r'chain_(\d+)', f).group(1)) for f in files]
-        elif simname == "csiborg2_main":
+        elif simname == "csiborg2_main" or simname == "borg2":
             files = glob(join(self.csiborg2_main_srcdir, "chain_*"))
             files = [int(search(r'chain_(\d+)', f).group(1)) for f in files]
         elif simname == "csiborg2_random":
@@ -175,24 +186,26 @@ class Paths:
         str
         """
         if simname == "csiborg1":
-            return join(self.csiborg1_srcdir, f"chain_{nsim}",
-                        f"snapshot_{str(nsnap).zfill(5)}.hdf5")
+            fpath = join(self.csiborg1_srcdir, f"chain_{nsim}",
+                         f"snapshot_{str(nsnap).zfill(5)}.hdf5")
         elif simname == "csiborg2_main":
-            return join(self.csiborg2_main_srcdir, f"chain_{nsim}", "output",
-                        f"snapshot_{str(nsnap).zfill(3)}.hdf5")
+            fpath = join(self.csiborg2_main_srcdir, f"chain_{nsim}", "output",
+                         f"snapshot_{str(nsnap).zfill(3)}.hdf5")
         elif simname == "csiborg2_random":
-            return join(self.csiborg2_random_srcdir, f"chain_{nsim}", "output",
-                        f"snapshot_{str(nsnap).zfill(3)}.hdf5")
+            fpath = join(self.csiborg2_random_srcdir, f"chain_{nsim}",
+                         "output", f"snapshot_{str(nsnap).zfill(3)}.hdf5")
         elif simname == "csiborg2_varysmall":
-            return join(self.csiborg2_varysmall_srcdir,
-                        f"chain_16417_{str(nsim).zfill(3)}", "output",
-                        f"snapshot_{str(nsnap).zfill(3)}.hdf5")
+            fpath = join(self.csiborg2_varysmall_srcdir,
+                         f"chain_16417_{str(nsim).zfill(3)}", "output",
+                         f"snapshot_{str(nsnap).zfill(3)}.hdf5")
         elif simname == "quijote":
-            return join(self.quijote_dir, "fiducial_processed",
-                        f"chain_{nsim}",
-                        f"snapshot_{str(nsnap).zfill(3)}.hdf5")
+            fpath = join(self.quijote_dir, "fiducial_processed",
+                         f"chain_{nsim}",
+                         f"snapshot_{str(nsnap).zfill(3)}.hdf5")
         else:
             raise ValueError(f"Unknown simulation name `{simname}`.")
+
+        return fpath
 
     def snapshot_catalogue(self, nsnap, nsim, simname):
         """
@@ -218,7 +231,7 @@ class Paths:
             return join(self.csiborg2_main_srcdir, f"chain_{nsim}", "output",
                         f"fof_subhalo_tab_{str(nsnap).zfill(3)}.hdf5")
         elif simname == "csiborg2_random":
-            return join(self.csiborg2_ranodm_srcdir, f"chain_{nsim}", "output",
+            return join(self.csiborg2_random_srcdir, f"chain_{nsim}", "output",
                         f"fof_subhalo_tab_{str(nsnap).zfill(3)}.hdf5")
         elif simname == "csiborg2_varysmall":
             return join(self.csiborg2_varysmall_srcdir,
@@ -228,6 +241,40 @@ class Paths:
             return join(self.quijote_dir, "fiducial_processed",
                         f"chain_{nsim}",
                         f"fof_{str(nsnap).zfill(3)}.hdf5")
+        else:
+            raise ValueError(f"Unknown simulation name `{simname}`.")
+
+    def initial_lagpatch(self, nsim, simname):
+        """
+        Path to the Lagrangain patch information of a simulation for halos
+        defined at z = 0.
+
+        Parameters
+        ----------
+        nsim : int
+            IC realisation index.
+        simname : str
+            Simulation name.
+
+        Returns
+        -------
+        str
+        """
+        if simname == "csiborg1":
+            return join(self.csiborg1_srcdir, f"chain_{nsim}",
+                        "initial_lagpatch.npy")
+        elif simname == "csiborg2_main":
+            return join(self.csiborg2_main_srcdir, "catalogues",
+                        f"initial_lagpatch_{nsim}.npy")
+        elif simname == "csiborg2_random":
+            return join(self.csiborg2_random_srcdir, "catalogues",
+                        f"initial_lagpatch_{nsim}.npy")
+        elif simname == "csiborg2_varysmall":
+            return join(self.csiborg2_varysmall_srcdir, "catalogues",
+                        f"initial_lagpatch_{nsim}.npy")
+        elif simname == "quijote":
+            return join(self.quijote_dir, "fiducial_processed",
+                        f"chain_{nsim}", "initial_lagpatch.npy")
         else:
             raise ValueError(f"Unknown simulation name `{simname}`.")
 
@@ -284,7 +331,7 @@ class Paths:
         -------
         str
         """
-        if simname == "csiborg":
+        if "csiborg" in simname:
             fdir = join(self.postdir, "overlap")
         elif simname == "quijote":
             fdir = join(self.quijote_dir, "overlap")
@@ -297,7 +344,7 @@ class Paths:
         nsimx = str(nsimx).zfill(5)
         min_logmass = float('%.4g' % min_logmass)
 
-        fname = f"overlap_{nsim0}_{nsimx}_{min_logmass}.npz"
+        fname = f"overlap_{simname}_{nsim0}_{nsimx}_{min_logmass}.npz"
         if smoothed:
             fname = fname.replace("overlap", "overlap_smoothed")
         return join(fdir, fname)
@@ -367,6 +414,13 @@ class Paths:
         -------
         str
         """
+        if simname == "borg2":
+            return join(self.borg2_dir, f"mcmc_{nsim}.h5")
+
+        if simname == "borg1":
+            #
+            return f"/mnt/zfsusers/hdesmond/BORG_final/mcmc_{nsim}.h5"
+
         if MAS == "SPH" and kind in ["density", "velocity"]:
             if simname == "csiborg1":
                 raise ValueError("SPH field not available for CSiBORG1.")
@@ -413,9 +467,10 @@ class Paths:
         fname = f"observer_peculiar_velocity_{simname}_{MAS}_{str(nsim).zfill(5)}_{grid}.npz"  # noqa
         return join(fdir, fname)
 
-    def field_interpolated(self, survey, simname, nsim, kind, MAS, grid):
+    def field_interpolated(self, survey, simname, nsim, kind, MAS, grid,
+                           radial_scatter=None):
         """
-        Path to the files containing the CSiBORG interpolated field for a given
+        Path to the files containing the interpolated field for a given
         survey.
 
         Parameters
@@ -432,13 +487,16 @@ class Paths:
            Mass-assignment scheme.
         grid : int
             Grid size.
+        radial_scatter : float, optional
+            Radial scatter added to the galaxy positions, only supported for
+            TNG300-1.
 
         Returns
         -------
         str
         """
-        if "csiborg" not in simname:
-            raise ValueError("Interpolated field only available for CSiBORG.")
+
+        # # In case the galaxy positions of TNG300-1 were scattered..
 
         if kind not in ["density", "potential", "radvel"]:
             raise ValueError("Unsupported field type.")
@@ -447,7 +505,12 @@ class Paths:
         try_create_directory(fdir)
 
         nsim = str(nsim).zfill(5)
-        return join(fdir, f"{survey}_{simname}_{kind}_{MAS}_{nsim}_{grid}.npz")
+        fname = join(fdir, f"{survey}_{simname}_{kind}_{MAS}_{nsim}_{grid}.npz")  # noqa
+
+        if simname == "TNG300-1" and radial_scatter is not None:
+            fname = fname.replace(".npz", f"_scatter{radial_scatter}.npz")
+
+        return fname
 
     def cross_nearest(self, simname, run, kind, nsim=None, nobs=None):
         """
@@ -581,3 +644,13 @@ class Paths:
         files = glob(join(fdir, f"{simname}_tpcf*"))
         run = "__" + run
         return [f for f in files if run in f]
+
+    def tng300_1(self):
+        """
+        Path to the TNG300-1 simulation directory.
+
+        Returns
+        -------
+        str
+        """
+        return self.tng300_1_dir

@@ -14,7 +14,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 Script to write the SLURM submission script and submit it to the queue to
-calculate the SPH density & velocity field.
+calculate the SPH density & velocity field for GADGET.
 """
 from os import system
 from os.path import join
@@ -75,7 +75,7 @@ scratch_space="/snap8/scratch/dp016/dc-stis1/"
 SPH_executable="/cosma8/data/dp016/dc-stis1/cosmotool/bld2/sample/simple3DFilter"
 snapshot_kind={snapshot_kind}
 
-python3 field_sph.py --snapshot_path $snapshot_path --output_path $output_path --resolution $resolution --scratch_space $scratch_space --SPH_executable $SPH_executable --snapshot_kind $snapshot_kind
+python3 field_sph_gadget.py --snapshot_path $snapshot_path --output_path $output_path --resolution $resolution --scratch_space $scratch_space --SPH_executable $SPH_executable --snapshot_kind $snapshot_kind
 """
     fname = f"submit_SPH_{kind}_{chain_index}.sh"
     print(f"Writing file:  `{fname}`.")

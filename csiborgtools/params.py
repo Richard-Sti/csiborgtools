@@ -34,7 +34,10 @@ def simname2boxsize(simname):
          "csiborg2_main": 676.6,
          "csiborg2_varysmall": 676.6,
          "csiborg2_random": 676.6,
-         "quijote": 1000.
+         "borg1": 677.7,
+         "borg2": 676.6,
+         "quijote": 1000.,
+         "TNG300-1": 205.
          }
 
     boxsize = d.get(simname, None)
@@ -52,6 +55,9 @@ paths_glamdring = {
     "csiborg2_random_srcdir": "/mnt/extraspace/rstiskalek/csiborg2_random",         # noqa
     "postdir": "/mnt/extraspace/rstiskalek/csiborg_postprocessing/",
     "quijote_dir": "/mnt/extraspace/rstiskalek/quijote",
+    "borg1_dir": "/mnt/users/hdesmond/BORG_final",
+    "borg2_dir": "/mnt/extraspace/rstiskalek/BORG_STOPYRA_2023",
+    "tng300_1_dir": "/mnt/extraspace/rstiskalek/TNG300-1/",
     }
 
 

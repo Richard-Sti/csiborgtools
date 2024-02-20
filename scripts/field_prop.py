@@ -53,10 +53,10 @@ def density_field(nsim, parser_args):
 
     # Read in the particle coordinates and masses
     if parser_args.simname == "csiborg1":
-        snapshot = csiborgtools.read.CSIBORG1Snapshot(nsim, nsnap, paths)
+        snapshot = csiborgtools.read.CSiBORG1Snapshot(nsim, nsnap, paths)
     elif "csiborg2" in parser_args.simname:
         kind = parser_args.simname.split("_")[-1]
-        snapshot = csiborgtools.read.CSIBORG2Snapshot(nsim, nsnap, paths, kind)
+        snapshot = csiborgtools.read.CSiBORG2Snapshot(nsim, nsnap, paths, kind)
     elif parser_args.simname == "quijote":
         snapshot = csiborgtools.read.QuijoteSnapshot(nsim, nsnap, paths)
     else:
@@ -106,10 +106,10 @@ def velocity_field(nsim, parser_args):
     nsnap = max(paths.get_snapshots(nsim, parser_args.simname))
 
     if parser_args.simname == "csiborg1":
-        snapshot = csiborgtools.read.CSIBORG1Snapshot(nsim, nsnap, paths)
+        snapshot = csiborgtools.read.CSiBORG1Snapshot(nsim, nsnap, paths)
     elif "csiborg2" in parser_args.simname:
         kind = parser_args.simname.split("_")[-1]
-        snapshot = csiborgtools.read.CSIBORG2Snapshot(nsim, nsnap, kind, paths)
+        snapshot = csiborgtools.read.CSiBORG2Snapshot(nsim, nsnap, kind, paths)
     elif parser_args.simname == "quijote":
         snapshot = csiborgtools.read.QuijoteSnapshot(nsim, nsnap, paths)
     else:

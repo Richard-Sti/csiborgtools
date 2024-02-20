@@ -18,6 +18,7 @@ should be implemented things such as flipping x- and z-axes, to make sure that
 observed RA-dec can be mapped into the simulation box.
 """
 from abc import ABC, abstractmethod, abstractproperty
+from os.path import join
 
 import numpy
 from h5py import File
@@ -35,14 +36,26 @@ class BaseSnapshot(ABC):
     """
     Base class for reading snapshots.
     """
-    def __init__(self, nsim, nsnap, paths):
-        if not isinstance(nsim, int):
-            raise TypeError("`nsim` must be an integer")
-        self._nsim = nsim
+    def __init__(self, nsim, nsnap, paths, keep_snapshot_open=False,
+                 flip_xz=False):
+        self._keep_snapshot_open = None
 
-        if not isinstance(nsnap, int):
+        if not isinstance(nsim, (int, numpy.integer)):
+            raise TypeError("`nsim` must be an integer")
+        self._nsim = int(nsim)
+
+        if not isinstance(nsnap, (int, numpy.integer)):
             raise TypeError("`nsnap` must be an integer")
-        self._nsnap = nsnap
+        self._nsnap = int(nsnap)
+
+        if not isinstance(keep_snapshot_open, bool):
+            raise TypeError("`keep_snapshot_open` must be a boolean.")
+        self._keep_snapshot_open = keep_snapshot_open
+        self._snapshot_file = None
+
+        if not isinstance(flip_xz, bool):
+            raise TypeError("`flip_xz` must be a boolean.")
+        self._flip_xz = flip_xz
 
         self._paths = paths
         self._hid2offset = None
@@ -105,6 +118,30 @@ class BaseSnapshot(ABC):
         if self._paths is None:
             self._paths = Paths(**paths_glamdring)
         return self._paths
+
+    @property
+    def keep_snapshot_open(self):
+        """
+        Whether to keep the snapshot file open when reading halo particles.
+        This is useful for repeated access to the snapshot.
+
+        Returns
+        -------
+        bool
+        """
+        return self._keep_snapshot_open
+
+    @property
+    def flip_xz(self):
+        """
+        Whether to flip the x- and z-axes to undo the MUSIC bug so that the
+        coordinates are consistent with observations.
+
+        Returns
+        -------
+        bool
+        """
+        return self._flip_xz
 
     @abstractproperty
     def coordinates(self):
@@ -221,6 +258,43 @@ class BaseSnapshot(ABC):
         """
         pass
 
+    def open_snapshot(self):
+        """
+        Open the snapshot file, particularly used in the context of loading in
+        particles of individual haloes.
+
+        Returns
+        -------
+        h5py.File
+        """
+        if not self.keep_snapshot_open:
+            # Check if the snapshot path is set
+            if not hasattr(self, "_snapshot_path"):
+                raise RuntimeError("Snapshot path not set.")
+
+            return File(self._snapshot_path, "r")
+
+        # Here if we want to keep the snapshot open
+        if self._snapshot_file is None:
+            self._snapshot_file = File(self._snapshot_path, "r")
+
+        return self._snapshot_file
+
+    def close_snapshot(self):
+        """
+        Close the snapshot file opened with `open_snapshot`.
+
+        Returns
+        -------
+        None
+        """
+        if not self.keep_snapshot_open:
+            return
+
+        if self._snapshot_file is not None:
+            self._snapshot_file.close()
+            self._snapshot_file = None
+
     def select_box(self, center, boxwidth):
         """
         Find particle coordinates of particles within a box of size `boxwidth`
@@ -248,10 +322,11 @@ class BaseSnapshot(ABC):
 ###############################################################################
 
 
-class CSIBORG1Snapshot(BaseSnapshot):
+class CSiBORG1Snapshot(BaseSnapshot):
     """
     CSiBORG1 snapshot class with the FoF halo finder particle assignment.
-    CSiBORG1 was run with RAMSES.
+    CSiBORG1 was run with RAMSES. Note that the haloes are defined at z = 0 and
+    index from 1.
 
     Parameters
     ----------
@@ -261,9 +336,16 @@ class CSIBORG1Snapshot(BaseSnapshot):
         Snapshot index.
     paths : Paths, optional
         Paths object.
+    keep_snapshot_open : bool, optional
+        Whether to keep the snapshot file open when reading halo particles.
+        This is useful for repeated access to the snapshot.
+    flip_xz : bool, optional
+        Whether to flip the x- and z-axes to undo the MUSIC bug so that the
+        coordinates are consistent with observations.
     """
-    def __init__(self, nsim, nsnap, paths=None):
-        super().__init__(nsim, nsnap, paths)
+    def __init__(self, nsim, nsnap, paths=None, keep_snapshot_open=False,
+                 flip_xz=False):
+        super().__init__(nsim, nsnap, paths, keep_snapshot_open, flip_xz)
         self._snapshot_path = self.paths.snapshot(
             self.nsnap, self.nsim, "csiborg1")
         self._simname = "csiborg1"
@@ -271,6 +353,9 @@ class CSIBORG1Snapshot(BaseSnapshot):
     def _get_particles(self, kind):
         with File(self._snapshot_path, "r") as f:
             x = f[kind][...]
+
+        if self.flip_xz and kind in ["Coordinates", "Velocities"]:
+            x[:, [0, 2]] = x[:, [2, 0]]
 
         return x
 
@@ -293,13 +378,18 @@ class CSIBORG1Snapshot(BaseSnapshot):
         if not is_group:
             raise ValueError("There is no subhalo catalogue for CSiBORG1.")
 
-        with File(self._snapshot_path, "r") as f:
-            i, j = self.hid2offset.get(halo_id, (None, None))
+        f = self.open_snapshot()
+        i, j = self.hid2offset.get(halo_id, (None, None))
+        if i is None:
+            raise ValueError(f"Halo `{halo_id}` not found.")
 
-            if i is None:
-                raise ValueError(f"Halo `{halo_id}` not found.")
+        x = f[kind][i:j + 1]
 
-            x = f[kind][i:j + 1]
+        if not self.keep_snapshot_open:
+            self.close_snapshot()
+
+        if self.flip_xz and kind in ["Coordinates", "Velocities"]:
+            x[:, [0, 2]] = x[:, [2, 0]]
 
         return x
 
@@ -313,8 +403,9 @@ class CSIBORG1Snapshot(BaseSnapshot):
         return self._get_halo_particles(halo_id, "Masses", is_group)
 
     def _make_hid2offset(self):
+        nsnap = max(self.paths.get_snapshots(self.nsim, "csiborg1"))
         catalogue_path = self.paths.snapshot_catalogue(
-            self.nsnap, self.nsim, "csiborg1")
+            nsnap, self.nsim, "csiborg1")
 
         with File(catalogue_path, "r") as f:
             offset = f["GroupOffset"][:]
@@ -326,7 +417,7 @@ class CSIBORG1Snapshot(BaseSnapshot):
 #                          CSiBORG2 snapshot class                            #
 ###############################################################################
 
-class CSIBORG2Snapshot(BaseSnapshot):
+class CSiBORG2Snapshot(BaseSnapshot):
     """
     CSiBORG2 snapshot class with the FoF halo finder particle assignment and
     SUBFIND subhalo finder. The simulations were run with Gadget4.
@@ -341,9 +432,16 @@ class CSIBORG2Snapshot(BaseSnapshot):
         CSiBORG2 run kind. One of `main`, `random`, or `varysmall`.
     paths : Paths, optional
         Paths object.
+    keep_snapshot_open : bool, optional
+        Whether to keep the snapshot file open when reading halo particles.
+        This is useful for repeated access to the snapshot.
+    flip_xz : bool, optional
+        Whether to flip the x- and z-axes to undo the MUSIC bug so that the
+        coordinates are consistent with observations.
     """
-    def __init__(self, nsim, nsnap, kind, paths=None):
-        super().__init__(nsim, nsnap, paths)
+    def __init__(self, nsim, nsnap, kind, paths=None,
+                 keep_snapshot_open=False, flip_xz=False):
+        super().__init__(nsim, nsnap, paths, keep_snapshot_open, flip_xz)
         self.kind = kind
 
         fpath = self.paths.snapshot(self.nsnap, self.nsim,
@@ -390,6 +488,9 @@ class CSIBORG2Snapshot(BaseSnapshot):
             else:
                 x = numpy.vstack([x, f[f"PartType5/{kind}"][...]])
 
+        if self.flip_xz and kind in ["Coordinates", "Velocities"]:
+            x[:, [0, 2]] = x[:, [2, 0]]
+
         return x
 
     def coordinates(self):
@@ -408,26 +509,39 @@ class CSIBORG2Snapshot(BaseSnapshot):
         if not is_group:
             raise RuntimeError("While the CSiBORG2 subhalo catalogue exists, it is not currently implemented.")  # noqa
 
-        with File(self._snapshot_path, "r") as f:
-            i1, j1 = self.hid2offset["type1"].get(halo_id, (None, None))
-            i5, j5 = self.hid2offset["type5"].get(halo_id, (None, None))
+        f = self.open_snapshot()
+        i1, j1 = self.hid2offset["type1"].get(halo_id, (None, None))
+        i5, j5 = self.hid2offset["type5"].get(halo_id, (None, None))
 
-            # Check if this is a valid halo
-            if i1 is None and i5 is None:
-                raise ValueError(f"Halo `{halo_id}` not found.")
-            if j1 - i1 == 0 and j5 - i5 == 0:
-                raise ValueError(f"Halo `{halo_id}` has no particles.")
+        # Check if this is a valid halo
+        if i1 is None and i5 is None:
+            raise ValueError(f"Halo `{halo_id}` not found.")
+        if j1 - i1 == 0 and j5 - i5 == 0:
+            raise ValueError(f"Halo `{halo_id}` has no particles.")
 
-            if i1 is not None and j1 - i1 > 0:
-                if kind == "Masses":
-                    x1 = numpy.ones(j1 - i1, dtype=numpy.float32)
-                    x1 *= f["Header"].attrs["MassTable"][1]
-                else:
-                    x1 = f[f"PartType1/{kind}"][i1:j1]
+        if i1 is not None and j1 - i1 > 0:
+            if kind == "Masses":
+                x1 = numpy.ones(j1 - i1, dtype=numpy.float32)
+                x1 *= f["Header"].attrs["MassTable"][1]
+            else:
+                x1 = f[f"PartType1/{kind}"][i1:j1]
 
-            if i5 is not None and j5 - i5 > 0:
-                x5 = f[f"PartType5/{kind}"][i5:j5]
+                # Flipping of x- and z-axes
+                if self.flip_xz:
+                    x1[:, [0, 2]] = x1[:, [2, 0]]
 
+        if i5 is not None and j5 - i5 > 0:
+            x5 = f[f"PartType5/{kind}"][i5:j5]
+
+            # Flipping of x- and z-axes
+            if self.flip_xz and kind in ["Coordinates", "Velocities"]:
+                x5[:, [0, 2]] = x5[:, [2, 0]]
+
+        # Close the snapshot file if we don't want to keep it open
+        if not self.keep_snapshot_open:
+            self.close_snapshot()
+
+        # Are we stacking high-resolution and low-resolution particles?
         if i5 is None or j5 - i5 == 0:
             return x1
 
@@ -475,7 +589,7 @@ class CSIBORG2Snapshot(BaseSnapshot):
 ###############################################################################
 
 
-class QuijoteSnapshot(CSIBORG1Snapshot):
+class QuijoteSnapshot(CSiBORG1Snapshot):
     """
     Quijote snapshot class with the FoF halo finder particle assignment.
     Because of similarities with how the snapshot is processed with CSiBORG1,
@@ -489,9 +603,12 @@ class QuijoteSnapshot(CSIBORG1Snapshot):
         Snapshot index.
     paths : Paths, optional
         Paths object.
+    keep_snapshot_open : bool, optional
+        Whether to keep the snapshot file open when reading halo particles.
+        This is useful for repeated access to the snapshot.
     """
-    def __init__(self, nsim, nsnap, paths=None):
-        super().__init__(nsim, nsnap, paths)
+    def __init__(self, nsim, nsnap, paths=None, keep_snapshot_open=False):
+        super().__init__(nsim, nsnap, paths, keep_snapshot_open, flip_xz=False)
         self._snapshot_path = self.paths.snapshot(self.nsnap, self.nsim,
                                                   "quijote")
         self._simname = "quijote"
@@ -515,13 +632,17 @@ class BaseField(ABC):
     """
     Base class for reading fields such as density or velocity fields.
     """
-    def __init__(self, nsim, paths):
+    def __init__(self, nsim, paths, flip_xz=False):
         if isinstance(nsim, numpy.integer):
             nsim = int(nsim)
         if not isinstance(nsim, int):
             raise TypeError(f"`nsim` must be an integer. Received `{type(nsim)}`.")  # noqa
-
         self._nsim = nsim
+
+        if not isinstance(flip_xz, bool):
+            raise TypeError("`flip_xz` must be a boolean.")
+        self._flip_xz = flip_xz
+
         self._paths = paths
 
     @property
@@ -547,6 +668,18 @@ class BaseField(ABC):
         if self._paths is None:
             self._paths = Paths(**paths_glamdring)
         return self._paths
+
+    @property
+    def flip_xz(self):
+        """
+        Whether to flip the x- and z-axes to undo the MUSIC bug so that the
+        coordinates are consistent with observations.
+
+        Returns
+        -------
+        bool
+        """
+        return self._flip_xz
 
     @abstractmethod
     def density_field(self, MAS, grid):
@@ -584,6 +717,24 @@ class BaseField(ABC):
         """
         pass
 
+    @abstractmethod
+    def radial_velocity_field(self, MAS, grid):
+        """
+        Return the pre-computed radial velocity field.
+
+        Parameters
+        ----------
+        MAS : str
+            Mass assignment scheme.
+        grid : int
+            Grid size.
+
+        Returns
+        -------
+        field : 3-dimensional array
+        """
+        pass
+
 
 ###############################################################################
 #                          CSiBORG1 field class                               #
@@ -600,9 +751,12 @@ class CSiBORG1Field(BaseField):
         Simulation index.
     paths : Paths, optional
         Paths object. By default, the paths are set to the `glamdring` paths.
+    flip_xz : bool, optional
+        Whether to flip the x- and z-axes to undo the MUSIC bug so that the
+        coordinates are consistent with observations.
     """
-    def __init__(self, nsim, paths=None):
-        super().__init__(nsim, paths)
+    def __init__(self, nsim, paths=None, flip_xz=True):
+        super().__init__(nsim, paths, flip_xz)
         self._simname = "csiborg1"
 
     def density_field(self, MAS, grid):
@@ -615,8 +769,7 @@ class CSiBORG1Field(BaseField):
         else:
             field = numpy.load(fpath)
 
-        # Flip x- and z-axes
-        if self._simname == "csiborg1":
+        if self.flip_xz:
             field = field.T
 
         return field
@@ -634,14 +787,21 @@ class CSiBORG1Field(BaseField):
         else:
             field = numpy.load(fpath)
 
-        # Flip x- and z-axes
-        if self._simname == "csiborg1":
+        if self.flip_xz:
             field[0, ...] = field[0, ...].T
             field[1, ...] = field[1, ...].T
             field[2, ...] = field[2, ...].T
             field[[0, 2], ...] = field[[2, 0], ...]
 
         return field
+
+    def radial_velocity_field(self, MAS, grid):
+        if not self.flip_xz and self._simname == "csiborg1":
+            raise ValueError("The radial velocity field is only implemented "
+                             "for the flipped x- and z-axes.")
+
+        fpath = self.paths.field("radvel", MAS, grid, self.nsim, "csiborg1")
+        return numpy.load(fpath)
 
 
 ###############################################################################
@@ -661,10 +821,12 @@ class CSiBORG2Field(BaseField):
         CSiBORG2 run kind. One of `main`, `random`, or `varysmall`.
     paths : Paths, optional
         Paths object. By default, the paths are set to the `glamdring` paths.
+    flip_xz : bool, optional
+        Whether to flip the x- and z-axes to undo the MUSIC bug so that the
+        coordinates are consistent with observations.
     """
-
-    def __init__(self, nsim, kind, paths=None):
-        super().__init__(nsim, paths)
+    def __init__(self, nsim, kind, paths=None, flip_xz=True):
+        super().__init__(nsim, paths, flip_xz)
         self.kind = kind
 
     @property
@@ -696,7 +858,9 @@ class CSiBORG2Field(BaseField):
         else:
             field = numpy.load(fpath)
 
-        field = field.T                       # Flip x- and z-axes
+        if self.flip_xz:
+            field = field.T
+
         return field
 
     def velocity_field(self, MAS, grid):
@@ -713,14 +877,142 @@ class CSiBORG2Field(BaseField):
         else:
             field = numpy.load(fpath)
 
-        # Flip x- and z-axes
-        field[0, ...] = field[0, ...].T
-        field[1, ...] = field[1, ...].T
-        field[2, ...] = field[2, ...].T
-        field[[0, 2], ...] = field[[2, 0], ...]
+        if self.flip_xz:
+            field[0, ...] = field[0, ...].T
+            field[1, ...] = field[1, ...].T
+            field[2, ...] = field[2, ...].T
+            field[[0, 2], ...] = field[[2, 0], ...]
 
         return field
 
+    def radial_velocity_field(self, MAS, grid):
+        if not self.flip_xz:
+            raise ValueError("The radial velocity field is only implemented "
+                             "for the flipped x- and z-axes.")
+
+        fpath = self.paths.field("radvel", MAS, grid, self.nsim,
+                                 f"csiborg2_{self.kind}")
+        return numpy.load(fpath)
+
+
+###############################################################################
+#                           BORG1 field class                                 #
+###############################################################################
+
+
+class BORG1Field(BaseField):
+    """
+    BORG2 `z = 0` field class.
+
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+    paths : Paths, optional
+        Paths object. By default, the paths are set to the `glamdring` paths.
+    """
+    def __init__(self, nsim, paths=None):
+        super().__init__(nsim, paths, False)
+
+    def overdensity_field(self):
+        fpath = self.paths.field(None, None, None, self.nsim, "borg1")
+        with File(fpath, "r") as f:
+            field = f["scalars/BORG_final_density"][:].astype(numpy.float32)
+
+        return field
+
+    def density_field(self):
+        field = self.overdensity_field()
+        omega0 = 0.307
+        rho_mean = omega0 * 277.53662724583074  # Msun / kpc^3
+        field += 1
+        field *= rho_mean
+        return field
+
+    def velocity_field(self, MAS, grid):
+        raise RuntimeError("The velocity field is not available.")
+
+    def radial_velocity_field(self, MAS, grid):
+        raise RuntimeError("The radial velocity field is not available.")
+
+
+###############################################################################
+#                           BORG2 field class                                 #
+###############################################################################
+
+
+class BORG2Field(BaseField):
+    """
+    BORG2 `z = 0` field class.
+
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+    paths : Paths, optional
+        Paths object. By default, the paths are set to the `glamdring` paths.
+    """
+    def __init__(self, nsim, paths=None):
+        super().__init__(nsim, paths, False)
+
+    def overdensity_field(self):
+        fpath = self.paths.field(None, None, None, self.nsim, "borg2")
+        with File(fpath, "r") as f:
+            field = f["scalars/BORG_final_density"][:].astype(numpy.float32)
+
+        return field
+
+    def density_field(self):
+        field = self.overdensity_field()
+        omega0 = 0.3111
+        rho_mean = omega0 * 277.53662724583074  # h^2 Msun / kpc^3
+        field += 1
+        field *= rho_mean
+        # return field
+
+    def velocity_field(self, MAS, grid):
+        raise RuntimeError("The velocity field is not available.")
+
+    def radial_velocity_field(self, MAS, grid):
+        raise RuntimeError("The radial velocity field is not available.")
+
+
+###############################################################################
+#                             TNG300-1 field                                  #
+###############################################################################
+
+class TNG300_1Field(BaseField):
+    """
+    TNG300-1 dark matter-only `z = 0` field class.
+
+    Parameters
+    ----------
+    paths : Paths, optional
+        Paths object. By default, the paths are set to the `glamdring` paths.
+    """
+    def __init__(self, paths=None):
+        super().__init__(0, paths, False)
+
+    def overdensity_field(self, MAS, grid):
+        density = self.density_field(MAS, grid)
+        omega_dm = 0.3089 - 0.0486
+        rho_mean = omega_dm * 277.53662724583074  # h^2 Msun / kpc^3
+
+        density /= rho_mean
+        density -= 1
+
+        return density
+
+    def density_field(self, MAS, grid):
+        fpath = join(self.paths.tng300_1(), "postprocessing", "density_field",
+                     f"rho_dm_099_{grid}_{MAS}.npy")
+        return numpy.load(fpath)
+
+    def velocity_field(self, MAS, grid):
+        raise RuntimeError("The velocity field is not available.")
+
+    def radial_velocity_field(self, MAS, grid):
+        raise RuntimeError("The radial velocity field is not available.")
 
 ###############################################################################
 #                          Quijote field class                                #
@@ -739,7 +1031,7 @@ class QuijoteField(CSiBORG1Field):
         Paths object.
     """
     def __init__(self, nsim, paths):
-        super().__init__(nsim, paths)
+        super().__init__(nsim, paths, flip_xz=False)
         self._simname = "quijote"
 
 

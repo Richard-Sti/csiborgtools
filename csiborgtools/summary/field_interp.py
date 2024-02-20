@@ -21,61 +21,53 @@ from tqdm import tqdm
 ###############################################################################
 
 
-def read_interpolated_field(survey_name, kind, galaxy_index, paths, MAS, grid,
-                            in_rsp, rand_data=False, verbose=True):
+def read_interpolated_field(survey, simname, kind, MAS, grid, paths,
+                            verbose=True):
     """
     Read in the interpolated field at the galaxy positions, and reorder the
     data to match the galaxy index.
 
     Parameters
     ----------
-    survey_name : str
-        Survey name.
+    survey : Survey
+        Survey object.
+    simname : str
+        Simulation name.
     kind : str
         Field kind.
-    galaxy_index : 1-dimensional array
-        Galaxy indices to read in.
-    paths : py:class:`csiborgtools.read.Paths`
-        Paths manager.
     MAS : str
         Mass assignment scheme.
     grid : int
         Grid size.
-    in_rsp : bool
-        Whether to read in the field in redshift space.
-    rand_data : bool, optional
-        Whether to read in the random field data instead of the galaxy field.
+    paths : py:class:`csiborgtools.read.Paths`
+        Paths manager.
     verbose : bool, optional
         Verbosity flag.
 
     Returns
     -------
-    3-dimensional array of shape (nsims, len(galaxy_index), nsmooth)
+    val : 3-dimensional array of shape (nsims, num_gal, nsmooth)
+        Scalar field values at the galaxy positions.
+    smooth_scales : 1-dimensional array
+        Smoothing scales.
     """
-    nsims = paths.get_ics("csiborg")
+    nsims = paths.get_ics(simname)
+
     for i, nsim in enumerate(tqdm(nsims,
                                   desc="Reading fields",
                                   disable=not verbose)):
-        fpath = paths.field_interpolated(
-            survey_name, kind, MAS, grid, nsim, in_rsp=in_rsp)
+        fpath = paths.field_interpolated(survey.name, simname, nsim, kind, MAS,
+                                         grid)
         data = numpy.load(fpath)
-        out_ = data["val"] if not rand_data else data["rand_val"]
+        out_ = data["val"]
 
         if i == 0:
             out = numpy.empty((len(nsims), *out_.shape), dtype=out_.dtype)
-            indxs = data["indxs"]
+            smooth_scales = data["smooth_scales"]
 
         out[i] = out_
 
-    # Reorder the data to match the survey index.
-    ind2pos = {v: k for k, v in enumerate(indxs)}
-    ks = numpy.empty(len(galaxy_index), dtype=numpy.int64)
+    if survey.selection_mask is not None:
+        out = out[:, survey.selection_mask, :]
 
-    for i, k in enumerate(galaxy_index):
-        j = ind2pos.get(k, None)
-        if j is None:
-            raise ValueError(f"There is no galaxy with index {k} in the "
-                             "interpolated field.")
-        ks[i] = j
-
-    return out[:, ks, :]
+    return out, smooth_scales

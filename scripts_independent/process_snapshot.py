@@ -174,8 +174,7 @@ class CSiBORG1Reader:
 
         if which_snapshot == "initial":
             self.nsnap = 1
-            raise RuntimeError("TODO not implemented")
-            self.source_dir = None
+            self.source_dir = f"/mnt/extraspace/rstiskalek/csiborg1/initial/ramses_out_{nsim}_new/output_00001"  # noqa
         elif which_snapshot == "final":
             sourcedir = join(base_dir, f"ramses_out_{nsim}")
             self.nsnap = max([int(basename(f).replace("output_", ""))
@@ -195,7 +194,7 @@ class CSiBORG1Reader:
         self.sph_file = f"/mnt/extraspace/rstiskalek/csiborg1/sph_temp/chain_{self.nsim}.hdf5"  # noqa
 
     def read_info(self):
-        filename = glob(join(self.source_dir, "info_*"))
+        filename = glob(join(self.source_dir, "info_*.txt"))
         if len(filename) > 1:
             raise ValueError("Found too many `info` files.")
         filename = filename[0]
@@ -675,6 +674,7 @@ def process_final_snapshot(nsim, simname):
               flush=True)
 
         # Lastly, create the halo mapping and default catalogue.
+        print(f"{now()}: writing `{reader.output_cat}`.")
         print(f"{datetime.now()}: creating `GroupOffset`...")
         halo_map, unique_halo_ids = make_offset_map(halo_ids)
         # Dump the halo mapping.
@@ -744,8 +744,9 @@ def process_initial_snapshot(nsim, simname):
     del sort_indxs_final
     collect()
 
-    print(f"{now()}: loading and sorting the initial particle position.")
+    print(f"{now()}: loading and sorting the initial particle information.")
     pos = reader.read_snapshot("pos")[sort_indxs]
+    mass = reader.read_snapshot("mass")[sort_indxs]
 
     del sort_indxs
     collect()
@@ -763,6 +764,8 @@ def process_initial_snapshot(nsim, simname):
     print(f"{now()}: dumping particles `{reader.output_snap}`.")
     with File(reader.output_snap, 'w') as f:
         f.create_dataset("Coordinates", data=pos,
+                         **hdf5plugin.Blosc(**BLOSC_KWARGS))
+        f.create_dataset("Masses", data=mass,
                          **hdf5plugin.Blosc(**BLOSC_KWARGS))
 
 
@@ -837,39 +840,6 @@ def process_initial_snapshot_csiborg2(nsim, simname):
 
 
 ###############################################################################
-#               Prepare CSiBORG1 RAMSES for SPH density field                 #
-###############################################################################
-
-
-def prepare_csiborg1_for_sph(nsim):
-    """
-    Prepare a RAMSES snapshot for cosmotool SPH density & velocity field
-    calculation.
-    """
-    reader = CSiBORG1Reader(nsim, "final")
-
-    print("-------     Preparing CSiBORG1 for SPH    -------")
-    print(f"Simulation index:      {nsim}")
-    print(f"Output file:           {reader.sph_file}")
-    print("-------------------------------------------------")
-    print(flush=True)
-
-    with File(reader.sph_file, 'w') as dest:
-        # We need to read pos first to get the dataset size
-        pos = reader.read_snapshot("pos")
-
-        dset = dest.create_dataset("particles", (len(pos), 7),
-                                   dtype=numpy.float32)
-        dset[:, :3] = pos
-
-        del pos
-        collect()
-
-        dset[:, 3:6] = reader.read_snapshot("vel")
-        dset[:, 6] = reader.read_snapshot("mass")
-
-
-###############################################################################
 #                         Command line interface                              #
 ###############################################################################
 
@@ -883,8 +853,8 @@ if __name__ == "__main__":
                                  "csiborg2_random", "csiborg2_varysmall"],
                         help="Simulation name.")
     parser.add_argument("--mode", type=int, required=True,
-                        choices=[0, 1, 2, 3],
-                        help="0: process final snapshot, 1: process initial snapshot, 2: process both, 3: prepare CSiBORG1 for SPH.")  # noqa
+                        choices=[0, 1, 2],
+                        help="0: process final snapshot, 1: process initial snapshot, 2: process both")  # noqa
     args = parser.parse_args()
 
     if "csiborg2" in args.simname and args.mode in [0, 2]:
@@ -897,8 +867,6 @@ if __name__ == "__main__":
         process_final_snapshot(args.nsim, args.simname)
     elif args.mode == 1:
         process_initial_snapshot(args.nsim, args.simname)
-    elif args.mode == 2:
+    else:
         process_final_snapshot(args.nsim, args.simname)
         process_initial_snapshot(args.nsim, args.simname)
-    else:
-        prepare_csiborg1_for_sph(args.nsim)

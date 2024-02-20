@@ -32,7 +32,8 @@ def find_peak(x, weights, shrink=0.95, min_obs=5):
     """
     Find the peak of a 1D distribution using a shrinking window.
     """
-    assert shrink <= 1.
+    if not shrink < 1:
+        raise ValueError("`shrink` must be less than 1.")
 
     xmin, xmax = numpy.min(x), numpy.max(x)
     xpos = (xmax + xmin) / 2
@@ -58,9 +59,9 @@ class PairOverlap:
 
     Parameters
     ----------
-    cat0 : :py:class:`csiborgtools.read.CSiBORGHaloCatalogue`
+    cat0 : instance of :py:class:`csiborgtools.read.BaseCatalogue`
         Halo catalogue corresponding to the reference simulation.
-    catx : :py:class:`csiborgtools.read.CSiBORGHaloCatalogue`
+    catx : instance of :py:class:`csiborgtools.read.BaseCatalogue`
         Halo catalogue corresponding to the cross simulation.
     min_logmass : float
         Minimum halo mass in :math:`\log_{10} M_\odot / h` to consider.
@@ -305,17 +306,21 @@ class PairOverlap:
         """
         assert (norm_kind is None or norm_kind in ("r200c", "ref_patch", "sum_patch"))  # noqa
         # Get positions either in the initial or final snapshot
-        pos0 = self.cat0().position(in_initial=in_initial)
-        posx = self.catx().position(in_initial=in_initial)
+        if in_initial:
+            pos0 = self.cat0("lagpatch_coordinates")
+            posx = self.catx("lagpatch_coordinates")
+        else:
+            pos0 = self.cat0("cartesian_pos")
+            posx = self.catx("cartesian_pos")
 
         # Get the normalisation array if applicable
         if norm_kind == "r200c":
             norm = self.cat0("r200c")
         if norm_kind == "ref_patch":
-            norm = self.cat0("lagpatch_size")
+            norm = self.cat0("lagpatch_radius")
         if norm_kind == "sum_patch":
-            patch0 = self.cat0("lagpatch_size")
-            patchx = self.catx("lagpatch_size")
+            patch0 = self.cat0("lagpatch_radius")
+            patchx = self.catx("lagpatch_radius")
             norm = [None] * len(self)
             for i, ind in enumerate(self["match_indxs"]):
                 norm[i] = patch0[i] + patchx[ind]
@@ -330,7 +335,7 @@ class PairOverlap:
                 dist[i] /= norm[i]
         return numpy.array(dist, dtype=object)
 
-    def mass_ratio(self, mass_kind="totpartmass", in_log=True, in_abs=True):
+    def mass_ratio(self,  in_log=True, in_abs=True):
         """
         Pair mass ratio of matched halos between the reference and cross
         simulations.
@@ -350,7 +355,7 @@ class PairOverlap:
         -------
         ratio : array of 1-dimensional arrays of shape `(nhalos, )`
         """
-        mass0, massx = self.cat0(mass_kind), self.catx(mass_kind)
+        mass0, massx = self.cat0("totmass"), self.catx("totmass")
 
         ratio = [None] * len(self)
         for i, ind in enumerate(self["match_indxs"]):

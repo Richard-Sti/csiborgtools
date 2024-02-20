@@ -15,7 +15,6 @@
 """
 Tools for interpolating 3D fields at arbitrary positions.
 """
-import healpy
 import MAS_library as MASL
 import numpy
 import smoothing_library as SL
@@ -23,7 +22,7 @@ from numba import jit
 from tqdm import tqdm, trange
 
 from ..utils import periodic_wrap_grid, radec_to_cartesian
-from .utils import divide_nonzero, force_single_precision
+from .utils import divide_nonzero, force_single_precision, nside2radec
 
 
 ###############################################################################
@@ -219,18 +218,47 @@ def make_sky(field, angpos, dist, boxsize, verbose=True):
     return out
 
 
-def nside2radec(nside):
-    """
-    Generate RA [0, 360] deg. and declination [-90, 90] deg. for HEALPix pixel
-    centres at a given nside.
-    """
-    pixs = numpy.arange(healpy.nside2npix(nside))
-    theta, phi = healpy.pix2ang(nside, pixs)
+###############################################################################
+#                     Average field at a radial distance                      #
+###############################################################################
 
-    ra = 180 / numpy.pi * phi
-    dec = 90 - 180 / numpy.pi * theta
 
-    return numpy.vstack([ra, dec]).T
+def field_at_distance(field, distance, boxsize, smooth_scales=None, nside=128,
+                      verbose=True):
+    """
+    Evaluate a scalar field at uniformly spaced  angular coordinates at a
+    given distance from the observer
+
+    Parameters
+    ----------
+    field : 3-dimensional array of shape `(grid, grid, grid)`
+        Field to be interpolated.
+    distance : float
+        Distance from the observer in `Mpc / h`.
+    boxsize : float
+        Box size in `Mpc / h`.
+    smooth_scales : (list of) float, optional
+        Smoothing scales in `Mpc / h`. If `None`, no smoothing is performed.
+    nside : int, optional
+        HEALPix nside. Used to generate the uniformly spaced angular
+        coordinates. Recommended to be >> 1.
+    verbose : bool, optional
+        Smoothing verbosity flag.
+
+    Returns
+    -------
+    vals : n-dimensional array of shape `(npix, len(smooth_scales))`
+    """
+    # Get positions of HEALPix pixels on the sky and then convert those to
+    # box Cartesian coordinates. We take HEALPix pixels because they are
+    # uniformly distributed on the sky.
+    angpos = nside2radec(nside)
+    X = numpy.hstack([numpy.ones(len(angpos)).reshape(-1, 1) * distance,
+                      angpos])
+    X = radec_to_cartesian(X) / boxsize + 0.5
+
+    return evaluate_cartesian(field, pos=X, smooth_scales=smooth_scales,
+                              verbose=verbose)
 
 
 ###############################################################################
