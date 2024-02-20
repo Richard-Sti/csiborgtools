@@ -32,6 +32,7 @@ def write_submit(chain_index, kind, resolution, nthreads, snapshot_kind):
             basepath,
             f"csiborg2_{kind}/field/chain_{chain_index}_{resolution}.hdf5")
     else:
+        chain_index = str(chain_index).zfill(5)
         snapshot_path = join(basepath, "csiborg1_sph",
                              f"ramses_{chain_index}.hdf5")
         output_path = join(basepath, "csiborg1_sph",
