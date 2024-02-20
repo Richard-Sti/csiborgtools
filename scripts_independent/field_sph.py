@@ -21,7 +21,6 @@ from argparse import ArgumentParser
 from datetime import datetime
 from os import remove
 from os.path import exists, join
-from re import search
 
 import hdf5plugin  # noqa
 import numpy as np
