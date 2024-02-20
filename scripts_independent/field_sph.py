@@ -19,6 +19,7 @@ The SPH filter is implemented in the cosmotool package.
 from argparse import ArgumentParser
 from os import remove
 from os.path import join, exists
+from re import search
 import subprocess
 from datetime import datetime
 
@@ -137,7 +138,7 @@ def main(snapshot_path, output_path, resolution, scratch_space, SPH_executable,
     SPH_executable : str
         Path to the `simple3DFilter` executable [1].
     snapshot_kind : str
-        Kind of the simulation snapshot. Currently only `gadget4` is supported.
+        Kind of the simulation snapshot.
 
     Returns
     -------
@@ -147,12 +148,29 @@ def main(snapshot_path, output_path, resolution, scratch_space, SPH_executable,
     ----------
     [1] https://bitbucket.org/glavaux/cosmotool/src/master/sample/simple3DFilter.cpp  # noqa
     """
-    if snapshot_kind != "gadget4":
-        raise NotImplementedError("Only GADGET HDF5 snapshots are supported.")
+    if snapshot_kind == "gadget4":
+        temporary_output_path = join(
+            scratch_space, generate_unique_id(snapshot_path))
+    elif snapshot_kind == "ramses":
+        match = re.search(r"ramses_(\d+)\.hdf5", snapshot_path)
+        if match:
+            indx = str(int(match.group(1))).zfill(5
+        else:
+            raise RuntimeError("Could not extract the RAMSES snapshot index.")
+
+        temporary_output_path = join(scratch_space, "csiborg1_sph",
+                                     f"ramses_{indx}.hdf5")
+    else:
+        raise NotImplementedError("Only GADGET HDF5 or preprocessed RAMSES "
+                                  "snapshots are supported.")
+
+    if not temporary_output_path.endswith(".hdf5"):
+        raise RuntimeError("Temporary output path must end with `.hdf5`.")
 
     print("---------- SPH Density & Velocity Field Job Information ----------")
     print(f"Snapshot path:     {snapshot_path}")
     print(f"Output path:       {output_path}")
+    print(f"Temporary path:    {temporary_output_path}")
     print(f"Resolution:        {resolution}")
     print(f"Scratch space:     {scratch_space}")
     print(f"SPH executable:    {SPH_executable}")
@@ -160,16 +178,15 @@ def main(snapshot_path, output_path, resolution, scratch_space, SPH_executable,
     print("------------------------------------------------------------------")
     print(flush=True)
 
-    temporary_output_path = join(
-        scratch_space, generate_unique_id(snapshot_path))
 
-    if not temporary_output_path.endswith(".hdf5"):
-        raise RuntimeError("Temporary output path must end with `.hdf5`.")
-
-    print(f"{now()}: preparing snapshot...", flush=True)
-    boxsize = prepare_gadget(snapshot_path, temporary_output_path)
-    print(f"{now()}: wrote temporary data to {temporary_output_path}.",
-          flush=True)
+    if snapshot_kind == "gadget4":
+        print(f"{now()}: preparing snapshot...", flush=True)
+        boxsize = prepare_gadget(snapshot_path, temporary_output_path)
+        print(f"{now()}: wrote temporary data to {temporary_output_path}.",
+              flush=True)
+    else:
+        boxsize = 677.7  # Mpc/h
+        print(f"{now()}: setting the boxsize to {boxsize}.", flush=True)
 
     run_sph_filter(temporary_output_path, output_path, boxsize, resolution,
                    SPH_executable)
@@ -193,7 +210,7 @@ if __name__ == "__main__":
     parser.add_argument("--SPH_executable", type=str, required=True,
                         help="Path to the `simple3DFilter` executable.")
     parser.add_argument("--snapshot_kind", type=str, required=True,
-                        choices=["gadget4"],
+                        choices=["gadget4", "ramses"],
                         help="Kind of the simulation snapshot.")
     args = parser.parse_args()
 

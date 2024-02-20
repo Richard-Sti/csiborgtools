@@ -19,9 +19,14 @@ calculate the SPH density & velocity field.
 from os import system
 
 
-def write_submit(chain_index, kind, resolution, nthreads):
+def write_submit(chain_index, kind, resolution, nthreads, snapshot_kind):
     if kind not in ["main", "random", "varysmall"]:
         raise RuntimeError(f"Unknown kind `{kind}`.")
+
+
+    
+snapshot_path="/cosma8/data/dp016/dc-stis1/csiborg2_{kind}/chain_{chain_index}/output/snapshot_099_full.hdf5"
+output_path="/cosma8/data/dp016/dc-stis1/csiborg2_{kind}/field/chain_{chain_index}_{resolution}.hdf5"
 
     txt = f"""#!/bin/sh
 
@@ -58,7 +63,7 @@ output_path="/cosma8/data/dp016/dc-stis1/csiborg2_{kind}/field/chain_{chain_inde
 resolution={resolution}
 scratch_space="/snap8/scratch/dp016/dc-stis1/"
 SPH_executable="/cosma8/data/dp016/dc-stis1/cosmotool/bld2/sample/simple3DFilter"
-snapshot_kind="gadget4"
+snapshot_kind={snapshot_kind}
 
 python3 field_sph.py --snapshot_path $snapshot_path --output_path $output_path --resolution $resolution --scratch_space $scratch_space --SPH_executable $SPH_executable --snapshot_kind $snapshot_kind
 """
@@ -72,14 +77,17 @@ python3 field_sph.py --snapshot_path $snapshot_path --output_path $output_path -
 
 
 if __name__ == "__main__":
+    snapshot_kind = "gadget4"
     # kind = "main"
     # chains = [15617, 15717, 15817, 15917, 16017, 16117, 16217, 16317, 16417, 16517, 16617, 16717, 16817, 16917, 17017, 17117, 17217, 17317, 17417]
     
     # kind = "varysmall"
     # chains = ["16417_001", "16417_025", "16417_050", "16417_075", "16417_100", "16417_125", "16417_150", "16417_175", "16417_200", "16417_225", "16417_250", "16417_275", "16417_300", "16417_325", "16417_350", "16417_375", "16417_400", "16417_425", "16417_450", "16417_475"]
 
-    kind = "random"
-    chains = [1, 25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300, 325, 350, 375, 400, 425, 450, 475]
+    # kind = "random"
+    # chains = [1, 25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300, 325, 350, 375, 400, 425, 450, 475]
+
+    kind = "main"
 
     resolution = 1024
     nthreads = 32
