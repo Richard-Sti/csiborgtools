@@ -16,12 +16,12 @@
 Script to construct the density and velocity fields for a simulation snapshot.
 The SPH filter is implemented in the cosmotool package.
 """
-from argparse import ArgumentParser
-from os import remove
-from os.path import join, exists
-from re import search
 import subprocess
+from argparse import ArgumentParser
 from datetime import datetime
+from os import remove
+from os.path import exists, join
+from re import search
 
 import hdf5plugin  # noqa
 import numpy as np
@@ -148,13 +148,14 @@ def main(snapshot_path, output_path, resolution, scratch_space, SPH_executable,
     ----------
     [1] https://bitbucket.org/glavaux/cosmotool/src/master/sample/simple3DFilter.cpp  # noqa
     """
+    # First get the temporary file path.
     if snapshot_kind == "gadget4":
         temporary_output_path = join(
             scratch_space, generate_unique_id(snapshot_path))
     elif snapshot_kind == "ramses":
-        match = re.search(r"ramses_(\d+)\.hdf5", snapshot_path)
+        match = search(r"ramses_(\d+)\.hdf5", snapshot_path)
         if match:
-            indx = str(int(match.group(1))).zfill(5
+            indx = match.group(1)
         else:
             raise RuntimeError("Could not extract the RAMSES snapshot index.")
 
@@ -167,6 +168,7 @@ def main(snapshot_path, output_path, resolution, scratch_space, SPH_executable,
     if not temporary_output_path.endswith(".hdf5"):
         raise RuntimeError("Temporary output path must end with `.hdf5`.")
 
+    # Print the job information.
     print("---------- SPH Density & Velocity Field Job Information ----------")
     print(f"Snapshot path:     {snapshot_path}")
     print(f"Output path:       {output_path}")
@@ -178,7 +180,7 @@ def main(snapshot_path, output_path, resolution, scratch_space, SPH_executable,
     print("------------------------------------------------------------------")
     print(flush=True)
 
-
+    # Prepare or read-off the temporary snapshot file.
     if snapshot_kind == "gadget4":
         print(f"{now()}: preparing snapshot...", flush=True)
         boxsize = prepare_gadget(snapshot_path, temporary_output_path)
@@ -186,15 +188,20 @@ def main(snapshot_path, output_path, resolution, scratch_space, SPH_executable,
               flush=True)
     else:
         boxsize = 677.7  # Mpc/h
-        print(f"{now()}: setting the boxsize to {boxsize}.", flush=True)
+        print(f"{now()}: CAREFUL, forcefully setting the boxsize to {boxsize} Mpc / h.",  # noqa
+              flush=True)
 
+    # Run the SPH filter.
     run_sph_filter(temporary_output_path, output_path, boxsize, resolution,
                    SPH_executable)
-    print(f"{now()}: removing the temporary snapshot file.", flush=True)
-    try:
-        remove(temporary_output_path)
-    except FileNotFoundError:
-        pass
+
+    # Remove the temporary snapshot file if it was created.
+    if snapshot_kind == "gadget4":
+        print(f"{now()}: removing the temporary snapshot file.", flush=True)
+        try:
+            remove(temporary_output_path)
+        except FileNotFoundError:
+            pass
 
 
 if __name__ == "__main__":
