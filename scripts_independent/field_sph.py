@@ -153,14 +153,7 @@ def main(snapshot_path, output_path, resolution, scratch_space, SPH_executable,
         temporary_output_path = join(
             scratch_space, generate_unique_id(snapshot_path))
     elif snapshot_kind == "ramses":
-        match = search(r"ramses_(\d+)\.hdf5", snapshot_path)
-        if match:
-            indx = match.group(1)
-        else:
-            raise RuntimeError("Could not extract the RAMSES snapshot index.")
-
-        temporary_output_path = join(scratch_space, "csiborg1_sph",
-                                     f"ramses_{indx}.hdf5")
+        temporary_output_path = snapshot_path
     else:
         raise NotImplementedError("Only GADGET HDF5 or preprocessed RAMSES "
                                   "snapshots are supported.")

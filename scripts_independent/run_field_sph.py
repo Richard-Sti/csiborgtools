@@ -32,7 +32,8 @@ def write_submit(chain_index, kind, resolution, nthreads, snapshot_kind):
             basepath,
             f"csiborg2_{kind}/field/chain_{chain_index}_{resolution}.hdf5")
     else:
-        snapshot_path = "-1"
+        snapshot_path = join(basepath, "csiborg1_sph",
+                             f"ramses_{chain_index}.hdf5")
         output_path = join(basepath, "csiborg1_sph",
                            f"sph_ramses_{chain_index}_{resolution}.hdf5")
 
@@ -96,6 +97,7 @@ if __name__ == "__main__":
     # chains = [1, 25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300, 325, 350, 375, 400, 425, 450, 475]
 
     # CSiBORG1 RAMSES
+    snapshot_kind = "ramses"
     kind = "main"
     chains = [7444]
 
@@ -103,5 +105,6 @@ if __name__ == "__main__":
     nthreads = 32
 
     for chain_index in chains:
-        fname = write_submit(chain_index, kind, resolution, nthreads)
+        fname = write_submit(chain_index, kind, resolution, nthreads,
+                             snapshot_kind)
         system(f"sbatch {fname}")
