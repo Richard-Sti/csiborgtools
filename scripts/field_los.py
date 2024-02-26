@@ -1,0 +1,158 @@
+# Copyright (C) 2024 Richard Stiskalek
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 3 of the License, or (at your
+# option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General
+# Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program; if not, write to the Free Software Foundation, Inc.,
+# 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+"""
+MPI script to interpolate the density and velocity fields along the line of
+sight.
+"""
+from argparse import ArgumentParser
+from datetime import datetime
+
+import numpy as np
+from mpi4py import MPI
+from taskmaster import work_delegation
+
+import csiborgtools
+from utils import get_nsims
+from gc import collect
+
+from h5py import File
+from os.path import join
+
+
+def get_los(catalogue_name, comm):
+    """
+    Get the line of sight RA/dec coordinates for the given catalogue.
+
+    Parameters
+    ----------
+    catalogue_name : str
+        Catalogue name.
+
+    Returns
+    -------
+    pos : 2-dimensional array
+        RA/dec coordinates of the line of sight.
+    """
+    if comm.Get_rank() == 0:
+        pv_supranta_folder = "/mnt/extraspace/rstiskalek/catalogs/PV_Supranta"
+
+        if catalogue_name == "A2":
+            with File(join(pv_supranta_folder, "A2.h5"), 'r') as f:
+                RA = f["RA"][:]
+                dec = f["DEC"][:]
+        else:
+            raise ValueError(f"Unknown field name: `{catalogue_name}`.")
+
+        pos = np.vstack((RA, dec)).T
+    else:
+        pos = None
+
+    return comm.bcast(pos, root=0)
+
+
+def get_field(simname, nsim, kind, MAS, grid):
+    # Open the field reader.
+    if simname == "csiborg1":
+        field_reader = csiborgtools.read.CSiBORG1Field(nsim)
+    else:
+        raise ValueError(f"Unknown simulation name: `{simname}`.")
+
+    # Read in the field.
+    if kind == "density":
+        field = field_reader.density_field(MAS, grid)
+    elif kind == "velocity":
+        field = field_reader.velocity_field(MAS, grid)
+    else:
+        raise ValueError(f"Unknown field kind: `{kind}`.")
+
+    return field
+
+
+def interpolate_field(pos, simname, nsim, MAS, grid, dump_folder, rmax,
+                      dr, smooth_scales):
+
+    boxsize = csiborgtools.simname2boxsize(simname)
+    fname_out = join(dump_folder, f"los_{simname}_{nsim}.hdf5")
+
+    # First do the density field.
+    density = get_field(simname, nsim, "density", MAS, grid)
+
+    rdist, finterp = csiborgtools.field.evaluate_los(
+        density, pos, boxsize, rmax, dr, smooth_scales, verbose=False)
+
+    with File(fname_out, 'w') as f:
+        f.create_dataset("rdist", data=rdist)
+        f.create_dataset("density", data=finterp)
+
+    del density, rdist, finterp
+    collect()
+
+    velocity = get_field(simname, nsim, "velocity", MAS, grid)
+    rdist, finterp = csiborgtools.field.evaluate_los(
+        velocity, pos, boxsize, rmax, dr, smooth_scales, verbose=False)
+
+    with File(fname_out, 'a') as f:
+        f.create_dataset("velocity", data=finterp)
+
+
+def combine_from_simulations(simname, nsims, outfolder, dumpfolder, ):
+    fname_out = join(outfolder, f"los_{simname}.hdf5")
+    print(f"Combining results from invidivual simulations to `{fname_out}`.")
+
+    for nsim in nsims:
+        fname = join(dumpfolder, f"los_{simname}_{nsim}.hdf5")
+
+        with File(fname, 'r') as f, File(fname_out, 'a') as f_out:
+            f_out.create_dataset(f"rdist_{nsim}", data=f["rdist"][:])
+            f_out.create_dataset(f"density_{nsim}", data=f["density"][:])
+            f_out.create_dataset(f"velocity_{nsim}", data=f["velocity"][:])
+
+    print("Finished combining results.")
+
+
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument("--catalogue", type=str, help="Catalogue name.")
+    parser.add_argument("--nsims", type=int, nargs="+", default=None,
+                        help="IC realisations. `-1` for all simulations.")
+    parser.add_argument("--simname", type=str, help="Simulation name.")
+    parser.add_argument("--MAS", type=str,
+                        choices=["NGP", "CIC", "TSC", "PCS", "SPH"],
+                        help="Mass assignment scheme.")
+    parser.add_argument("--grid", type=int, help="Grid resolution.")
+    args = parser.parse_args()
+
+    out_folder = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_los"
+    dump_folder = join(out_folder, f"temp_{str(datetime.now())}")
+    rmax = 200
+    dr = 0.1
+    smooth_scales = None
+
+    comm = MPI.COMM_WORLD
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    nsims = get_nsims(args, paths)
+
+    pos = get_los(args.catalogue, comm)
+
+    def main(nsim):
+        interpolate_field(pos, args.simname, nsim, args.MAS, args._get_args,
+                          dump_folder, rmax, dr, smooth_scales)
+
+    work_delegation(main, nsims, comm, master_verbose=True)
+    comm.Barrier()
+
+    if comm.Get_rank() == 0:
+        combine_from_simulations(args.simname, nsims, out_folder, dump_folder)
+        print("All finished!")
