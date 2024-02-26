@@ -423,7 +423,8 @@ class Paths:
 
         if MAS == "SPH" and kind in ["density", "velocity"]:
             if simname == "csiborg1":
-                raise ValueError("SPH field not available for CSiBORG1.")
+                return join(self.csiborg1_srcdir, "field",
+                            f"sph_ramses_{str(nsim).zfill(5)}_{grid}.hdf5")
             elif simname == "csiborg2_main":
                 return join(self.csiborg2_main_srcdir, "field",
                             f"chain_{nsim}_{grid}.hdf5")
@@ -495,9 +496,7 @@ class Paths:
         -------
         str
         """
-
         # # In case the galaxy positions of TNG300-1 were scattered..
-
         if kind not in ["density", "potential", "radvel"]:
             raise ValueError("Unsupported field type.")
 
