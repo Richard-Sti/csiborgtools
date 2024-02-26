@@ -47,7 +47,7 @@ def evaluate_cartesian(*fields, pos, smooth_scales=None, verbose=False):
 
     Returns
     -------
-    (list of) 1-dimensional array of shape `(n_samples, len(smooth_scales))`
+    (list of) 2-dimensional array of shape `(n_samples, len(smooth_scales))`
     """
     pos = force_single_precision(pos)
 
@@ -120,6 +120,65 @@ def observer_peculiar_velocity(velocity_field, smooth_scales=None,
         return numpy.array([vx[0], vy[0], vz[0]])
 
     return numpy.vstack([vx, vy, vz]).T
+
+###############################################################################
+#                   Evaluating the fields along a LOS                         #
+###############################################################################
+
+
+def evaluate_los(*fields, sky_pos, boxsize, rmax, dr, smooth_scales=None,
+                 verbose=False):
+    mpc2box = 1. / boxsize
+
+    if not isinstance(sky_pos, numpy.ndarray) and sky_pos.ndim != 2:
+        raise ValueError("`sky_pos` must be a 2D array.")
+    nsamples = len(sky_pos)
+
+    if rmax > 3**0.5 / 2 * boxsize:
+        raise ValueError("The maximum radius must be within the box.")
+
+    # Radial positions to evaluate for each line of sight.
+    rdist = numpy.arange(0, rmax, dr, dtype=fields[0].dtype)
+    # Convert the radial distance to box units
+    rdist *= mpc2box
+
+    # Create an array of radial positions and sky coordinates of each line of
+    # sight.
+    pos = numpy.empty((nsamples * len(rdist), 3), dtype=fields[0].dtype)
+    for i in range(nsamples):
+        start, end = i * len(rdist), (i + 1) * len(rdist)
+        pos[start:end, 0] = rdist
+        pos[start:end, 1] = sky_pos[i, 0]
+        pos[start:end, 2] = sky_pos[i, 1]
+
+    pos = force_single_precision(pos)
+    # Convert the spherical coordinates to Cartesian coordinates.
+    pos = radec_to_cartesian(pos) + 0.5
+
+    if smooth_scales is not None:
+        if isinstance(smooth_scales, (int, float)):
+            smooth_scales = [smooth_scales]
+
+        if isinstance(smooth_scales, list):
+            smooth_scales = numpy.array(smooth_scales, dtype=numpy.float32)
+
+        smooth_scales *= mpc2box
+
+    field_interp = evaluate_cartesian(*fields, pos=pos, smooth_scales=smooth_scales,
+                                      verbose=verbose)
+    # Now we reshape the interpolated field to have the same shape as the
+    # input `sky_pos`.
+    field_interp_reshaped = [None] * len(fields)
+    for i in range(len(fields)):
+        samples = numpy.full((nsamples, len(rdist), len(smooth_scales)),
+                             numpy.nan, dtype=fields[i].dtype)
+        for j in range(nsamples):
+            start, end = j * len(rdist), (j + 1) * len(rdist)
+            samples[j] = field_interp[i][start:end, :]
+
+        field_interp_reshaped[i] = samples
+
+    return rdist, field_interp_reshaped
 
 
 ###############################################################################
