@@ -128,6 +128,35 @@ def observer_peculiar_velocity(velocity_field, smooth_scales=None,
 
 def evaluate_los(*fields, sky_pos, boxsize, rmax, dr, smooth_scales=None,
                  verbose=False):
+    """
+    Interpolate the fields for a set of lines of sights from the observer
+    in the centre of the box.
+
+    Parameters
+    ----------
+    *fields : (list of) 3-dimensional array of shape `(grid, grid, grid)`
+        Fields to be interpolated.
+    sky_pos : 2-dimensional array of shape `(n_samples, 2)`
+        Query positions in spherical coordinates (RA, dec) in degrees.
+    boxsize : float
+        Box size in `Mpc / h`.
+    rmax : float
+        Maximum radial distance in `Mpc / h`.
+    dr : float
+        Radial distance step in `Mpc / h`.
+    smooth_scales : (list of) float, optional
+        Smoothing scales in `Mpc / h`.
+    verbose : bool, optional
+        Smoothing verbosity flag.
+
+    Returns
+    -------
+    rdist : 1-dimensional array
+        Radial positions in `Mpc / h` where the fields were evaluated.
+    field_interp : (list of) 2- or 3-dimensional arrays of shape `(n_query, len(rdist), len(smooth_scales))`  # noqa
+        The interpolated fields. If `smooth_scales` is `None`, the last
+        is omitted.
+    """
     mpc2box = 1. / boxsize
 
     if not isinstance(sky_pos, numpy.ndarray) and sky_pos.ndim != 2:
@@ -182,6 +211,9 @@ def evaluate_los(*fields, sky_pos, boxsize, rmax, dr, smooth_scales=None,
             samples[j] = field_interp[i][start:end, ...]
 
         field_interp_reshaped[i] = samples
+
+    if len(fields) == 1:
+        return rdist, field_interp_reshaped[0]
 
     return rdist, field_interp_reshaped
 
