@@ -17,8 +17,9 @@ from .density import (DensityField, PotentialField, TidalTensorField,           
                       overdensity_field)                                        # noqa
 from .enclosed_mass import (particles_enclosed_mass,                            # noqa
                             particles_enclosed_momentum, field_enclosed_mass)   # noqa
-from .interp import (evaluate_cartesian, evaluate_sky, field2rsp,               # noqa
-                     fill_outside, make_sky, observer_peculiar_velocity,        # noqa
-                     smoothen_field, field_at_distance)                         # noqa
+from .interp import (evaluate_cartesian, evaluate_sky, evaluate_los,            # noqa
+                     field2rsp, fill_outside, make_sky,                         # noqa
+                     observer_peculiar_velocity, smoothen_field,                # noqa
+                     field_at_distance)                                         # noqa
 from .corr import bayesian_bootstrap_correlation                                # noqa
 from .utils import nside2radec                                                  # noqa
