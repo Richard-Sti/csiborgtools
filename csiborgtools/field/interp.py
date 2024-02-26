@@ -163,7 +163,7 @@ def evaluate_los(*fields, sky_pos, boxsize, rmax, dr, smooth_scales=None,
         raise ValueError("`sky_pos` must be a 2D array.")
     nsamples = len(sky_pos)
 
-    if rmax > 3**0.5 / 2 * boxsize:
+    if rmax > 0.5 * boxsize:
         raise ValueError("The maximum radius must be within the box.")
 
     # Radial positions to evaluate for each line of sight.
