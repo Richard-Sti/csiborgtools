@@ -15,6 +15,8 @@
 from .density import (DensityField, PotentialField, TidalTensorField,           # noqa
                       VelocityField, radial_velocity, power_spectrum,           # noqa
                       overdensity_field)                                        # noqa
+from .enclosed_mass import (particles_enclosed_mass,                            # noqa
+                            particles_enclosed_momentum, field_enclosed_mass)   # noqa
 from .interp import (evaluate_cartesian, evaluate_sky, field2rsp,               # noqa
                      fill_outside, make_sky, observer_peculiar_velocity,        # noqa
                      smoothen_field, field_at_distance)                         # noqa
