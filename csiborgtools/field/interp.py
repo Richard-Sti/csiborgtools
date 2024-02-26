@@ -139,15 +139,13 @@ def evaluate_los(*fields, sky_pos, boxsize, rmax, dr, smooth_scales=None,
 
     # Radial positions to evaluate for each line of sight.
     rdist = numpy.arange(0, rmax, dr, dtype=fields[0].dtype)
-    # Convert the radial distance to box units
-    rdist *= mpc2box
 
     # Create an array of radial positions and sky coordinates of each line of
     # sight.
     pos = numpy.empty((nsamples * len(rdist), 3), dtype=fields[0].dtype)
     for i in range(nsamples):
         start, end = i * len(rdist), (i + 1) * len(rdist)
-        pos[start:end, 0] = rdist
+        pos[start:end, 0] = rdist * mpc2box
         pos[start:end, 1] = sky_pos[i, 0]
         pos[start:end, 2] = sky_pos[i, 1]
 
@@ -164,17 +162,24 @@ def evaluate_los(*fields, sky_pos, boxsize, rmax, dr, smooth_scales=None,
 
         smooth_scales *= mpc2box
 
-    field_interp = evaluate_cartesian(*fields, pos=pos, smooth_scales=smooth_scales,
+    field_interp = evaluate_cartesian(*fields, pos=pos,
+                                      smooth_scales=smooth_scales,
                                       verbose=verbose)
+
     # Now we reshape the interpolated field to have the same shape as the
     # input `sky_pos`.
+    if smooth_scales is None:
+        shape_single = (nsamples, len(rdist))
+    else:
+        shape_single = (nsamples, len(rdist), len(smooth_scales))
+
     field_interp_reshaped = [None] * len(fields)
     for i in range(len(fields)):
-        samples = numpy.full((nsamples, len(rdist), len(smooth_scales)),
-                             numpy.nan, dtype=fields[i].dtype)
+        samples = numpy.full(shape_single, numpy.nan,
+                             dtype=field_interp[i].dtype)
         for j in range(nsamples):
             start, end = j * len(rdist), (j + 1) * len(rdist)
-            samples[j] = field_interp[i][start:end, :]
+            samples[j] = field_interp[i][start:end, ...]
 
         field_interp_reshaped[i] = samples
 
