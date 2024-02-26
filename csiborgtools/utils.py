@@ -229,7 +229,7 @@ def dms_to_degrees(degrees, arcminutes=None, arcseconds=None):
     return degrees + (arcminutes or 0) / 60 + (arcseconds or 0) / 3600
 
 
-def real2redshift(pos, vel, observer_location, observer_velocity, box,
+def real2redshift(pos, vel, observer_location, observer_velocity, boxsize,
                   periodic_wrap=True, make_copy=True):
     r"""
     Convert real-space position to redshift space position.
@@ -244,8 +244,8 @@ def real2redshift(pos, vel, observer_location, observer_velocity, box,
         Observer location in `Mpc / h`.
     observer_velocity: 1-dimensional array `(3,)`
         Observer velocity in `km / s`.
-    box : py:class:`csiborg.read.CSiBORG1Box`
-        Box units.
+    boxsize : float
+        Box size in `Mpc / h`.
     periodic_wrap : bool, optional
         Whether to wrap around the box, particles may be outside the default
         bounds once RSD is applied.
@@ -278,7 +278,6 @@ def real2redshift(pos, vel, observer_location, observer_velocity, box,
         vel += observer_velocity
 
     if periodic_wrap:
-        boxsize = box.box2mpc(1.)
         pos = periodic_wrap_grid(pos, boxsize)
 
     return pos
