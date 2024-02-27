@@ -17,19 +17,22 @@ sight.
 """
 from argparse import ArgumentParser
 from datetime import datetime
+from gc import collect
+from os import makedirs, remove, rmdir
+from os.path import exists, isdir, join
 
+import csiborgtools
 import numpy as np
+from h5py import File
 from mpi4py import MPI
 from taskmaster import work_delegation
 
-import csiborgtools
-from os.path import isdir, exists
-from os import makedirs, remove
 from utils import get_nsims
-from gc import collect
 
-from h5py import File
-from os.path import join
+
+###############################################################################
+#                             I/O functions                                   #
+###############################################################################
 
 
 def get_los(catalogue_name, comm):
@@ -64,6 +67,26 @@ def get_los(catalogue_name, comm):
 
 
 def get_field(simname, nsim, kind, MAS, grid):
+    """
+    Get the field from the simulation.
+
+    Parameters
+    ----------
+    simname : str
+        Simulation name.
+    nsim : int
+        IC realisation index.
+    kind : str
+        Field kind. Either `density` or `velocity`.
+    MAS : str
+        Mass assignment scheme.
+    grid : int
+        Grid resolution.
+
+    Returns
+    -------
+    field : n-dimensional array
+    """
     # Open the field reader.
     if simname == "csiborg1":
         field_reader = csiborgtools.read.CSiBORG1Field(nsim)
@@ -81,9 +104,56 @@ def get_field(simname, nsim, kind, MAS, grid):
     return field
 
 
+def combine_from_simulations(simname, nsims, outfolder, dumpfolder):
+    """
+    Combine the results from individual simulations into a single file.
+
+    Parameters
+    ----------
+    simname : str
+        Simulation name.
+    nsims : list
+        List of IC realisations.
+    outfolder : str
+        Output folder.
+    dumpfolder : str
+        Dumping folder where the temporary files are stored.
+
+    Returns
+    -------
+    None
+    """
+
+    fname_out = join(outfolder, f"los_{simname}.hdf5")
+    print(f"Combining results from invidivual simulations to `{fname_out}`.")
+
+    if exists(fname_out):
+        remove(fname_out)
+
+    for nsim in nsims:
+        fname = join(dumpfolder, f"los_{simname}_{nsim}.hdf5")
+
+        with File(fname, 'r') as f, File(fname_out, 'a') as f_out:
+            f_out.create_dataset(f"rdist_{nsim}", data=f["rdist"][:])
+            f_out.create_dataset(f"density_{nsim}", data=f["density"][:])
+            f_out.create_dataset(f"velocity_{nsim}", data=f["velocity"][:])
+
+        # Remove the temporary file.
+        remove(fname)
+
+    # Remove the dumping folder.
+    rmdir(dumpfolder)
+
+    print("Finished combining results.")
+
+
+###############################################################################
+#                       Main interpolating function                           #
+###############################################################################
+
+
 def interpolate_field(pos, simname, nsim, MAS, grid, dump_folder, rmax,
                       dr, smooth_scales):
-
     boxsize = csiborgtools.simname2boxsize(simname)
     fname_out = join(dump_folder, f"los_{simname}_{nsim}.hdf5")
 
@@ -102,32 +172,19 @@ def interpolate_field(pos, simname, nsim, MAS, grid, dump_folder, rmax,
     del density, rdist, finterp
     collect()
 
-    # velocity = get_field(simname, nsim, "velocity", MAS, grid)
-    # rdist, finterp = csiborgtools.field.evaluate_los(
-    #     velocity[0], velocity[1], velocity[2],
-    #     sky_pos=pos, boxsize=boxsize, rmax=rmax, dr=dr,
-    #     smooth_scales=smooth_scales, verbose=False)
+    velocity = get_field(simname, nsim, "velocity", MAS, grid)
+    rdist, finterp = csiborgtools.field.evaluate_los(
+        velocity[0], velocity[1], velocity[2],
+        sky_pos=pos, boxsize=boxsize, rmax=rmax, dr=dr,
+        smooth_scales=smooth_scales, verbose=False)
 
-    # with File(fname_out, 'a') as f:
-    #     f.create_dataset("velocity", data=finterp)
+    with File(fname_out, 'a') as f:
+        f.create_dataset("velocity", data=finterp)
 
 
-def combine_from_simulations(simname, nsims, outfolder, dumpfolder, ):
-    fname_out = join(outfolder, f"los_{simname}.hdf5")
-    print(f"Combining results from invidivual simulations to `{fname_out}`.")
-
-    if exists(fname_out):
-        remove(fname_out)
-
-    for nsim in nsims:
-        fname = join(dumpfolder, f"los_{simname}_{nsim}.hdf5")
-
-        with File(fname, 'r') as f, File(fname_out, 'a') as f_out:
-            f_out.create_dataset(f"rdist_{nsim}", data=f["rdist"][:])
-            f_out.create_dataset(f"density_{nsim}", data=f["density"][:])
-            # f_out.create_dataset(f"velocity_{nsim}", data=f["velocity"][:])
-
-    print("Finished combining results.")
+###############################################################################
+#                           Command line interface                            #
+###############################################################################
 
 
 if __name__ == "__main__":
@@ -158,6 +215,7 @@ if __name__ == "__main__":
         print(f"Creating folder `{dump_folder}`.")
         makedirs(dump_folder)
 
+    # Get the line of sight RA/dec coordinates.
     pos = get_los(args.catalogue, comm)
 
     def main(nsim):
