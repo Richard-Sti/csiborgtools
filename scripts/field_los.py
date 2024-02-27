@@ -104,12 +104,15 @@ def get_field(simname, nsim, kind, MAS, grid):
     return field
 
 
-def combine_from_simulations(simname, nsims, outfolder, dumpfolder):
+def combine_from_simulations(catalogue_name, simname, nsims, outfolder,
+                             dumpfolder):
     """
     Combine the results from individual simulations into a single file.
 
     Parameters
     ----------
+    catalogue_name : str
+        Catalogue name.
     simname : str
         Simulation name.
     nsims : list
@@ -123,8 +126,7 @@ def combine_from_simulations(simname, nsims, outfolder, dumpfolder):
     -------
     None
     """
-
-    fname_out = join(outfolder, f"los_{simname}.hdf5")
+    fname_out = join(outfolder, f"los_{catalogue_name}_{simname}.hdf5")
     print(f"Combining results from invidivual simulations to `{fname_out}`.")
 
     if exists(fname_out):
@@ -154,6 +156,34 @@ def combine_from_simulations(simname, nsims, outfolder, dumpfolder):
 
 def interpolate_field(pos, simname, nsim, MAS, grid, dump_folder, rmax,
                       dr, smooth_scales):
+    """
+    Interpolate the density and velocity fields along the line of sight.
+
+    Parameters
+    ----------
+    pos : 2-dimensional array
+        RA/dec coordinates of the line of sight.
+    simname : str
+        Simulation name.
+    nsim : int
+        IC realisation index.
+    MAS : str
+        Mass assignment scheme.
+    grid : int
+        Grid resolution.
+    dump_folder : str
+        Folder where the temporary files are stored.
+    rmax : float
+        Maximum distance along the line of sight.
+    dr : float
+        Distance spacing along the line of sight.
+    smooth_scales : list
+        Smoothing scales.
+
+    Returns
+    -------
+    None
+    """
     boxsize = csiborgtools.simname2boxsize(simname)
     fname_out = join(dump_folder, f"los_{simname}_{nsim}.hdf5")
 
@@ -226,5 +256,6 @@ if __name__ == "__main__":
     comm.Barrier()
 
     if comm.Get_rank() == 0:
-        combine_from_simulations(args.simname, nsims, out_folder, dump_folder)
+        combine_from_simulations(args.catalogue, args.simname, nsims,
+                                 out_folder, dump_folder)
         print("All finished!")
