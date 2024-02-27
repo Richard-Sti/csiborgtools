@@ -194,6 +194,8 @@ def evaluate_los(*fields, sky_pos, boxsize, rmax, dr, smooth_scales=None,
     field_interp = evaluate_cartesian(*fields, pos=pos,
                                       smooth_scales=smooth_scales,
                                       verbose=verbose)
+    if len(fields) == 1:
+        field_interp = [field_interp]
 
     # Now we reshape the interpolated field to have the same shape as the
     # input `sky_pos`.
