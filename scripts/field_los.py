@@ -3,7 +3,6 @@
 # under the terms of the GNU General Public License as published by the
 # Free Software Foundation; either version 3 of the License, or (at your
 # option) any later version.
-#
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General
@@ -24,6 +23,8 @@ from mpi4py import MPI
 from taskmaster import work_delegation
 
 import csiborgtools
+from os.path import isdir, exists
+from os import makedirs, remove
 from utils import get_nsims
 from gc import collect
 
@@ -90,8 +91,10 @@ def interpolate_field(pos, simname, nsim, MAS, grid, dump_folder, rmax,
     density = get_field(simname, nsim, "density", MAS, grid)
 
     rdist, finterp = csiborgtools.field.evaluate_los(
-        density, pos, boxsize, rmax, dr, smooth_scales, verbose=False)
+        density, sky_pos=pos, boxsize=boxsize, rmax=rmax, dr=dr,
+        smooth_scales=smooth_scales, verbose=False)
 
+    print(f"Writing temporary file `{fname_out}`.")
     with File(fname_out, 'w') as f:
         f.create_dataset("rdist", data=rdist)
         f.create_dataset("density", data=finterp)
@@ -99,17 +102,22 @@ def interpolate_field(pos, simname, nsim, MAS, grid, dump_folder, rmax,
     del density, rdist, finterp
     collect()
 
-    velocity = get_field(simname, nsim, "velocity", MAS, grid)
-    rdist, finterp = csiborgtools.field.evaluate_los(
-        velocity, pos, boxsize, rmax, dr, smooth_scales, verbose=False)
+    # velocity = get_field(simname, nsim, "velocity", MAS, grid)
+    # rdist, finterp = csiborgtools.field.evaluate_los(
+    #     velocity[0], velocity[1], velocity[2],
+    #     sky_pos=pos, boxsize=boxsize, rmax=rmax, dr=dr,
+    #     smooth_scales=smooth_scales, verbose=False)
 
-    with File(fname_out, 'a') as f:
-        f.create_dataset("velocity", data=finterp)
+    # with File(fname_out, 'a') as f:
+    #     f.create_dataset("velocity", data=finterp)
 
 
 def combine_from_simulations(simname, nsims, outfolder, dumpfolder, ):
     fname_out = join(outfolder, f"los_{simname}.hdf5")
     print(f"Combining results from invidivual simulations to `{fname_out}`.")
+
+    if exists(fname_out):
+        remove(fname_out)
 
     for nsim in nsims:
         fname = join(dumpfolder, f"los_{simname}_{nsim}.hdf5")
@@ -117,7 +125,7 @@ def combine_from_simulations(simname, nsims, outfolder, dumpfolder, ):
         with File(fname, 'r') as f, File(fname_out, 'a') as f_out:
             f_out.create_dataset(f"rdist_{nsim}", data=f["rdist"][:])
             f_out.create_dataset(f"density_{nsim}", data=f["density"][:])
-            f_out.create_dataset(f"velocity_{nsim}", data=f["velocity"][:])
+            # f_out.create_dataset(f"velocity_{nsim}", data=f["velocity"][:])
 
     print("Finished combining results.")
 
@@ -135,7 +143,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     out_folder = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_los"
-    dump_folder = join(out_folder, f"temp_{str(datetime.now())}")
+    dump_folder = join(out_folder,
+                       f"temp_{str(datetime.now())}".replace(" ", "_"))
     rmax = 200
     dr = 0.1
     smooth_scales = None
@@ -144,10 +153,15 @@ if __name__ == "__main__":
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsims = get_nsims(args, paths)
 
+    # Create the dumping folder.
+    if comm.Get_rank() == 0 and not isdir(dump_folder):
+        print(f"Creating folder `{dump_folder}`.")
+        makedirs(dump_folder)
+
     pos = get_los(args.catalogue, comm)
 
     def main(nsim):
-        interpolate_field(pos, args.simname, nsim, args.MAS, args._get_args,
+        interpolate_field(pos, args.simname, nsim, args.MAS, args.grid,
                           dump_folder, rmax, dr, smooth_scales)
 
     work_delegation(main, nsims, comm, master_verbose=True)
