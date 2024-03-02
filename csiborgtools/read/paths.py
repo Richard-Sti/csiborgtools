@@ -653,3 +653,22 @@ class Paths:
         str
         """
         return self.tng300_1_dir
+
+    def field_los(self, simnname, catalogue):
+        """
+        Path to the files containing the line-of-sight fields.
+
+        Parameters
+        ----------
+        simname : str
+            Simulation name.
+        catalogue : str
+            Catalogue name.
+
+        Returns
+        -------
+        str
+        """
+        fdir = join(self.postdir, "field_los")
+        try_create_directory(fdir)
+        return join(fdir, f"los_{catalogue}_{simnname}.hdf5")
