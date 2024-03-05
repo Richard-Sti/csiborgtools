@@ -60,10 +60,11 @@ class DataLoader:
         Whether to store the full 3D velocity field. Otherwise stores only
         the radial velocity.
     """
-    def __init__(self, simname, catalogue, los_catalogue_fpath, paths,
+    def __init__(self, simname, catalogue, catalogue_fpath, paths,
                  store_full_velocity=False):
         print(f"{t()}: reading the catalogue.")
-        self._cat = self._read_catalogue(catalogue, los_catalogue_fpath)
+        self._cat = self._read_catalogue(catalogue, catalogue_fpath)
+        self._catname = catalogue
 
         print(f"{t()}: reading the interpolated field.")
         self._field_rdist, self._los_density, los_velocity = self._read_field(
@@ -100,6 +101,17 @@ class DataLoader:
         structured array
         """
         return self._cat
+
+    @property
+    def catname(self):
+        """
+        Name of the catalogue.
+
+        Returns
+        -------
+        str
+        """
+        return self._catname
 
     @property
     def rdist(self):
@@ -168,27 +180,20 @@ class DataLoader:
 
         return rdist, out_density, out_velocity
 
-    def _read_catalogue(self, catalogue, los_catalogue_fpath):
+    def _read_catalogue(self, catalogue, catalogue_fpath):
         """
         Read in the distance indicator catalogue.
         """
-        if catalogue == "A2":
-            with File(los_catalogue_fpath, 'r') as f:
-                RA = f["RA"][:]
-                dec = f["DEC"][:]
-                zobs = f["z_obs"][:]
-                rdist = f["r_hMpc"][:]
-        else:
-            raise ValueError(f"Unknown catalogue: `{catalogue}`.")
+        with File(catalogue_fpath, 'r') as f:
+            if catalogue == "LOSS" or catalogue == "Foundation":
+                grp = f[catalogue]
 
-        dtype = [("RA", np.float32), ("DEC", np.float32), ("zobs", np.float32),
-                 ("rdist", np.float32)]
-        arr = np.empty(len(RA), dtype=dtype)
-
-        arr["RA"] = RA
-        arr["DEC"] = dec
-        arr["zobs"] = zobs
-        arr["rdist"] = rdist
+                dtype = [(key, np.float32) for key in grp.keys()]
+                arr = np.empty(len(grp["RA"]), dtype=dtype)
+                for key in grp.keys():
+                    arr[key] = grp[key][:]
+            else:
+                raise ValueError(f"Unknown catalogue: `{catalogue}`.")
 
         return arr
 
@@ -277,20 +282,41 @@ def dist2redshift(dist, Omega_m):
     return 1 / eta * (1 - (1 - 2 * H0 * dist / SPEED_OF_LIGHT * eta)**0.5)
 
 
-def dist2distmodulus(dist, Omega_m, h=1):
+def dist2distmodulus(dist, Omega_m):
     """
+    Convert comoving distance to distance modulus, assuming z << 1.
 
+    Parameters
+    ----------
+    dist : float or 1-dimensional array
+        Comoving distance in `Mpc / h`.
+    Omega_m : float
+        Matter density parameter.
 
-    Convert comoving distance to distance modulus.
+    Returns
+    -------
+    float or 1-dimensional array
     """
-    zcosmo = dist2redshift(dist, Omega_m, h)
+    zcosmo = dist2redshift(dist, Omega_m)
     luminosity_distance = dist * (1 + zcosmo)
     return 5 * jnp.log10(luminosity_distance) + 25
 
 
 def project_Vext(Vext_x, Vext_y, Vext_z, RA, dec):
     """
-    Project the external velocity onto the line of sight.
+    Project the external velocity onto the line of sight along direction
+    specified by RA/dec.
+
+    Parameters
+    ----------
+    Vext_x, Vext_y, Vext_z : floats
+        Components of the external velocity.
+    RA, dec : floats
+        Right ascension and declination in degrees.
+
+    Returns
+    -------
+    float
     """
     RA_rad = RA / 180 * np.pi
     dec_rad = dec / 180 * np.pi
@@ -300,18 +326,35 @@ def project_Vext(Vext_x, Vext_y, Vext_z, RA, dec):
             + Vext_z * np.sin(dec_rad))
 
 
-def predict_zobs(dist, beta, Vext_radial, vpec_radial, Omega_m, h=1):
+def predict_zobs(dist, beta, Vext_radial, vpec_radial, Omega_m):
     """
-    Predict the observed redshift at a given distance.
-    """
-    zcosmo = dist2redshift(dist, Omega_m, h)
-    return ((1 + zcosmo) * (1 + (beta * vpec_radial + Vext_radial) / SPEED_OF_LIGHT) - 1)  # noqa
+    Predict the observed redshift at a given comoving distance given some
+    velocity field.
 
+    Parameters
+    ----------
+    dist : float
+        Comoving distance in `Mpc / h`.
+    beta : float
+        Velocity bias parameter.
+    Vext_radial : float
+        Radial component of the external velocity along the LOS.
+    vpec_radial : float
+        Radial component of the peculiar velocity along the LOS.
+    Omega_m : float
+        Matter density parameter.
+
+    Returns
+    -------
+    float
+    """
+    zcosmo = dist2redshift(dist, Omega_m)
+    return ((1 + zcosmo) * (1 + (beta * vpec_radial + Vext_radial) / SPEED_OF_LIGHT) - 1)  # noqa
 
 
 class FlowModel:
     """
-    For a linear bias we are independent.
+    ?
 
 
     """
@@ -361,18 +404,18 @@ class FlowModel:
         Vext_z = numpyro.sample("Vext_z", self._dist_Vext)
 
         # Calculate the distance modulus for the catalogue that we are using.
-        if self._loader.cat == "A2":
+        if self._loader.catname == "A2":
             mag_cal = None
             alpha_cal = None
             beta_cal = None
-            mu = (self._cat["mb"] - mag_cal
+            mu = (self._cat["mB"] - mag_cal
                   + alpha_cal * self._cat["x1"]
                   - beta_cal * self._cat["c"])
-            squared_e_mu = (self._cat["e_mb"]**2
-                            + alpha_cal***2 * self._cat["e_x1"]**2
+            squared_e_mu = (self._cat["e_mB"]**2
+                            + alpha_cal**2 * self._cat["e_x1"]**2
                             + beta_cal**2 * self._cat["e_c"]**2)
         else:
-            raise ValueError(f"Unknown catalogue: `{self._loader.cat}`.")
+            raise ValueError(f"Unknown catalogue: `{self._loader.catname}`.")
 
         squared_e_mu += e_mu_intrinsic**2
 
@@ -397,7 +440,7 @@ class FlowModel:
                     self._r, beta, Vext_rad, self._los_velocity[j, i],
                     self._Omega_m)
 
-                dczobs = SPEED_OF_LIGHT * (self._zobs[j] - zobs_pred)
+                dczobs = SPEED_OF_LIGHT * (self._cat["z_CMB"][j] - zobs_pred)
                 ll_zobs = 1 / jnp.sqrt(2 * jnp.pi * sigma_v**2)
                 ll_zobs *= jnp.exp(-0.5 * (dczobs / sigma_v**2))
 
