@@ -58,6 +58,24 @@ def get_los(catalogue_name, comm):
                 grp = f[catalogue_name]
                 RA = grp["RA"][:]
                 dec = grp["DEC"][:]
+        if catalogue_name == "A2":
+            fpath = join(folder, "A2.h5")
+            with File(fpath, 'r') as f:
+                grp = f["A2"]
+                RA = grp["RA"][:]
+                dec = grp["DEC"][:]
+        elif "csiborg1" in catalogue_name:
+            nsim = int(catalogue_name.split("_")[-1])
+            cat = csiborgtools.read.CSiBORG1Catalogue(
+                nsim, bounds={"totmass": (1e13, None)})
+
+            seed = 42
+            gen = np.random.default_rng(seed)
+            mask = gen.choice(len(cat), size=100, replace=False)
+
+            sph_pos = cat["spherical_pos"]
+            RA = sph_pos[mask, 1]
+            dec = sph_pos[mask, 2]
         else:
             raise ValueError(f"Unknown field name: `{catalogue_name}`.")
 
@@ -233,7 +251,8 @@ if __name__ == "__main__":
 
     rmax = 200
     dr = 0.1
-    smooth_scales = [0, 2, 4, 6]
+    # smooth_scales = [0, 2, 4, 6]
+    smooth_scales = None
 
     comm = MPI.COMM_WORLD
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
