@@ -111,6 +111,8 @@ class Paths:
             files = glob(join(self.quijote_dir, "fiducial_processed",
                               "chain_*"))
             files = [int(search(r'chain_(\d+)', f).group(1)) for f in files]
+        elif simname == "Carrick2015":
+            return [0]
         else:
             raise ValueError(f"Unknown simulation name `{simname}`.")
 
