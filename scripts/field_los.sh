@@ -5,10 +5,10 @@ queue="berg"
 env="/mnt/users/rstiskalek/csiborgtools/venv_csiborg/bin/python"
 file="field_los.py"
 
-# catalogue="Foundation"
-catalogue="csiborg1_9844"
+catalogue="A2"
+# catalogue="csiborg1_9844"
 nsims="-1"
-simname="csiborg1"
+simname="Carrick2015"
 MAS="SPH"
 grid=1024
 
