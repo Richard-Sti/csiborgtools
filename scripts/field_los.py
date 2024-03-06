@@ -20,22 +20,24 @@ from datetime import datetime
 from gc import collect
 from os import makedirs, remove, rmdir
 from os.path import exists, join
+from warnings import warn
 
 import csiborgtools
 import numpy as np
+from astropy import units as u
+from astropy.coordinates import SkyCoord
 from h5py import File
 from mpi4py import MPI
 from taskmaster import work_delegation
 
 from utils import get_nsims
 
-
 ###############################################################################
 #                             I/O functions                                   #
 ###############################################################################
 
 
-def get_los(catalogue_name, comm):
+def get_los(catalogue_name, simname, comm):
     """
     Get the line of sight RA/dec coordinates for the given catalogue.
 
@@ -43,6 +45,10 @@ def get_los(catalogue_name, comm):
     ----------
     catalogue_name : str
         Catalogue name.
+    simname : str
+        Simulation name.
+    comm : mpi4py.MPI.Comm
+        MPI communicator.
 
     Returns
     -------
@@ -58,12 +64,11 @@ def get_los(catalogue_name, comm):
                 grp = f[catalogue_name]
                 RA = grp["RA"][:]
                 dec = grp["DEC"][:]
-        if catalogue_name == "A2":
+        elif catalogue_name == "A2":
             fpath = join(folder, "A2.h5")
             with File(fpath, 'r') as f:
-                grp = f["A2"]
-                RA = grp["RA"][:]
-                dec = grp["DEC"][:]
+                RA = f["RA"][:]
+                dec = f["DEC"][:]
         elif "csiborg1" in catalogue_name:
             nsim = int(catalogue_name.split("_")[-1])
             cat = csiborgtools.read.CSiBORG1Catalogue(
@@ -79,7 +84,14 @@ def get_los(catalogue_name, comm):
         else:
             raise ValueError(f"Unknown field name: `{catalogue_name}`.")
 
-        pos = np.vstack((RA, dec)).T
+        # The Carrick+2015 is in galactic coordinates, so we need to convert
+        # the RA/dec to galactic coordinates.
+        if simname == "Carrick2015":
+            c = SkyCoord(ra=RA*u.degree, dec=dec*u.degree, frame='icrs')
+            pos = np.vstack((c.galactic.l, c.galactic.b)).T
+        else:
+            pos = np.vstack((RA, dec)).T
+
     else:
         pos = None
 
@@ -110,6 +122,17 @@ def get_field(simname, nsim, kind, MAS, grid):
     # Open the field reader.
     if simname == "csiborg1":
         field_reader = csiborgtools.read.CSiBORG1Field(nsim)
+    elif simname == "Carrick2015":
+        folder = "/mnt/extraspace/rstiskalek/catalogs"
+        warn(f"Using local paths from `{folder}`.", RuntimeWarning)
+        if kind == "density":
+            fpath = join(folder, "twompp_density_carrick2015.npy")
+            return np.load(fpath).astype(np.float32)
+        elif kind == "velocity":
+            fpath = join(folder, "twompp_velocity_carrick2015.npy")
+            return np.load(fpath).astype(np.float32)
+        else:
+            raise ValueError(f"Unknown field kind: `{kind}`.")
     else:
         raise ValueError(f"Unknown simulation name: `{simname}`.")
 
@@ -256,7 +279,7 @@ if __name__ == "__main__":
 
     comm = MPI.COMM_WORLD
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    nsims = get_nsims(args, paths)
+    nsims = [0] if args.simname == "Carrick2015" else get_nsims(args, paths)
 
     out_folder = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_los"
     # Create the dumping folder.
@@ -269,8 +292,8 @@ if __name__ == "__main__":
         dump_folder = None
     dump_folder = comm.bcast(dump_folder, root=0)
 
-    # Get the line of sight RA/dec coordinates.
-    pos = get_los(args.catalogue, comm)
+    # Get the line of sight sky coordinates.
+    pos = get_los(args.catalogue, args.simname, comm)
 
     def main(nsim):
         interpolate_field(pos, args.simname, nsim, args.MAS, args.grid,
