@@ -13,5 +13,5 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 from .flow_model import (DataLoader, radial_velocity_los, dist2redshift,        # noqa
-                         SN_PV_wcal_validation_model, dist2distmodulus,      # noqa
-                         predict_zobs)                                          # noqa
+                         dist2distmodulus, predict_zobs,                        # noqa
+                         SN_PV_wcal_validation_model, SN_PV_validation_model)   # noqa
