@@ -37,7 +37,8 @@ def simname2boxsize(simname):
          "borg1": 677.7,
          "borg2": 676.6,
          "quijote": 1000.,
-         "TNG300-1": 205.
+         "TNG300-1": 205.,
+         "Carrick2015": 400.,
          }
 
     boxsize = d.get(simname, None)
