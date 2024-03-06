@@ -20,13 +20,17 @@ References
 [1] https://arxiv.org/abs/1912.09383.
 """
 from datetime import datetime
+from warnings import warn
 
 import numpy as np
 import numpyro
 import numpyro.distributions as dist
+from astropy.cosmology import FlatLambdaCDM
 from h5py import File
 from jax import numpy as jnp
 from tqdm import tqdm, trange
+
+from ..read import CSiBORG1Catalogue
 
 SPEED_OF_LIGHT = 299792.458  # km / s
 
@@ -52,6 +56,7 @@ class DataLoader:
         Simulation name.
     catalogue : str
         Name of the catalogue with LOS objects.
+
     los_catalogue_fpath : str
         Path to the LOS catalogue file.
     paths : csiborgtools.read.Paths
@@ -61,19 +66,22 @@ class DataLoader:
         the radial velocity.
     """
     def __init__(self, simname, catalogue, catalogue_fpath, paths,
-                 store_full_velocity=False):
+                 ksmooth=None, store_full_velocity=False):
         print(f"{t()}: reading the catalogue.")
         self._cat = self._read_catalogue(catalogue, catalogue_fpath)
         self._catname = catalogue
 
         print(f"{t()}: reading the interpolated field.")
-        self._field_rdist, self._los_density, los_velocity = self._read_field(
-            simname, catalogue, paths)
+        self._field_rdist, self._los_density, self._los_velocity = self._read_field(  # noqa
+            simname, catalogue, ksmooth, paths)
 
-        if store_full_velocity:
-            self._los_velocity = los_velocity
-        else:
-            self._los_velocity = None
+        if len(self._field_rdist) % 2 == 0:
+            warn(f"The number of radial steps is even. Skipping the first "
+                 f"step at {self._field_rdist[0]} because Simpson's rule "
+                 "requires an odd number of steps.")
+            self._field_rdist = self._field_rdist[1:]
+            self._los_density = self._los_density[..., 1:]
+            self._los_velocity = self._los_velocity[..., 1:]
 
         if len(self._cat) != len(self._los_density):
             raise ValueError("The number of objects in the catalogue does not "
@@ -83,13 +91,27 @@ class DataLoader:
         nobject, nsim = self._los_density.shape[:2]
 
         radvel = np.empty((nobject, nsim, len(self._field_rdist)),
-                          los_velocity.dtype)
+                          self._los_velocity.dtype)
         for i in trange(nobject):
             RA, dec = self._cat[i]["RA"], self._cat[i]["DEC"]
             for j in range(nsim):
-                radvel[i, j, :] = radial_velocity_los(los_velocity[i, j, ...],
-                                                      RA, dec)
+                radvel[i, j, :] = radial_velocity_los(
+                    self._los_velocity[i, j, ...], RA, dec)
         self._los_radial_velocity = radvel
+
+        if not store_full_velocity:
+            self._los_velocity = None
+
+        if simname == "csiborg1":
+            Omega_m = 0.307
+        else:
+            raise ValueError(f"Unknown simulation: `{simname}`.")
+
+        cosmo = FlatLambdaCDM(H0=100, Om0=Omega_m)
+        mean_rho_matter = cosmo.critical_density0.to("Msun/kpc^3").value
+        mean_rho_matter *= Omega_m
+
+        self._los_density /= mean_rho_matter
 
     @property
     def cat(self):
@@ -159,22 +181,30 @@ class DataLoader:
         """
         return self._los_radial_velocity
 
-    def _read_field(self, simname, catalogue, paths):
+    def _read_field(self, simname, catalogue, k, paths):
         """Read in the interpolated field."""
         out_density = None
         out_velocity = None
+        has_smoothed = False
+
         nsims = paths.get_ics(simname)
         with File(paths.field_los(simname, catalogue), 'r') as f:
+            has_smoothed = True if f[f"density_{nsims[0]}"].ndim > 2 else False
+            if has_smoothed and (k is None or not isinstance(k, int)):
+                raise ValueError("The output contains smoothed field but "
+                                 "`ksmooth` is None. It must be provided.")
+
             for i, nsim in enumerate(tqdm(nsims)):
                 if out_density is None:
-                    nobject, nstep = f[f"density_{nsim}"].shape
+                    nobject, nstep = f[f"density_{nsim}"].shape[:2]
                     out_density = np.empty(
                         (nobject, len(nsims), nstep), dtype=np.float32)
                     out_velocity = np.empty(
                         (nobject, len(nsims), 3, nstep), dtype=np.float32)
 
-                out_density[:, i, :] = f[f"density_{nsim}"][:]
-                out_velocity[:, i, :, :] = f[f"velocity_{nsim}"][:].reshape(nobject, 3, nstep)  # noqa
+                slide_index = (..., k) if has_smoothed else (...)
+                out_density[:, i, :] = f[f"density_{nsim}"][slide_index]
+                out_velocity[:, i, :, :] = f[f"velocity_{nsim}"][slide_index].reshape(nobject, 3, nstep)  # noqa
 
             rdist = f[f"rdist_{nsims[0]}"][:]
 
@@ -184,22 +214,46 @@ class DataLoader:
         """
         Read in the distance indicator catalogue.
         """
-        with File(catalogue_fpath, 'r') as f:
-            if catalogue == "LOSS" or catalogue == "Foundation":
+        if catalogue == "A2":
+            with File(catalogue_fpath, 'r') as f:
+                print(f.keys())
+                dtype = [(key, np.float32) for key in f.keys()]
+                arr = np.empty(len(f["RA"]), dtype=dtype)
+                for key in f.keys():
+                    arr[key] = f[key][:]
+        elif catalogue == "LOSS" or catalogue == "Foundation":
+            with File(catalogue_fpath, 'r') as f:
                 grp = f[catalogue]
 
                 dtype = [(key, np.float32) for key in grp.keys()]
                 arr = np.empty(len(grp["RA"]), dtype=dtype)
                 for key in grp.keys():
                     arr[key] = grp[key][:]
-            else:
-                raise ValueError(f"Unknown catalogue: `{catalogue}`.")
+        elif "csiborg1" in catalogue:
+            nsim = int(catalogue.split("_")[-1])
+            cat = CSiBORG1Catalogue(nsim, bounds={"totmass": (1e13, None)})
+
+            seed = 42
+            gen = np.random.default_rng(seed)
+            mask = gen.choice(len(cat), size=100, replace=False)
+
+            keys = ["r_hMpc", "RA", "DEC"]
+            dtype = [(key, np.float32) for key in keys]
+            arr = np.empty(len(mask), dtype=dtype)
+
+            sph_pos = cat["spherical_pos"]
+            arr["r_hMpc"] = sph_pos[mask, 0]
+            arr["RA"] = sph_pos[mask, 1]
+            arr["DEC"] = sph_pos[mask, 2]
+            # TODO: add peculiar velocity
+        else:
+            raise ValueError(f"Unknown catalogue: `{catalogue}`.")
 
         return arr
 
 
 ###############################################################################
-#                          Supplementary functions                            #
+#                       Supplementary flow functions                          #
 ###############################################################################
 
 
@@ -255,8 +309,8 @@ def simps(y, dx):
     -------
     float
     """
-    if len(y) % 2 != 0:
-        raise ValueError("The number of steps must be even.")
+    if len(y) % 2 == 0:
+        raise ValueError("The number of steps must be odd.")
 
     return dx / 3 * jnp.sum(y[0:-1:2] + 4 * y[1::2] + y[2::2])
 
@@ -265,6 +319,8 @@ def dist2redshift(dist, Omega_m):
     """
     Convert comoving distance to cosmological redshift if the Universe is
     flat and z << 1.
+
+    VERIFIED.
 
     Parameters
     ----------
@@ -285,6 +341,8 @@ def dist2redshift(dist, Omega_m):
 def dist2distmodulus(dist, Omega_m):
     """
     Convert comoving distance to distance modulus, assuming z << 1.
+
+    VERIFIED.
 
     Parameters
     ----------
@@ -349,108 +407,102 @@ def predict_zobs(dist, beta, Vext_radial, vpec_radial, Omega_m):
     float
     """
     zcosmo = dist2redshift(dist, Omega_m)
-    return ((1 + zcosmo) * (1 + (beta * vpec_radial + Vext_radial) / SPEED_OF_LIGHT) - 1)  # noqa
+
+    vrad = beta * vpec_radial + Vext_radial
+    return (1 + zcosmo) * (1 + vrad / SPEED_OF_LIGHT) - 1
 
 
-class FlowModel:
-    """
-    ?
+###############################################################################
+#                          Flow validation model                              #
+###############################################################################
 
 
-    """
+def SN_PV_wcal_validation_model(los_overdensity=None, los_velocity=None,
+                                RA=None, dec=None, z_CMB=None,
+                                mB=None, x1=None, c=None,
+                                e_mB=None, e_x1=None, e_c=None,
+                                mu_xrange=None, r_xrange=None,
+                                norm_r2_xrange=None, Omega_m=None, dr=None):
+    Vx = numpyro.sample("Vext_x", dist.Uniform(-1000, 1000))
+    Vy = numpyro.sample("Vext_y", dist.Uniform(-1000, 1000))
+    Vz = numpyro.sample("Vext_z", dist.Uniform(-1000, 1000))
+    beta = numpyro.sample("beta", dist.Uniform(-10, 10))
 
-    def __init__(self, loader,
-                 Omega_m,
-                 sigma_v_dist=dist.Uniform(low=0, high=1000),
-                 beta_dist=dist.Uniform(low=0, high=5),
-                 Vext_dist=dist.Uniform(low=-1000, high=1000)):
+    # TODO: Later sample these as well.
+    e_mu_intrinsic = 0.064
+    alpha_cal = 0.135
+    beta_cal = 2.9
+    mag_cal = -18.555
+    sigma_v = 112
 
-        self._beta_dist = beta_dist
-        self._sigma_v_dist = sigma_v_dist
-        self._Vext_dist = Vext_dist
+    # TODO: Check these for fiducial values.
+    mu = mB - mag_cal + alpha_cal * x1 - beta_cal * c
+    squared_e_mu = e_mB**2 + alpha_cal**2 * e_x1**2 + beta_cal**2 * e_c**2
 
-        self._zobs = loader.cat["zobs"]
-        self._nobjects = len(loader.cat)
+    squared_e_mu += e_mu_intrinsic**2
+    ll = 0.
+    for i in range(len(los_overdensity)):
+        # Project the external velocity for this galaxy.
+        Vext_rad = project_Vext(Vx, Vy, Vz, RA[i], dec[i])
 
-        self._Omega_m = Omega_m
-        self._loader = loader
+        dmu = mu_xrange - mu[i]
+        ptilde = norm_r2_xrange * jnp.exp(-0.5 * dmu**2 / squared_e_mu[i])
+        # TODO: Add some bias
+        ptilde *= (los_overdensity[i])
 
-        self._r = loader.rdist
-        self._mu = dist2distmodulus(self._r, self._Omega_m)
-        # TODO Add a check to make sure these are all equal and there is even
-        # number of points
-        self._dr = self._r[1] - self._r[0]
+        zobs_pred = predict_zobs(r_xrange, beta, Vext_rad, los_velocity[i],
+                                 Omega_m)
 
-        self._nsim = None
+        dczobs = SPEED_OF_LIGHT * (z_CMB[i] - zobs_pred)
 
+        ll_zobs = jnp.exp(-0.5 * (dczobs / sigma_v)**2) / sigma_v
 
-        self._correct_malmquist = True
+        ll += jnp.log(simps(ptilde * ll_zobs, dr))
+        ll -= jnp.log(simps(ptilde, dr))
 
+    numpyro.factor("ll", ll)
 
-        self._los_density = None
-        self._los_velocity = None
-
-
-    def __call__(self):
-        # First off we sample all parameters.
-        sigma_v = None
-        e_mu_intrinsic = None
-        beta = numpyro.sample("beta", self._beta_dist)
-        # Sample the velocity uncertainty
-        sigma_v = numpyro.sample("sigma_v", self._sigma_v_dist)
-        # Sample the external velocity
-        Vext_x = numpyro.sample("Vext_x", self._dist_Vext)
-        Vext_y = numpyro.sample("Vext_y", self._dist_Vext)
-        Vext_z = numpyro.sample("Vext_z", self._dist_Vext)
-
-        # Calculate the distance modulus for the catalogue that we are using.
-        if self._loader.catname == "A2":
-            mag_cal = None
-            alpha_cal = None
-            beta_cal = None
-            mu = (self._cat["mB"] - mag_cal
-                  + alpha_cal * self._cat["x1"]
-                  - beta_cal * self._cat["c"])
-            squared_e_mu = (self._cat["e_mB"]**2
-                            + alpha_cal**2 * self._cat["e_x1"]**2
-                            + beta_cal**2 * self._cat["e_c"]**2)
-        else:
-            raise ValueError(f"Unknown catalogue: `{self._loader.catname}`.")
-
-        squared_e_mu += e_mu_intrinsic**2
-
-        ll_tot = 1
-        for i in range(self._nsim):
-            ll_sim = 1
-            for j in range(self._nobjects):
-                # Project the external velocity for this galaxy.
-                Vext_rad = project_Vext(
-                    Vext_x, Vext_y, Vext_z, self._cat[j]["RA"],
-                    self._cat[j]["DEC"])
-
-                # Because of a linear bias we don't need to normalize the
-                # density field, and the bias cancels in the likelihood.
-                ptilde = jnp.exp(-0.5 * self._mu - mu[j]**2 / squared_e_mu)
-                ptilte *= self._los_density[j, i, :]
-
-                if self._correct_malmquist:
-                    ptilde *= self._r**2
-
-                zobs_pred = predict_zobs(
-                    self._r, beta, Vext_rad, self._los_velocity[j, i],
-                    self._Omega_m)
-
-                dczobs = SPEED_OF_LIGHT * (self._cat["z_CMB"][j] - zobs_pred)
-                ll_zobs = 1 / jnp.sqrt(2 * jnp.pi * sigma_v**2)
-                ll_zobs *= jnp.exp(-0.5 * (dczobs / sigma_v**2))
-
-                ll_sim *= simps(ptilde * ll_zobs, self._dr)
-                ll_sim /= simps(ptilde, self._dr)
-
-            ll_tot += ll_sim
-
-        ll_tot /= self._nsim
-
-        log_ll = jnp.log(ll_tot)
-
-
+# def SN_PV_validation_model(los_overdensity=None, los_velocity=None,
+#                                 RA=None, dec=None, z_CMB=None,
+#                                 mB=None, x1=None, c=None,
+#                                 e_mB=None, e_x1=None, e_c=None,
+#                                 mu_xrange=None, r_xrange=None,
+#                                 norm_r2_xrange=None, Omega_m=None, dr=None):
+#     Vx = numpyro.sample("Vext_x", dist.Uniform(-1000, 1000))
+#     Vy = numpyro.sample("Vext_y", dist.Uniform(-1000, 1000))
+#     Vz = numpyro.sample("Vext_z", dist.Uniform(-1000, 1000))
+#     beta = numpyro.sample("beta", dist.Uniform(-10, 10))
+#
+#     # TODO: Later sample these as well.
+#     e_mu_intrinsic = 0.064
+#     alpha_cal = 0.135
+#     beta_cal = 2.9
+#     mag_cal = -18.555
+#     sigma_v = 112
+#
+#     # TODO: Check these for fiducial values.
+#     mu = mB - mag_cal + alpha_cal * x1 - beta_cal * c
+#     squared_e_mu = e_mB**2 + alpha_cal**2 * e_x1**2 + beta_cal**2 * e_c**2
+#
+#     squared_e_mu += e_mu_intrinsic**2
+#     ll = 0.
+#     for i in range(len(los_overdensity)):
+#         # Project the external velocity for this galaxy.
+#         Vext_rad = project_Vext(Vx, Vy, Vz, RA[i], dec[i])
+#
+#         dmu = mu_xrange - mu[i]
+#         ptilde = norm_r2_xrange * jnp.exp(-0.5 * dmu**2 / squared_e_mu[i])
+#         # TODO: Add some bias
+#         ptilde *= (los_overdensity[i])
+#
+#         zobs_pred = predict_zobs(r_xrange, beta, Vext_rad, los_velocity[i],
+#                                  Omega_m)
+#
+#         dczobs = SPEED_OF_LIGHT * (z_CMB[i] - zobs_pred)
+#
+#         ll_zobs = jnp.exp(-0.5 * (dczobs / sigma_v)**2) / sigma_v
+#
+#         ll += jnp.log(simps(ptilde * ll_zobs, dr))
+#         ll -= jnp.log(simps(ptilde, dr))
+#
+#     numpyro.factor("ll", ll)
