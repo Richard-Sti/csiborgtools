@@ -50,12 +50,14 @@ def get_los(catalogue_name, comm):
         RA/dec coordinates of the line of sight.
     """
     if comm.Get_rank() == 0:
-        pv_supranta_folder = "/mnt/extraspace/rstiskalek/catalogs/PV_Supranta"
+        folder = "/mnt/extraspace/rstiskalek/catalogs"
 
-        if catalogue_name == "A2":
-            with File(join(pv_supranta_folder, "A2.h5"), 'r') as f:
-                RA = f["RA"][:]
-                dec = f["DEC"][:]
+        if catalogue_name == "LOSS" or catalogue_name == "Foundation":
+            fpath = join(folder, "PV_compilation_Supranta2019.hdf5")
+            with File(fpath, 'r') as f:
+                grp = f[catalogue_name]
+                RA = grp["RA"][:]
+                dec = grp["DEC"][:]
         else:
             raise ValueError(f"Unknown field name: `{catalogue_name}`.")
 
@@ -231,7 +233,7 @@ if __name__ == "__main__":
 
     rmax = 200
     dr = 0.1
-    smooth_scales = None
+    smooth_scales = [0, 2, 4, 6]
 
     comm = MPI.COMM_WORLD
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
