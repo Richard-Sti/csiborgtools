@@ -12,4 +12,6 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-from .flow_model import (DataLoader, radial_velocity_los, dist2redshift)        # noqa
+from .flow_model import (DataLoader, radial_velocity_los, dist2redshift,        # noqa
+                         supernovae_pv_validation_model, dist2distmodulus,      # noqa
+                         predict_zobs)                                          # noqa
