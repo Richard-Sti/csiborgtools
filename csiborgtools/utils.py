@@ -15,7 +15,9 @@
 """
 Collection of stand-off utility functions used in the scripts.
 """
-import numpy
+from copy import deepcopy
+
+import numpy as np
 from numba import jit
 from datetime import datetime
 
@@ -30,17 +32,17 @@ def center_of_mass(particle_positions, particles_mass, boxsize):
     Calculate the center of mass of a halo while assuming periodic boundary
     conditions of a cubical box.
     """
-    cm = numpy.zeros(3, dtype=particle_positions.dtype)
+    cm = np.zeros(3, dtype=particle_positions.dtype)
     totmass = sum(particles_mass)
 
     # Convert positions to unit circle coordinates in the complex plane,
     # calculate the weighted average and convert it back to box coordinates.
     for i in range(3):
-        cm_i = sum(particles_mass * numpy.exp(
-            2j * numpy.pi * particle_positions[:, i] / boxsize))
+        cm_i = sum(particles_mass * np.exp(
+            2j * np.pi * particle_positions[:, i] / boxsize))
         cm_i /= totmass
 
-        cm_i = numpy.arctan2(cm_i.imag, cm_i.real) * boxsize / (2 * numpy.pi)
+        cm_i = np.arctan2(cm_i.imag, cm_i.real) * boxsize / (2 * np.pi)
 
         if cm_i < 0:
             cm_i += boxsize
@@ -58,7 +60,7 @@ def periodic_distance(points, reference_point, boxsize):
     npoints = len(points)
     half_box = boxsize / 2
 
-    dist = numpy.zeros(npoints, dtype=points.dtype)
+    dist = np.zeros(npoints, dtype=points.dtype)
     for i in range(npoints):
         for j in range(3):
             dist_1d = abs(points[i, j] - reference_point[j])
@@ -124,15 +126,15 @@ def cartesian_to_radec(X):
     """
     x, y, z = X[:, 0], X[:, 1], X[:, 2]
 
-    dist = numpy.linalg.norm(X, axis=1)
-    dec = numpy.arcsin(z / dist)
-    ra = numpy.arctan2(y, x)
-    ra[ra < 0] += 2 * numpy.pi
+    dist = np.linalg.norm(X, axis=1)
+    dec = np.arcsin(z / dist)
+    ra = np.arctan2(y, x)
+    ra[ra < 0] += 2 * np.pi
 
-    ra *= 180 / numpy.pi
-    dec *= 180 / numpy.pi
+    ra *= 180 / np.pi
+    dec *= 180 / np.pi
 
-    return numpy.vstack([dist, ra, dec]).T
+    return np.vstack([dist, ra, dec]).T
 
 
 def radec_to_cartesian(X):
@@ -142,11 +144,11 @@ def radec_to_cartesian(X):
     """
     dist, ra, dec = X[:, 0], X[:, 1], X[:, 2]
 
-    cdec = numpy.cos(dec * numpy.pi / 180)
-    return numpy.vstack([
-        dist * cdec * numpy.cos(ra * numpy.pi / 180),
-        dist * cdec * numpy.sin(ra * numpy.pi / 180),
-        dist * numpy.sin(dec * numpy.pi / 180)
+    cdec = np.cos(dec * np.pi / 180)
+    return np.vstack([
+        dist * cdec * np.cos(ra * np.pi / 180),
+        dist * cdec * np.sin(ra * np.pi / 180),
+        dist * np.sin(dec * np.pi / 180)
         ]).T
 
 
@@ -159,14 +161,14 @@ def great_circle_distance(x1, x2):
     ra1, dec1 = x1
     ra2, dec2 = x2
 
-    ra1 *= numpy.pi / 180
-    dec1 *= numpy.pi / 180
-    ra2 *= numpy.pi / 180
-    dec2 *= numpy.pi / 180
+    ra1 *= np.pi / 180
+    dec1 *= np.pi / 180
+    ra2 *= np.pi / 180
+    dec2 *= np.pi / 180
 
-    return 180 / numpy.pi * numpy.arccos(
-        numpy.sin(dec1) * numpy.sin(dec2)
-        + numpy.cos(dec1) * numpy.cos(dec2) * numpy.cos(ra1 - ra2)
+    return 180 / np.pi * np.arccos(
+        np.sin(dec1) * np.sin(dec2)
+        + np.cos(dec1) * np.cos(dec2) * np.cos(ra1 - ra2)
         )
 
 
@@ -193,8 +195,8 @@ def cosine_similarity(x, y):
     if y.ndim == 1:
         y = y.reshape(1, -1)
 
-    out = numpy.sum(x * y, axis=1)
-    out /= numpy.linalg.norm(x) * numpy.linalg.norm(y, axis=1)
+    out = np.sum(x * y, axis=1)
+    out /= np.linalg.norm(x) * np.linalg.norm(y, axis=1)
 
     return out[0] if out.size == 1 else out
 
@@ -258,8 +260,8 @@ def real2redshift(pos, vel, observer_location, observer_velocity, boxsize,
         Redshift-space Cartesian position in `Mpc / h`.
     """
     if make_copy:
-        pos = numpy.copy(pos)
-        vel = numpy.copy(vel)
+        pos = np.copy(pos)
+        vel = np.copy(vel)
 
     H0_inv = 1. / 100
 
@@ -267,8 +269,8 @@ def real2redshift(pos, vel, observer_location, observer_velocity, boxsize,
     pos -= observer_location
     vel -= observer_velocity
 
-    vr_dot = numpy.einsum('ij,ij->i', pos, vel)
-    norm2 = numpy.einsum('ij,ij->i', pos, pos)
+    vr_dot = np.einsum('ij,ij->i', pos, vel)
+    norm2 = np.einsum('ij,ij->i', pos, pos)
 
     pos *= (1 + H0_inv * vr_dot / norm2).reshape(-1, 1)
 
@@ -293,9 +295,9 @@ def number_counts(x, bin_edges):
     """
     Calculate counts of samples in bins.
     """
-    out = numpy.full(bin_edges.size - 1, numpy.nan, dtype=numpy.float32)
+    out = np.full(bin_edges.size - 1, np.nan, dtype=np.float32)
     for i in range(bin_edges.size - 1):
-        out[i] = numpy.sum((x >= bin_edges[i]) & (x < bin_edges[i + 1]))
+        out[i] = np.sum((x >= bin_edges[i]) & (x < bin_edges[i + 1]))
     return out
 
 
@@ -303,12 +305,12 @@ def binned_statistic(x, y, left_edges, bin_width, statistic):
     """
     Calculate a binned statistic.
     """
-    out = numpy.full(left_edges.size, numpy.nan, dtype=x.dtype)
+    out = np.full(left_edges.size, np.nan, dtype=x.dtype)
 
     for i in range(left_edges.size):
         mask = (x >= left_edges[i]) & (x < left_edges[i] + bin_width)
 
-        if numpy.any(mask):
+        if np.any(mask):
             out[i] = statistic(y[mask])
     return out
 
@@ -317,3 +319,112 @@ def fprint(msg, verbose=True):
     """Print and flush a message with a timestamp."""
     if verbose:
         print(f"{datetime.now()}:   {msg}", flush=True)
+
+
+###############################################################################
+#                            ACL of MCMC chains                               #
+###############################################################################
+
+
+def calculate_acf(data):
+    """
+    Calculates the autocorrelation of some data. Taken from `epsie` package
+    written by Collin Capano.
+
+    Parameters
+    ----------
+    data : 1-dimensional array
+        The data to calculate the autocorrelation of.
+
+    Returns
+    -------
+    acf : 1-dimensional array
+    """
+    # zero the mean
+    data = data - data.mean()
+    # zero-pad to 2 * nearest power of 2
+    newlen = int(2**(1 + np.ceil(np.log2(len(data)))))
+    x = np.zeros(newlen)
+    x[:len(data)] = data[:]
+    # correlate
+    acf = np.correlate(x, x, mode='full')
+    # drop corrupted region
+    acf = acf[len(acf)//2:]
+    # normalize
+    acf /= acf[0]
+    return acf
+
+
+def calculate_acl(data):
+    """
+    Calculate the autocorrelation length of some data. Taken from `epsie`
+    package written by Collin Capano. Algorithm used is from:
+        N. Madras and A.D. Sokal, J. Stat. Phys. 50, 109 (1988).
+
+    Parameters
+    ----------
+    data : 1-dimensional array
+        The data to calculate the autocorrelation length of.
+
+    Returns
+    -------
+    acl : int
+    """
+    # calculate the acf
+    acf = calculate_acf(data)
+    # now the ACL: Following from Sokal, this is estimated
+    # as the first point where M*tau[k] <= k, where
+    # tau = 2*cumsum(acf) - 1, and M is a tuneable parameter,
+    # generally chosen to be = 5 (which we use here)
+    m = 5
+    cacf = 2. * np.cumsum(acf) - 1.
+    win = m * cacf <= np.arange(len(cacf))
+    if win.any():
+        acl = int(np.ceil(cacf[np.where(win)[0][0]]))
+    else:
+        # data is too short to estimate the ACL, just choose
+        # the length of the data
+        acl = len(data)
+    return acl
+
+
+def thin_samples_by_acl(samples):
+    """
+    Thin MCMC samples by the autocorrelation length of each chain.
+
+    Parameters
+    ----------
+    samples : dict
+        Dictionary of samples. Each value is a 2-dimensional array of shape
+        `(nchains, nsamples)`.
+
+    Returns
+    -------
+    thinned_samples : dict
+        Dictionary of thinned samples. Each value is a 1-dimensional array of
+        shape `(n_thinned_samples)`, where the samples are concatenated across
+        the chain.
+    """
+    keys = list(samples.keys())
+    nchains = 1 if samples[keys[0]].ndim == 1 else samples[keys[0]].shape[0]
+
+    samples = deepcopy(samples)
+
+    if nchains == 1:
+        for key in keys:
+            samples[key] = samples[key].reshape(1, -1)
+
+    # Calculate the ACL of each chain.
+    acl = np.zeros(nchains, dtype=int)
+    for i in range(nchains):
+        acl[i] = max(calculate_acl(samples[key][i]) for key in keys)
+
+    thinned_samples = {}
+    for key in keys:
+        key_samples = []
+        for i in range(nchains):
+            key_samples.append(samples[key][i, ::acl[i]])
+
+        thinned_samples[key] = np.hstack(key_samples)
+
+    return thinned_samples
