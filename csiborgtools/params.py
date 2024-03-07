@@ -49,6 +49,32 @@ def simname2boxsize(simname):
     return boxsize
 
 
+def simname2Omega_m(simname):
+    """
+    Return Omega_m for a given simname.
+
+    Parameters
+    ----------
+    simname : str
+        Simulation name.
+
+    Returns
+    -------
+    Omega_m: float
+    """
+    d = {"csiborg1": 0.307,
+         "borg1": 0.307,
+         "Carrick2015": 0.3,
+         }
+
+    omega_m = d.get(simname, None)
+
+    if omega_m is None:
+        raise ValueError("Unknown simname: {}".format(simname))
+
+    return omega_m
+
+
 paths_glamdring = {
     "csiborg1_srcdir": "/mnt/extraspace/rstiskalek/csiborg1",
     "csiborg2_main_srcdir": "/mnt/extraspace/rstiskalek/csiborg2_main",

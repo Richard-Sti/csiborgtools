@@ -33,6 +33,7 @@ from jax import numpy as jnp
 from jax import vmap
 from tqdm import tqdm, trange
 
+from ..params import simname2Omega_m
 from ..read import CSiBORG1Catalogue
 
 SPEED_OF_LIGHT = 299792.458  # km / s
@@ -129,13 +130,7 @@ class DataLoader:
         if not store_full_velocity:
             self._los_velocity = None
 
-        # TODO: Move this elsewhere.
-        if simname == "csiborg1":
-            Omega_m = 0.307
-        elif simname == "Carrick2015":
-            Omega_m = 0.3
-        else:
-            raise ValueError(f"Unknown simulation: `{simname}`.")
+        Omega_m = simname2Omega_m(simname)
 
         # Normalize the CSiBORG density by the mean matter density
         if "csiborg" in simname:
