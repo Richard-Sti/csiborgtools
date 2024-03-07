@@ -556,7 +556,9 @@ class SD_PV_validation_model:
         loc = jnp.log(mu) - 0.5 * jnp.log(1 + (std / mu) ** 2)
         scale = jnp.sqrt(jnp.log(1 + (std / mu) ** 2))
         self._dist_sigma_v = dist.LogNormal(loc, scale)
-        # beta velocity bias
+        # Density bias
+        self._dist_alpha = dist.Normal(1., 0.5)
+        # Velocity bias
         self._dist_beta = dist.Normal(1., 0.5)
 
     def __call__(self):
@@ -564,14 +566,14 @@ class SD_PV_validation_model:
         The simple distance NumPyro PV validation model. Samples the following
         parameters:
             - `Vext_x`, `Vext_y`, `Vext_z`: external velocity components
+            - `alpha`: density bias parameter
             - `beta`: velocity bias parameter
             - `sigma_v`: velocity uncertainty
-
-        # TODO: add some bias parameter.
         """
         Vx = numpyro.sample("Vext_x", self._dist_Vext)
         Vy = numpyro.sample("Vext_y", self._dist_Vext)
         Vz = numpyro.sample("Vext_z", self._dist_Vext)
+        alpha = numpyro.sample("alpha", self._dist_alpha)
         beta = numpyro.sample("beta", self._dist_beta)
         sigma_v = numpyro.sample("sigma_v", self._dist_sigma_v)
 
@@ -579,7 +581,7 @@ class SD_PV_validation_model:
 
         # Calculate p(r) and multiply it by the galaxy density.
         ptilde = self._vmap_ptilde_wo_bias(self._r_hMpc, self._e_rhMpc)
-        ptilde *= self._los_density  # TODO: Add some bias
+        ptilde *= self._los_density**alpha  # TODO: Add some bias
 
         # Normalization of p(r)
         pnorm = self._vmap_simps(ptilde)
