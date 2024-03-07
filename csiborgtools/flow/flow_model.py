@@ -25,12 +25,13 @@ from warnings import warn
 import numpy as np
 import numpyro
 import numpyro.distributions as dist
+from astropy import units as u
+from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
 from h5py import File
 from jax import numpy as jnp
+from jax import vmap
 from tqdm import tqdm, trange
-from astropy import units as u
-from astropy.coordinates import SkyCoord
 
 from ..read import CSiBORG1Catalogue
 
@@ -128,6 +129,7 @@ class DataLoader:
         if not store_full_velocity:
             self._los_velocity = None
 
+        # TODO: Move this elsewhere.
         if simname == "csiborg1":
             Omega_m = 0.307
         elif simname == "Carrick2015":
@@ -135,11 +137,16 @@ class DataLoader:
         else:
             raise ValueError(f"Unknown simulation: `{simname}`.")
 
+        # Normalize the CSiBORG density by the mean matter density
         if "csiborg" in simname:
             cosmo = FlatLambdaCDM(H0=100, Om0=Omega_m)
             mean_rho_matter = cosmo.critical_density0.to("Msun/kpc^3").value
             mean_rho_matter *= Omega_m
             self._los_density /= mean_rho_matter
+
+        # Since Carrick+2015 provide `rho / <rho> - 1`
+        if simname == "Carrick2015":
+            self._los_density += 1
 
     @property
     def cat(self):
@@ -272,7 +279,7 @@ class DataLoader:
             arr["r_hMpc"] = sph_pos[mask, 0]
             arr["RA"] = sph_pos[mask, 1]
             arr["DEC"] = sph_pos[mask, 2]
-            # TODO: add peculiar velocity
+            # TODO: add peculiar velocit
         else:
             raise ValueError(f"Unknown catalogue: `{catalogue}`.")
 
@@ -293,7 +300,9 @@ def radial_velocity_los(los_velocity, ra, dec):
     los_velocity : 2-dimensional array of shape (3, n_steps)
         Line of sight velocity field.
     ra, dec : floats
-        Right ascension and declination of the line of sight in degrees.
+        Right ascension and declination of the line of sight.
+    is_degrees : bool, optional
+        Whether the angles are in degrees.
 
     Returns
     -------
@@ -306,10 +315,9 @@ def radial_velocity_los(los_velocity, ra, dec):
     if los_velocity.ndim != 2 and los_velocity.shape[0] != 3:
         raise ValueError("The shape of `los_velocity` must be (3, n_steps).")
 
-    ra_rad = ra / 180 * np.pi
-    dec_rad = dec / 180 * np.pi
-    vx, vy, vz = los_velocity
+    ra_rad, dec_rad = np.deg2rad(ra), np.deg2rad(dec)
 
+    vx, vy, vz = los_velocity
     return (vx * np.cos(ra_rad) * np.cos(dec_rad)
             + vy * np.sin(ra_rad) * np.cos(dec_rad)
             + vz * np.sin(dec_rad))
@@ -390,25 +398,23 @@ def dist2distmodulus(dist, Omega_m):
 def project_Vext(Vext_x, Vext_y, Vext_z, RA, dec):
     """
     Project the external velocity onto the line of sight along direction
-    specified by RA/dec.
+    specified by RA/dec. Note that the angles must be in radians.
 
     Parameters
     ----------
     Vext_x, Vext_y, Vext_z : floats
         Components of the external velocity.
     RA, dec : floats
-        Right ascension and declination in degrees.
+        Right ascension and declination in radians
 
     Returns
     -------
     float
     """
-    RA_rad = RA / 180 * np.pi
-    dec_rad = dec / 180 * np.pi
-
-    return (Vext_x * np.cos(RA_rad) * np.cos(dec_rad)
-            + Vext_y * np.sin(RA_rad) * np.cos(dec_rad)
-            + Vext_z * np.sin(dec_rad))
+    cos_dec = jnp.cos(dec)
+    return (Vext_x * jnp.cos(RA) * cos_dec
+            + Vext_y * jnp.sin(RA) * cos_dec
+            + Vext_z * jnp.sin(dec))
 
 
 def predict_zobs(dist, beta, Vext_radial, vpec_radial, Omega_m):
@@ -440,93 +446,190 @@ def predict_zobs(dist, beta, Vext_radial, vpec_radial, Omega_m):
 
 
 ###############################################################################
-#                          Flow validation model                              #
+#                          Flow validation models                             #
 ###############################################################################
 
 
-def SN_PV_wcal_validation_model(los_overdensity=None, los_velocity=None,
-                                RA=None, dec=None, z_CMB=None,
-                                mB=None, x1=None, c=None,
-                                e_mB=None, e_x1=None, e_c=None,
-                                mu_xrange=None, r_xrange=None,
-                                norm_r2_xrange=None, Omega_m=None, dr=None):
+def calculate_ptilde_wo_bias(xrange, mu, err, r_squared_xrange=None):
     """
-    Pass
+    Calculate `ptilde(r)` without any bias.
+
+    Parameters
+    ----------
+    xrange : 1-dimensional array
+        Radial distances where the field was interpolated for each object.
+    mu : float
+        Comoving distance in `Mpc / h`.
+    err : float
+        Error on the comoving distance in `Mpc / h`.
+    r_squared_xrange : 1-dimensional array, optional
+        Radial distances squared where the field was interpolated for each
+        object. If not provided, the `r^2` correction is not applied.
+
+    Returns
+    -------
+    1-dimensional array
     """
-    Vx = numpyro.sample("Vext_x", dist.Uniform(-1000, 1000))
-    Vy = numpyro.sample("Vext_y", dist.Uniform(-1000, 1000))
-    Vz = numpyro.sample("Vext_z", dist.Uniform(-1000, 1000))
-    beta = numpyro.sample("beta", dist.Uniform(-10, 10))
+    ptilde = jnp.exp(-0.5 * ((xrange - mu) / err)**2)
 
-    # TODO: Later sample these as well.
-    e_mu_intrinsic = 0.064
-    alpha_cal = 0.135
-    beta_cal = 2.9
-    mag_cal = -18.555
-    sigma_v = 112
+    if r_squared_xrange is not None:
+        ptilde *= r_squared_xrange
 
-    # TODO: Check these for fiducial values.
-    mu = mB - mag_cal + alpha_cal * x1 - beta_cal * c
-    squared_e_mu = e_mB**2 + alpha_cal**2 * e_x1**2 + beta_cal**2 * e_c**2
-
-    squared_e_mu += e_mu_intrinsic**2
-    ll = 0.
-    for i in range(len(los_overdensity)):
-        # Project the external velocity for this galaxy.
-        Vext_rad = project_Vext(Vx, Vy, Vz, RA[i], dec[i])
-
-        dmu = mu_xrange - mu[i]
-        ptilde = norm_r2_xrange * jnp.exp(-0.5 * dmu**2 / squared_e_mu[i])
-        # TODO: Add some bias
-        ptilde *= (1 + los_overdensity[i])
-
-        zobs_pred = predict_zobs(r_xrange, beta, Vext_rad, los_velocity[i],
-                                 Omega_m)
-
-        dczobs = SPEED_OF_LIGHT * (z_CMB[i] - zobs_pred)
-
-        ll_zobs = jnp.exp(-0.5 * (dczobs / sigma_v)**2) / sigma_v
-
-        ll += jnp.log(simps(ptilde * ll_zobs, dr))
-        ll -= jnp.log(simps(ptilde, dr))
-
-    numpyro.factor("ll", ll)
+    return ptilde
 
 
-def SN_PV_validation_model(los_overdensity=None, los_velocity=None,
-                           RA=None, dec=None, z_obs=None,
-                           r_hMpc=None, e_r_hMpc=None,
-                           r_xrange=None, norm_r2_xrange=None, Omega_m=None,
-                           dr=None):
-    # Vx = numpyro.sample("Vext_x", dist.Uniform(-1000, 1000))
-    # Vy = numpyro.sample("Vext_y", dist.Uniform(-1000, 1000))
-    # Vz = numpyro.sample("Vext_z", dist.Uniform(-1000, 1000))
-    Vx, Vy, Vz = 0, 0, 0
-    beta = numpyro.sample("beta", dist.Uniform(-10, 10))
+def calculate_ll_zobs(zobs, zobs_pred, sigma_v):
+    """
+    Calculate the likelihood of the observed redshift given the predicted
+    redshift.
 
-    # TODO: Later sample these as well.
-    sigma_v = 112
+    Parameters
+    ----------
+    zobs : float
+        Observed redshift.
+    zobs_pred : float
+        Predicted redshift.
+    sigma_v : float
+        Velocity uncertainty.
 
-    ll = 0.
-    # TODO: This loop makes it incredibly slow to compile. Let's get rid of it
-    # completely and split it into small parts and vectorize it.
-    for i in range(len(los_overdensity)):
-        Vext_rad = project_Vext(Vx, Vy, Vz, RA[i], dec[i])
+    Returns
+    -------
+    float
+    """
+    dcz = SPEED_OF_LIGHT * (zobs - zobs_pred)
+    return jnp.exp(-0.5 * (dcz / sigma_v)**2) / jnp.sqrt(2 * np.pi) / sigma_v
 
-        deltaR = r_xrange - r_hMpc[i]
-        ptilde = norm_r2_xrange * jnp.exp(-0.5 * deltaR**2 / e_r_hMpc[i]**2)
 
-        # TODO: Add some bias
-        ptilde *= (1 + los_overdensity[i])
+class SD_PV_validation_model:
+    """
+    Simple distance peculiar velocity (PV) validation model, assuming that
+    we already have a calibrated estimate of the comoving distance to the
+    objects.
 
-        zobs_pred = predict_zobs(r_xrange, beta, Vext_rad, los_velocity[i],
-                                 Omega_m)
+    Parameters
+    ----------
+    los_density : 2-dimensional array of shape (n_objects, n_steps)
+        LOS density field.
+    los_velocity : 3-dimensional array of shape (n_objects, n_steps)
+        LOS radial velocity field.
+    RA, dec : 1-dimensional arrays of shape (n_objects)
+        Right ascension and declination in degrees.
+    z_obs : 1-dimensional array of shape (n_objects)
+        Observed redshifts.
+    r_hMpc : 1-dimensional array of shape (n_objects)
+        Estimated comoving distances in `h^-1 Mpc`.
+    e_r_hMpc : 1-dimensional array of shape (n_objects)
+        Errors on the estimated comoving distances in `h^-1 Mpc`.
+    r_xrange : 1-dimensional array
+        Radial distances where the field was interpolated for each object.
+    Omega_m : float
+        Matter density parameter.
+    """
 
-        dczobs = SPEED_OF_LIGHT * (z_obs[i] - zobs_pred)
+    def __init__(self, los_density, los_velocity, RA, dec, z_obs,
+                 r_hMpc, e_r_hMpc, r_xrange, Omega_m):
+        # Convert everything to JAX arrays.
+        dt = jnp.float32
+        self._los_density = jnp.asarray(los_density, dtype=dt)
+        self._los_velocity = jnp.asarray(los_velocity, dtype=dt)
+        self._RA = jnp.asarray(np.deg2rad(RA), dtype=dt)
+        self._dec = jnp.asarray(np.deg2rad(dec), dtype=dt)
+        self._z_obs = jnp.asarray(z_obs, dtype=dt)
+        self._r_hMpc = jnp.asarray(r_hMpc, dtype=dt)
+        self._e_rhMpc = jnp.asarray(e_r_hMpc, dtype=dt)
 
-        ll_zobs = jnp.exp(-0.5 * (dczobs / sigma_v)**2) / sigma_v
+        # Get radius squared
+        r2_xrange = r_xrange**2
+        r2_xrange /= r2_xrange.mean()
 
-        ll += jnp.log(simps(ptilde * ll_zobs, dr))
-        ll -= jnp.log(simps(ptilde, dr))
+        # Get the stepsize, we need it to be constant for Simpson's rule.
+        dr = np.diff(r_xrange)
+        if not np.all(np.isclose(dr, dr[0], atol=1e-5)):
+            raise ValueError("The radial step size must be constant.")
+        dr = dr[0]
 
-    numpyro.factor("ll", ll)
+        # Get the various vmapped functions
+        self._vmap_ptilde_wo_bias = vmap(lambda mu, err: calculate_ptilde_wo_bias(r_xrange, mu, err, r2_xrange))                        # noqa
+        self._vmap_simps = vmap(lambda y: simps(y, dr))
+        self._vmap_zobs = vmap(lambda beta, Vr, vpec_rad: predict_zobs(r_xrange, beta, Vr, vpec_rad, Omega_m), in_axes=(None, 0, 0))    # noqa
+        self._vmap_ll_zobs = vmap(lambda zobs, zobs_pred, sigma_v: calculate_ll_zobs(zobs, zobs_pred, sigma_v), in_axes=(0, 0, None))   # noqa
+
+    def __call__(self):
+        """
+        The simple distance NumPyro PV validation model. Samples the following
+        parameters:
+            - `Vext_x`, `Vext_y`, `Vext_z`: external velocity components
+            - `beta`: velocity bias parameter
+
+        Currently, `sigma_v` is kept fixed.
+        """
+        Vx = numpyro.sample("Vext_x", dist.Uniform(-1000, 1000))
+        Vy = numpyro.sample("Vext_y", dist.Uniform(-1000, 1000))
+        Vz = numpyro.sample("Vext_z", dist.Uniform(-1000, 1000))
+        beta = numpyro.sample("beta", dist.Uniform(-10, 10))
+        sigma_v = 112
+
+        Vext_rad = project_Vext(Vx, Vy, Vz, self._RA, self._dec)
+
+        # Calculate p(r) and multiply it by the galaxy density.
+        ptilde = self._vmap_ptilde_wo_bias(self._r_hMpc, self._e_rhMpc)
+        ptilde *= self._los_density  # TODO: Add some bias
+
+        # Normalization of p(r)
+        pnorm = self._vmap_simps(ptilde)
+
+        # Calculate p(z_obs) and multiply it by p(r)
+        zobs_pred = self._vmap_zobs(beta, Vext_rad, self._los_velocity)
+        ptilde *= self._vmap_ll_zobs(self._z_obs, zobs_pred, sigma_v)
+
+        ll = jnp.sum(jnp.log(self._vmap_simps(ptilde) / pnorm))
+        numpyro.factor("ll", ll)
+
+
+# def SN_PV_wcal_validation_model(los_overdensity=None, los_velocity=None,
+#                                 RA=None, dec=None, z_CMB=None,
+#                                 mB=None, x1=None, c=None,
+#                                 e_mB=None, e_x1=None, e_c=None,
+#                                 mu_xrange=None, r_xrange=None,
+#                                 norm_r2_xrange=None, Omega_m=None, dr=None):
+#     """
+#     Pass
+#     """
+#     Vx = numpyro.sample("Vext_x", dist.Uniform(-1000, 1000))
+#     Vy = numpyro.sample("Vext_y", dist.Uniform(-1000, 1000))
+#     Vz = numpyro.sample("Vext_z", dist.Uniform(-1000, 1000))
+#     beta = numpyro.sample("beta", dist.Uniform(-10, 10))
+#
+#     # TODO: Later sample these as well.
+#     e_mu_intrinsic = 0.064
+#     alpha_cal = 0.135
+#     beta_cal = 2.9
+#     mag_cal = -18.555
+#     sigma_v = 112
+#
+#     # TODO: Check these for fiducial values.
+#     mu = mB - mag_cal + alpha_cal * x1 - beta_cal * c
+#     squared_e_mu = e_mB**2 + alpha_cal**2 * e_x1**2 + beta_cal**2 * e_c**2
+#
+#     squared_e_mu += e_mu_intrinsic**2
+#     ll = 0.
+#     for i in range(len(los_overdensity)):
+#         # Project the external velocity for this galaxy.
+#         Vext_rad = project_Vext(Vx, Vy, Vz, RA[i], dec[i])
+#
+#         dmu = mu_xrange - mu[i]
+#         ptilde = norm_r2_xrange * jnp.exp(-0.5 * dmu**2 / squared_e_mu[i])
+#         # TODO: Add some bias
+#         ptilde *= (1 + los_overdensity[i])
+#
+#         zobs_pred = predict_zobs(r_xrange, beta, Vext_rad, los_velocity[i],
+#                                  Omega_m)
+#
+#         dczobs = SPEED_OF_LIGHT * (z_CMB[i] - zobs_pred)
+#
+#         ll_zobs = jnp.exp(-0.5 * (dczobs / sigma_v)**2) / sigma_v
+#
+#         ll += jnp.log(simps(ptilde * ll_zobs, dr))
+#         ll -= jnp.log(simps(ptilde, dr))
+#
+#     numpyro.factor("ll", ll)
