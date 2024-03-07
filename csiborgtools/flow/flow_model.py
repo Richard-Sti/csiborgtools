@@ -549,20 +549,31 @@ class SD_PV_validation_model:
         self._vmap_zobs = vmap(lambda beta, Vr, vpec_rad: predict_zobs(r_xrange, beta, Vr, vpec_rad, Omega_m), in_axes=(None, 0, 0))    # noqa
         self._vmap_ll_zobs = vmap(lambda zobs, zobs_pred, sigma_v: calculate_ll_zobs(zobs, zobs_pred, sigma_v), in_axes=(0, 0, None))   # noqa
 
+        # Vext_x, Vext_y, Vext_z: external velocity components
+        self._dist_Vext = dist.Uniform(-1000, 1000)
+        # We want sigma_v to be 150 +- 100 km / s (lognormal)
+        mu, std = 150., 100.
+        loc = jnp.log(mu) - 0.5 * jnp.log(1 + (std / mu) ** 2)
+        scale = jnp.sqrt(jnp.log(1 + (std / mu) ** 2))
+        self._dist_sigma_v = dist.LogNormal(loc, scale)
+        # beta velocity bias
+        self._dist_beta = dist.Normal(1., 0.5)
+
     def __call__(self):
         """
         The simple distance NumPyro PV validation model. Samples the following
         parameters:
             - `Vext_x`, `Vext_y`, `Vext_z`: external velocity components
             - `beta`: velocity bias parameter
+            - `sigma_v`: velocity uncertainty
 
-        Currently, `sigma_v` is kept fixed.
+        # TODO: add some bias parameter.
         """
-        Vx = numpyro.sample("Vext_x", dist.Uniform(-1000, 1000))
-        Vy = numpyro.sample("Vext_y", dist.Uniform(-1000, 1000))
-        Vz = numpyro.sample("Vext_z", dist.Uniform(-1000, 1000))
-        beta = numpyro.sample("beta", dist.Uniform(-10, 10))
-        sigma_v = 112
+        Vx = numpyro.sample("Vext_x", self._dist_Vext)
+        Vy = numpyro.sample("Vext_y", self._dist_Vext)
+        Vz = numpyro.sample("Vext_z", self._dist_Vext)
+        beta = numpyro.sample("beta", self._dist_beta)
+        sigma_v = numpyro.sample("sigma_v", self._dist_sigma_v)
 
         Vext_rad = project_Vext(Vx, Vy, Vz, self._RA, self._dec)
 
