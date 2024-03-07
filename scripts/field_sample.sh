@@ -1,4 +1,4 @@
-nthreads=1
+nthreads=11
 memory=32
 on_login=${1}
 queue="berg"
@@ -7,11 +7,11 @@ file="field_sample.py"
 
 
 nsims="-1"
-simname="TNG300-1"
-survey="TNG300-1"
+simname="csiborg1"
+survey="SDSS"
 smooth_scales="0 2 4 8 16"
 kind="density"
-MAS="PCS"
+MAS="SPH"
 grid=1024
 scatter=0
 
