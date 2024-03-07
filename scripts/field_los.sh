@@ -1,4 +1,4 @@
-nthreads=6
+nthreads=11
 memory=64
 on_login=${1}
 queue="berg"
@@ -8,7 +8,7 @@ file="field_los.py"
 catalogue="A2"
 # catalogue="csiborg1_9844"
 nsims="-1"
-simname="Carrick2015"
+simname="csiborg1"
 MAS="SPH"
 grid=1024
 
