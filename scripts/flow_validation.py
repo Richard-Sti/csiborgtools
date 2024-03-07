@@ -116,7 +116,7 @@ def run_model(model, nsteps, nchains, nsim, dump_folder, show_progress=True):
 
 
 def combine_from_simulations(catalogue_name, simname, nsims, outfolder,
-                             dumpfolder):
+                             dumpfolder, ksmooth):
     """
     Combine the results from individual simulations into a single file.
 
@@ -132,13 +132,16 @@ def combine_from_simulations(catalogue_name, simname, nsims, outfolder,
         Output folder.
     dumpfolder : str
         Dumping folder where the temporary files are stored.
+    ksmooth : int
+        Smoothing index.
 
     Returns
     -------
     None
     """
-    fname_out = join(outfolder,
-                     f"flow_samples_{catalogue_name}_{simname}.hdf5")
+    fname_out = join(
+        outfolder,
+        f"flow_samples_{catalogue_name}_{simname}_smooth_{ksmooth}.hdf5")
     print(f"Combining results from invidivual simulations to `{fname_out}`.")
 
     if exists(fname_out):
@@ -171,7 +174,7 @@ if __name__ == "__main__":
                         help="Simulation name.")
     parser.add_argument("--catalogue", type=str, required=True,
                         help="PV catalogue.")
-    parser.add_argument("--ksmooth", type=int, default=None,
+    parser.add_argument("--ksmooth", type=int, required=True,
                         help="Smoothing index.")
     args = parser.parse_args()
 
@@ -205,4 +208,4 @@ if __name__ == "__main__":
 
     if rank == 0:
         combine_from_simulations(args.catalogue, args.simname, nsims,
-                                 out_folder, dump_folder)
+                                 out_folder, dump_folder, args.ksmooth)
