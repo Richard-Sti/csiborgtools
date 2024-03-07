@@ -273,13 +273,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     rmax = 200
-    dr = 0.1
-    # smooth_scales = [0, 2, 4, 6]
-    smooth_scales = None
+    dr = 0.5
+    smooth_scales = [0, 2, 4, 6]
 
     comm = MPI.COMM_WORLD
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    nsims = [0] if args.simname == "Carrick2015" else get_nsims(args, paths)
+    nsims = get_nsims(args, paths)
 
     out_folder = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_los"
     # Create the dumping folder.
