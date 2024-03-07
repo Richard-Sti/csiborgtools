@@ -134,8 +134,6 @@ def open_galaxy_positions(survey_name, comm, scatter=None):
                     if scatter < 0:
                         raise ValueError("Scatter must be positive.")
                     if scatter > 0:
-                        print(f"Adding scatter of {scatter} Mpc / h.",
-                              flush=True)
                         pos = scatter_along_radial_direction(pos, scatter,
                                                              boxsize)
 
@@ -186,7 +184,6 @@ def evaluate_field(field, pos, boxsize, smooth_scales, verbose=True):
                 field, scale * mpc2box, boxsize=1, make_copy=True)
         else:
             field_smoothed = numpy.copy(field)
-        print("Going to evaluate the field....")
         val[:, i] = csiborgtools.field.evaluate_sky(
             field_smoothed, pos=pos, mpc2box=mpc2box)
 
