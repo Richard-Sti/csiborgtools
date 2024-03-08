@@ -323,6 +323,25 @@ def radial_velocity_los(los_velocity, ra, dec):
 ###############################################################################
 
 
+def lognorm_mean_std_to_loc_scale(mu, std):
+    """
+    Calculate the location and scale parameters for the log-normal distribution
+    from the mean and standard deviation.
+
+    Parameters
+    ----------
+    mu, std : float
+        Mean and standard deviation.
+
+    Returns
+    -------
+    loc, scale : float
+    """
+    loc = np.log(mu) - 0.5 * np.log(1 + (std / mu) ** 2)
+    scale = np.sqrt(np.log(1 + (std / mu) ** 2))
+    return loc, scale
+
+
 def simps(y, dx):
     """
     Simpson's rule 1D integration, assuming that the number of steps is even
@@ -350,8 +369,6 @@ def dist2redshift(dist, Omega_m):
     Convert comoving distance to cosmological redshift if the Universe is
     flat and z << 1.
 
-    VERIFIED.
-
     Parameters
     ----------
     dist : float or 1-dimensional array
@@ -371,8 +388,6 @@ def dist2redshift(dist, Omega_m):
 def dist2distmodulus(dist, Omega_m):
     """
     Convert comoving distance to distance modulus, assuming z << 1.
-
-    VERIFIED.
 
     Parameters
     ----------
@@ -552,12 +567,11 @@ class SD_PV_validation_model:
         # Vext_x, Vext_y, Vext_z: external velocity components
         self._dist_Vext = dist.Uniform(-1000, 1000)
         # We want sigma_v to be 150 +- 100 km / s (lognormal)
-        mu, std = 150., 100.
-        loc = jnp.log(mu) - 0.5 * jnp.log(1 + (std / mu) ** 2)
-        scale = jnp.sqrt(jnp.log(1 + (std / mu) ** 2))
-        self._dist_sigma_v = dist.LogNormal(loc, scale)
-        # Density bias
-        self._dist_alpha = dist.Normal(1., 0.5)
+        self._dist_sigma_v = dist.LogNormal(
+            *lognorm_mean_std_to_loc_scale(150, 100))
+        # Density power-law bias
+        self._dist_alpha = dist.LogNormal(
+            *lognorm_mean_std_to_loc_scale(1.0, 0.5))
         # Velocity bias
         self._dist_beta = dist.Normal(1., 0.5)
 
@@ -579,9 +593,9 @@ class SD_PV_validation_model:
 
         Vext_rad = project_Vext(Vx, Vy, Vz, self._RA, self._dec)
 
-        # Calculate p(r) and multiply it by the galaxy density.
+        # Calculate p(r) and multiply it by the galaxy bias
         ptilde = self._vmap_ptilde_wo_bias(self._r_hMpc, self._e_rhMpc)
-        ptilde *= self._los_density**alpha  # TODO: Add some bias
+        ptilde *= self._los_density**alpha
 
         # Normalization of p(r)
         pnorm = self._vmap_simps(ptilde)
