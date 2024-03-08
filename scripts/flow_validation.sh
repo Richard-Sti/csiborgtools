@@ -7,7 +7,7 @@ file="flow_validation.py"
 
 catalogue="A2"
 simname="Carrick2015"
-ksmooth=0
+ksmooth=2
 
 
 pythoncm="$env $file --catalogue $catalogue --simname $simname --ksmooth $ksmooth"
