@@ -128,7 +128,7 @@ def run_model(model, nsteps, nchains, nsim, dump_folder, show_progress=True):
     -------
     None
     """
-    nuts_kernel = NUTS(model)
+    nuts_kernel = NUTS(model, init_strategy=init_to_sample)
     mcmc = MCMC(nuts_kernel, num_warmup=500, num_samples=nsteps,
                 chain_method="sequential", num_chains=nchains,
                 progress_bar=show_progress)
