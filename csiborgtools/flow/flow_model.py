@@ -250,7 +250,7 @@ class DataLoader:
                 arr = np.empty(len(f["RA"]), dtype=dtype)
                 for key in f.keys():
                     arr[key] = f[key][:]
-        elif catalogue == "LOSS" or catalogue == "Foundation":
+        elif catalogue in ["LOSS", "Foundation", "SFI_gals", "2MTF"]:
             with File(catalogue_fpath, 'r') as f:
                 grp = f[catalogue]
 
@@ -405,6 +405,19 @@ def dist2distmodulus(dist, Omega_m):
     return 5 * jnp.log10(luminosity_distance) + 25
 
 
+# def distmodulus2dist(distmodulus, Omega_m):
+#     """
+#     Copied from Supranta. Make sure this actually works.
+#
+#
+#     """
+#     dL = 10 ** ((distmodulus - 25.) / 5.)
+#     r_hMpc = dL
+#     for i in range(4):
+#         r_hMpc = dL / (1.0 + dist2redshift(r_hMpc, Omega_m))
+#     return r_hMpc
+
+
 def project_Vext(Vext_x, Vext_y, Vext_z, RA, dec):
     """
     Project the external velocity onto the line of sight along direction
@@ -459,8 +472,8 @@ def predict_zobs(dist, beta, Vext_radial, vpec_radial, Omega_m):
 #                          Flow validation models                             #
 ###############################################################################
 
-
-def calculate_ptilde_wo_bias(xrange, mu, err, r_squared_xrange=None):
+def calculate_ptilde_wo_bias(xrange, mu, err, r_squared_xrange=None,
+                             is_err_squared=False):
     """
     Calculate `ptilde(r)` without any bias.
 
@@ -475,12 +488,17 @@ def calculate_ptilde_wo_bias(xrange, mu, err, r_squared_xrange=None):
     r_squared_xrange : 1-dimensional array, optional
         Radial distances squared where the field was interpolated for each
         object. If not provided, the `r^2` correction is not applied.
+    is_err_squared : bool, optional
+        Whether the error is already squared.
 
     Returns
     -------
     1-dimensional array
     """
-    ptilde = jnp.exp(-0.5 * ((xrange - mu) / err)**2)
+    if is_err_squared:
+        ptilde = jnp.exp(-0.5 * (xrange - mu)**2 / err)
+    else:
+        ptilde = jnp.exp(-0.5 * ((xrange - mu) / err)**2)
 
     if r_squared_xrange is not None:
         ptilde *= r_squared_xrange
@@ -548,7 +566,7 @@ class SD_PV_validation_model:
         self._z_obs = jnp.asarray(z_obs, dtype=dt)
 
         self._r_hMpc = jnp.asarray(r_hMpc, dtype=dt)
-        self._e_rhMpc = jnp.asarray(e_r_hMpc, dtype=dt)
+        self._e2_rhMpc = jnp.asarray(e_r_hMpc**2, dtype=dt)
 
         # Get radius squared
         r2_xrange = r_xrange**2
@@ -561,7 +579,7 @@ class SD_PV_validation_model:
         dr = dr[0]
 
         # Get the various vmapped functions
-        self._vmap_ptilde_wo_bias = vmap(lambda mu, err: calculate_ptilde_wo_bias(r_xrange, mu, err, r2_xrange))                        # noqa
+        self._vmap_ptilde_wo_bias = vmap(lambda mu, err: calculate_ptilde_wo_bias(r_xrange, mu, err, r2_xrange, True))                  # noqa
         self._vmap_simps = vmap(lambda y: simps(y, dr))
         self._vmap_zobs = vmap(lambda beta, Vr, vpec_rad: predict_zobs(r_xrange, beta, Vr, vpec_rad, Omega_m), in_axes=(None, 0, 0))    # noqa
         self._vmap_ll_zobs = vmap(lambda zobs, zobs_pred, sigma_v: calculate_ll_zobs(zobs, zobs_pred, sigma_v), in_axes=(0, 0, None))   # noqa
@@ -571,7 +589,6 @@ class SD_PV_validation_model:
         # Distribution of density, velocity and location bias parameters
         self._alpha = dist.LogNormal(*lognorm_mean_std_to_loc_scale(1.0, 0.5))     # noqa
         self._beta = dist.Normal(1., 0.5)
-        self._h = dist.LogNormal(*lognorm_mean_std_to_loc_scale(1.0, 0.5))
         # Distribution of velocity uncertainty sigma_v
         self._sv = dist.LogNormal(*lognorm_mean_std_to_loc_scale(150, 100))
 
@@ -592,14 +609,13 @@ class SD_PV_validation_model:
         Vz = numpyro.sample("Vext_z", self._Vext)
         alpha = numpyro.sample("alpha", self._alpha) if sample_alpha else 1.0
         beta = numpyro.sample("beta", self._beta)
-        h = numpyro.sample("h", self._h) if scale_distance else 1.0
         sigma_v = numpyro.sample("sigma_v", self._sv)
 
         Vext_rad = project_Vext(Vx, Vy, Vz, self._RA, self._dec)
 
         # Calculate p(r) and multiply it by the galaxy bias
-        ptilde = self._vmap_ptilde_wo_bias(h * self._r_hMpc, h * self._e_rhMpc)
-        ptilde *= self._los_density**alpha
+        ptilde = self._vmap_ptilde_wo_bias(self._r_hMpc, self._e2_rhMpc)
+        ptilde *= self._vmap_bias(alpha)
 
         # Normalization of p(r)
         pnorm = self._vmap_simps(ptilde)
@@ -667,26 +683,26 @@ class SN_PV_validation_model:
         dr = dr[0]
 
         # Get the various vmapped functions
-        self._vmap_ptilde_wo_bias = vmap(lambda mu, err: calculate_ptilde_wo_bias(mu_xrange, mu, err, r2_xrange))                       # noqa
+        self._vmap_ptilde_wo_bias = vmap(lambda mu, err: calculate_ptilde_wo_bias(mu_xrange, mu, err, r2_xrange, True))                 # noqa
         self._vmap_simps = vmap(lambda y: simps(y, dr))
         self._vmap_zobs = vmap(lambda beta, Vr, vpec_rad: predict_zobs(r_xrange, beta, Vr, vpec_rad, Omega_m), in_axes=(None, 0, 0))    # noqa
         self._vmap_ll_zobs = vmap(lambda zobs, zobs_pred, sigma_v: calculate_ll_zobs(zobs, zobs_pred, sigma_v), in_axes=(0, 0, None))   # noqa
 
         # Distribution of external velocity components
-        self._dist_Vext = dist.Uniform(-1000, 1000)
+        self._Vext = dist.Uniform(-1000, 1000)
         # Distribution of velocity and density bias parameters
-        self._dist_alpha = dist.LogNormal(*lognorm_mean_std_to_loc_scale(1.0, 0.5))     # noqa
-        self._dist_beta = dist.Normal(1., 0.5)
+        self._alpha = dist.LogNormal(*lognorm_mean_std_to_loc_scale(1.0, 0.5))
+        self._beta = dist.Normal(1., 0.5)
         # Distribution of velocity uncertainty
-        self._dist_sigma_v = dist.LogNormal(*lognorm_mean_std_to_loc_scale(150, 100))   # noqa
+        self._sigma_v = dist.LogNormal(*lognorm_mean_std_to_loc_scale(150, 100))   # noqa
 
         # Distribution of light curve calibration parameters
-        self._dist_mag_cal = dist.Normal(-18.25, 1.0)
-        self._dist_alpha_cal = dist.Normal(0.1, 0.5)
-        self._dist_beta_cal = dist.Normal(3.0, 1.0)
-        self._dist_e_mu = dist.LogNormal(*lognorm_mean_std_to_loc_scale(0.1, 0.05))     # noqa
+        self._mag_cal = dist.Normal(-18.25, 1.0)
+        self._alpha_cal = dist.Normal(0.1, 0.05)
+        self._beta_cal = dist.Normal(3.0, 1.0)
+        self._e_mu = dist.LogNormal(*lognorm_mean_std_to_loc_scale(0.1, 0.05))
 
-    def __call__(self, sample_alpha=False, fix_calibration=False):
+    def __call__(self, sample_alpha=True, fix_calibration=False):
         """
         The supernova NumPyro PV validation model with SALT2 calibration.
 
@@ -695,23 +711,25 @@ class SN_PV_validation_model:
         sample_alpha : bool, optional
             Whether to sample the density bias parameter `alpha`, otherwise
             it is fixed to 1.
+        fix_calibration : str, optional
+            Whether to fix the calibration parameters. If not provided, they
+            are sampled. If "Foundation" or "LOSS" is provided, the parameters
+            are fixed to the best inverse parameters for the Foundation or LOSS
+            catalogues.
         """
-        Vx = numpyro.sample("Vext_x", self._dist_Vext)
-        Vy = numpyro.sample("Vext_y", self._dist_Vext)
-        Vz = numpyro.sample("Vext_z", self._dist_Vext)
-        if sample_alpha:
-            alpha = numpyro.sample("alpha", self._dist_alpha)
-        else:
-            alpha = 1.0
-        beta = numpyro.sample("beta", self._dist_beta)
-        sigma_v = numpyro.sample("sigma_v", self._dist_sigma_v)
+        Vx = numpyro.sample("Vext_x", self._Vext)
+        Vy = numpyro.sample("Vext_y", self._Vext)
+        Vz = numpyro.sample("Vext_z", self._Vext)
+        alpha = numpyro.sample("alpha", self._alpha) if sample_alpha else 1.0
+        beta = numpyro.sample("beta", self._beta)
+        sigma_v = numpyro.sample("sigma_v", self._sigma_v)
 
         if fix_calibration == "Foundation":
             # Foundation inverse best parameters
             e_mu_intrinsic = 0.064
             alpha_cal = 0.135
             beta_cal = 2.9
-            sigma_v = 140
+            sigma_v = 149
             mag_cal = -18.555
         elif fix_calibration == "LOSS":
             # LOSS inverse best parameters
@@ -719,23 +737,136 @@ class SN_PV_validation_model:
             alpha_cal = 0.123
             beta_cal = 3.52
             mag_cal = -18.195
-            sigma_v = 140
+            sigma_v = 149
         else:
-            e_mu_intrinsic = numpyro.sample("e_mu_intrinsic", self._dist_e_mu)
-            mag_cal = numpyro.sample("mag_cal", self._dist_mag_cal)
-            alpha_cal = numpyro.sample("alpha_cal", self._dist_alpha_cal)
-            beta_cal = numpyro.sample("beta_cal", self._dist_beta_cal)
+            e_mu_intrinsic = numpyro.sample("e_mu_intrinsic", self._e_mu)
+            mag_cal = numpyro.sample("mag_cal", self._mag_cal)
+            alpha_cal = numpyro.sample("alpha_cal", self._alpha_cal)
+            beta_cal = numpyro.sample("beta_cal", self._beta_cal)
 
         Vext_rad = project_Vext(Vx, Vy, Vz, self._RA, self._dec)
 
         mu = self._mB - mag_cal + alpha_cal * self._x1 - beta_cal * self._c
         squared_e_mu = (self._e2_mB
                         + alpha_cal**2 * self._e2_x1
-                        + beta_cal**2 * self._e2_c)
-        squared_e_mu += e_mu_intrinsic**2
+                        + beta_cal**2 * self._e2_c
+                        + e_mu_intrinsic**2)
 
         # Calculate p(r) and multiply it by the galaxy bias
-        ptilde = self._vmap_ptilde_wo_bias(mu, squared_e_mu**0.5)
+        ptilde = self._vmap_ptilde_wo_bias(mu, squared_e_mu)
+        ptilde *= self._los_density**alpha
+
+        # Normalization of p(r)
+        pnorm = self._vmap_simps(ptilde)
+
+        # Calculate p(z_obs) and multiply it by p(r)
+        zobs_pred = self._vmap_zobs(beta, Vext_rad, self._los_velocity)
+        ptilde *= self._vmap_ll_zobs(self._z_obs, zobs_pred, sigma_v)
+
+        ll = jnp.sum(jnp.log(self._vmap_simps(ptilde) / pnorm))
+        numpyro.factor("ll", ll)
+
+
+class TF_PV_validation_model:
+    """
+    Tully-Fisher peculiar velocity (PV) validation model that includes the
+    calibration of the Tully-Fisher distance `mu = m - (a + b * eta)`.
+
+    Parameters
+    ----------
+    los_density : 2-dimensional array of shape (n_objects, n_steps)
+        LOS density field.
+    los_velocity : 3-dimensional array of shape (n_objects, n_steps)
+        LOS radial velocity field.
+    RA, dec : 1-dimensional arrays of shape (n_objects)
+        Right ascension and declination in degrees.
+    z_obs : 1-dimensional array of shape (n_objects)
+        Observed redshifts.
+    mag, eta : 1-dimensional arrays of shape (n_objects)
+        Apparent magnitude and `eta` parameter.
+    e_mag, e_eta : 1-dimensional arrays of shape (n_objects)
+        Errors on the apparent magnitude and `eta` parameter.
+    r_xrange : 1-dimensional array
+        Radial distances where the field was interpolated for each object.
+    Omega_m : float
+        Matter density parameter.
+    """
+
+    def __init__(self, los_density, los_velocity, RA, dec, z_obs,
+                 mag, eta, e_mag, e_eta, r_xrange, Omega_m):
+        dt = jnp.float32
+        # Convert everything to JAX arrays.
+        self._los_density = jnp.asarray(los_density, dtype=dt)
+        self._los_velocity = jnp.asarray(los_velocity, dtype=dt)
+
+        self._RA = jnp.asarray(np.deg2rad(RA), dtype=dt)
+        self._dec = jnp.asarray(np.deg2rad(dec), dtype=dt)
+        self._z_obs = jnp.asarray(z_obs, dtype=dt)
+
+        self._mag = jnp.asarray(mag, dtype=dt)
+        self._eta = jnp.asarray(eta, dtype=dt)
+        self._e2_mag = jnp.asarray(e_mag**2, dtype=dt)
+        self._e2_eta = jnp.asarray(e_eta**2, dtype=dt)
+
+        # Get radius squared
+        r2_xrange = r_xrange**2
+        r2_xrange /= r2_xrange.mean()
+        mu_xrange = dist2distmodulus(r_xrange, Omega_m)
+
+        # Get the stepsize, we need it to be constant for Simpson's rule.
+        dr = np.diff(r_xrange)
+        if not np.all(np.isclose(dr, dr[0], atol=1e-5)):
+            raise ValueError("The radial step size must be constant.")
+        dr = dr[0]
+
+        # Get the various vmapped functions
+        self._vmap_ptilde_wo_bias = vmap(lambda mu, err: calculate_ptilde_wo_bias(mu_xrange, mu, err, r2_xrange, True))                 # noqa
+        self._vmap_simps = vmap(lambda y: simps(y, dr))
+        self._vmap_zobs = vmap(lambda beta, Vr, vpec_rad: predict_zobs(r_xrange, beta, Vr, vpec_rad, Omega_m), in_axes=(None, 0, 0))    # noqa
+        self._vmap_ll_zobs = vmap(lambda zobs, zobs_pred, sigma_v: calculate_ll_zobs(zobs, zobs_pred, sigma_v), in_axes=(0, 0, None))   # noqa
+
+        # Distribution of external velocity components
+        self._Vext = dist.Uniform(-1000, 1000)
+        # Distribution of velocity and density bias parameters
+        self._alpha = dist.LogNormal(*lognorm_mean_std_to_loc_scale(1.0, 0.5))     # noqa
+        self._beta = dist.Normal(1., 0.5)
+        # Distribution of velocity uncertainty
+        self._sigma_v = dist.LogNormal(*lognorm_mean_std_to_loc_scale(150, 100))   # noqa
+
+        # Distribution of Tully-Fisher calibration parameters
+        self._a = dist.Normal(-21., 0.5)
+        self._b = dist.Normal(-5.95, 0.1)
+        self._e_mu = dist.LogNormal(*lognorm_mean_std_to_loc_scale(0.3, 0.1))      # noqa
+
+    def __call__(self, sample_alpha=True):
+        """
+        The Tully-Fisher NumPyro PV validation model.
+
+        Parameters
+        ----------
+        sample_alpha : bool, optional
+            Whether to sample the density bias parameter `alpha`, otherwise
+            it is fixed to 1.
+        """
+        Vx = numpyro.sample("Vext_x", self._Vext)
+        Vy = numpyro.sample("Vext_y", self._Vext)
+        Vz = numpyro.sample("Vext_z", self._Vext)
+        alpha = numpyro.sample("alpha", self._alpha) if sample_alpha else 1.0
+        beta = numpyro.sample("beta", self._beta)
+        sigma_v = numpyro.sample("sigma_v", self._sigma_v)
+
+        e_mu_intrinsic = numpyro.sample("e_mu_intrinsic", self._e_mu)
+        a = numpyro.sample("a", self._a)
+        b = numpyro.sample("b", self._b)
+
+        Vext_rad = project_Vext(Vx, Vy, Vz, self._RA, self._dec)
+
+        mu = self._mag - (a + b * self._eta)
+        squared_e_mu = (self._e2_mag + b**2 * self._e2_eta
+                        + e_mu_intrinsic**2)
+
+        # Calculate p(r) and multiply it by the galaxy bias
+        ptilde = self._vmap_ptilde_wo_bias(mu, squared_e_mu)
         ptilde *= self._los_density**alpha
 
         # Normalization of p(r)
