@@ -63,6 +63,8 @@ def simname2Omega_m(simname):
     Omega_m: float
     """
     d = {"csiborg1": 0.307,
+         "csiborg2_main": 0.3111,
+         "csiborg2_random": 0.3111,
          "borg1": 0.307,
          "Carrick2015": 0.3,
          }
