@@ -26,7 +26,7 @@ import jax
 import numpy as np
 from h5py import File
 from mpi4py import MPI
-from numpyro.infer import MCMC, NUTS
+from numpyro.infer import MCMC, NUTS, init_to_sample
 from taskmaster import work_delegation  # noqa
 
 
@@ -49,7 +49,7 @@ def get_model(args, nsim_iterator):
     if args.catalogue == "A2":
         fpath = join(folder, "A2.h5")
     elif args.catalogue == "LOSS" or args.catalogue == "Foundation":
-        raise NotImplementedError("To be implemented..")
+        fpath = join(folder, "PV_compilation_Supranta2019.hdf5")
     else:
         raise ValueError(f"Unknown catalogue: `{args.catalogue}`.")
 
@@ -61,16 +61,48 @@ def get_model(args, nsim_iterator):
     los_overdensity = loader.los_density[:, nsim_iterator, :]
     los_velocity = loader.los_radial_velocity[:, nsim_iterator, :]
 
-    RA = loader.cat["RA"]
-    dec = loader.cat["DEC"]
-    z_obs = loader.cat["z_obs"]
+    if args.catalogue == "A2":
+        RA = loader.cat["RA"]
+        dec = loader.cat["DEC"]
+        z_obs = loader.cat["z_obs"]
 
-    r_hMpc = loader.cat["r_hMpc"]
-    e_r_hMpc = loader.cat["e_rhMpc"]
+        r_hMpc = loader.cat["r_hMpc"]
+        e_r_hMpc = loader.cat["e_rhMpc"]
 
-    return csiborgtools.flow.SD_PV_validation_model(
-        los_overdensity, los_velocity, RA, dec, z_obs, r_hMpc, e_r_hMpc,
-        loader.rdist, Omega_m)
+        return csiborgtools.flow.SD_PV_validation_model(
+            los_overdensity, los_velocity, RA, dec, z_obs, r_hMpc, e_r_hMpc,
+            loader.rdist, Omega_m)
+    elif args.catalogue == "LOSS" or args.catalogue == "Foundation":
+        RA = loader.cat["RA"]
+        dec = loader.cat["DEC"]
+        zCMB = loader.cat["z_CMB"]
+
+        mB = loader.cat["mB"]
+        x1 = loader.cat["x1"]
+        c = loader.cat["c"]
+
+        e_mB = loader.cat["e_mB"]
+        e_x1 = loader.cat["e_x1"]
+        e_c = loader.cat["e_c"]
+
+        return csiborgtools.flow.SN_PV_validation_model(
+            los_overdensity, los_velocity, RA, dec, zCMB, mB, x1, c,
+            e_mB, e_x1, e_c, loader.rdist, Omega_m)
+    elif args.catalogue in ["SFI_gals", "2MTF"]:
+        RA = loader.cat["RA"]
+        dec = loader.cat["DEC"]
+        zCMB = loader.cat["z_CMB"]
+
+        mag = loader.cat["mag"]
+        eta = loader.cat["eta"]
+        e_mag = loader.cat["e_mag"]
+        e_eta = loader.cat["e_eta"]
+
+        return csiborgtools.flow.TF_PV_validation_model(
+            los_overdensity, los_velocity, RA, dec, zCMB, mag, eta,
+            e_mag, e_eta, loader.rdist, Omega_m)
+    else:
+        raise ValueError(f"Unknown catalogue: `{args.catalogue}`.")
 
 
 def run_model(model, nsteps, nchains, nsim, dump_folder, show_progress=True):
@@ -97,7 +129,7 @@ def run_model(model, nsteps, nchains, nsim, dump_folder, show_progress=True):
     None
     """
     nuts_kernel = NUTS(model)
-    mcmc = MCMC(nuts_kernel, num_warmup=nsteps // 2, num_samples=nsteps // 2,
+    mcmc = MCMC(nuts_kernel, num_warmup=500, num_samples=nsteps,
                 chain_method="sequential", num_chains=nchains,
                 progress_bar=show_progress)
     rng_key = jax.random.PRNGKey(42)
@@ -185,8 +217,8 @@ if __name__ == "__main__":
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsims = paths.get_ics(args.simname)
 
-    nsteps = 5000
-    nchains = 4
+    nsteps = 2000
+    nchains = 2
 
     # Create the dumping folder.
     if comm.Get_rank() == 0:
