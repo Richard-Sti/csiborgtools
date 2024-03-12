@@ -18,6 +18,7 @@ Tools for interpolating 3D fields at arbitrary positions.
 import MAS_library as MASL
 import numpy
 import smoothing_library as SL
+from scipy.interpolate import RegularGridInterpolator
 from numba import jit
 from tqdm import tqdm, trange
 
@@ -30,9 +31,10 @@ from .utils import divide_nonzero, force_single_precision, nside2radec
 ###############################################################################
 
 
-def evaluate_cartesian(*fields, pos, smooth_scales=None, verbose=False):
+def evaluate_cartesian_cic(*fields, pos, smooth_scales=None, verbose=False):
     """
-    Evaluate a scalar field(s) at Cartesian coordinates `pos`.
+    Evaluate a scalar field(s) at Cartesian coordinates `pos` using CIC
+    interpolation.
 
     Parameters
     ----------
@@ -82,6 +84,75 @@ def evaluate_cartesian(*fields, pos, smooth_scales=None, verbose=False):
     return interp_fields
 
 
+def evaluate_cartesian_regular(*fields, pos, smooth_scales=None,
+                               method="linear", verbose=False):
+    """
+    Evaluate a scalar field(s) at Cartesian coordinates `pos` using linear
+    interpolation on a regular grid.
+
+    Parameters
+    ----------
+    *fields : (list of) 3-dimensional array of shape `(grid, grid, grid)`
+        Fields to be interpolated.
+    pos : 2-dimensional array of shape `(n_samples, 3)`
+        Query positions in box units.
+    smooth_scales : (list of) float, optional
+        Smoothing scales in box units. If `None`, no smoothing is performed.
+    method : str, optional
+        Interpolation method, must be one of the methods of
+        `scipy.interpolate.RegularGridInterpolator`.
+    verbose : bool, optional
+        Smoothing verbosity flag.
+
+    Returns
+    -------
+    (list of) 2-dimensional array of shape `(n_samples, len(smooth_scales))`
+    """
+    pos = force_single_precision(pos)
+
+    if isinstance(smooth_scales, (int, float)):
+        smooth_scales = [smooth_scales]
+
+    if smooth_scales is None:
+        shape = (pos.shape[0],)
+    else:
+        shape = (pos.shape[0], len(smooth_scales))
+
+    ngrid = fields[0].shape[0]
+    cellsize = 1. / ngrid
+
+    X = numpy.linspace(0.5 * cellsize, 1 - 0.5 * cellsize, ngrid)
+    Y, Z = numpy.copy(X), numpy.copy(X)
+
+    interp_fields = [numpy.full(shape, numpy.nan, dtype=numpy.float32)
+                     for __ in range(len(fields))]
+    for i, field in enumerate(fields):
+        if smooth_scales is None:
+            field_interp = RegularGridInterpolator(
+                (X, Y, Z), field, fill_value=None, bounds_error=False,
+                method=method)
+            interp_fields[i] = field_interp(pos)
+        else:
+            desc = f"Smoothing and interpolating field {i + 1}/{len(fields)}"
+            iterator = tqdm(smooth_scales, desc=desc, disable=not verbose)
+
+            for j, scale in enumerate(iterator):
+                if not scale > 0:
+                    fsmooth = numpy.copy(field)
+                else:
+                    fsmooth = smoothen_field(field, scale, 1., make_copy=True)
+
+                field_interp = RegularGridInterpolator(
+                    (X, Y, Z), fsmooth, fill_value=None, bounds_error=False,
+                    method=method)
+                interp_fields[i][:, j] = field_interp(pos)
+
+    if len(fields) == 1:
+        return interp_fields[0]
+
+    return interp_fields
+
+
 def observer_peculiar_velocity(velocity_field, smooth_scales=None,
                                observer=None, verbose=True):
     """
@@ -108,7 +179,7 @@ def observer_peculiar_velocity(velocity_field, smooth_scales=None,
     else:
         pos = numpy.asanyarray(observer).reshape(1, 3)
 
-    vx, vy, vz = evaluate_cartesian(
+    vx, vy, vz = evaluate_cartesian_cic(
         *velocity_field, pos=pos, smooth_scales=smooth_scales, verbose=verbose)
 
     # Reshape since we evaluated only one point
@@ -127,7 +198,7 @@ def observer_peculiar_velocity(velocity_field, smooth_scales=None,
 
 
 def evaluate_los(*fields, sky_pos, boxsize, rmax, dr, smooth_scales=None,
-                 verbose=False):
+                 interpolation_method="cic", verbose=False):
     """
     Interpolate the fields for a set of lines of sights from the observer
     in the centre of the box.
@@ -146,6 +217,9 @@ def evaluate_los(*fields, sky_pos, boxsize, rmax, dr, smooth_scales=None,
         Radial distance step in `Mpc / h`.
     smooth_scales : (list of) float, optional
         Smoothing scales in `Mpc / h`.
+    interpolation_method : str, optional
+        Interpolation method. Must be one of `cic` or one of the methods of
+        `scipy.interpolate.RegularGridInterpolator`.
     verbose : bool, optional
         Smoothing verbosity flag.
 
@@ -191,9 +265,15 @@ def evaluate_los(*fields, sky_pos, boxsize, rmax, dr, smooth_scales=None,
 
         smooth_scales *= mpc2box
 
-    field_interp = evaluate_cartesian(*fields, pos=pos,
-                                      smooth_scales=smooth_scales,
-                                      verbose=verbose)
+    if interpolation_method == "cic":
+        field_interp = evaluate_cartesian_cic(
+            *fields, pos=pos, smooth_scales=smooth_scales,
+            verbose=verbose)
+    else:
+        field_interp = evaluate_cartesian_regular(
+            *fields, pos=pos, smooth_scales=smooth_scales,
+            method=interpolation_method, verbose=verbose)
+
     if len(fields) == 1:
         field_interp = [field_interp]
 
@@ -228,7 +308,7 @@ def evaluate_los(*fields, sky_pos, boxsize, rmax, dr, smooth_scales=None,
 def evaluate_sky(*fields, pos, mpc2box, smooth_scales=None, verbose=False):
     """
     Evaluate a scalar field(s) at radial distance `Mpc / h`, right ascensions
-    [0, 360) deg and declinations [-90, 90] deg.
+    [0, 360) deg and declinations [-90, 90] deg. Uses CIC interpolation.
 
     Parameters
     ----------
@@ -264,8 +344,9 @@ def evaluate_sky(*fields, pos, mpc2box, smooth_scales=None, verbose=False):
 
         smooth_scales *= mpc2box
 
-    return evaluate_cartesian(*fields, pos=cart_pos,
-                              smooth_scales=smooth_scales, verbose=verbose)
+    return evaluate_cartesian_cic(*fields, pos=cart_pos,
+                                  smooth_scales=smooth_scales,
+                                  verbose=verbose)
 
 
 def make_sky(field, angpos, dist, boxsize, verbose=True):
@@ -324,7 +405,7 @@ def make_sky(field, angpos, dist, boxsize, verbose=True):
 def field_at_distance(field, distance, boxsize, smooth_scales=None, nside=128,
                       verbose=True):
     """
-    Evaluate a scalar field at uniformly spaced  angular coordinates at a
+    Evaluate a scalar field at uniformly spaced angular coordinates at a
     given distance from the observer
 
     Parameters
@@ -355,8 +436,8 @@ def field_at_distance(field, distance, boxsize, smooth_scales=None, nside=128,
                       angpos])
     X = radec_to_cartesian(X) / boxsize + 0.5
 
-    return evaluate_cartesian(field, pos=X, smooth_scales=smooth_scales,
-                              verbose=verbose)
+    return evaluate_cartesian_cic(field, pos=X, smooth_scales=smooth_scales,
+                                  verbose=verbose)
 
 
 ###############################################################################
