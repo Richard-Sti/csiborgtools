@@ -58,7 +58,7 @@ def get_los(catalogue_name, simname, comm):
     if comm.Get_rank() == 0:
         folder = "/mnt/extraspace/rstiskalek/catalogs"
 
-        if catalogue_name == "LOSS" or catalogue_name == "Foundation":
+        if catalogue_name in ["LOSS", "Foundation", "SFI_gals", "2MTF"]:
             fpath = join(folder, "PV_compilation_Supranta2019.hdf5")
             with File(fpath, 'r') as f:
                 grp = f[catalogue_name]
@@ -122,6 +122,9 @@ def get_field(simname, nsim, kind, MAS, grid):
     # Open the field reader.
     if simname == "csiborg1":
         field_reader = csiborgtools.read.CSiBORG1Field(nsim)
+    elif "csiborg2" in simname:
+        simkind = simname.split("_")[-1]
+        field_reader = csiborgtools.read.CSiBORG2Field(nsim, simkind)
     elif simname == "Carrick2015":
         folder = "/mnt/extraspace/rstiskalek/catalogs"
         warn(f"Using local paths from `{folder}`.", RuntimeWarning)
@@ -287,7 +290,8 @@ if __name__ == "__main__":
 
     rmax = 200
     dr = 0.5
-    smooth_scales = [0, 2, 4, 6]
+    # smooth_scales = [0, 2, 4, 6]
+    smooth_scales = None
 
     comm = MPI.COMM_WORLD
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
