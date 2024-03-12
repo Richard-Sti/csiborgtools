@@ -7,8 +7,8 @@ queue="berg"
 env="/mnt/users/rstiskalek/csiborgtools/venv_csiborg/bin/python"
 file="flow_validation.py"
 
-catalogue="A2"
-simname="Carrick2015"
+catalogue="Foundation"
+simname="csiborg2_random"
 
 
 pythoncm="$env $file --catalogue $catalogue --simname $simname --ksmooth $ksmooth"

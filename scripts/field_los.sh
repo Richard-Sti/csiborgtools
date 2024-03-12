@@ -1,4 +1,4 @@
-nthreads=15
+nthreads=1
 memory=40
 on_login=${1}
 queue="berg"
@@ -6,8 +6,8 @@ env="/mnt/users/rstiskalek/csiborgtools/venv_csiborg/bin/python"
 file="field_los.py"
 
 catalogue=${2}
-nsims="-1"
-simname="csiborg1"
+nsims="17417"
+simname="csiborg2_main"
 MAS="SPH"
 grid=1024
 
