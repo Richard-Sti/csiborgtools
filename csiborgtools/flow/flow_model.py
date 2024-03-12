@@ -34,7 +34,6 @@ from jax import vmap
 from tqdm import tqdm, trange
 
 from ..params import simname2Omega_m
-from ..read import CSiBORG1Catalogue
 
 SPEED_OF_LIGHT = 299792.458  # km / s
 
@@ -258,23 +257,6 @@ class DataLoader:
                 arr = np.empty(len(grp["RA"]), dtype=dtype)
                 for key in grp.keys():
                     arr[key] = grp[key][:]
-        elif "csiborg1" in catalogue:
-            nsim = int(catalogue.split("_")[-1])
-            cat = CSiBORG1Catalogue(nsim, bounds={"totmass": (1e13, None)})
-
-            seed = 42
-            gen = np.random.default_rng(seed)
-            mask = gen.choice(len(cat), size=100, replace=False)
-
-            keys = ["r_hMpc", "RA", "DEC"]
-            dtype = [(key, np.float32) for key in keys]
-            arr = np.empty(len(mask), dtype=dtype)
-
-            sph_pos = cat["spherical_pos"]
-            arr["r_hMpc"] = sph_pos[mask, 0]
-            arr["RA"] = sph_pos[mask, 1]
-            arr["DEC"] = sph_pos[mask, 2]
-            # TODO: add peculiar velocit
         else:
             raise ValueError(f"Unknown catalogue: `{catalogue}`.")
 
@@ -578,6 +560,8 @@ class SD_PV_validation_model:
             raise ValueError("The radial step size must be constant.")
         dr = dr[0]
 
+        self._r_xrange = r_xrange
+
         # Get the various vmapped functions
         self._vmap_ptilde_wo_bias = vmap(lambda mu, err: calculate_ptilde_wo_bias(r_xrange, mu, err, r2_xrange, True))                  # noqa
         self._vmap_simps = vmap(lambda y: simps(y, dr))
@@ -585,14 +569,14 @@ class SD_PV_validation_model:
         self._vmap_ll_zobs = vmap(lambda zobs, zobs_pred, sigma_v: calculate_ll_zobs(zobs, zobs_pred, sigma_v), in_axes=(0, 0, None))   # noqa
 
         # Distribution of external velocity components
-        self._Vext = dist.Uniform(-1000, 1000)
+        self._Vext = dist.Uniform(-500, 500)
         # Distribution of density, velocity and location bias parameters
         self._alpha = dist.LogNormal(*lognorm_mean_std_to_loc_scale(1.0, 0.5))     # noqa
         self._beta = dist.Normal(1., 0.5)
         # Distribution of velocity uncertainty sigma_v
         self._sv = dist.LogNormal(*lognorm_mean_std_to_loc_scale(150, 100))
 
-    def __call__(self, sample_alpha=False, scale_distance=False):
+    def __call__(self, sample_alpha=False):
         """
         The simple distance NumPyro PV validation model.
 
@@ -601,12 +585,11 @@ class SD_PV_validation_model:
         sample_alpha : bool, optional
             Whether to sample the density bias parameter `alpha`, otherwise
             it is fixed to 1.
-        scale_distance : bool, optional
-            Whether to scale the distance by `h`, otherwise it is fixed to 1.
         """
         Vx = numpyro.sample("Vext_x", self._Vext)
         Vy = numpyro.sample("Vext_y", self._Vext)
         Vz = numpyro.sample("Vext_z", self._Vext)
+
         alpha = numpyro.sample("alpha", self._alpha) if sample_alpha else 1.0
         beta = numpyro.sample("beta", self._beta)
         sigma_v = numpyro.sample("sigma_v", self._sv)
@@ -615,7 +598,7 @@ class SD_PV_validation_model:
 
         # Calculate p(r) and multiply it by the galaxy bias
         ptilde = self._vmap_ptilde_wo_bias(self._r_hMpc, self._e2_rhMpc)
-        ptilde *= self._vmap_bias(alpha)
+        ptilde *= self._los_density**alpha
 
         # Normalization of p(r)
         pnorm = self._vmap_simps(ptilde)
@@ -689,7 +672,7 @@ class SN_PV_validation_model:
         self._vmap_ll_zobs = vmap(lambda zobs, zobs_pred, sigma_v: calculate_ll_zobs(zobs, zobs_pred, sigma_v), in_axes=(0, 0, None))   # noqa
 
         # Distribution of external velocity components
-        self._Vext = dist.Uniform(-1000, 1000)
+        self._Vext = dist.Uniform(-500, 500)
         # Distribution of velocity and density bias parameters
         self._alpha = dist.LogNormal(*lognorm_mean_std_to_loc_scale(1.0, 0.5))
         self._beta = dist.Normal(1., 0.5)
@@ -697,9 +680,9 @@ class SN_PV_validation_model:
         self._sigma_v = dist.LogNormal(*lognorm_mean_std_to_loc_scale(150, 100))   # noqa
 
         # Distribution of light curve calibration parameters
-        self._mag_cal = dist.Normal(-18.25, 1.0)
-        self._alpha_cal = dist.Normal(0.1, 0.05)
-        self._beta_cal = dist.Normal(3.0, 1.0)
+        self._mag_cal = dist.Normal(-18.25, 0.5)
+        self._alpha_cal = dist.Normal(0.125, 0.05)
+        self._beta_cal = dist.Normal(3.1, 1.0)
         self._e_mu = dist.LogNormal(*lognorm_mean_std_to_loc_scale(0.1, 0.05))
 
     def __call__(self, sample_alpha=True, fix_calibration=False):
