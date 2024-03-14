@@ -29,8 +29,12 @@ from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
 from h5py import File
+from jax import jit
 from jax import numpy as jnp
 from jax import vmap
+from jax.lax import cond, scan
+from jax.random import PRNGKey
+from numpyro.infer import Predictive, util
 from tqdm import tqdm, trange
 
 from ..params import simname2Omega_m
@@ -249,7 +253,8 @@ class DataLoader:
                 arr = np.empty(len(f["RA"]), dtype=dtype)
                 for key in f.keys():
                     arr[key] = f[key][:]
-        elif catalogue in ["LOSS", "Foundation", "SFI_gals", "2MTF"]:
+        elif catalogue in ["LOSS", "Foundation", "SFI_gals", "2MTF",
+                           "Pantheon+"]:
             with File(catalogue_fpath, 'r') as f:
                 grp = f[catalogue]
 
@@ -666,10 +671,9 @@ class SN_PV_validation_model:
         dr = dr[0]
 
         # Get the various vmapped functions
-        self._vmap_ptilde_wo_bias = vmap(lambda mu, err: calculate_ptilde_wo_bias(mu_xrange, mu, err, r2_xrange, True))                 # noqa
-        self._vmap_simps = vmap(lambda y: simps(y, dr))
-        self._vmap_zobs = vmap(lambda beta, Vr, vpec_rad: predict_zobs(r_xrange, beta, Vr, vpec_rad, Omega_m), in_axes=(None, 0, 0))    # noqa
-        self._vmap_ll_zobs = vmap(lambda zobs, zobs_pred, sigma_v: calculate_ll_zobs(zobs, zobs_pred, sigma_v), in_axes=(0, 0, None))   # noqa
+        self._f_ptilde_wo_bias = lambda mu, err: calculate_ptilde_wo_bias(mu_xrange, mu, err, r2_xrange, True)  # noqa
+        self._f_simps = lambda y: simps(y, dr)                                                                  # noqa
+        self._f_zobs = lambda beta, Vr, vpec_rad: predict_zobs(r_xrange, beta, Vr, vpec_rad, Omega_m)           # noqa
 
         # Distribution of external velocity components
         self._Vext = dist.Uniform(-500, 500)
@@ -681,8 +685,8 @@ class SN_PV_validation_model:
 
         # Distribution of light curve calibration parameters
         self._mag_cal = dist.Normal(-18.25, 0.5)
-        self._alpha_cal = dist.Normal(0.125, 0.05)
-        self._beta_cal = dist.Normal(3.1, 1.0)
+        self._alpha_cal = dist.Normal(0.148, 0.05)
+        self._beta_cal = dist.Normal(3.112, 1.0)
         self._e_mu = dist.LogNormal(*lognorm_mean_std_to_loc_scale(0.1, 0.05))
 
     def __call__(self, sample_alpha=True, fix_calibration=False):
@@ -730,23 +734,25 @@ class SN_PV_validation_model:
         Vext_rad = project_Vext(Vx, Vy, Vz, self._RA, self._dec)
 
         mu = self._mB - mag_cal + alpha_cal * self._x1 - beta_cal * self._c
-        squared_e_mu = (self._e2_mB
-                        + alpha_cal**2 * self._e2_x1
-                        + beta_cal**2 * self._e2_c
-                        + e_mu_intrinsic**2)
+        squared_e_mu = (self._e2_mB + alpha_cal**2 * self._e2_x1
+                        + beta_cal**2 * self._e2_c + e_mu_intrinsic**2)
 
-        # Calculate p(r) and multiply it by the galaxy bias
-        ptilde = self._vmap_ptilde_wo_bias(mu, squared_e_mu)
-        ptilde *= self._los_density**alpha
+        def scan_body(ll, i):
+            # Calculate p(r) and multiply it by the galaxy bias
+            ptilde = self._f_ptilde_wo_bias(mu[i], squared_e_mu[i])
+            ptilde *= self._los_density[i]**alpha
 
-        # Normalization of p(r)
-        pnorm = self._vmap_simps(ptilde)
+            # Normalization of p(r)
+            pnorm = self._f_simps(ptilde)
 
-        # Calculate p(z_obs) and multiply it by p(r)
-        zobs_pred = self._vmap_zobs(beta, Vext_rad, self._los_velocity)
-        ptilde *= self._vmap_ll_zobs(self._z_obs, zobs_pred, sigma_v)
+            # Calculate p(z_obs) and multiply it by p(r)
+            zobs_pred = self._f_zobs(beta, Vext_rad[i], self._los_velocity[i])
+            ptilde *= calculate_ll_zobs(self._z_obs[i], zobs_pred, sigma_v)
 
-        ll = jnp.sum(jnp.log(self._vmap_simps(ptilde) / pnorm))
+            return ll + jnp.log(self._f_simps(ptilde) / pnorm), None
+
+        ll = 0.
+        ll, __ = scan(scan_body, ll, jnp.arange(len(self._RA)))
         numpyro.factor("ll", ll)
 
 
@@ -803,10 +809,9 @@ class TF_PV_validation_model:
         dr = dr[0]
 
         # Get the various vmapped functions
-        self._vmap_ptilde_wo_bias = vmap(lambda mu, err: calculate_ptilde_wo_bias(mu_xrange, mu, err, r2_xrange, True))                 # noqa
-        self._vmap_simps = vmap(lambda y: simps(y, dr))
-        self._vmap_zobs = vmap(lambda beta, Vr, vpec_rad: predict_zobs(r_xrange, beta, Vr, vpec_rad, Omega_m), in_axes=(None, 0, 0))    # noqa
-        self._vmap_ll_zobs = vmap(lambda zobs, zobs_pred, sigma_v: calculate_ll_zobs(zobs, zobs_pred, sigma_v), in_axes=(0, 0, None))   # noqa
+        self._f_ptilde_wo_bias = lambda mu, err: calculate_ptilde_wo_bias(mu_xrange, mu, err, r2_xrange, True)  # noqa
+        self._f_simps = lambda y: simps(y, dr)                                                                  # noqa
+        self._f_zobs = lambda beta, Vr, vpec_rad: predict_zobs(r_xrange, beta, Vr, vpec_rad, Omega_m)           # noqa
 
         # Distribution of external velocity components
         self._Vext = dist.Uniform(-1000, 1000)
@@ -848,16 +853,101 @@ class TF_PV_validation_model:
         squared_e_mu = (self._e2_mag + b**2 * self._e2_eta
                         + e_mu_intrinsic**2)
 
-        # Calculate p(r) and multiply it by the galaxy bias
-        ptilde = self._vmap_ptilde_wo_bias(mu, squared_e_mu)
-        ptilde *= self._los_density**alpha
+        def scan_body(ll, i):
+            # Calculate p(r) and multiply it by the galaxy bias
+            ptilde = self._f_ptilde_wo_bias(mu[i], squared_e_mu[i])
+            ptilde *= self._los_density[i]**alpha
 
-        # Normalization of p(r)
-        pnorm = self._vmap_simps(ptilde)
+            # Normalization of p(r)
+            pnorm = self._f_simps(ptilde)
 
-        # Calculate p(z_obs) and multiply it by p(r)
-        zobs_pred = self._vmap_zobs(beta, Vext_rad, self._los_velocity)
-        ptilde *= self._vmap_ll_zobs(self._z_obs, zobs_pred, sigma_v)
+            # Calculate p(z_obs) and multiply it by p(r)
+            zobs_pred = self._f_zobs(beta, Vext_rad[i], self._los_velocity[i])
+            ptilde *= calculate_ll_zobs(self._z_obs[i], zobs_pred, sigma_v)
 
-        ll = jnp.sum(jnp.log(self._vmap_simps(ptilde) / pnorm))
+            return ll + jnp.log(self._f_simps(ptilde) / pnorm), None
+
+        ll = 0.
+        ll, __ = scan(scan_body, ll, jnp.arange(len(self._RA)))
+
         numpyro.factor("ll", ll)
+
+
+###############################################################################
+#                  Maximizing likelihood of a NumPyro model                   #
+###############################################################################
+
+
+def sample_prior(model, seed, as_dict=False):
+    """
+    Sample a single set of parameters from the prior of the model.
+
+    Parameters
+    ----------
+    model : NumPyro model
+        NumPyro model.
+    seed : int
+        Random seed.
+    as_dict : bool, optional
+        Whether to return the parameters as a dictionary or a list of
+        parameters.
+
+    Returns
+    -------
+    x, keys : tuple
+        Tuple of parameters and their names. If `as_dict` is True, returns
+        only a dictionary.
+    """
+    predictive = Predictive(model, num_samples=1)
+
+    samples = predictive(PRNGKey(seed))
+
+    if as_dict:
+        return samples
+
+    keys = list(samples.keys())
+    if "ll" in keys:
+        keys.remove("ll")
+
+    x = np.asarray([samples[key][0] for key in keys])
+    return x, keys
+
+
+def make_loss(model, keys, sample_alpha=True, to_jit=True):
+    """
+    Generate a loss function for the NumPyro model, that is the negative
+    log-likelihood. Note that this loss function cannot be automatically
+    differentiated.
+
+    Parameters
+    ----------
+    model : NumPyro model
+        NumPyro model.
+    keys : list
+        List of parameter names.
+    sample_alpha : bool, optional
+        Whether to sample the density bias parameter `alpha`.
+    to_jit : bool, optional
+        Whether to JIT the loss function.
+
+    Returns
+    -------
+    loss : function
+        Loss function `f(x)` where `x` is a list of parameters ordered
+        according to `keys`.
+    """
+    def f(x):
+        samples = {key: x[i] for i, key in enumerate(keys)}
+
+        loss = -util.log_likelihood(
+            model, samples, sample_alpha=sample_alpha)["ll"]
+
+        loss += cond(samples["sigma_v"] > 0, lambda: 0., lambda: jnp.inf)
+        loss += cond(samples["e_mu_intrinsic"] > 0, lambda: 0., lambda: jnp.inf)  # noqa
+
+        return cond(jnp.isfinite(loss), lambda: loss, lambda: jnp.inf)
+
+    if to_jit:
+        return jit(f)
+
+    return f
