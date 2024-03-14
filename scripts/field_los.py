@@ -58,7 +58,8 @@ def get_los(catalogue_name, simname, comm):
     if comm.Get_rank() == 0:
         folder = "/mnt/extraspace/rstiskalek/catalogs"
 
-        if catalogue_name in ["LOSS", "Foundation", "SFI_gals", "2MTF"]:
+        if catalogue_name in ["LOSS", "Foundation", "SFI_gals", "2MTF",
+                              "Pantheon+"]:
             fpath = join(folder, "PV_compilation_Supranta2019.hdf5")
             with File(fpath, 'r') as f:
                 grp = f[catalogue_name]
