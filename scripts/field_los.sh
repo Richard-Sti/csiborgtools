@@ -6,8 +6,8 @@ env="/mnt/users/rstiskalek/csiborgtools/venv_csiborg/bin/python"
 file="field_los.py"
 
 catalogue=${2}
-nsims="17417"
-simname="csiborg2_main"
+nsims="-1"
+simname="Carrick2015"
 MAS="SPH"
 grid=1024
 
