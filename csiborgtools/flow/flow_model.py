@@ -1094,8 +1094,16 @@ def optimize_model_with_jackknife(loader, k, n_splits=5, sample_alpha=True,
 
     Returns
     -------
-    # res : dict
-    #     Dictionary of optimized parameters for each jackknife split.
+    samples : dict
+        Dictionary of optimized parameters for each jackknife split.
+    stats : dict
+        Dictionary of mean and standard deviation for each parameter.
+    fmin : 1-dimensional array
+        Minimum negative log-likelihood for each jackknife split.
+    logz : 1-dimensional array
+        Log-evidence for each jackknife split.
+    bic : 1-dimensional array
+        Bayesian information criterion for each jackknife split.
     """
     mask = np.zeros(n_splits, dtype=bool)
     x0 = None
@@ -1109,7 +1117,8 @@ def optimize_model_with_jackknife(loader, k, n_splits=5, sample_alpha=True,
             x0, keys = sample_prior(model, seed, sample_alpha)
             x = np.full((n_splits, len(x0)), np.nan)
             fmin = np.full(n_splits, np.nan)
-            z = np.full(n_splits, np.nan)
+            logz = np.full(n_splits, np.nan)
+            bic = np.full(n_splits, np.nan)
 
             loss = make_loss(model, keys, sample_alpha=sample_alpha,
                              to_jit=True)
@@ -1128,8 +1137,6 @@ def optimize_model_with_jackknife(loader, k, n_splits=5, sample_alpha=True,
             simplefilter("ignore")
             res = fmin_powell(loss, x0, disp=False)
 
-        # TODO: add BIC here.
-
         if np.all(np.isfinite(res)):
             x[i] = res
             mask[i] = True
@@ -1139,9 +1146,12 @@ def optimize_model_with_jackknife(loader, k, n_splits=5, sample_alpha=True,
             f_hess = Hessian(loss, method="forward", richardson_terms=1)
             hess = f_hess(res)
             D = len(keys)
-            z[i] = (- fmin[i]
-                    + 0.5 * np.log(np.abs(np.linalg.det(np.linalg.inv(hess))))
-                    + D / 2 * np.log(2 * np.pi))
+            logz[i] = (
+                - fmin[i]
+                + 0.5 * np.log(np.abs(np.linalg.det(np.linalg.inv(hess))))
+                + D / 2 * np.log(2 * np.pi))
+
+            bic[i] = len(keys) * np.log(len(loader.cat["RA"])) + 2 * fmin[i]
 
     samples = {key: x[:, i][mask] for i, key in enumerate(keys)}
 
@@ -1150,4 +1160,4 @@ def optimize_model_with_jackknife(loader, k, n_splits=5, sample_alpha=True,
            for key in keys]
     stats = {key: (mean[i], std[i]) for i, key in enumerate(keys)}
 
-    return samples, stats, fmin, z
+    return samples, stats, fmin, logz, bic
