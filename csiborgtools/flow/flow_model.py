@@ -20,7 +20,7 @@ References
 [1] https://arxiv.org/abs/1912.09383.
 """
 from datetime import datetime
-from warnings import warn
+from warnings import catch_warnings, simplefilter, warn
 
 import numpy as np
 import numpyro
@@ -35,6 +35,8 @@ from jax import vmap
 from jax.lax import cond, scan
 from jax.random import PRNGKey
 from numpyro.infer import Predictive, util
+from scipy.optimize import fmin_powell
+from sklearn.model_selection import KFold
 from tqdm import tqdm, trange
 
 from ..params import simname2Omega_m
@@ -146,7 +148,7 @@ class DataLoader:
         if simname == "Carrick2015":
             self._los_density += 1
 
-        self._mask = np.arange(len(self._cat))
+        self._mask = np.ones(len(self._cat), dtype=bool)
         self._catname = catalogue
 
     @property
@@ -270,18 +272,40 @@ class DataLoader:
 
         return arr
 
-    def make_resample_mask(self):
+    def make_jackknife_mask(self, i, n_splits, seed=42):
         """
-        Set the resampling mask.
+        Set the jackknife mask to exclude the `i`-th split.
+
+        Parameters
+        ----------
+        i : int
+            Index of the split to exclude.
+        n_splits : int
+            Number of splits.
+        seed : int, optional
+            Random seed.
+
+        Returns
+        -------
+        None, sets `mask` internally.
         """
+        cv = KFold(n_splits=n_splits, shuffle=True, random_state=seed)
         n = len(self._cat)
-        self._mask = np.random.choice(np.arange(n), n, replace=True)
+        indxs = np.arange(n)
+
+        gen = np.random.default_rng(seed)
+        gen.shuffle(indxs)
+
+        for j, (train_index, __) in enumerate(cv.split(np.arange(n))):
+            if i == j:
+                self._mask = indxs[train_index]
+                return
+
+        raise ValueError("The index `i` must be in the range of `n_splits`.")
 
     def reset_mask(self):
-        """
-        Reset the resampling mask to include all objects.
-        """
-        self._mask = np.arange(len(self._cat))
+        """Reset the jackknife mask."""
+        self._mask = np.ones(len(self._cat), dtype=bool)
 
 
 ###############################################################################
@@ -971,7 +995,7 @@ def get_model(loader, k, zcmb_max=None, verbose=True):
 ###############################################################################
 
 
-def sample_prior(model, seed, as_dict=False):
+def sample_prior(model, seed, sample_alpha, as_dict=False):
     """
     Sample a single set of parameters from the prior of the model.
 
@@ -981,6 +1005,8 @@ def sample_prior(model, seed, as_dict=False):
         NumPyro model.
     seed : int
         Random seed.
+    sample_alpha : bool
+        Whether to sample the density bias parameter `alpha`.
     as_dict : bool, optional
         Whether to return the parameters as a dictionary or a list of
         parameters.
@@ -992,8 +1018,7 @@ def sample_prior(model, seed, as_dict=False):
         only a dictionary.
     """
     predictive = Predictive(model, num_samples=1)
-
-    samples = predictive(PRNGKey(seed))
+    samples = predictive(PRNGKey(seed), sample_alpha=sample_alpha)
 
     if as_dict:
         return samples
@@ -1044,3 +1069,70 @@ def make_loss(model, keys, sample_alpha=True, to_jit=True):
         return jit(f)
 
     return f
+
+
+def optimize_model_with_jackknife(loader, k, n_splits=5, sample_alpha=True,
+                                  get_model_kwargs={}, seed=42):
+    """
+    Optimize the log-likelihood of a model for `n_splits` jackknifes.
+
+    Parameters
+    ----------
+    loader : DataLoader
+        DataLoader instance.
+    k : int
+        Simulation index.
+    n_splits : int, optional
+        Number of jackknife splits.
+    sample_alpha : bool, optional
+        Whether to sample the density bias parameter `alpha`.
+    get_model_kwargs : dict, optional
+        Additional keyword arguments to pass to the `get_model` function.
+    seed : int, optional
+        Random seed.
+
+    Returns
+    -------
+    res : dict
+        Dictionary of optimized parameters for each jackknife split.
+    """
+    mask = np.zeros(n_splits, dtype=bool)
+    x0 = None
+
+    # Loop over the CV splits.
+    for i in trange(n_splits):
+        loader.make_jackknife_mask(i, n_splits, seed=seed)
+        model = get_model(loader, k, verbose=False, **get_model_kwargs)
+
+        if x0 is None:
+            x0, keys = sample_prior(model, seed, sample_alpha)
+            x = np.full((n_splits, len(x0)), np.nan)
+
+            loss = make_loss(model, keys, sample_alpha=sample_alpha,
+                             to_jit=True)
+            for j in range(100):
+                if np.isfinite(loss(x0)):
+                    break
+                x0, __ = sample_prior(model, seed + 1, sample_alpha)
+            else:
+                raise ValueError("Failed to find finite initial loss.")
+
+        else:
+            loss = make_loss(model, keys, sample_alpha=sample_alpha,
+                             to_jit=True)
+
+        with catch_warnings():
+            simplefilter("ignore")
+            res = fmin_powell(loss, x0, disp=False)
+
+        if np.all(np.isfinite(res)):
+            x[i] = res
+            mask[i] = True
+            x0 = res
+
+    samples = {key: x[:, i][mask] for i, key in enumerate(keys)}
+    mean = [np.mean(samples[key]) for key in keys]
+    std = [(len(samples[key] - 1) * np.var(samples[key], ddof=0))**0.5
+           for key in keys]
+
+    return samples, {key: (mean[i], std[i]) for i, key in enumerate(keys)}
