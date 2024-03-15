@@ -38,6 +38,7 @@ from numpyro.infer import Predictive, util
 from scipy.optimize import fmin_powell
 from sklearn.model_selection import KFold
 from tqdm import tqdm, trange
+from numdifftools import Hessian
 
 from ..params import simname2Omega_m
 
@@ -1093,8 +1094,8 @@ def optimize_model_with_jackknife(loader, k, n_splits=5, sample_alpha=True,
 
     Returns
     -------
-    res : dict
-        Dictionary of optimized parameters for each jackknife split.
+    # res : dict
+    #     Dictionary of optimized parameters for each jackknife split.
     """
     mask = np.zeros(n_splits, dtype=bool)
     x0 = None
@@ -1107,6 +1108,8 @@ def optimize_model_with_jackknife(loader, k, n_splits=5, sample_alpha=True,
         if x0 is None:
             x0, keys = sample_prior(model, seed, sample_alpha)
             x = np.full((n_splits, len(x0)), np.nan)
+            fmin = np.full(n_splits, np.nan)
+            z = np.full(n_splits, np.nan)
 
             loss = make_loss(model, keys, sample_alpha=sample_alpha,
                              to_jit=True)
@@ -1125,14 +1128,26 @@ def optimize_model_with_jackknife(loader, k, n_splits=5, sample_alpha=True,
             simplefilter("ignore")
             res = fmin_powell(loss, x0, disp=False)
 
+        # TODO: add BIC here.
+
         if np.all(np.isfinite(res)):
             x[i] = res
             mask[i] = True
             x0 = res
+            fmin[i] = loss(res)
+
+            f_hess = Hessian(loss, method="forward", richardson_terms=1)
+            hess = f_hess(res)
+            D = len(keys)
+            z[i] = (- fmin[i]
+                    + 0.5 * np.log(np.abs(np.linalg.det(np.linalg.inv(hess))))
+                    + D / 2 * np.log(2 * np.pi))
 
     samples = {key: x[:, i][mask] for i, key in enumerate(keys)}
+
     mean = [np.mean(samples[key]) for key in keys]
     std = [(len(samples[key] - 1) * np.var(samples[key], ddof=0))**0.5
            for key in keys]
+    stats = {key: (mean[i], std[i]) for i, key in enumerate(keys)}
 
-    return samples, {key: (mean[i], std[i]) for i, key in enumerate(keys)}
+    return samples, stats, fmin, z
