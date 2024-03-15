@@ -16,4 +16,4 @@ from .flow_model import (DataLoader, radial_velocity_los, dist2redshift,        
                          dist2distmodulus, predict_zobs, project_Vext,          # noqa
                          SD_PV_validation_model, SN_PV_validation_model,        # noqa
                          TF_PV_validation_model, radec_to_galactic,             # noqa
-                         sample_prior, make_loss)                               # noqa
+                         sample_prior, make_loss, get_model)                    # noqa

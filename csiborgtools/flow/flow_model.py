@@ -133,18 +133,21 @@ class DataLoader:
         if not store_full_velocity:
             self._los_velocity = None
 
-        Omega_m = simname2Omega_m(simname)
+        self._Omega_m = simname2Omega_m(simname)
 
         # Normalize the CSiBORG density by the mean matter density
         if "csiborg" in simname:
-            cosmo = FlatLambdaCDM(H0=100, Om0=Omega_m)
+            cosmo = FlatLambdaCDM(H0=100, Om0=self._Omega_m)
             mean_rho_matter = cosmo.critical_density0.to("Msun/kpc^3").value
-            mean_rho_matter *= Omega_m
+            mean_rho_matter *= self._Omega_m
             self._los_density /= mean_rho_matter
 
         # Since Carrick+2015 provide `rho / <rho> - 1`
         if simname == "Carrick2015":
             self._los_density += 1
+
+        self._mask = np.arange(len(self._cat))
+        self._catname = catalogue
 
     @property
     def cat(self):
@@ -155,7 +158,7 @@ class DataLoader:
         -------
         structured array
         """
-        return self._cat
+        return self._cat[self._mask]
 
     @property
     def catname(self):
@@ -188,7 +191,7 @@ class DataLoader:
         ----------
         3-dimensional array of shape (n_objects, n_simulations, n_steps)
         """
-        return self._los_density
+        return self._los_density[self._mask]
 
     @property
     def los_velocity(self):
@@ -201,7 +204,7 @@ class DataLoader:
         """
         if self._los_velocity is None:
             raise ValueError("The 3D velocities were not stored.")
-        return self._los_velocity
+        return self._los_velocity[self._mask]
 
     @property
     def los_radial_velocity(self):
@@ -212,7 +215,7 @@ class DataLoader:
         -------
         3-dimensional array of shape (n_objects, n_simulations, n_steps)
         """
-        return self._los_radial_velocity
+        return self._los_radial_velocity[self._mask]
 
     def _read_field(self, simname, catalogue, k, paths):
         """Read in the interpolated field."""
@@ -266,6 +269,19 @@ class DataLoader:
             raise ValueError(f"Unknown catalogue: `{catalogue}`.")
 
         return arr
+
+    def make_resample_mask(self):
+        """
+        Set the resampling mask.
+        """
+        n = len(self._cat)
+        self._mask = np.random.choice(np.arange(n), n, replace=True)
+
+    def reset_mask(self):
+        """
+        Reset the resampling mask to include all objects.
+        """
+        self._mask = np.arange(len(self._cat))
 
 
 ###############################################################################
@@ -871,6 +887,83 @@ class TF_PV_validation_model:
         ll, __ = scan(scan_body, ll, jnp.arange(len(self._RA)))
 
         numpyro.factor("ll", ll)
+
+
+###############################################################################
+#                       Shortcut to create a model                           #
+###############################################################################
+
+
+def get_model(loader, k, zcmb_max=None, verbose=True):
+    """
+    Get a model and extract the relevant data from the loader.
+
+    Parameters
+    ----------
+    loader : DataLoader
+        DataLoader instance.
+    k : int
+        Simulation index.
+    zcmb_max : float, optional
+        Maximum observed redshift in the CMB frame to include.
+    verbose : bool, optional
+        Verbosity flag.
+
+    Returns
+    -------
+    model : NumPyro model
+    """
+    zcmb_max = np.infty if zcmb_max is None else zcmb_max
+
+    if k > loader.los_density.shape[1]:
+        raise ValueError(f"Simulation index `{k}` out of range.")
+
+    los_overdensity = loader.los_density[:, k, :]
+    los_velocity = loader.los_radial_velocity[:, k, :]
+    kind = loader._catname
+
+    if kind in ["LOSS", "Foundation"]:
+        keys = ["RA", "DEC", "z_CMB", "mB", "x1", "c", "e_mB", "e_x1", "e_c"]
+        RA, dec, zCMB, mB, x1, c, e_mB, e_x1, e_c = (loader.cat[k] for k in keys)  # noqa
+
+        mask = (zCMB < zcmb_max)
+        model = SN_PV_validation_model(
+            los_overdensity[mask], los_velocity[mask], RA[mask], dec[mask],
+            zCMB[mask], mB[mask], x1[mask], c[mask], e_mB[mask], e_x1[mask],
+            e_c[mask], loader.rdist, loader._Omega_m)
+    elif kind == "Pantheon+":
+        keys = ["RA", "DEC", "zCMB", "mB", "x1", "c", "biasCor_m_b", "mBERR",
+                "x1ERR", "cERR", "biasCorErr_m_b"]
+
+        RA, dec, zCMB, mB, x1, c, bias_corr_mB, e_mB, e_x1, e_c, e_bias_corr_mB = (loader.cat[k] for k in keys)  # noqa
+        mB -= bias_corr_mB
+        e_mB = np.sqrt(e_mB**2 + e_bias_corr_mB**2)
+
+        mask = (zCMB < zcmb_max)
+        model = SN_PV_validation_model(
+            los_overdensity[mask], los_velocity[mask], RA[mask], dec[mask],
+            zCMB[mask], mB[mask], x1[mask], c[mask], e_mB[mask], e_x1[mask],
+            e_c[mask], loader.rdist, loader._Omega_m)
+    elif kind in ["SFI_gals", "2MTF"]:
+        keys = ["RA", "DEC", "z_CMB", "mag", "eta", "e_mag", "e_eta"]
+        RA, dec, zCMB, mag, eta, e_mag, e_eta = (loader.cat[k] for k in keys)
+
+        mask = (zCMB < zcmb_max)
+        if kind == "SFI_gals":
+            mask &= (eta > -0.15) & (eta < 0.2)
+            if verbose:
+                print("Emplyed eta cut for SFI galaxies.", flush=True)
+        model = TF_PV_validation_model(
+            los_overdensity[mask], los_velocity[mask], RA[mask], dec[mask],
+            zCMB[mask], mag[mask], eta[mask], e_mag[mask], e_eta[mask],
+            loader.rdist, loader._Omega_m)
+    else:
+        raise ValueError(f"Catalogue `{kind}` not recognized.")
+
+    if verbose:
+        print(f"Selected {np.sum(mask)}/{len(mask)} galaxies.", flush=True)
+
+    return model
 
 
 ###############################################################################
