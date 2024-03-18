@@ -1155,7 +1155,8 @@ class CSiBORG2SUBFINDCatalogue(BaseCatalogue):
             676.6, [338.3, 338.3, 338.3], None, flip_xz,
             cache_maxsize)
 
-        self._custom_keys = ["SubhaloSpin", "SubhaloVelDisp", "Central"]
+        self._custom_keys = ["SubhaloSpin", "SubhaloVelDisp", "Central",
+                             "ParentMass"]
 
     @property
     def kind(self):
@@ -1176,6 +1177,17 @@ class CSiBORG2SUBFINDCatalogue(BaseCatalogue):
             grp = f["Subhalo"]
             if kind not in grp.keys():
                 raise ValueError(f"Subhalo catalogue key '{kind}' not available. Available keys are: {list(f.keys())}")  # noqa
+            out = grp[kind][...]
+        return out
+
+    def _read_fof_catalogue(self, kind):
+        fpath = self.paths.snapshot_catalogue(self.nsnap, self.nsim,
+                                              self._simname)
+
+        with File(fpath, 'r') as f:
+            grp = f["Group"]
+            if kind not in grp.keys():
+                raise ValueError(f"FoF catalogue key '{kind}' not available. Available keys are: {list(f.keys())}")  # noqa
             out = grp[kind][...]
         return out
 
@@ -1231,6 +1243,12 @@ class CSiBORG2SUBFINDCatalogue(BaseCatalogue):
     @property
     def Central(self):
         return self._read_subfind_catalogue("SubhaloRankInGr") == 0
+
+    @property
+    def ParentMass(self):
+        group_nr = self._read_subfind_catalogue("SubhaloGroupNr")
+        fof_mass = self._read_fof_catalogue("GroupMass") * 1e10
+        return fof_mass[group_nr]
 
 
 ###############################################################################
