@@ -1123,6 +1123,116 @@ class CSiBORG2MergerTreeReader:
                 }
 
 
+class CSiBORG2SUBFINDCatalogue(BaseCatalogue):
+    r"""
+    CSiBORG2 SUBFIND halo catalogue.
+
+    Parameters
+    ----------
+    nsim : int
+        IC realisation index.
+    nsnap : int
+        Snapshot index.
+    kind : str
+        Simulation kind. Must be one of 'main', 'varysmall', or 'random'.
+    paths : py:class`csiborgtools.read.Paths`, optional
+        Paths object.
+    bounds : dict, optional
+        Parameter bounds; keys as parameter names, values as (min, max) or
+        a boolean.
+    flip_xz : bool, optional
+        Whether to flip the x- and z-coordinates to undo the MUSIC bug to match
+        observations.
+    cache_maxsize : int, optional
+        Maximum number of cached arrays.
+    """
+    def __init__(self, nsim, nsnap, kind, paths=None,
+                 bounds=None, flip_xz=True, cache_maxsize=64):
+        # TODO: finish all this!
+        super().__init__()
+        super().init_with_snapshot(
+            f"csiborg2_{kind}", nsim, nsnap, paths, None, bounds,
+            676.6, [338.3, 338.3, 338.3], None, flip_xz,
+            cache_maxsize)
+
+        self._custom_keys = ["SubhaloSpin", "SubhaloVelDisp", "Central"]
+
+    @property
+    def kind(self):
+        """
+        Simulation kind.
+
+        Returns
+        -------
+        str
+        """
+        return self._simname.split("_")[-1]
+
+    def _read_subfind_catalogue(self, kind):
+        fpath = self.paths.snapshot_catalogue(self.nsnap, self.nsim,
+                                              self._simname)
+
+        with File(fpath, 'r') as f:
+            grp = f["Subhalo"]
+            if kind not in grp.keys():
+                raise ValueError(f"Subhalo catalogue key '{kind}' not available. Available keys are: {list(f.keys())}")  # noqa
+            out = grp[kind][...]
+        return out
+
+    @property
+    def coordinates(self):
+        out = self._read_subfind_catalogue("SubhaloPos")
+        if self.flip_xz:
+            out[:, [0, 2]] = out[:, [2, 0]]
+        return out
+
+    @property
+    def velocities(self):
+        out = self._read_subfind_catalogue("SubhaloVel")
+        if self.flip_xz:
+            out[:, [0, 2]] = out[:, [2, 0]]
+        return out
+
+    @property
+    def npart(self):
+        return self._read_subfind_catalogue("SubhaloLen")
+
+    @property
+    def totmass(self):
+        return self._read_subfind_catalogue("SubhaloMass") * 1e10
+
+    @property
+    def index(self):
+        return numpy.arange(self.totmass.size, dtype=numpy.int32)
+
+    @property
+    def lagpatch_coordinates(self):
+        raise RuntimeError("Lagrangian patch information is not available for "
+                           "SUBFIND haloes.")
+
+    @property
+    def lagpatch_radius(self):
+        raise RuntimeError("Lagrangian patch information is not available for "
+                           "SUBFIND haloes.")
+
+    @property
+    def SubhaloSpin(self):
+        return self._read_subfind_catalogue("SubhaloSpin")
+
+    @property
+    def SubhaloVelDisp(self):
+        return self._read_subfind_catalogue("SubhaloVelDisp")
+
+    @property
+    def SubhaloContamination(self):
+        mass_type = self._read_subfind_catalogue("SubhaloMassType")
+        return mass_type[:, 5] / (mass_type[:, 1] + mass_type[:, 5])
+
+    @property
+    def Central(self):
+        return self._read_subfind_catalogue("SubhaloRankInGr") == 0
+
+
 ###############################################################################
 #                         Quijote halo catalogue                              #
 ###############################################################################
