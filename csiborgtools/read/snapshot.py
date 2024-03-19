@@ -474,7 +474,7 @@ class CSiBORG2Snapshot(BaseSnapshot):
 
         self._kind = value
 
-    def _get_particles(self, kind):
+    def _get_particles(self, kind, high_resolution_only=False):
         with File(self._snapshot_path, "r") as f:
             if kind == "Masses":
                 npart = f["Header"].attrs["NumPart_Total"][1]
@@ -483,27 +483,28 @@ class CSiBORG2Snapshot(BaseSnapshot):
             else:
                 x = f[f"PartType1/{kind}"][...]
 
-            if x.ndim == 1:
-                x = numpy.hstack([x, f[f"PartType5/{kind}"][...]])
-            else:
-                x = numpy.vstack([x, f[f"PartType5/{kind}"][...]])
+            if not high_resolution_only:
+                if x.ndim == 1:
+                    x = numpy.hstack([x, f[f"PartType5/{kind}"][...]])
+                else:
+                    x = numpy.vstack([x, f[f"PartType5/{kind}"][...]])
 
         if self.flip_xz and kind in ["Coordinates", "Velocities"]:
             x[:, [0, 2]] = x[:, [2, 0]]
 
         return x
 
-    def coordinates(self):
-        return self._get_particles("Coordinates")
+    def coordinates(self, high_resolution_only=False):
+        return self._get_particles("Coordinates", high_resolution_only)
 
-    def velocities(self):
-        return self._get_particles("Velocities")
+    def velocities(self, high_resolution_only=False):
+        return self._get_particles("Velocities", high_resolution_only)
 
-    def masses(self):
-        return self._get_particles("Masses") * 1e10
+    def masses(self, high_resolution_only=False):
+        return self._get_particles("Masses", high_resolution_only) * 1e10
 
-    def particle_ids(self):
-        return self._get_particles("ParticleIDs")
+    def particle_ids(self, high_resolution_only=False):
+        return self._get_particles("ParticleIDs", high_resolution_only)
 
     def _get_halo_particles(self, halo_id, kind, is_group):
         if not is_group:
