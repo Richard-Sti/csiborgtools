@@ -1160,4 +1160,5 @@ def optimize_model_with_jackknife(loader, k, n_splits=5, sample_alpha=True,
            for key in keys]
     stats = {key: (mean[i], std[i]) for i, key in enumerate(keys)}
 
+    loader.reset_mask()
     return samples, stats, fmin, logz, bic
