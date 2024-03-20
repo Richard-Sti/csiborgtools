@@ -102,18 +102,14 @@ def read_samples(catalogue, simname, ksmooth, include_calibration=False,
     data = np.vstack(data).T
 
     if return_MCsamples:
+        # TODO: Add BIC to the label?
+        if ksmooth == 1:
+            simname = fr"{simname}, $\kappa = 2$"
+
         return MCSamples(samples=data, names=names,
                          labels=names_to_latex(names), label=simname)
 
     return data, names, gof
-
-
-def print_gof(gof):
-    print("Carrick+2015, kappa = 0")
-    print("BIC = {:.4f}".format(np.mean(gof[0])))
-    print("AIC = {:.4f}".format(np.mean(gof[1])))
-    print("logZ = {:.4f}".format(np.mean(gof[2])))
-    print()
 
 
 def names_to_latex(names, for_corner=False):
