@@ -432,7 +432,7 @@ def thin_samples_by_acl(samples):
     return thinned_samples
 
 
-def numpyro_gof(model, mcmc, ndata, model_kwargs={}):
+def numpyro_gof(model, mcmc, model_kwargs={}):
     """
     Get the goodness-of-fit statistics for a sampled Numpyro model. Calculates
     the BIC and AIC using the maximum likelihood sampled point and the log
@@ -460,6 +460,11 @@ def numpyro_gof(model, mcmc, ndata, model_kwargs={}):
     # Calculate the BIC using the maximum likelihood sampled point.
     kmax = np.argmax(log_likelihood)
     nparam = len(samples)
+    try:
+        ndata = model.ndata
+    except AttributeError as e:
+        raise AttributeError("The model must have an attribute `ndata` "
+                             "indicating the number of data points.") from e
     BIC = -2 * log_likelihood[kmax] + nparam * np.log(ndata)
 
     # Calculate AIC
