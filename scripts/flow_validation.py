@@ -30,7 +30,7 @@ from numpyro.infer import MCMC, NUTS, init_to_sample
 from taskmaster import work_delegation  # noqa
 
 
-def get_model(args, nsim_iterator):
+def get_model(args, nsim_iterator, get_model_kwargs):
     """
     Load the data and create the NumPyro model.
 
@@ -40,72 +40,32 @@ def get_model(args, nsim_iterator):
         Command line arguments.
     nsim_iterator : int
         Simulation index, not the IC index. Ranges from 0, ... .
+    get_model_kwargs : dict
+        Keyword arguments for reading in the data for the model
+        (`csiboorgtools.flow.get_model`).
 
     Returns
     -------
-    numpyro.Primitive
+    numpyro model
     """
     folder = "/mnt/extraspace/rstiskalek/catalogs/"
     if args.catalogue == "A2":
         fpath = join(folder, "A2.h5")
-    elif args.catalogue == "LOSS" or args.catalogue == "Foundation":
+    elif args.catalogue in ["LOSS", "Foundation", "Pantheon+", "SFI_gals",
+                            "2MTF"]:
         fpath = join(folder, "PV_compilation_Supranta2019.hdf5")
     else:
         raise ValueError(f"Unknown catalogue: `{args.catalogue}`.")
 
-    loader = csiborgtools.flow.DataLoader(args.simname, args.catalogue, fpath,
-                                          paths, ksmooth=args.ksmooth)
-    Omega_m = csiborgtools.simname2Omega_m(args.simname)
+    loader = csiborgtools.flow.DataLoader(args.simname, nsim_iterator,
+                                          args.catalogue, fpath, paths,
+                                          ksmooth=args.ksmooth)
 
-    # Read in the data from the loader.
-    los_overdensity = loader.los_density[:, nsim_iterator, :]
-    los_velocity = loader.los_radial_velocity[:, nsim_iterator, :]
-
-    if args.catalogue == "A2":
-        RA = loader.cat["RA"]
-        dec = loader.cat["DEC"]
-        z_obs = loader.cat["z_obs"]
-
-        r_hMpc = loader.cat["r_hMpc"]
-        e_r_hMpc = loader.cat["e_rhMpc"]
-
-        return csiborgtools.flow.SD_PV_validation_model(
-            los_overdensity, los_velocity, RA, dec, z_obs, r_hMpc, e_r_hMpc,
-            loader.rdist, Omega_m)
-    elif args.catalogue == "LOSS" or args.catalogue == "Foundation":
-        RA = loader.cat["RA"]
-        dec = loader.cat["DEC"]
-        zCMB = loader.cat["z_CMB"]
-
-        mB = loader.cat["mB"]
-        x1 = loader.cat["x1"]
-        c = loader.cat["c"]
-
-        e_mB = loader.cat["e_mB"]
-        e_x1 = loader.cat["e_x1"]
-        e_c = loader.cat["e_c"]
-
-        return csiborgtools.flow.SN_PV_validation_model(
-            los_overdensity, los_velocity, RA, dec, zCMB, mB, x1, c,
-            e_mB, e_x1, e_c, loader.rdist, Omega_m)
-    elif args.catalogue in ["SFI_gals", "2MTF"]:
-        RA = loader.cat["RA"]
-        dec = loader.cat["DEC"]
-        zCMB = loader.cat["z_CMB"]
-
-        mag = loader.cat["mag"]
-        eta = loader.cat["eta"]
-        e_mag = loader.cat["e_mag"]
-        e_eta = loader.cat["e_eta"]
-
-        return csiborgtools.flow.TF_PV_validation_model(
-            los_overdensity, los_velocity, RA, dec, zCMB, mag, eta,
-            e_mag, e_eta, loader.rdist, Omega_m)
-    else:
-        raise ValueError(f"Unknown catalogue: `{args.catalogue}`.")
+    return csiborgtools.flow.get_model(loader, **get_model_kwargs)
 
 
-def run_model(model, nsteps, nchains, nsim, dump_folder, show_progress=True):
+def run_model(model, nsteps, nburn, nchains, nsim, dump_folder,
+              model_kwargs, show_progress=True):
     """
     Run the NumPyro model and save the thinned samples to a temporary file.
 
@@ -115,6 +75,8 @@ def run_model(model, nsteps, nchains, nsim, dump_folder, show_progress=True):
         Model to be run.
     nsteps : int
         Number of steps.
+    nburn : int
+        Number of burn-in steps.
     nchains : int
         Number of chains.
     nsim : int
@@ -129,11 +91,11 @@ def run_model(model, nsteps, nchains, nsim, dump_folder, show_progress=True):
     None
     """
     nuts_kernel = NUTS(model, init_strategy=init_to_sample)
-    mcmc = MCMC(nuts_kernel, num_warmup=500, num_samples=nsteps,
+    mcmc = MCMC(nuts_kernel, num_warmup=nburn, num_samples=nsteps,
                 chain_method="sequential", num_chains=nchains,
                 progress_bar=show_progress)
     rng_key = jax.random.PRNGKey(42)
-    mcmc.run(rng_key)
+    mcmc.run(rng_key, **model_kwargs)
 
     if show_progress:
         print(f"Summary of the MCMC run of simulation indexed {nsim}:")
@@ -142,9 +104,11 @@ def run_model(model, nsteps, nchains, nsim, dump_folder, show_progress=True):
     samples = mcmc.get_samples()
     thinned_samples = csiborgtools.thin_samples_by_acl(samples)
 
+    gof = csiborgtools.numpyro_gof(model, mcmc, model_kwargs)
+
     # Save the samples to the temporary folder.
     fname = join(dump_folder, f"samples_{nsim}.npz")
-    np.savez(fname, **thinned_samples)
+    np.savez(fname, **thinned_samples, **gof)
 
 
 def combine_from_simulations(catalogue_name, simname, nsims, outfolder,
@@ -208,6 +172,12 @@ if __name__ == "__main__":
                         help="PV catalogue.")
     parser.add_argument("--ksmooth", type=int, required=True,
                         help="Smoothing index.")
+    parser.add_argument("--nchains", type=int, default=4,
+                        help="Number of chains.")
+    parser.add_argument("--nsteps", type=int, default=2500,
+                        help="Number of post burn-n steps.")
+    parser.add_argument("--nburn", type=int, default=500,
+                        help="Number of burn-in steps.")
     args = parser.parse_args()
 
     comm = MPI.COMM_WORLD
@@ -217,8 +187,8 @@ if __name__ == "__main__":
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsims = paths.get_ics(args.simname)
 
-    nsteps = 2000
-    nchains = 2
+    get_model_kwargs = {"zcmb_max": 0.06}
+    model_kwargs = {"sample_alpha": True}
 
     # Create the dumping folder.
     if comm.Get_rank() == 0:
@@ -231,9 +201,9 @@ if __name__ == "__main__":
     dump_folder = comm.bcast(dump_folder, root=0)
 
     def main(i):
-        model = get_model(args, i)
-        run_model(model, nsteps, nchains, nsims[i], dump_folder,
-                  show_progress=size == 1)
+        model = get_model(args, i, get_model_kwargs)
+        run_model(model, args.nsteps, args.nburn, args.nchains, nsims[i],
+                  dump_folder, model_kwargs, show_progress=size == 1)
 
     work_delegation(main, [i for i in range(len(nsims))], comm,
                     master_verbose=True)
