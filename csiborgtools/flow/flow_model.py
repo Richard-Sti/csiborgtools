@@ -19,6 +19,7 @@ References
 ----------
 [1] https://arxiv.org/abs/1912.09383.
 """
+from abc import ABC
 from datetime import datetime
 from warnings import catch_warnings, simplefilter, warn
 
@@ -37,7 +38,7 @@ from jax.random import PRNGKey
 from numpyro.infer import Predictive, util
 from scipy.optimize import fmin_powell
 from sklearn.model_selection import KFold
-from tqdm import tqdm, trange
+from tqdm import trange
 from numdifftools import Hessian
 
 from ..params import simname2Omega_m
@@ -82,6 +83,8 @@ class DataLoader:
     ----------
     simname : str
         Simulation name.
+    ksims : int
+        Index of the simulation to read in (not the IC index).
     catalogue : str
         Name of the catalogue with LOS objects.
     catalogue_fpath : str
@@ -94,7 +97,7 @@ class DataLoader:
         Whether to store the full 3D velocity field. Otherwise stores only
         the radial velocity.
     """
-    def __init__(self, simname, catalogue, catalogue_fpath, paths,
+    def __init__(self, simname, ksim, catalogue, catalogue_fpath, paths,
                  ksmooth=None, store_full_velocity=False):
         print(f"{t()}: reading the catalogue.")
         self._cat = self._read_catalogue(catalogue, catalogue_fpath)
@@ -102,7 +105,7 @@ class DataLoader:
 
         print(f"{t()}: reading the interpolated field.")
         self._field_rdist, self._los_density, self._los_velocity = self._read_field(  # noqa
-            simname, catalogue, ksmooth, paths)
+            simname, ksim, catalogue, ksmooth, paths)
 
         if len(self._field_rdist) % 2 == 0:
             warn(f"The number of radial steps is even. Skipping the first "
@@ -117,7 +120,8 @@ class DataLoader:
                              "match the number of objects in the field.")
 
         print(f"{t()}: calculating the radial velocity.")
-        nobject, nsim = self._los_density.shape[:2]
+        nobject = len(self._los_density)
+        dtype = self._los_density.dtype
 
         # In case of Carrick 2015 the box is in galactic coordinates..
         if simname == "Carrick2015":
@@ -125,12 +129,10 @@ class DataLoader:
         else:
             d1, d2 = self._cat["RA"], self._cat["DEC"]
 
-        radvel = np.empty((nobject, nsim, len(self._field_rdist)),
-                          self._los_velocity.dtype)
-        for i in trange(nobject):
-            for j in range(nsim):
-                radvel[i, j, :] = radial_velocity_los(
-                    self._los_velocity[:, i, j, ...], d1[i], d2[i])
+        radvel = np.empty((nobject, len(self._field_rdist)), dtype)
+        for i in range(nobject):
+            radvel[i, :] = radial_velocity_los(self._los_velocity[:, i, ...],
+                                               d1[i], d2[i])
         self._los_radial_velocity = radvel
 
         if not store_full_velocity:
@@ -192,7 +194,7 @@ class DataLoader:
 
         Returns
         ----------
-        3-dimensional array of shape (n_objects, n_simulations, n_steps)
+        2-dimensional array of shape (n_objects, n_steps)
         """
         return self._los_density[self._mask]
 
@@ -203,7 +205,7 @@ class DataLoader:
 
         Returns
         -------
-        4-dimensional array of shape (n_objects, n_simulations, 3, n_steps)
+        3-dimensional array of shape (3, n_objects, n_steps)
         """
         if self._los_velocity is None:
             raise ValueError("The 3D velocities were not stored.")
@@ -216,38 +218,29 @@ class DataLoader:
 
         Returns
         -------
-        3-dimensional array of shape (n_objects, n_simulations, n_steps)
+        2-dimensional array of shape (n_objects, n_steps)
         """
         return self._los_radial_velocity[self._mask]
 
-    def _read_field(self, simname, catalogue, k, paths):
+    def _read_field(self, simname, ksim, catalogue, ksmooth, paths):
         """Read in the interpolated field."""
-        out_density = None
-        out_velocity = None
-        has_smoothed = False
-
         nsims = paths.get_ics(simname)
+        if not (0 <= ksim < len(nsims)):
+            raise ValueError("Invalid simulation index.")
+        nsim = nsims[ksim]
+
         with File(paths.field_los(simname, catalogue), 'r') as f:
-            has_smoothed = True if f[f"density_{nsims[0]}"].ndim > 2 else False
-            if has_smoothed and (k is None or not isinstance(k, int)):
+            has_smoothed = True if f[f"density_{nsim}"].ndim > 2 else False
+            if has_smoothed and (ksmooth is None or not isinstance(ksmooth, int)):  # noqa
                 raise ValueError("The output contains smoothed field but "
                                  "`ksmooth` is None. It must be provided.")
 
-            for i, nsim in enumerate(tqdm(nsims)):
-                if out_density is None:
-                    nobject, nstep = f[f"density_{nsim}"].shape[:2]
-                    out_density = np.empty(
-                        (nobject, len(nsims), nstep), dtype=np.float32)
-                    out_velocity = np.empty(
-                        (3, nobject, len(nsims), nstep), dtype=np.float32)
-
-                indx = (..., k) if has_smoothed else (...)
-                out_density[:, i, :] = f[f"density_{nsim}"][indx]
-                out_velocity[:, :, i, :] = f[f"velocity_{nsim}"][indx]
-
+            indx = (..., ksmooth) if has_smoothed else (...)
+            los_density = f[f"density_{nsim}"][indx]
+            los_velocity = f[f"velocity_{nsim}"][indx]
             rdist = f[f"rdist_{nsims[0]}"][:]
 
-        return rdist, out_density, out_velocity
+        return rdist, los_density, los_velocity
 
     def _read_catalogue(self, catalogue, catalogue_fpath):
         """
@@ -556,7 +549,17 @@ def calculate_ll_zobs(zobs, zobs_pred, sigma_v):
     return jnp.exp(-0.5 * (dcz / sigma_v)**2) / jnp.sqrt(2 * np.pi) / sigma_v
 
 
-class SD_PV_validation_model:
+class BaseFlowValidationModel(ABC):
+    """
+    Base class for the flow validation models.
+    """
+
+    @property
+    def ndata(self):
+        return len(self._RA)
+
+
+class SD_PV_validation_model(BaseFlowValidationModel):
     """
     Simple distance peculiar velocity (PV) validation model, assuming that
     we already have a calibrated estimate of the comoving distance to the
@@ -657,7 +660,7 @@ class SD_PV_validation_model:
         numpyro.factor("ll", ll)
 
 
-class SN_PV_validation_model:
+class SN_PV_validation_model(BaseFlowValidationModel):
     """
     Supernova peculiar velocity (PV) validation model that includes the
     calibration of the SALT2 light curve parameters.
@@ -793,11 +796,11 @@ class SN_PV_validation_model:
             return ll + jnp.log(self._f_simps(ptilde) / pnorm), None
 
         ll = 0.
-        ll, __ = scan(scan_body, ll, jnp.arange(len(self._RA)))
+        ll, __ = scan(scan_body, ll, jnp.arange(self.ndata))
         numpyro.factor("ll", ll)
 
 
-class TF_PV_validation_model:
+class TF_PV_validation_model(BaseFlowValidationModel):
     """
     Tully-Fisher peculiar velocity (PV) validation model that includes the
     calibration of the Tully-Fisher distance `mu = m - (a + b * eta)`.
@@ -909,7 +912,7 @@ class TF_PV_validation_model:
             return ll + jnp.log(self._f_simps(ptilde) / pnorm), None
 
         ll = 0.
-        ll, __ = scan(scan_body, ll, jnp.arange(len(self._RA)))
+        ll, __ = scan(scan_body, ll, jnp.arange(self.ndata))
 
         numpyro.factor("ll", ll)
 
@@ -919,7 +922,7 @@ class TF_PV_validation_model:
 ###############################################################################
 
 
-def get_model(loader, k, zcmb_max=None, verbose=True):
+def get_model(loader, zcmb_max=None, verbose=True):
     """
     Get a model and extract the relevant data from the loader.
 
@@ -927,8 +930,6 @@ def get_model(loader, k, zcmb_max=None, verbose=True):
     ----------
     loader : DataLoader
         DataLoader instance.
-    k : int
-        Simulation index.
     zcmb_max : float, optional
         Maximum observed redshift in the CMB frame to include.
     verbose : bool, optional
@@ -940,11 +941,8 @@ def get_model(loader, k, zcmb_max=None, verbose=True):
     """
     zcmb_max = np.infty if zcmb_max is None else zcmb_max
 
-    if k > loader.los_density.shape[1]:
-        raise ValueError(f"Simulation index `{k}` out of range.")
-
-    los_overdensity = loader.los_density[:, k, :]
-    los_velocity = loader.los_radial_velocity[:, k, :]
+    los_overdensity = loader.los_density
+    los_velocity = loader.los_radial_velocity
     kind = loader._catname
 
     if kind in ["LOSS", "Foundation"]:
