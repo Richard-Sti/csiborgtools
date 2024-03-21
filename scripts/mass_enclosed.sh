@@ -1,11 +1,11 @@
 nthreads=1
-memory=32
-on_login=${1}
-queue="berg"
+memory=40
+on_login=0
+queue="cmb"
 env="/mnt/zfsusers/rstiskalek/csiborgtools/venv_csiborg/bin/python"
 file="mass_enclosed.py"
 
-simname="borg2"
+simname=${1}
 
 
 pythoncm="$env $file --simname $simname"
