@@ -102,14 +102,24 @@ def read_samples(catalogue, simname, ksmooth, include_calibration=False,
     data = np.vstack(data).T
 
     if return_MCsamples:
-        # TODO: Add BIC to the label?
+        simname = simname_to_pretty(simname)
         if ksmooth == 1:
-            simname = fr"{simname}, $\kappa = 2$"
+            simname = fr"{simname} (2)"
+
+        label = fr"{catalogue}, {simname}, $\log \mathcal{{Z}} = {np.mean(gof[2]):.1f}$"                 # noqa
 
         return MCSamples(samples=data, names=names,
-                         labels=names_to_latex(names), label=simname)
+                         labels=names_to_latex(names), label=label)
 
     return data, names, gof
+
+
+def simname_to_pretty(simname):
+    ltx = {"Carrick2015": "C+15",
+           "csiborg1": "CB1",
+           "csiborg2_main": "CB2",
+           }
+    return ltx[simname] if simname in ltx else simname
 
 
 def names_to_latex(names, for_corner=False):
