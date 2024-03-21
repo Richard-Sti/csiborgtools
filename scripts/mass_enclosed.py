@@ -168,7 +168,7 @@ def main_csiborg(args, folder):
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     boxsize = csiborgtools.simname2boxsize(args.simname)
     nsims = paths.get_ics(args.simname)
-    distances = numpy.linspace(0, boxsize / 2, 101)[1:]
+    distances = numpy.linspace(0, boxsize / 2, 501)[1:]
 
     # Initialize arrays to store the results
     cumulative_mass = numpy.zeros((len(nsims), len(distances)))
