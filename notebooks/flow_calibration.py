@@ -14,6 +14,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """Script to help with plots in `flow_calibration.ipynb`."""
 from copy import copy
+from os.path import join, exists
 
 import numpy as np
 from getdist import MCSamples
@@ -23,7 +24,7 @@ import csiborgtools
 
 
 def read_samples(catalogue, simname, ksmooth, include_calibration=False,
-                 return_MCsamples=False):
+                 return_MCsamples=False, subtract_LG_velocity=-1):
     print(f"\nReading {catalogue} fitted to {simname} with ksmooth = {ksmooth}.", flush=True)  # noqa
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsims = paths.get_ics(simname)
@@ -38,12 +39,29 @@ def read_samples(catalogue, simname, ksmooth, include_calibration=False,
     else:
         raise ValueError(f"Catalogue {catalogue} not recognized.")
 
+    if subtract_LG_velocity >= 0:
+        fdir = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_shells"
+        fname = join(fdir, f"enclosed_mass_{simname}.npz")
+        if exists(fname):
+            d = np.load(fname)
+            R = d["distances"][subtract_LG_velocity]
+            print(f"Reading off enclosed velocity from R = {R} Mpc / h.")
+            V_LG = d["cumulative_velocity"][:, subtract_LG_velocity, :]
+        else:
+            raise FileNotFoundError(f"File {fname} not found.")
+
     fname = f"/mnt/extraspace/rstiskalek/csiborg_postprocessing/peculiar_velocity/flow_samples_{catalogue}_{simname}_smooth_{ksmooth}.hdf5"  # noqa
     with File(fname, 'r') as f:
-        for __, nsim in enumerate(nsims):
+        for i, nsim in enumerate(nsims):
             Vx.append(f[f"sim_{nsim}/Vext_x"][:])
             Vy.append(f[f"sim_{nsim}/Vext_y"][:])
             Vz.append(f[f"sim_{nsim}/Vext_z"][:])
+
+            if subtract_LG_velocity >= 0:
+                Vx[-1] += V_LG[i, 0]
+                Vy[-1] += V_LG[i, 1]
+                Vz[-1] += V_LG[i, 2]
+
             alpha.append(f[f"sim_{nsim}/alpha"][:])
             beta.append(f[f"sim_{nsim}/beta"][:])
             sigma_v.append(f[f"sim_{nsim}/sigma_v"][:])
@@ -105,6 +123,9 @@ def read_samples(catalogue, simname, ksmooth, include_calibration=False,
         simname = simname_to_pretty(simname)
         if ksmooth == 1:
             simname = fr"{simname} (2)"
+
+        if subtract_LG_velocity >= 0:
+            simname += " (LG)"
 
         label = fr"{catalogue}, {simname}, $\log \mathcal{{Z}} = {np.mean(gof[2]):.1f}$"                 # noqa
 
