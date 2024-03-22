@@ -19,7 +19,7 @@ References
 ----------
 [1] https://arxiv.org/abs/1912.09383.
 """
-from abc import ABC
+from abc import ABC, abstractmethod
 from datetime import datetime
 from warnings import catch_warnings, simplefilter, warn
 
@@ -617,6 +617,10 @@ class BaseFlowValidationModel(ABC):
         """
         return len(self._RA)
 
+    @abstractmethod
+    def predict_zobs_single(self, **kwargs):
+        pass
+
     def predict_zobs(self, samples):
         """
         Predict the observed redshifts given the samples from the posterior.
@@ -684,6 +688,10 @@ class BaseFlowValidationModel(ABC):
 
         return mu, std
 
+    @abstractmethod
+    def __call__(self, **kwargs):
+        pass
+
 
 class SD_PV_validation_model(BaseFlowValidationModel):
     """
@@ -750,6 +758,9 @@ class SD_PV_validation_model(BaseFlowValidationModel):
         self._beta = dist.Normal(1., 0.5)
         # Distribution of velocity uncertainty sigma_v
         self._sv = dist.LogNormal(*lognorm_mean_std_to_loc_scale(150, 100))
+
+    def predict_zobs_single(self, **kwargs):
+        raise NotImplementedError("This method is not implemented yet.")
 
     def __call__(self, sample_alpha=False):
         """
@@ -1063,6 +1074,10 @@ class TF_PV_validation_model(BaseFlowValidationModel):
         self._f_simps = lambda y: simps(y, dr)                                                                  # noqa
         self._f_zobs = lambda beta, Vr, vpec_rad: predict_zobs(r_xrange, beta, Vr, vpec_rad, Omega_m)           # noqa
 
+        self._vmap_ptilde_wo_bias = vmap(lambda mu, err: calculate_ptilde_wo_bias(mu_xrange, mu, err, r2_xrange, True))                  # noqa
+        self._vmap_simps = vmap(lambda y: simps(y, dr))
+        self._vmap_zobs = vmap(lambda beta, Vr, vpec_rad: predict_zobs(r_xrange, beta, Vr, vpec_rad, Omega_m), in_axes=(None, 0, 0))    # noqa
+
         # Distribution of external velocity components
         self._Vext = dist.Uniform(-1000, 1000)
         # Distribution of velocity and density bias parameters
@@ -1075,6 +1090,83 @@ class TF_PV_validation_model(BaseFlowValidationModel):
         self._a = dist.Normal(-21., 0.5)
         self._b = dist.Normal(-5.95, 0.1)
         self._e_mu = dist.LogNormal(*lognorm_mean_std_to_loc_scale(0.3, 0.1))      # noqa
+
+        self._Omega_m = Omega_m
+        self._r_xrange = r_xrange
+
+    def mu(self, a, b):
+        """
+        Distance modulus of each object the given Tully-Fisher calibration.
+
+        Parameters
+        ----------
+        a, b : floats
+            Tully-Fisher calibration parameters.
+
+        Returns
+        -------
+        1-dimensional array
+        """
+
+        return self._mag - (a + b * self._eta)
+
+    def squared_e_mu(self, b, e_mu_intrinsic):
+        """
+        Squared error on the Tully-Fisher distance modulus.
+
+        Parameters
+        ----------
+        b, e_mu_intrinsic : floats
+            Tully-Fisher calibration parameters.
+
+        Returns
+        -------
+        1-dimensional array
+        """
+        return (self._e2_mag + b**2 * self._e2_eta + e_mu_intrinsic**2)
+
+    def predict_zobs_single(self, Vext_x, Vext_y, Vext_z, alpha, beta,
+                            e_mu_intrinsic, a, b, **kwargs):
+        """
+        Predict the observed redshifts given the samples from the posterior.
+
+        Parameters
+        ----------
+        Vext_x, Vext_y, Vext_z : floats
+            Components of the external velocity.
+        alpha, beta : floats
+            Density and velocity bias parameters.
+        e_mu_intrinsic, a, b : floats
+            Calibration parameters.
+        kwargs : dict
+            Additional arguments (for compatibility).
+
+        Returns
+        -------
+        zobs_mean : 1-dimensional array
+            Mean of the predicted redshifts.
+        zobs_var : 1-dimensional array
+            Variance of the predicted redshifts.
+        """
+        mu = self.mu(a, b)
+        squared_e_mu = self.squared_e_mu(b, e_mu_intrinsic)
+
+        Vext_rad = project_Vext(Vext_x, Vext_y, Vext_z, self._RA, self._dec)
+
+        # Calculate p(r) (Malmquist bias)
+        ptilde = self._vmap_ptilde_wo_bias(mu, squared_e_mu)
+        ptilde *= self._los_density**alpha
+        ptilde /= self._vmap_simps(ptilde).reshape(-1, 1)
+
+        # Predicted mean z_obs
+        zobs_pred = self._vmap_zobs(beta, Vext_rad, self._los_velocity)
+        zobs_mean = self._vmap_simps(zobs_pred * ptilde)
+
+        # Variance of the predicted z_obs
+        zobs_pred -= zobs_mean.reshape(-1, 1)
+        zobs_var = self._vmap_simps(zobs_pred**2 * ptilde)
+
+        return zobs_mean, zobs_var
 
     def __call__(self, sample_alpha=True):
         """
@@ -1099,9 +1191,8 @@ class TF_PV_validation_model(BaseFlowValidationModel):
 
         Vext_rad = project_Vext(Vx, Vy, Vz, self._RA, self._dec)
 
-        mu = self._mag - (a + b * self._eta)
-        squared_e_mu = (self._e2_mag + b**2 * self._e2_eta
-                        + e_mu_intrinsic**2)
+        mu = self.mu(a, b)
+        squared_e_mu = self.squared_e_mu(b, e_mu_intrinsic)
 
         def scan_body(ll, i):
             # Calculate p(r) and multiply it by the galaxy bias
