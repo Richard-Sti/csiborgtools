@@ -35,11 +35,12 @@ from jax import numpy as jnp
 from jax import vmap
 from jax.lax import cond, scan
 from jax.random import PRNGKey
+from numdifftools import Hessian
 from numpyro.infer import Predictive, util
+from scipy.interpolate import interp1d
 from scipy.optimize import fmin_powell
 from sklearn.model_selection import KFold
 from tqdm import trange
-from numdifftools import Hessian
 
 from ..params import simname2Omega_m
 
@@ -426,17 +427,45 @@ def dist2distmodulus(dist, Omega_m):
     return 5 * jnp.log10(luminosity_distance) + 25
 
 
-# def distmodulus2dist(distmodulus, Omega_m):
-#     """
-#     Copied from Supranta. Make sure this actually works.
-#
-#
-#     """
-#     dL = 10 ** ((distmodulus - 25.) / 5.)
-#     r_hMpc = dL
-#     for i in range(4):
-#         r_hMpc = dL / (1.0 + dist2redshift(r_hMpc, Omega_m))
-#     return r_hMpc
+def distmodulus2dist(mu, Omega_m, ninterp=10000, zmax=0.1, mu2comoving=None,
+                     return_interpolator=False):
+    """
+    Convert distance modulus to comoving distance. Note that this is a costly
+    implementation, as it builts up the interpolator every time it is called
+    unless it is provided.
+
+    Parameters
+    ----------
+    mu : float or 1-dimensional array
+        Distance modulus.
+    Omega_m : float
+        Matter density parameter.
+    ninterp : int, optional
+        Number of points to interpolate the mapping from distance modulus to
+        comoving distance.
+    zmax : float, optional
+        Maximum redshift for the interpolation.
+    mu2comoving : callable, optional
+        Interpolator from distance modulus to comoving distance. If not
+        provided, it is built up every time the function is called.
+    return_interpolator : bool, optional
+        Whether to return the interpolator as well.
+
+    Returns
+    -------
+    float (or 1-dimensional array) and callable (optional)
+    """
+    if mu2comoving is None:
+        zrange = np.linspace(1e-15, zmax, ninterp)
+        cosmo = FlatLambdaCDM(H0=100, Om0=Omega_m)
+        mu2comoving = interp1d(
+            cosmo.distmod(zrange).value, cosmo.comoving_distance(zrange).value,
+            kind="cubic")
+
+    if return_interpolator:
+        return mu2comoving(mu), mu2comoving
+
+    return mu2comoving(mu)
 
 
 def project_Vext(Vext_x, Vext_y, Vext_z, RA, dec):
@@ -549,6 +578,29 @@ def calculate_ll_zobs(zobs, zobs_pred, sigma_v):
     return jnp.exp(-0.5 * (dcz / sigma_v)**2) / jnp.sqrt(2 * np.pi) / sigma_v
 
 
+def stack_normal(mus, stds):
+    """
+    Stack the normal distributions and approximate the stacked distribution
+    by a single Gaussian.
+
+    Parameters
+    ----------
+    mus : 1-dimensional array
+        Means of the normal distributions.
+    stds : 1-dimensional array
+        Standard deviations of the normal distributions.
+
+    Returns
+    -------
+    mu, std : floats
+    """
+    if mus.ndim > 1 or stds.ndim > 1 and mus.shape != stds.shape:
+        raise ValueError("Shape of `mus` and `stds` must be the same and 1D.")
+    mu = np.mean(mus)
+    std = (np.sum(stds**2 + (mus - mu)**2) / len(mus))**0.5
+    return mu, std
+
+
 class BaseFlowValidationModel(ABC):
     """
     Base class for the flow validation models.
@@ -556,7 +608,81 @@ class BaseFlowValidationModel(ABC):
 
     @property
     def ndata(self):
+        """
+        Number of PV objects in the catalogue.
+
+        Returns
+        -------
+        int
+        """
         return len(self._RA)
+
+    def predict_zobs(self, samples):
+        """
+        Predict the observed redshifts given the samples from the posterior.
+
+        Parameters
+        ----------
+        samples : dict of 1-dimensional arrays
+            Posterior samples.
+
+        Returns
+        -------
+        zobs_mean : 2-dimensional array of shape (ndata, nsamples)
+            Mean of the predicted redshifts.
+        zobs_std : 2-dimensional array of shape (ndata, nsamples)
+            Standard deviation of the predicted redshifts.
+        """
+        keys = list(samples.keys())
+        nsamples = len(samples[keys[0]])
+
+        zobs_mean = np.empty((self.ndata, nsamples), dtype=np.float32)
+        zobs_std = np.empty_like(zobs_mean)
+
+        # JIT compile the function, it is called many times.
+        f = jit(self.predict_zobs_single)
+
+        for i in trange(nsamples):
+            x = {key: samples[key][i] for key in keys}
+            if "alpha" not in keys:
+                x["alpha"] = 1.0
+
+            e_z = samples["sigma_v"][i] / SPEED_OF_LIGHT
+
+            mu, var = f(**x)
+            zobs_mean[:, i] = mu
+            zobs_std[:, i] = (var + e_z**2)**0.5
+
+        return zobs_mean, zobs_std
+
+    def summarize_zobs_pred(self, zobs_mean, zobs_pred):
+        """
+        Summarize the predicted observed redshifts from each posterior sample
+        by stacking their Gaussian distribution and approximating the stacked
+        distribution by a single Gaussian.
+
+        Parameters
+        ----------
+        zobs_mean : 2-dimensional array of shape (ndata, nsamples)
+            Mean of the predicted redshifts.
+        zobs_pred : 2-dimensional array of shape (ndata, nsamples)
+            Predicted redshifts.
+
+        Returns
+        -------
+        mu : 1-dimensional array
+            Mean of predicted redshift, averaged over the posterior samples.
+        std : 1-dimensional array
+            Standard deviation of the predicted redshift, averaged over the
+            posterior samples.
+        """
+        mu = np.empty(self.ndata, dtype=np.float32)
+        std = np.empty_like(mu)
+
+        for i in range(self.ndata):
+            mu[i], std[i] = stack_normal(zobs_mean[i], zobs_pred[i])
+
+        return mu, std
 
 
 class SD_PV_validation_model(BaseFlowValidationModel):
@@ -714,10 +840,14 @@ class SN_PV_validation_model(BaseFlowValidationModel):
             raise ValueError("The radial step size must be constant.")
         dr = dr[0]
 
-        # Get the various vmapped functions
+        # Get the various functions, also vmapped
         self._f_ptilde_wo_bias = lambda mu, err: calculate_ptilde_wo_bias(mu_xrange, mu, err, r2_xrange, True)  # noqa
         self._f_simps = lambda y: simps(y, dr)                                                                  # noqa
         self._f_zobs = lambda beta, Vr, vpec_rad: predict_zobs(r_xrange, beta, Vr, vpec_rad, Omega_m)           # noqa
+
+        self._vmap_ptilde_wo_bias = vmap(lambda mu, err: calculate_ptilde_wo_bias(mu_xrange, mu, err, r2_xrange, True))                  # noqa
+        self._vmap_simps = vmap(lambda y: simps(y, dr))
+        self._vmap_zobs = vmap(lambda beta, Vr, vpec_rad: predict_zobs(r_xrange, beta, Vr, vpec_rad, Omega_m), in_axes=(None, 0, 0))    # noqa
 
         # Distribution of external velocity components
         self._Vext = dist.Uniform(-500, 500)
@@ -732,6 +862,83 @@ class SN_PV_validation_model(BaseFlowValidationModel):
         self._alpha_cal = dist.Normal(0.148, 0.05)
         self._beta_cal = dist.Normal(3.112, 1.0)
         self._e_mu = dist.LogNormal(*lognorm_mean_std_to_loc_scale(0.1, 0.05))
+
+        self._Omega_m = Omega_m
+        self._r_xrange = r_xrange
+
+    def mu(self, mag_cal, alpha_cal, beta_cal):
+        """
+        Distance modulus of each object the given SALT2 calibration parameters.
+
+        Parameters
+        ----------
+        mag_cal, alpha_cal, beta_cal : floats
+            SALT2 calibration parameters.
+
+        Returns
+        -------
+        1-dimensional array
+        """
+        return self._mB - mag_cal + alpha_cal * self._x1 - beta_cal * self._c
+
+    def squared_e_mu(self, alpha_cal, beta_cal, e_mu_intrinsic):
+        """
+        Linearly-propagated squared error on the SALT2 distance modulus.
+
+        Parameters
+        ----------
+        alpha_cal, beta_cal, e_mu_intrinsic : floats
+            SALT2 calibration parameters.
+
+        Returns
+        -------
+        1-dimensional array
+        """
+        return (self._e2_mB + alpha_cal**2 * self._e2_x1
+                + beta_cal**2 * self._e2_c + e_mu_intrinsic**2)
+
+    def predict_zobs_single(self, Vext_x, Vext_y, Vext_z, alpha, beta,
+                            e_mu_intrinsic, mag_cal, alpha_cal, beta_cal,
+                            **kwargs):
+        """
+        Predict the observed redshifts given the samples from the posterior.
+
+        Parameters
+        ----------
+        Vext_x, Vext_y, Vext_z : floats
+            Components of the external velocity.
+        alpha, beta : floats
+            Density and velocity bias parameters.
+        e_mu_intrinsic, mag_cal, alpha_cal, beta_cal : floats
+            Calibration parameters.
+        kwargs : dict
+            Additional arguments (for compatibility).
+
+        Returns
+        -------
+        zobs_mean : 1-dimensional array
+            Mean of the predicted redshifts.
+        zobs_var : 1-dimensional array
+            Variance of the predicted redshifts.
+        """
+        mu = self.mu(mag_cal, alpha_cal, beta_cal)
+        squared_e_mu = self.squared_e_mu(alpha_cal, beta_cal, e_mu_intrinsic)
+        Vext_rad = project_Vext(Vext_x, Vext_y, Vext_z, self._RA, self._dec)
+
+        # Calculate p(r) (Malmquist bias)
+        ptilde = self._vmap_ptilde_wo_bias(mu, squared_e_mu)
+        ptilde *= self._los_density**alpha
+        ptilde /= self._vmap_simps(ptilde).reshape(-1, 1)
+
+        # Predicted mean z_obs
+        zobs_pred = self._vmap_zobs(beta, Vext_rad, self._los_velocity)
+        zobs_mean = self._vmap_simps(zobs_pred * ptilde)
+
+        # Variance of the predicted z_obs
+        zobs_pred -= zobs_mean.reshape(-1, 1)
+        zobs_var = self._vmap_simps(zobs_pred**2 * ptilde)
+
+        return zobs_mean, zobs_var
 
     def __call__(self, sample_alpha=True, fix_calibration=False):
         """
@@ -777,9 +984,8 @@ class SN_PV_validation_model(BaseFlowValidationModel):
 
         Vext_rad = project_Vext(Vx, Vy, Vz, self._RA, self._dec)
 
-        mu = self._mB - mag_cal + alpha_cal * self._x1 - beta_cal * self._c
-        squared_e_mu = (self._e2_mB + alpha_cal**2 * self._e2_x1
-                        + beta_cal**2 * self._e2_c + e_mu_intrinsic**2)
+        mu = self.mu(mag_cal, alpha_cal, beta_cal)
+        squared_e_mu = self.squared_e_mu(alpha_cal, beta_cal, e_mu_intrinsic)
 
         def scan_body(ll, i):
             # Calculate p(r) and multiply it by the galaxy bias
