@@ -104,11 +104,19 @@ def run_model(model, nsteps, nburn, nchains, nsim, dump_folder,
     samples = mcmc.get_samples()
     thinned_samples = csiborgtools.thin_samples_by_acl(samples)
 
+    # Calculate the chi2
+    keys = list(thinned_samples.keys())
+    nsamples = len(thinned_samples[keys[0]])
+    zobs_mean, zobs_std = model.predict_zobs(thinned_samples)
+    nu = model.ndata - len(keys)
+    chi2 = [np.sum((zobs_mean[:, i] - model._z_obs)**2 / zobs_std[:, i]**2) / nu  # noqa
+            for i in range(nsamples)]
+
     gof = csiborgtools.numpyro_gof(model, mcmc, model_kwargs)
 
     # Save the samples to the temporary folder.
     fname = join(dump_folder, f"samples_{nsim}.npz")
-    np.savez(fname, **thinned_samples, **gof)
+    np.savez(fname, **thinned_samples, **gof, chi2=chi2)
 
 
 def combine_from_simulations(catalogue_name, simname, nsims, outfolder,

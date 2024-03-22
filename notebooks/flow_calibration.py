@@ -30,7 +30,7 @@ def read_samples(catalogue, simname, ksmooth, include_calibration=False,
     nsims = paths.get_ics(simname)
 
     Vx, Vy, Vz, beta, sigma_v, alpha = [], [], [], [], [], []
-    BIC, AIC, logZ = [], [], []
+    BIC, AIC, logZ, chi2 = [], [], [], []
 
     if catalogue in ["LOSS", "Foundation", "Pantheon+"]:
         alpha_cal, beta_cal, mag_cal, e_mu_intrinsic = [], [], [], []
@@ -69,6 +69,10 @@ def read_samples(catalogue, simname, ksmooth, include_calibration=False,
             BIC.append(f[f"sim_{nsim}/BIC"][...])
             AIC.append(f[f"sim_{nsim}/AIC"][...])
             logZ.append(f[f"sim_{nsim}/logZ"][...])
+            try:
+                chi2.append(f[f"sim_{nsim}/chi2"][...])
+            except KeyError:
+                chi2.append([0.])
 
             if catalogue in ["LOSS", "Foundation", "Pantheon+"]:
                 alpha_cal.append(f[f"sim_{nsim}/alpha_cal"][:])
@@ -84,7 +88,7 @@ def read_samples(catalogue, simname, ksmooth, include_calibration=False,
 
     Vx, Vy, Vz, alpha, beta, sigma_v = np.hstack(Vx), np.hstack(Vy), np.hstack(Vz), np.hstack(alpha), np.hstack(beta), np.hstack(sigma_v)  # noqa
 
-    gof = np.hstack(BIC), np.hstack(AIC), np.hstack(logZ)
+    gof = np.hstack(BIC), np.hstack(AIC), np.hstack(logZ), np.hstack(chi2)
 
     if catalogue in ["LOSS", "Foundation", "Pantheon+"]:
         alpha_cal, beta_cal, mag_cal, e_mu_intrinsic = np.hstack(alpha_cal), np.hstack(beta_cal), np.hstack(mag_cal), np.hstack(e_mu_intrinsic)  # noqa
@@ -116,6 +120,7 @@ def read_samples(catalogue, simname, ksmooth, include_calibration=False,
     print("BIC  = {:4f} +- {:4f}".format(np.mean(gof[0]), np.std(gof[0])))
     print("AIC  = {:4f} +- {:4f}".format(np.mean(gof[1]), np.std(gof[1])))
     print("logZ = {:4f} +- {:4f}".format(np.mean(gof[2]), np.std(gof[2])))
+    print("chi2 = {:4f} +- {:4f}".format(np.mean(gof[3]), np.std(gof[3])))
 
     data = np.vstack(data).T
 
