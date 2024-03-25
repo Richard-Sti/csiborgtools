@@ -28,6 +28,7 @@ def read_samples(catalogue, simname, ksmooth, include_calibration=False,
     print(f"\nReading {catalogue} fitted to {simname} with ksmooth = {ksmooth}.", flush=True)  # noqa
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsims = paths.get_ics(simname)
+    FDIR_LG = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/peculiar_velocity/observer"  # noqa
 
     Vx, Vy, Vz, beta, sigma_v, alpha = [], [], [], [], [], []
     BIC, AIC, logZ, chi2 = [], [], [], []
@@ -39,17 +40,6 @@ def read_samples(catalogue, simname, ksmooth, include_calibration=False,
     else:
         raise ValueError(f"Catalogue {catalogue} not recognized.")
 
-    if subtract_LG_velocity >= 0:
-        fdir = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_shells"
-        fname = join(fdir, f"enclosed_mass_{simname}.npz")
-        if exists(fname):
-            d = np.load(fname)
-            R = d["distances"][subtract_LG_velocity]
-            print(f"Reading off enclosed velocity from R = {R} Mpc / h.")
-            V_LG = d["cumulative_velocity"][:, subtract_LG_velocity, :]
-        else:
-            raise FileNotFoundError(f"File {fname} not found.")
-
     fname = f"/mnt/extraspace/rstiskalek/csiborg_postprocessing/peculiar_velocity/flow_samples_{catalogue}_{simname}_smooth_{ksmooth}.hdf5"  # noqa
     with File(fname, 'r') as f:
         for i, nsim in enumerate(nsims):
@@ -57,14 +47,22 @@ def read_samples(catalogue, simname, ksmooth, include_calibration=False,
             Vy.append(f[f"sim_{nsim}/Vext_y"][:])
             Vz.append(f[f"sim_{nsim}/Vext_z"][:])
 
-            if subtract_LG_velocity >= 0:
-                Vx[-1] += V_LG[i, 0]
-                Vy[-1] += V_LG[i, 1]
-                Vz[-1] += V_LG[i, 2]
-
             alpha.append(f[f"sim_{nsim}/alpha"][:])
             beta.append(f[f"sim_{nsim}/beta"][:])
             sigma_v.append(f[f"sim_{nsim}/sigma_v"][:])
+
+            if subtract_LG_velocity >= 0:
+                fname = join(FDIR_LG, f"{simname}_{nsim}_observer_velocity.npz")  # noqa
+                if not exists(fname):
+                    raise FileNotFoundError(f"File {fname} not found.")
+                d = np.load(fname)
+                R = d["smooth_scales"][subtract_LG_velocity]
+                if i == 0:
+                    print(f"Subtracting LG velocity with kernel {R} Mpc / h.", flush=True)  # noqa
+                Vx_LG, Vy_LG, Vz_LG = d["vobs"][subtract_LG_velocity]
+                Vx[-1] += beta[-1] * Vx_LG
+                Vy[-1] += beta[-1] * Vy_LG
+                Vz[-1] += beta[-1] * Vz_LG
 
             BIC.append(f[f"sim_{nsim}/BIC"][...])
             AIC.append(f[f"sim_{nsim}/AIC"][...])
