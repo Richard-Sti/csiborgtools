@@ -36,3 +36,4 @@ scripts_independent/clear.sh
 # Generated plots
 plots/*
 
+notebooks/test.ipynb
