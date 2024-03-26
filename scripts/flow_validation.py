@@ -52,7 +52,7 @@ def get_model(args, nsim_iterator, get_model_kwargs):
     if args.catalogue == "A2":
         fpath = join(folder, "A2.h5")
     elif args.catalogue in ["LOSS", "Foundation", "Pantheon+", "SFI_gals",
-                            "2MTF"]:
+                            "2MTF", "SFI_groups", "SFI_gals_masked"]:
         fpath = join(folder, "PV_compilation_Supranta2019.hdf5")
     else:
         raise ValueError(f"Unknown catalogue: `{args.catalogue}`.")
