@@ -35,8 +35,10 @@ def read_samples(catalogue, simname, ksmooth, include_calibration=False,
 
     if catalogue in ["LOSS", "Foundation", "Pantheon+"]:
         alpha_cal, beta_cal, mag_cal, e_mu_intrinsic = [], [], [], []
-    elif catalogue in ["2MTF", "SFI_gals"]:
+    elif catalogue in ["2MTF", "SFI_gals", "SFI_gals_masked"]:
         a, b, e_mu_intrinsic = [], [], []
+    elif catalogue == "SFI_groups":
+        h = []
     else:
         raise ValueError(f"Catalogue {catalogue} not recognized.")
 
@@ -86,6 +88,8 @@ def read_samples(catalogue, simname, ksmooth, include_calibration=False,
                 a.append(f[f"sim_{nsim}/a"][:])
                 b.append(f[f"sim_{nsim}/b"][:])
                 e_mu_intrinsic.append(f[f"sim_{nsim}/e_mu_intrinsic"][:])
+            elif catalogue == "SFI_groups":
+                h.append(f[f"sim_{nsim}/h"][:])
             else:
                 raise ValueError(f"Catalogue {catalogue} not recognized.")
 
@@ -95,8 +99,10 @@ def read_samples(catalogue, simname, ksmooth, include_calibration=False,
 
     if catalogue in ["LOSS", "Foundation", "Pantheon+"]:
         alpha_cal, beta_cal, mag_cal, e_mu_intrinsic = np.hstack(alpha_cal), np.hstack(beta_cal), np.hstack(mag_cal), np.hstack(e_mu_intrinsic)  # noqa
-    elif catalogue in ["2MTF", "SFI_gals"]:
+    elif catalogue in ["2MTF", "SFI_gals", "SFI_gals_masked"]:
         a, b, e_mu_intrinsic = np.hstack(a), np.hstack(b), np.hstack(e_mu_intrinsic)  # noqa
+    elif catalogue == "SFI_groups":
+        h = np.hstack(h)
     else:
         raise ValueError(f"Catalogue {catalogue} not recognized.")
 
@@ -114,9 +120,12 @@ def read_samples(catalogue, simname, ksmooth, include_calibration=False,
         if catalogue in ["LOSS", "Foundation", "Pantheon+"]:
             data += [alpha_cal, beta_cal, mag_cal, e_mu_intrinsic]
             names += ["alpha_cal", "beta_cal", "mag_cal", "e_mu_intrinsic"]
-        elif catalogue in ["2MTF", "SFI_gals"]:
+        elif catalogue in ["2MTF", "SFI_gals", "SFI_gals_masked"]:
             data += [a, b, e_mu_intrinsic]
             names += ["a", "b", "e_mu_intrinsic"]
+        elif catalogue == "SFI_groups":
+            data += [h]
+            names += ["h"]
         else:
             raise ValueError(f"Catalogue {catalogue} not recognized.")
 
@@ -162,6 +171,7 @@ def names_to_latex(names, for_corner=False):
                   "beta": r"$\beta$",
                   "Vmag": r"$V_{\rm ext}$",
                   "sigma_v": r"$\sigma_v$",
+                  "h": r"$h$",
                   }
 
     labels = copy(names)
