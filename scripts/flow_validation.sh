@@ -7,7 +7,7 @@ queue="berg"
 env="/mnt/users/rstiskalek/csiborgtools/venv_csiborg/bin/python"
 file="flow_validation.py"
 
-catalogue="SFI_gals_masked"
+catalogue="SFI_groups"
 simname="Carrick2015"
 
 
