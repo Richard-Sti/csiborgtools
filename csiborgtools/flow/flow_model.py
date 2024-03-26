@@ -254,7 +254,7 @@ class DataLoader:
                 for key in f.keys():
                     arr[key] = f[key][:]
         elif catalogue in ["LOSS", "Foundation", "SFI_gals", "2MTF",
-                           "Pantheon+"]:
+                           "Pantheon+", "SFI_gals_masked", "SFI_groups"]:
             with File(catalogue_fpath, 'r') as f:
                 grp = f[catalogue]
 
@@ -746,10 +746,13 @@ class SD_PV_validation_model(BaseFlowValidationModel):
         self._r_xrange = r_xrange
 
         # Get the various vmapped functions
+        self._f_ptilde_wo_bias = lambda mu, err: calculate_ptilde_wo_bias(r_xrange, mu, err, r2_xrange, True)   # noqa
+        self._f_simps = lambda y: simps(y, dr)                                                                  # noqa
+        self._f_zobs = lambda beta, Vr, vpec_rad: predict_zobs(r_xrange, beta, Vr, vpec_rad, Omega_m)           # noqa
+
         self._vmap_ptilde_wo_bias = vmap(lambda mu, err: calculate_ptilde_wo_bias(r_xrange, mu, err, r2_xrange, True))                  # noqa
         self._vmap_simps = vmap(lambda y: simps(y, dr))
         self._vmap_zobs = vmap(lambda beta, Vr, vpec_rad: predict_zobs(r_xrange, beta, Vr, vpec_rad, Omega_m), in_axes=(None, 0, 0))    # noqa
-        self._vmap_ll_zobs = vmap(lambda zobs, zobs_pred, sigma_v: calculate_ll_zobs(zobs, zobs_pred, sigma_v), in_axes=(0, 0, None))   # noqa
 
         # Distribution of external velocity components
         self._Vext = dist.Uniform(-500, 500)
@@ -757,12 +760,15 @@ class SD_PV_validation_model(BaseFlowValidationModel):
         self._alpha = dist.LogNormal(*lognorm_mean_std_to_loc_scale(1.0, 0.5))     # noqa
         self._beta = dist.Normal(1., 0.5)
         # Distribution of velocity uncertainty sigma_v
-        self._sv = dist.LogNormal(*lognorm_mean_std_to_loc_scale(150, 100))
+        self._sigma_v = dist.LogNormal(*lognorm_mean_std_to_loc_scale(150, 100))   # noqa
+        self._h = dist.LogNormal(*lognorm_mean_std_to_loc_scale(1., 0.25))
+
+        self._Omega_m = Omega_m
 
     def predict_zobs_single(self, **kwargs):
         raise NotImplementedError("This method is not implemented yet.")
 
-    def __call__(self, sample_alpha=False):
+    def __call__(self, sample_alpha=True, sample_beta=True):
         """
         The simple distance NumPyro PV validation model.
 
@@ -771,29 +777,39 @@ class SD_PV_validation_model(BaseFlowValidationModel):
         sample_alpha : bool, optional
             Whether to sample the density bias parameter `alpha`, otherwise
             it is fixed to 1.
+        sample_beta : bool, optional
+            Whether to sample the velocity bias parameter `beta`, otherwise
+            it is fixed to 1.
         """
         Vx = numpyro.sample("Vext_x", self._Vext)
         Vy = numpyro.sample("Vext_y", self._Vext)
         Vz = numpyro.sample("Vext_z", self._Vext)
 
         alpha = numpyro.sample("alpha", self._alpha) if sample_alpha else 1.0
-        beta = numpyro.sample("beta", self._beta)
-        sigma_v = numpyro.sample("sigma_v", self._sv)
+        beta = numpyro.sample("beta", self._beta) if sample_beta else 1.0
+        sigma_v = numpyro.sample("sigma_v", self._sigma_v)
+
+        h = numpyro.sample("h", self._h)
 
         Vext_rad = project_Vext(Vx, Vy, Vz, self._RA, self._dec)
 
-        # Calculate p(r) and multiply it by the galaxy bias
-        ptilde = self._vmap_ptilde_wo_bias(self._r_hMpc, self._e2_rhMpc)
-        ptilde *= self._los_density**alpha
+        def scan_body(ll, i):
+            # Calculate p(r) and multiply it by the galaxy bias
+            ptilde = self._f_ptilde_wo_bias(
+                h * self._r_hMpc[i], h**2 * self._e2_rhMpc[i])
+            ptilde *= self._los_density[i]**alpha
 
-        # Normalization of p(r)
-        pnorm = self._vmap_simps(ptilde)
+            # Normalization of p(r)
+            pnorm = self._f_simps(ptilde)
 
-        # Calculate p(z_obs) and multiply it by p(r)
-        zobs_pred = self._vmap_zobs(beta, Vext_rad, self._los_velocity)
-        ptilde *= self._vmap_ll_zobs(self._z_obs, zobs_pred, sigma_v)
+            # Calculate p(z_obs) and multiply it by p(r)
+            zobs_pred = self._f_zobs(beta, Vext_rad[i], self._los_velocity[i])
+            ptilde *= calculate_ll_zobs(self._z_obs[i], zobs_pred, sigma_v)
 
-        ll = jnp.sum(jnp.log(self._vmap_simps(ptilde) / pnorm))
+            return ll + jnp.log(self._f_simps(ptilde) / pnorm), None
+
+        ll = 0.
+        ll, __ = scan(scan_body, ll, jnp.arange(self.ndata))
         numpyro.factor("ll", ll)
 
 
@@ -1258,7 +1274,7 @@ def get_model(loader, zcmb_max=None, verbose=True):
             los_overdensity[mask], los_velocity[mask], RA[mask], dec[mask],
             zCMB[mask], mB[mask], x1[mask], c[mask], e_mB[mask], e_x1[mask],
             e_c[mask], loader.rdist, loader._Omega_m)
-    elif kind in ["SFI_gals", "2MTF"]:
+    elif kind in ["SFI_gals", "2MTF", "SFI_gals_masked"]:
         keys = ["RA", "DEC", "z_CMB", "mag", "eta", "e_mag", "e_eta"]
         RA, dec, zCMB, mag, eta, e_mag, e_eta = (loader.cat[k] for k in keys)
 
@@ -1271,6 +1287,15 @@ def get_model(loader, zcmb_max=None, verbose=True):
             los_overdensity[mask], los_velocity[mask], RA[mask], dec[mask],
             zCMB[mask], mag[mask], eta[mask], e_mag[mask], e_eta[mask],
             loader.rdist, loader._Omega_m)
+    elif kind == "SFI_groups":
+        keys = ["RA", "DEC", "z_CMB", "r_hMpc", "e_r_hMpc"]
+        RA, dec, zCMB, r_hMpc, e_r_hMpc = (loader.cat[k] for k in keys)
+
+        mask = (zCMB < zcmb_max)
+        model = SD_PV_validation_model(
+            los_overdensity[mask], los_velocity[mask], RA[mask], dec[mask],
+            zCMB[mask], r_hMpc[mask], e_r_hMpc[mask], loader.rdist,
+            loader._Omega_m)
     else:
         raise ValueError(f"Catalogue `{kind}` not recognized.")
 
