@@ -60,9 +60,14 @@ def read_samples(catalogue, simname, ksmooth, include_calibration=False,
                 if i == 0:
                     print(f"Subtracting LG velocity with kernel {R} Mpc / h.", flush=True)  # noqa
                 Vx_LG, Vy_LG, Vz_LG = d["vobs"][subtract_LG_velocity]
-                Vx[-1] += beta[-1] * Vx_LG
-                Vy[-1] += beta[-1] * Vy_LG
-                Vz[-1] += beta[-1] * Vz_LG
+                if simname == "Carrick2015":
+                    Vx[-1] += beta[-1] * Vx_LG
+                    Vy[-1] += beta[-1] * Vy_LG
+                    Vz[-1] += beta[-1] * Vz_LG
+                else:
+                    Vx[-1] += Vx_LG
+                    Vy[-1] += Vy_LG
+                    Vz[-1] += Vz_LG
 
             BIC.append(f[f"sim_{nsim}/BIC"][...])
             AIC.append(f[f"sim_{nsim}/AIC"][...])
