@@ -8,7 +8,7 @@ env="/mnt/users/rstiskalek/csiborgtools/venv_csiborg/bin/python"
 file="flow_validation.py"
 
 catalogue="SFI_groups"
-simname="Carrick2015"
+simname="csiborg2_main"
 
 
 pythoncm="$env $file --catalogue $catalogue --simname $simname --ksmooth $ksmooth"
