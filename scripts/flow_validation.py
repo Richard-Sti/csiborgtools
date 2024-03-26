@@ -107,10 +107,13 @@ def run_model(model, nsteps, nburn, nchains, nsim, dump_folder,
     # Calculate the chi2
     keys = list(thinned_samples.keys())
     nsamples = len(thinned_samples[keys[0]])
-    zobs_mean, zobs_std = model.predict_zobs(thinned_samples)
-    nu = model.ndata - len(keys)
-    chi2 = [np.sum((zobs_mean[:, i] - model._z_obs)**2 / zobs_std[:, i]**2) / nu  # noqa
-            for i in range(nsamples)]
+    try:
+        zobs_mean, zobs_std = model.predict_zobs(thinned_samples)
+        nu = model.ndata - len(keys)
+        chi2 = [np.sum((zobs_mean[:, i] - model._z_obs)**2 / zobs_std[:, i]**2) / nu  # noqa
+                for i in range(nsamples)]
+    except NotImplementedError:
+        chi2 = [0. for _ in range(nsamples)]
 
     gof = csiborgtools.numpyro_gof(model, mcmc, model_kwargs)
 
