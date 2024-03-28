@@ -45,6 +45,7 @@ from tqdm import trange
 from ..params import simname2Omega_m
 
 SPEED_OF_LIGHT = 299792.458  # km / s
+H0 = 100                     # km / s / Mpc
 
 
 def t():
@@ -143,7 +144,7 @@ class DataLoader:
 
         # Normalize the CSiBORG density by the mean matter density
         if "csiborg" in simname:
-            cosmo = FlatLambdaCDM(H0=100, Om0=self._Omega_m)
+            cosmo = FlatLambdaCDM(H0=H0, Om0=self._Omega_m)
             mean_rho_matter = cosmo.critical_density0.to("Msun/kpc^3").value
             mean_rho_matter *= self._Omega_m
             self._los_density /= mean_rho_matter
@@ -402,9 +403,48 @@ def dist2redshift(dist, Omega_m):
     -------
     float or 1-dimensional array
     """
-    H0 = 100
     eta = 3 * Omega_m / 2
     return 1 / eta * (1 - (1 - 2 * H0 * dist / SPEED_OF_LIGHT * eta)**0.5)
+
+
+def redshift2dist(z, Omega_m):
+    """
+    Convert cosmological redshift to comoving distance if the Universe is
+    flat and z << 1.
+
+    Parameters
+    ----------
+    z : float or 1-dimensional array
+        Cosmological redshift.
+    Omega_m : float
+        Matter density parameter.
+
+    Returns
+    -------
+    float or 1-dimensional array
+    """
+    q0 = 3 * Omega_m / 2 - 1
+    return SPEED_OF_LIGHT * z / (2 * H0) * (2 - z * (1 + q0))
+
+
+def gradient_redshift2dist(z, Omega_m):
+    """
+    Gradient of the redshift to comoving distance conversion if the Universe is
+    flat and z << 1.
+
+    Parameters
+    ----------
+    z : float or 1-dimensional array
+        Cosmological redshift.
+    Omega_m : float
+        Matter density parameter.
+
+    Returns
+    -------
+    float or 1-dimensional array
+    """
+    q0 = 3 * Omega_m / 2 - 1
+    return SPEED_OF_LIGHT / H0 * (1 - z * (1 + q0))
 
 
 def dist2distmodulus(dist, Omega_m):
@@ -457,7 +497,7 @@ def distmodulus2dist(mu, Omega_m, ninterp=10000, zmax=0.1, mu2comoving=None,
     """
     if mu2comoving is None:
         zrange = np.linspace(1e-15, zmax, ninterp)
-        cosmo = FlatLambdaCDM(H0=100, Om0=Omega_m)
+        cosmo = FlatLambdaCDM(H0=H0, Om0=Omega_m)
         mu2comoving = interp1d(
             cosmo.distmod(zrange).value, cosmo.comoving_distance(zrange).value,
             kind="cubic")
@@ -556,7 +596,7 @@ def calculate_ptilde_wo_bias(xrange, mu, err, r_squared_xrange=None,
     return ptilde
 
 
-def calculate_ll_zobs(zobs, zobs_pred, sigma_v):
+def calculate_likelihood_zobs(zobs, zobs_pred, sigma_v):
     """
     Calculate the likelihood of the observed redshift given the predicted
     redshift.
@@ -804,7 +844,8 @@ class SD_PV_validation_model(BaseFlowValidationModel):
 
             # Calculate p(z_obs) and multiply it by p(r)
             zobs_pred = self._f_zobs(beta, Vext_rad[i], self._los_velocity[i])
-            ptilde *= calculate_ll_zobs(self._z_obs[i], zobs_pred, sigma_v)
+            ptilde *= calculate_likelihood_zobs(
+                self._z_obs[i], zobs_pred, sigma_v)
 
             return ll + jnp.log(self._f_simps(ptilde) / pnorm), None
 
@@ -1011,7 +1052,8 @@ class SN_PV_validation_model(BaseFlowValidationModel):
 
             # Calculate p(z_obs) and multiply it by p(r)
             zobs_pred = self._f_zobs(beta, Vext_rad[i], self._los_velocity[i])
-            ptilde *= calculate_ll_zobs(self._z_obs[i], zobs_pred, sigma_v)
+            ptilde *= calculate_likelihood_zobs(
+                self._z_obs[i], zobs_pred, sigma_v)
 
             return ll + jnp.log(self._f_simps(ptilde) / pnorm), None
 
@@ -1214,7 +1256,8 @@ class TF_PV_validation_model(BaseFlowValidationModel):
 
             # Calculate p(z_obs) and multiply it by p(r)
             zobs_pred = self._f_zobs(beta, Vext_rad[i], self._los_velocity[i])
-            ptilde *= calculate_ll_zobs(self._z_obs[i], zobs_pred, sigma_v)
+            ptilde *= calculate_likelihood_zobs(
+                self._z_obs[i], zobs_pred, sigma_v)
 
             return ll + jnp.log(self._f_simps(ptilde) / pnorm), None
 
@@ -1475,3 +1518,183 @@ def optimize_model_with_jackknife(loader, k, n_splits=5, sample_alpha=True,
 
     loader.reset_mask()
     return samples, stats, fmin, logz, bic
+
+
+###############################################################################
+#                     Predicting z_cosmo from z_obs                           #
+###############################################################################
+
+
+def _posterior_element(r, beta, Vext_radial, los_velocity, Omega_m, zobs,
+                       sigma_v, alpha, dVdOmega, los_density):
+    """
+    Helper function function to compute the unnormalized posterior in
+    `Observed2CosmologicalRedshift`.
+    """
+    zobs_pred = predict_zobs(r, beta, Vext_radial, los_velocity, Omega_m)
+    likelihood_j = calculate_likelihood_zobs(zobs, zobs_pred, sigma_v)
+    prior_j = dVdOmega * los_density**alpha
+    return likelihood_j * prior_j
+
+
+class BaseObserved2CosmologicalRedshift(ABC):
+    """
+    Base class for `Observed2CosmologicalRedshift`.
+    """
+    def __init__(self, calibration_samples, r_xrange):
+        dt = jnp.float32
+        # Check calibration samples input.
+        for i, key in enumerate(calibration_samples.keys()):
+            x = calibration_samples[key]
+            if not isinstance(x, (np.ndarray, jnp.ndarray)):
+                raise ValueError(f"Calibration sample {x} must be an array.")
+
+            if x.ndim != 1:
+                raise ValueError(f"Calibration samples {x} must be 1D.")
+
+            if i == 0:
+                ncalibratrion = len(x)
+
+            if len(x) != ncalibratrion:
+                raise ValueError("Calibration samples do not have the same length.")  # noqa
+
+            # Enforce the same data type.
+            calibration_samples[key] = jnp.asarray(x, dtype=dt)
+
+        if "alpha" not in calibration_samples:
+            calibration_samples["alpha"] = jnp.ones(ncalibratrion, dtype=dt)
+
+        if "beta" not in calibration_samples:
+            calibration_samples["beta"] = jnp.ones(ncalibratrion, dtype=dt)
+
+        # Get the stepsize, we need it to be constant for Simpson's rule.
+        dr = np.diff(r_xrange)
+        if not np.all(np.isclose(dr, dr[0], atol=1e-5)):
+            raise ValueError("The radial step size must be constant.")
+        dr = dr[0]
+
+        self._calibration_samples = calibration_samples
+        self._ncalibration_samples = ncalibratrion
+
+        # It is best to JIT compile the functions right here.
+        self._vmap_simps = jit(vmap(lambda y: simps(y, dr)))
+        axs = (0, None, None, 0, None, None, None, None, 0, 0)
+        self._vmap_posterior_element = vmap(_posterior_element, in_axes=axs)
+        self._vmap_posterior_element = jit(self._vmap_posterior_element)
+
+    def get_calibration_samples(self, key):
+        """
+        Get calibration samples for a given key.
+
+        Parameters
+        ----------
+        key : str
+            Key of the calibration samples.
+
+        Returns
+        -------
+        1-dimensional array
+        """
+        if key not in self._calibration_samples:
+            raise ValueError(f"Key `{key}` not found in calibration samples. Available keys are: `{self.calibration_keys}`.")  # noqa
+
+        return self._calibration_samples[key]
+
+    @property
+    def ncalibration_samples(self):
+        """
+        Number of calibration samples.
+
+        Returns
+        -------
+        int
+        """
+        return self._ncalibration_samples
+
+    @property
+    def calibration_keys(self):
+        """
+        Calibration sample keys.
+
+        Returns
+        -------
+        list of str
+        """
+        return list(self._calibration_samples.keys())
+
+
+class Observed2CosmologicalRedshift(BaseObserved2CosmologicalRedshift):
+    """
+    Model to predict the cosmological redshift from the observed redshift.
+
+    Parameters
+    ----------
+    calibration_samples : dict
+        Dictionary of flow calibration samples (`alpha`, `beta`, `Vext_x`,
+        `Vext_y`, `Vext_z`, `sigma_v`, ...).
+    r_xrange : 1-dimensional array
+        Radial comoving distances where the fields are interpolated for each
+        object.
+    Omega_m : float
+        Matter density parameter.
+    """
+    def __init__(self, calibration_samples, r_xrange, Omega_m):
+        super().__init__(calibration_samples, r_xrange)
+        self._r_xrange = jnp.asarray(r_xrange, dtype=jnp.float32)
+        self._zcos_xrange = dist2redshift(self._r_xrange, Omega_m)
+        self._Omega_m = Omega_m
+
+        # Comoving volume element with some arbitrary normalization
+        dVdOmega = gradient_redshift2dist(self._zcos_xrange, Omega_m)
+        dVdOmega *= self._r_xrange**2
+        self._dVdOmega = dVdOmega / jnp.mean(dVdOmega)
+
+    def posterior_zcosmo(self, zobs, RA, dec, los_density, los_velocity,
+                         verbose=True):
+        """
+        Calculate `p(z_cosmo | calibration)` for a single object.
+
+        Parameters
+        ----------
+        zobs : float
+            Observed redshift.
+        RA, dec : float
+            Right ascension and declination in radians.
+        los_density : 1-dimensional array
+            LOS density field.
+        los_velocity : 1-dimensional array
+            LOS radial velocity field.
+        verbose : bool, optional
+            Verbosity flag.
+
+        Returns
+        -------
+        zcosmo : 1-dimensional array
+            Cosmological redshift at which the PDF is evaluated.
+        posterior : 1-dimensional array
+            Posterior PDF.
+        """
+        Vext_radial = project_Vext(
+            self.get_calibration_samples("Vext_x"),
+            self.get_calibration_samples("Vext_y"),
+            self.get_calibration_samples("Vext_z"),
+            RA, dec)
+
+        alpha = self.get_calibration_samples("alpha")
+        beta = self.get_calibration_samples("beta")
+        sigma_v = self.get_calibration_samples("sigma_v")
+
+        posterior = np.zeros((self.ncalibration_samples, len(self._r_xrange)),
+                             dtype=np.float32)
+        for i in trange(self.ncalibration_samples, desc="Marginalizing",
+                        disable=not verbose):
+            posterior[i] = self._vmap_posterior_element(
+                self._r_xrange, beta[i], Vext_radial[i], los_velocity,
+                self._Omega_m, zobs, sigma_v[i], alpha[i], self._dVdOmega,
+                los_density)
+
+        # Normalize the posterior for each flow sample and then stack them.
+        posterior /= self._vmap_simps(posterior).reshape(-1, 1)
+        posterior = jnp.nanmean(posterior, axis=0)
+
+        return self._zcos_xrange, posterior
