@@ -1650,7 +1650,7 @@ class Observed2CosmologicalRedshift(BaseObserved2CosmologicalRedshift):
         self._dVdOmega = dVdOmega / jnp.mean(dVdOmega)
 
     def posterior_zcosmo(self, zobs, RA, dec, los_density, los_velocity,
-                         verbose=True):
+                         extra_sigma_v=None, verbose=True):
         """
         Calculate `p(z_cosmo | calibration)` for a single object.
 
@@ -1664,6 +1664,8 @@ class Observed2CosmologicalRedshift(BaseObserved2CosmologicalRedshift):
             LOS density field.
         los_velocity : 1-dimensional array
             LOS radial velocity field.
+        extra_sigma_v : float, optional
+            Any additional velocity uncertainty.
         verbose : bool, optional
             Verbosity flag.
 
@@ -1683,6 +1685,9 @@ class Observed2CosmologicalRedshift(BaseObserved2CosmologicalRedshift):
         alpha = self.get_calibration_samples("alpha")
         beta = self.get_calibration_samples("beta")
         sigma_v = self.get_calibration_samples("sigma_v")
+
+        if extra_sigma_v is not None:
+            sigma_v = jnp.sqrt(sigma_v**2 + extra_sigma_v**2)
 
         posterior = np.zeros((self.ncalibration_samples, len(self._r_xrange)),
                              dtype=np.float32)
