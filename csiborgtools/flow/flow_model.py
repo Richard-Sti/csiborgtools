@@ -1532,15 +1532,13 @@ def _posterior_element(r, beta, Vext_radial, los_velocity, Omega_m, zobs,
     `Observed2CosmologicalRedshift`.
     """
     zobs_pred = predict_zobs(r, beta, Vext_radial, los_velocity, Omega_m)
-    likelihood_j = calculate_likelihood_zobs(zobs, zobs_pred, sigma_v)
-    prior_j = dVdOmega * los_density**alpha
-    return likelihood_j * prior_j
+    likelihood = calculate_likelihood_zobs(zobs, zobs_pred, sigma_v)
+    prior = dVdOmega * los_density**alpha
+    return likelihood * prior
 
 
 class BaseObserved2CosmologicalRedshift(ABC):
-    """
-    Base class for `Observed2CosmologicalRedshift`.
-    """
+    """Base class for `Observed2CosmologicalRedshift`."""
     def __init__(self, calibration_samples, r_xrange):
         dt = jnp.float32
         # Check calibration samples input.
@@ -1648,6 +1646,26 @@ class Observed2CosmologicalRedshift(BaseObserved2CosmologicalRedshift):
         dVdOmega = gradient_redshift2dist(self._zcos_xrange, Omega_m)
         dVdOmega *= self._r_xrange**2
         self._dVdOmega = dVdOmega / jnp.mean(dVdOmega)
+
+    def posterior_mean_std(self, x, px):
+        """
+        Calculate the mean and standard deviation of a 1-dimensional PDF.
+        Assumes that the PDF is already normalized.
+
+        NOTE: Maybe summarize this instead with the peak of the distribution?
+
+        Parameters
+        ----------
+        x : 1-dimensional array
+            Values at which the PDF is evaluated.
+        px : 1-dimensional array
+            PDF values.
+
+        Returns
+        -------
+        mu, std : floats
+        """
+        raise NotImplementedError("Not implemented yet.")
 
     def posterior_zcosmo(self, zobs, RA, dec, los_density, los_velocity,
                          extra_sigma_v=None, verbose=True):
