@@ -508,6 +508,45 @@ def distmodulus2dist(mu, Omega_m, ninterp=10000, zmax=0.1, mu2comoving=None,
     return mu2comoving(mu)
 
 
+def distmodulus2redsfhit(mu, Omega_m, ninterp=10000, zmax=0.1, mu2z=None,
+                         return_interpolator=False):
+    """
+    Convert distance modulus to cosmological redshift. Note that this is a
+    costly implementation, as it builts up the interpolator every time it is
+    called unless it is provided.
+
+    Parameters
+    ----------
+    mu : float or 1-dimensional array
+        Distance modulus.
+    Omega_m : float
+        Matter density parameter.
+    ninterp : int, optional
+        Number of points to interpolate the mapping from distance modulus to
+        comoving distance.
+    zmax : float, optional
+        Maximum redshift for the interpolation.
+    mu2z : callable, optional
+        Interpolator from distance modulus to cosmological redsfhit. If not
+        provided, it is built up every time the function is called.
+    return_interpolator : bool, optional
+        Whether to return the interpolator as well.
+
+    Returns
+    -------
+    float (or 1-dimensional array) and callable (optional)
+    """
+    if mu2z is None:
+        zrange = np.linspace(1e-15, zmax, ninterp)
+        cosmo = FlatLambdaCDM(H0=H0, Om0=Omega_m)
+        mu2z = interp1d(cosmo.distmod(zrange).value, zrange, kind="cubic")
+
+    if return_interpolator:
+        return mu2z(mu), mu2z
+
+    return mu2z(mu)
+
+
 def project_Vext(Vext_x, Vext_y, Vext_z, RA, dec):
     """
     Project the external velocity onto the line of sight along direction
@@ -729,6 +768,10 @@ class BaseFlowValidationModel(ABC):
         return mu, std
 
     @abstractmethod
+    def predict_zcosmo_from_calibration(self, **kwargs):
+        pass
+
+    @abstractmethod
     def __call__(self, **kwargs):
         pass
 
@@ -806,6 +849,9 @@ class SD_PV_validation_model(BaseFlowValidationModel):
         self._Omega_m = Omega_m
 
     def predict_zobs_single(self, **kwargs):
+        raise NotImplementedError("This method is not implemented yet.")
+
+    def predict_zcosmo_from_calibration(self, **kwargs):
         raise NotImplementedError("This method is not implemented yet.")
 
     def __call__(self, sample_alpha=True, sample_beta=True):
@@ -964,6 +1010,43 @@ class SN_PV_validation_model(BaseFlowValidationModel):
         """
         return (self._e2_mB + alpha_cal**2 * self._e2_x1
                 + beta_cal**2 * self._e2_c + e_mu_intrinsic**2)
+
+    def predict_zcosmo_from_calibration(self, mag_cal, alpha_cal, beta_cal,
+                                        to_jit=True):
+        """
+        Predict the cosmological redshift given the SALT2 calibration
+        parameters.
+
+        Parameters
+        ----------
+        mag_cal, alpha_cal, beta_cal : floats
+            SALT2 calibration parameters.
+        to_jit : bool, optional
+            Whether to JIT compile the distance modulus function.
+
+        Returns
+        -------
+        zcosmo_mean : 1-dimensional array
+            Mean of the predicted redshifts.
+        zcosmo_std : 1-dimensional array
+            Standard deviation of the predicted redshifts.
+        """
+        if not ((mag_cal.shape == alpha_cal.shape == beta_cal.shape) and mag_cal.ndim == 1):  # noqa
+            raise ValueError("The shape of calibration parameters must be 1D and equal.")     # noqa
+
+        fmu = jit(self.mu) if to_jit else self.mu
+        zcosmo = np.empty((len(mag_cal), self.ndata), dtype=np.float32)
+        mu2z = None
+
+        for i in trange(len(mag_cal)):
+            x = fmu(mag_cal[i], alpha_cal[i], beta_cal[i])
+            zcosmo[i], mu2z = distmodulus2redsfhit(x, self._Omega_m, mu2z=mu2z,
+                                                   return_interpolator=True)
+
+        zcosmo_mean = zcosmo.mean(axis=0)
+        zcosmo_std = zcosmo.std(axis=0)
+
+        return zcosmo_mean, zcosmo_std
 
     def predict_zobs_single(self, Vext_x, Vext_y, Vext_z, alpha, beta,
                             e_mu_intrinsic, mag_cal, alpha_cal, beta_cal,
@@ -1169,6 +1252,9 @@ class TF_PV_validation_model(BaseFlowValidationModel):
         1-dimensional array
         """
         return (self._e2_mag + b**2 * self._e2_eta + e_mu_intrinsic**2)
+
+    def predict_zcosmo_from_calibration(self, **kwargs):
+        raise NotImplementedError("This method is not implemented yet.")
 
     def predict_zobs_single(self, Vext_x, Vext_y, Vext_z, alpha, beta,
                             e_mu_intrinsic, a, b, **kwargs):
