@@ -1666,6 +1666,8 @@ class BaseObserved2CosmologicalRedshift(ABC):
         self._vmap_posterior_element = vmap(_posterior_element, in_axes=axs)
         self._vmap_posterior_element = jit(self._vmap_posterior_element)
 
+        self._simps = jit(lambda y: simps(y, dr))
+
     def get_calibration_samples(self, key):
         """
         Get calibration samples for a given key.
@@ -1730,28 +1732,33 @@ class Observed2CosmologicalRedshift(BaseObserved2CosmologicalRedshift):
 
         # Comoving volume element with some arbitrary normalization
         dVdOmega = gradient_redshift2dist(self._zcos_xrange, Omega_m)
+        # TODO: Decide about the presence of this correction.
         dVdOmega *= self._r_xrange**2
         self._dVdOmega = dVdOmega / jnp.mean(dVdOmega)
 
     def posterior_mean_std(self, x, px):
         """
         Calculate the mean and standard deviation of a 1-dimensional PDF.
-        Assumes that the PDF is already normalized.
-
-        NOTE: Maybe summarize this instead with the peak of the distribution?
+        Assumes that the PDF is already normalized. Assumes that the PDF
+        spacing is that of `r_xrange` which is inferred when initializing this
+        class.
 
         Parameters
         ----------
         x : 1-dimensional array
-            Values at which the PDF is evaluated.
+            Values at which the PDF is evaluated. Note that the PDF must be
+            normalized.
         px : 1-dimensional array
             PDF values.
+        dx
 
         Returns
         -------
         mu, std : floats
         """
-        raise NotImplementedError("Not implemented yet.")
+        mu = self._simps(x * px)
+        std = (self._simps(x**2 * px) - mu**2)**0.5
+        return mu, std
 
     def posterior_zcosmo(self, zobs, RA, dec, los_density, los_velocity,
                          extra_sigma_v=None, verbose=True):
