@@ -1,5 +1,5 @@
-nthreads=11
-memory=36
+nthreads=6
+memory=42
 on_login=0
 queue="berg"
 env="/mnt/users/rstiskalek/csiborgtools/venv_csiborg/bin/python"
