@@ -28,6 +28,11 @@ def read_samples(catalogue, simname, ksmooth, include_calibration=False,
     print(f"\nReading {catalogue} fitted to {simname} with ksmooth = {ksmooth}.", flush=True)  # noqa
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsims = paths.get_ics(simname)
+
+    # The last simulation was used to draw the mocks.
+    if catalogue in ["CB2_small", "CB2_large"]:
+        nsims = nsims[:-5]
+
     FDIR_LG = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/peculiar_velocity/observer"  # noqa
 
     Vx, Vy, Vz, beta, sigma_v, alpha = [], [], [], [], [], []
@@ -39,6 +44,8 @@ def read_samples(catalogue, simname, ksmooth, include_calibration=False,
         a, b, e_mu_intrinsic = [], [], []
     elif catalogue == "SFI_groups":
         h = []
+    elif catalogue in ["CB2_small", "CB2_large"]:
+        pass
     else:
         raise ValueError(f"Catalogue {catalogue} not recognized.")
 
@@ -90,6 +97,8 @@ def read_samples(catalogue, simname, ksmooth, include_calibration=False,
                 e_mu_intrinsic.append(f[f"sim_{nsim}/e_mu_intrinsic"][:])
             elif catalogue == "SFI_groups":
                 h.append(f[f"sim_{nsim}/h"][:])
+            elif catalogue in ["CB2_small", "CB2_large"]:
+                pass
             else:
                 raise ValueError(f"Catalogue {catalogue} not recognized.")
 
@@ -103,6 +112,8 @@ def read_samples(catalogue, simname, ksmooth, include_calibration=False,
         a, b, e_mu_intrinsic = np.hstack(a), np.hstack(b), np.hstack(e_mu_intrinsic)  # noqa
     elif catalogue == "SFI_groups":
         h = np.hstack(h)
+    elif catalogue in ["CB2_small", "CB2_large"]:
+        pass
     else:
         raise ValueError(f"Catalogue {catalogue} not recognized.")
 
