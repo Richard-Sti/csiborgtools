@@ -71,6 +71,12 @@ def get_los(catalogue_name, simname, comm):
             with File(fpath, 'r') as f:
                 RA = f["RA"][:]
                 dec = f["DEC"][:]
+        elif "CB2_" in catalogue_name:
+            kind = catalogue_name.split("_")[-1]
+            fname = f"/mnt/extraspace/rstiskalek/catalogs/PV_mock_CB2_17417_{kind}.hdf5"  # noqa
+            with File(fname, 'r') as f:
+                RA = f["RA"][:]
+                dec = f["DEC"][:]
         else:
             raise ValueError(f"Unknown field name: `{catalogue_name}`.")
 
