@@ -263,6 +263,13 @@ class DataLoader:
                 arr = np.empty(len(grp["RA"]), dtype=dtype)
                 for key in grp.keys():
                     arr[key] = grp[key][:]
+        elif "CB2_" in catalogue:
+            with File(catalogue_fpath, 'r') as f:
+
+                dtype = [(key, np.float32) for key in f.keys()]
+                arr = np.empty(len(f["RA"]), dtype=dtype)
+                for key in f.keys():
+                    arr[key] = f[key][:]
         else:
             raise ValueError(f"Unknown catalogue: `{catalogue}`.")
 
@@ -854,7 +861,7 @@ class SD_PV_validation_model(BaseFlowValidationModel):
     def predict_zcosmo_from_calibration(self, **kwargs):
         raise NotImplementedError("This method is not implemented yet.")
 
-    def __call__(self, sample_alpha=True, sample_beta=True):
+    def __call__(self, sample_alpha=True, sample_beta=True, sample_h=True):
         """
         The simple distance NumPyro PV validation model.
 
@@ -866,6 +873,9 @@ class SD_PV_validation_model(BaseFlowValidationModel):
         sample_beta : bool, optional
             Whether to sample the velocity bias parameter `beta`, otherwise
             it is fixed to 1.
+        sample_h : bool, optional
+            Whether to sample the location bias parameter `h`, otherwise
+            it is fixed to 1.
         """
         Vx = numpyro.sample("Vext_x", self._Vext)
         Vy = numpyro.sample("Vext_y", self._Vext)
@@ -875,7 +885,7 @@ class SD_PV_validation_model(BaseFlowValidationModel):
         beta = numpyro.sample("beta", self._beta) if sample_beta else 1.0
         sigma_v = numpyro.sample("sigma_v", self._sigma_v)
 
-        h = numpyro.sample("h", self._h)
+        h = numpyro.sample("h", self._h) if sample_h else 1.0
 
         Vext_rad = project_Vext(Vx, Vy, Vz, self._RA, self._dec)
 
@@ -1417,8 +1427,20 @@ def get_model(loader, zcmb_max=None, verbose=True):
             zCMB[mask], mag[mask], eta[mask], e_mag[mask], e_eta[mask],
             loader.rdist, loader._Omega_m)
     elif kind == "SFI_groups":
-        keys = ["RA", "DEC", "z_CMB", "r_hMpc", "e_r_hMpc"]
+        keys = ["RA", "DEC", "zCMB", "r_hMpc", "e_r_hMpc"]
         RA, dec, zCMB, r_hMpc, e_r_hMpc = (loader.cat[k] for k in keys)
+
+        mask = (zCMB < zcmb_max)
+        model = SD_PV_validation_model(
+            los_overdensity[mask], los_velocity[mask], RA[mask], dec[mask],
+            zCMB[mask], r_hMpc[mask], e_r_hMpc[mask], loader.rdist,
+            loader._Omega_m)
+    elif "CB2_" in kind:
+        keys = ["RA", "DEC", "zobs", "r_hMpc"]
+        RA, dec, zCMB, r_hMpc = (loader.cat[k] for k in keys)
+
+        # Set fiducially to be 10% of the distance
+        e_r_hMpc = 0.1 * r_hMpc
 
         mask = (zCMB < zcmb_max)
         model = SD_PV_validation_model(
