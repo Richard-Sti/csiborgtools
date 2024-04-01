@@ -54,6 +54,9 @@ def get_model(args, nsim_iterator, get_model_kwargs):
     elif args.catalogue in ["LOSS", "Foundation", "Pantheon+", "SFI_gals",
                             "2MTF", "SFI_groups", "SFI_gals_masked"]:
         fpath = join(folder, "PV_compilation_Supranta2019.hdf5")
+    elif "CB2_" in args.catalogue:
+        kind = args.catalogue.split("_")[-1]
+        fpath = join(folder, f"PV_mock_CB2_17417_{kind}.hdf5")
     else:
         raise ValueError(f"Unknown catalogue: `{args.catalogue}`.")
 
@@ -199,7 +202,9 @@ if __name__ == "__main__":
     nsims = paths.get_ics(args.simname)
 
     get_model_kwargs = {"zcmb_max": 0.06}
-    model_kwargs = {"sample_alpha": True}
+    model_kwargs = {"sample_alpha": True, "sample_beta": True}
+    if "CB2_" in args.catalogue:
+        model_kwargs["sample_h"] = False
 
     # Create the dumping folder.
     if comm.Get_rank() == 0:
