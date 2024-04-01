@@ -7,7 +7,7 @@ queue="berg"
 env="/mnt/users/rstiskalek/csiborgtools/venv_csiborg/bin/python"
 file="flow_validation.py"
 
-catalogue="SFI_groups"
+catalogue="CB2_small"
 simname="csiborg2_main"
 
 
