@@ -1763,7 +1763,7 @@ class Observed2CosmologicalRedshift(BaseObserved2CosmologicalRedshift):
     def posterior_zcosmo(self, zobs, RA, dec, los_density, los_velocity,
                          extra_sigma_v=None, verbose=True):
         """
-        Calculate `p(z_cosmo | calibration)` for a single object.
+        Calculate `p(z_cosmo | z_CMB, calibration)` for a single object.
 
         Parameters
         ----------
