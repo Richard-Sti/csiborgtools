@@ -1733,7 +1733,8 @@ class BaseObserved2CosmologicalRedshift(ABC):
 
 class Observed2CosmologicalRedshift(BaseObserved2CosmologicalRedshift):
     """
-    Model to predict the cosmological redshift from the observed redshift.
+    Model to predict the cosmological redshift from the observed redshift in
+    the CMB frame.
 
     Parameters
     ----------
@@ -1836,3 +1837,63 @@ class Observed2CosmologicalRedshift(BaseObserved2CosmologicalRedshift):
         posterior = jnp.nanmean(posterior, axis=0)
 
         return self._zcos_xrange, posterior
+
+
+def stack_pzosmo_over_realizations(n, obs2cosmo_models, loaders, zobs_catname,
+                                   pzcosmo_kwargs={}, verbose=True):
+    """
+    Stack the posterior PDFs of `z_cosmo` for a given galaxy index `n` over
+    multiple constrained realizations.
+
+    Parameters
+    ----------
+    n : int
+        Galaxy index in the loaders' catalogue.
+    obs2cosmo_models : list
+        List of `Observed2CosmologicalRedshift` instances per realization.
+    loaders : list
+        List of DataLoader instances per realization.
+    zobs_catname : str
+        Name of the observed redshift column in the catalogue.
+    pzcosmo_kwargs : dict, optional
+        Additional keyword arguments to pass to `posterior_zcosmo`.
+    verbose : bool, optional
+        Verbosity flag.
+
+    Returns
+    -------
+    zcosmo : 1-dimensional array
+        Cosmological redshift at which the PDF is evaluated.
+    p_zcosmo : 1-dimensional array
+        Stacked posterior PDF.
+    """
+    # Do some standard checks of inputs
+    if not isinstance(obs2cosmo_models, list):
+        raise ValueError("`obs2cosmo_models` 1must be a list.")
+    if not isinstance(loaders, list):
+        raise ValueError("`loaders` must be a list.")
+    if len(obs2cosmo_models) != len(loaders):
+        raise ValueError("The number of models and loaders must be equal.")
+
+    for i in trange(len(obs2cosmo_models), desc="Stacking",
+                    disable=not verbose):
+        zobs = loaders[i].cat[zobs_catname][n]
+        RA = np.deg2rad(loaders[i].cat["RA"][n])
+        dec = np.deg2rad(loaders[i].cat["DEC"][n])
+        los_density = loaders[i].los_density[n]
+        los_velocity = loaders[i].los_radial_velocity[n]
+
+        x, y = obs2cosmo_models[i].posterior_zcosmo(
+            zobs, RA, dec, los_density, los_velocity, verbose=False,
+            **pzcosmo_kwargs)
+
+        if i == 0:
+            zcosmo = x
+            p_zcosmo = np.empty((len(loaders), len(x)), dtype=np.float32)
+
+        p_zcosmo[i] = y
+
+    # Stack the posterior PDFs
+    p_zcosmo = np.nanmean(p_zcosmo, axis=0)
+
+    return zcosmo, p_zcosmo
