@@ -18,4 +18,5 @@ from .flow_model import (DataLoader, radial_velocity_los, dist2redshift,        
                          TF_PV_validation_model, radec_to_galactic,             # noqa
                          sample_prior, make_loss, get_model,                    # noqa
                          optimize_model_with_jackknife, distmodulus2dist,       # noqa
-                         Observed2CosmologicalRedshift)                         # noqa
+                         Observed2CosmologicalRedshift,                         # noqa
+                         stack_pzosmo_over_realizations)                        # noqa
