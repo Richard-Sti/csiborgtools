@@ -1,12 +1,12 @@
 #!/bin/bash
 nthreads=41
-memory=5
+memory=10
 queue="berg"
 env="/mnt/zfsusers/rstiskalek/csiborgtools/venv_csiborg/bin/python"
 file="match_overlap_all.py"
 
 simname="csiborg2_varysmall"
-min_logmass=12.25
+min_logmass=12.75
 sigma=1
 kind="overlap"
 mult=10         # Only for Max's method
