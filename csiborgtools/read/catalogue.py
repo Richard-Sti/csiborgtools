@@ -1148,7 +1148,6 @@ class CSiBORG2SUBFINDCatalogue(BaseCatalogue):
     """
     def __init__(self, nsim, nsnap, kind, paths=None,
                  bounds=None, flip_xz=True, cache_maxsize=64):
-        # TODO: finish all this!
         super().__init__()
         super().init_with_snapshot(
             f"csiborg2_{kind}", nsim, nsnap, paths, None, bounds,
