@@ -1,16 +1,16 @@
 #!/bin/bash
-nthreads=11
-memory=4
-queue="cmb"
+nthreads=41
+memory=5
+queue="berg"
 env="/mnt/zfsusers/rstiskalek/csiborgtools/venv_csiborg/bin/python"
-file="match_all.py"
+file="match_overlap_all.py"
 
-simname="quijote"
-min_logmass=13.25
-nsim0=0
-kind="max"
-mult=10
+simname="csiborg2_varysmall"
+min_logmass=12.25
 sigma=1
+kind="overlap"
+mult=10         # Only for Max's method
+nsim0=0         # Only for Max's method
 verbose="false"
 
 

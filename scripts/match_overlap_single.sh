@@ -8,8 +8,8 @@ file="match_overlap_single.py"
 
 simname="csiborg2_main"
 kind="overlap"
-min_logmass=13.25
-mult=5
+min_logmass=12
+mult=5  # Only for Max's method
 sigma=1
 
 # sims=(7444 7468)
@@ -37,14 +37,14 @@ do
 
         pythoncm="$env $file --kind $kind --nsim0 $nsim0 --nsimx $nsimx  --simname $simname --min_logmass $min_logmass --sigma $sigma --mult $mult --verbose $verbose"
 
-        # $pythoncm
+        $pythoncm
 
-        cm="addqueue -q $queue -n 1x1 -m $memory $pythoncm"
-        echo "Submitting:"
-        echo $cm
-        echo
-        $cm
-        sleep 0.05
+        # cm="addqueue -q $queue -n 1x1 -m $memory $pythoncm"
+        # echo "Submitting:"
+        # echo $cm
+        # echo
+        # $cm
+        # sleep 0.05
 
     done
 done
