@@ -82,9 +82,9 @@ class PairOverlap:
         self._cat0 = cat0
         self._catx = catx
         self._paths = cat0.paths
-        self.load(cat0, catx, min_logmass, maxdist)
+        self._load(cat0, catx, min_logmass, maxdist)
 
-    def load(self, cat0, catx, paths, min_logmass, maxdist=None):
+    def _load(self, cat0, catx, paths, min_logmass, maxdist=None):
         r"""
         Load overlap calculation results. Matches the results back to the two
         catalogues in question.
