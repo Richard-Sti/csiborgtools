@@ -56,7 +56,8 @@ if __name__ == "__main__":
                         choices=["overlap", "max"], help="Kind of matching.")
     parser.add_argument("--simname", type=str, required=True,
                         help="Simulation name.",
-                        choices=["csiborg", "quijote"])
+                        choices=["csiborg1", "quijote", "csiborg2_main",
+                                 "csiborg2_random", "csiborg2_varysmall"])
     parser.add_argument("--nsim0", type=int, default=None,
                         help="Reference IC for Max's matching method.")
     parser.add_argument("--min_logmass", type=float, required=True,
