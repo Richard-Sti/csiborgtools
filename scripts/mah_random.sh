@@ -1,5 +1,5 @@
 memory=4
-on_login=1
+on_login=0
 nthreads=${1}
 
 queue="berg"
