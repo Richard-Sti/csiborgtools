@@ -14,8 +14,11 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """Script to help with `mah.py`."""
 from datetime import datetime
+
 import csiborgtools
 import numpy as np
+from astropy.cosmology import FlatLambdaCDM
+from h5py import File
 from tqdm import tqdm, trange
 
 
@@ -84,3 +87,33 @@ def extract_main_progenitor_maxoverlap(group_nr, overlaps, merger_trees):
     out[nsim0] = merger_trees[nsim0].main_progenitor(group_nr)
 
     return out
+
+
+def extract_random_mah(simname, logmass_bounds, key):
+    """
+    Extract the random MAHs for a given simulation and mass range and key.
+    Keys are for example: "MainProgenitorMass" or "GroupMass"
+    """
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    nsims = [1]
+
+    X = []
+    for i, nsim in enumerate(nsims):
+        with File(paths.random_mah(simname, nsim), 'r') as f:
+            final_mass = f["FinalGroupMass"][:]
+
+            # Select the mass range
+            mask = final_mass >= 10**logmass_bounds[0]
+            mask &= final_mass < 10**logmass_bounds[1]
+
+            X.append(f[key][:][mask])
+
+            if i == 0:
+                redshift = f["Redshift"][:]
+
+    X = np.vstack(X)
+
+    cosmo = FlatLambdaCDM(H0=67.76, Om0=csiborgtools.simname2Omega_m(simname))
+    age = cosmo.age(redshift).value
+
+    return age, X
