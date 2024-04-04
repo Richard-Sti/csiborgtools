@@ -301,7 +301,7 @@ class Paths:
             return join(self.csiborg2_main_srcdir, f"chain_{nsim}", "output",
                         "trees.hdf5")
         elif simname == "csiborg2_random":
-            return join(self.csiborg2_ranodm_srcdir, f"chain_{nsim}", "output",
+            return join(self.csiborg2_random_srcdir, f"chain_{nsim}", "output",
                         "trees.hdf5")
         elif simname == "csiborg2_varysmall":
             return join(self.csiborg2_varysmall_srcdir,
@@ -350,6 +350,26 @@ class Paths:
         if smoothed:
             fname = fname.replace("overlap", "overlap_smoothed")
         return join(fdir, fname)
+
+    def random_mah(self, simname, nsim):
+        """
+        Path to the files containing MAHs from random simulations.
+
+        Parameters
+        ----------
+        simname : str
+            Simulation name.
+        nsim0 : int
+            IC realisation index of the simulation.
+
+        Returns
+        -------
+        str
+        """
+        fdir = join(self.postdir, "random_mah")
+        try_create_directory(fdir)
+
+        return join(fdir, f"random_mah_{simname}_{nsim}.hdf5")
 
     def match_max(self, simname, nsim0, nsimx, min_logmass, mult):
         """
