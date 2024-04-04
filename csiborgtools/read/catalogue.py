@@ -1087,7 +1087,7 @@ class CSiBORG2MergerTreeReader:
 
         n = first_fof  # Index of the current main progenitor
 
-        redshift, main_progenitor_mass, group_m200c = [], [], []
+        snap_num, redshift, main_progenitor_mass, group_m200c = [], [], [], []
         main_progenitor_vmax, main_progenitor_spin = [], []
         main_progenitor_vmaxrad, main_progenitor_halfmassrad = [], []
         while True:
@@ -1118,6 +1118,7 @@ class CSiBORG2MergerTreeReader:
             main_progenitor_spin.append(tree["SubhaloSpin"][n])
             main_progenitor_vmaxrad.append(tree["SubhaloVmaxRad"][n])
             main_progenitor_halfmassrad.append(tree["SubhaloHalfmassRad"][n])
+            snap_num.append(tree["SnapNum"][n])
             redshift.append(tree["Redshift"][tree["SnapNum"][n]])
 
             # Update `n` to the next main progenitor.
@@ -1129,7 +1130,8 @@ class CSiBORG2MergerTreeReader:
         # For calculating age of the Universe at each redshift.
         cosmo = FlatLambdaCDM(H0=67.66, Om0=0.3111)
 
-        return {"Age": numpy.array(cosmo.age(redshift).value),
+        return {"SnapNum": numpy.array(snap_num, dtype=numpy.int32),
+                "Age": numpy.array(cosmo.age(redshift).value),
                 "Redshift": numpy.array(redshift),
                 "Group_M_Crit200": numpy.array(group_m200c) * 1e10,
                 "MainProgenitorMass": numpy.array(main_progenitor_mass) * 1e10,
