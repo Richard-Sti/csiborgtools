@@ -96,7 +96,7 @@ def main_progenitor_mah(cat, merger_reader, simname, verbose=True):
         main_progenitor_mass[i, d["SnapNum"]] = d["MainProgenitorMass"]
         group_mass[i, d["SnapNum"]] = d["Group_M_Crit200"]
 
-    return {"Redshift": [snap2redshift(i, simname) for i in range(cat.nsnap)],
+    return {"Redshift": [snap2redshift(i, simname) for i in range(cat.nsnap + 1)],  # noqa
             "MainProgenitorMass": main_progenitor_mass,
             "GroupMass": group_mass,
             "FinalGroupMass": cat["totmass"],
