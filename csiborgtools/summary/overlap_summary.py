@@ -608,6 +608,7 @@ class NPairsOverlap:
 
         self._pairs = pairs
 
+    @lru_cache()
     def max_overlap(self, min_overlap, from_smoothed, verbose=True):
         """
         Calculate maximum overlap of each halo in the reference simulation with
@@ -643,6 +644,7 @@ class NPairsOverlap:
                                        for y_ in pair.overlap(from_smoothed)])
         return numpy.vstack(out).T
 
+    @lru_cache()
     def max_overlap_key(self, key, min_overlap, from_smoothed, verbose=True):
         """
         Calculate maximum overlap mass of each halo in the reference
@@ -673,6 +675,7 @@ class NPairsOverlap:
 
         return numpy.vstack(out).T
 
+    @lru_cache()
     def summed_overlap(self, from_smoothed, verbose=True):
         """
         Calculate summed overlap of each halo in the reference simulation with
