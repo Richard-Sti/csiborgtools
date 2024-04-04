@@ -986,7 +986,6 @@ class CSiBORG2MergerTreeReader:
         group2treeid : dict
             Dictionary with group number as key and tree ID as value.
         """
-        print("Creating group to tree ID mapping...")
         with File(self.paths.trees(self.nsim, self.simname), 'r') as f:
             groupnr = f["TreeHalos/GroupNr"][:]
             snapnum = f["TreeHalos/SnapNum"][:]
