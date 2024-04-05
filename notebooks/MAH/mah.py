@@ -20,12 +20,15 @@ import numpy as np
 from astropy.cosmology import FlatLambdaCDM
 from h5py import File
 from tqdm import tqdm, trange
+from cache_to_disk import cache_to_disk
+from os.path import join
 
 
 def t():
     return datetime.now()
 
 
+@cache_to_disk(90)
 def load_data(nsim0, simname, min_logmass):
     """
     Load the reference catalogue, the cross catalogues, the merger trees and
@@ -117,7 +120,7 @@ def summarize_extracted_mah(simname, data, nsim0, nsimxs, key,
     return age, np.vstack(X)
 
 
-def extract_random_mah(simname, logmass_bounds, key):
+def extract_mah(simname, logmass_bounds, key):
     """
     Extract the random MAHs for a given simulation and mass range and key.
     Keys are for example: "MainProgenitorMass" or "GroupMass"
@@ -128,13 +131,14 @@ def extract_random_mah(simname, logmass_bounds, key):
     X = []
     for i, nsim in enumerate(nsims):
         with File(paths.random_mah(simname, nsim), 'r') as f:
-            final_mass = f["FinalGroupMass"][:]
+            mah = f[key][:]
+            final_mass = mah[:, -1]
 
             # Select the mass range
             mask = final_mass >= 10**logmass_bounds[0]
             mask &= final_mass < 10**logmass_bounds[1]
 
-            X.append(f[key][:][mask])
+            X.append(mah[mask])
 
             if i == 0:
                 redshift = f["Redshift"][:]
@@ -145,3 +149,23 @@ def extract_random_mah(simname, logmass_bounds, key):
     age = cosmo.age(redshift).value
 
     return age, X
+
+
+def extract_mah_mdpl2(logmass_bounds, min_age=1.5):
+    """
+    MAH extraction for the MDPL2 simulation. Data comes from
+    `https://arxiv.org/abs/2105.05859`
+    """
+    fdir = "/mnt/extraspace/rstiskalek/catalogs/"
+
+    age = np.genfromtxt(join(fdir, "mdpl2_cosmic_time.txt"))
+    with File(join(fdir, "diffmah_mdpl2.h5"), 'r') as f:
+        log_mp = f["logmp_sim"][:]
+        log_mah_sim = f["log_mah_sim"][...]
+
+    xmin, xmax = logmass_bounds
+    ks = np.where((log_mp > xmin) & (log_mp < xmax))[0]
+    X = 10**log_mah_sim[ks]
+
+    mask = age > min_age
+    return age[mask], X[:, mask]
