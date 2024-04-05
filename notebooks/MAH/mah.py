@@ -48,8 +48,7 @@ def load_data(nsim0, simname, min_logmass):
     else:
         raise ValueError(f"Unknown simname: {simname}")
 
-    overlaps = csiborgtools.summary.NPairsOverlap(
-        cat0, catxs, min_logmass)
+    overlaps = csiborgtools.summary.NPairsOverlap(cat0, catxs, min_logmass)
 
     return cat0, catxs, merger_trees, overlaps
 
@@ -89,13 +88,42 @@ def extract_main_progenitor_maxoverlap(group_nr, overlaps, merger_trees):
     return out
 
 
+def summarize_extracted_mah(simname, data, nsim0, nsimxs, key,
+                            include_nsim0=True):
+    """
+    Turn the dictionaries of extracted MAHs into a single array.
+    """
+    if "csiborg2_" in simname:
+        nsnap = 100
+    else:
+        raise ValueError(f"Unknown simname: {simname}")
+
+    X = []
+    for nsimx in nsimxs + [nsim0] if include_nsim0 else nsimxs:
+        try:
+            d = data[nsimx]
+        except KeyError:
+            continue
+
+        x = np.full(nsnap, np.nan, dtype=np.float32)
+        x[d["SnapNum"]] = d[key]
+
+        X.append(x)
+
+    cosmo = FlatLambdaCDM(H0=67.76, Om0=csiborgtools.simname2Omega_m(simname))
+    zs = [csiborgtools.snap2redshift(i, simname) for i in range(nsnap)]
+    age = cosmo.age(zs).value
+
+    return age, np.vstack(X)
+
+
 def extract_random_mah(simname, logmass_bounds, key):
     """
     Extract the random MAHs for a given simulation and mass range and key.
     Keys are for example: "MainProgenitorMass" or "GroupMass"
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    nsims = [1]
+    nsims = paths.get_ics(simname)
 
     X = []
     for i, nsim in enumerate(nsims):
