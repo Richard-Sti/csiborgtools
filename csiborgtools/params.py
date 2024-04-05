@@ -121,6 +121,7 @@ def simname2Omega_m(simname):
     d = {"csiborg1": 0.307,
          "csiborg2_main": 0.3111,
          "csiborg2_random": 0.3111,
+         "csiborg2_varysmall": 0.3111,
          "borg1": 0.307,
          "Carrick2015": 0.3,
          }
