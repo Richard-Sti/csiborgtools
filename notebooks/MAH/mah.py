@@ -24,6 +24,54 @@ from cache_to_disk import cache_to_disk
 from os.path import join
 
 
+RANDOM_MAH_Sorce_Virgo_UPPER = np.array(
+    [[2.18554217, 0.16246594],
+     [2.93253012, 0.17284951],
+     [3.2939759, 0.34169001],
+     [3.75180723, 0.42006683],
+     [4.28192771, 0.44691426],
+     [4.61927711, 0.53819753],
+     [5.34216867, 0.58454257],
+     [5.89638554, 0.68954882],
+     [6.23373494, 0.73361948],
+     [6.45060241, 0.81341823],
+     [7.05301205, 0.92071572],
+     [7.82409639, 0.92071572],
+     [8.28192771, 0.95953933],
+     [8.61927711, 0.97956078],
+     [9.70361446, 1.],
+     [11.17349398, 1.],
+     [13.07710843, 1.],
+     [13.82409639, 1.]]
+    )
+
+RANDOM_MAH_SORCE_Virgo_LOWER = np.array(
+    [[3.36626506e+00, 1.00000000e-02],
+     [3.75180723e+00, 1.10877404e-02],
+     [3.99277108e+00, 1.04216677e-02],
+     [4.30602410e+00, 1.15552746e-02],
+     [4.61927711e+00, 1.67577322e-02],
+     [4.98072289e+00, 2.14703224e-02],
+     [5.39036145e+00, 3.82789169e-02],
+     [5.89638554e+00, 5.00670000e-02],
+     [6.30602410e+00, 5.11116827e-02],
+     [7.29397590e+00, 5.32668971e-02],
+     [7.77590361e+00, 5.55129899e-02],
+     [8.11325301e+00, 6.68516464e-02],
+     [8.57108434e+00, 8.56515893e-02],
+     [9.60722892e+00, 1.32152759e-01],
+     [1.04265060e+01, 1.46527548e-01],
+     [1.07638554e+01, 1.49584947e-01],
+     [1.11493976e+01, 1.72849513e-01],
+     [1.18240964e+01, 2.16931625e-01],
+     [1.21855422e+01, 2.45546942e-01],
+     [1.25951807e+01, 3.48819614e-01],
+     [1.30771084e+01, 5.27197199e-01],
+     [1.36795181e+01, 8.83462949e-01],
+     [1.38000000e+01, 1.00000000e+00]]
+    )
+
+
 def t():
     return datetime.now()
 
@@ -92,7 +140,7 @@ def extract_main_progenitor_maxoverlap(group_nr, overlaps, merger_trees):
 
 
 def summarize_extracted_mah(simname, data, nsim0, nsimxs, key,
-                            include_nsim0=True):
+                            min_age=0, include_nsim0=True):
     """
     Turn the dictionaries of extracted MAHs into a single array.
     """
@@ -117,10 +165,11 @@ def summarize_extracted_mah(simname, data, nsim0, nsimxs, key,
     zs = [csiborgtools.snap2redshift(i, simname) for i in range(nsnap)]
     age = cosmo.age(zs).value
 
-    return age, np.vstack(X)
+    mask = age > min_age
+    return age[mask], np.vstack(X)[:, mask]
 
 
-def extract_mah(simname, logmass_bounds, key):
+def extract_mah(simname, logmass_bounds, key, min_age=0):
     """
     Extract the random MAHs for a given simulation and mass range and key.
     Keys are for example: "MainProgenitorMass" or "GroupMass"
@@ -148,7 +197,8 @@ def extract_mah(simname, logmass_bounds, key):
     cosmo = FlatLambdaCDM(H0=67.76, Om0=csiborgtools.simname2Omega_m(simname))
     age = cosmo.age(redshift).value
 
-    return age, X
+    mask = age > min_age
+    return age[mask], X[:, mask]
 
 
 def extract_mah_mdpl2(logmass_bounds, min_age=1.5):
