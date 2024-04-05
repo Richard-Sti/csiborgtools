@@ -23,8 +23,10 @@ from h5py import File
 from mpi4py import MPI
 from taskmaster import work_delegation  # noqa
 from tqdm import trange
+from cache_to_disk import cache_to_disk
 
 
+@cache_to_disk(30)
 def load_data(nsim, simname, min_logmass):
     """Load the data for a given simulation."""
     bnd = {"totmass": (10**min_logmass, None), "dist": (None, 135)}
