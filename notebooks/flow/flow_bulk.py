@@ -60,6 +60,6 @@ def read_enclosed_flow(simname):
 
     for n in range(nsim):
         V_n = csiborgtools.cartesian_to_radec(V[n])
-        l[n], b[n] = csiborgtools.flow.radec_to_galactic(V_n[:, 1], V_n[:, 2])
+        l[n], b[n] = csiborgtools.radec_to_galactic(V_n[:, 1], V_n[:, 2])
 
     return r, Vmag, l, b
