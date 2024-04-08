@@ -27,7 +27,8 @@ def calculate_hmf(simname, bin_edges, halofinder="FOF", max_distance=135):
     nsims = paths.get_ics(simname)
     bounds = {"dist": (0, max_distance)}
 
-    counts = np.full((len(nsims), len(bin_edges) - 1), np.nan)
+    hmf = np.full((len(nsims), len(bin_edges) - 1), np.nan)
+    volume = 4 / 3 * np.pi * max_distance**3
     for i, nsim in enumerate(tqdm(nsims)):
         if "csiborg2_" in simname:
             kind = simname.split("_")[-1]
@@ -42,14 +43,6 @@ def calculate_hmf(simname, bin_edges, halofinder="FOF", max_distance=135):
         else:
             raise ValueError(f"Unknown simname: {simname}")
 
-        counts[i] = csiborgtools.number_counts(cat["totmass"], bin_edges)
+        hmf[i] = cat.halo_mass_function(bin_edges, volume, "totmass")[1]
 
-    dx = np.diff(np.log10(bin_edges))
-    if not np.all(dx == dx[0]):
-        raise ValueError("The bin edges must be logarithmically spaced.")
-    dx = dx[0]
-
-    volume = 4 / 3 * np.pi * max_distance**3
-    counts /= volume * dx
-
-    return counts
+    return hmf
