@@ -122,7 +122,7 @@ def read_samples(catalogue, simname, ksmooth, include_calibration=False,
     # Calculate direction in galactic coordinates of V_ext
     V = np.vstack([Vx, Vy, Vz]).T
     V = csiborgtools.cartesian_to_radec(V)
-    l, b = csiborgtools.flow.radec_to_galactic(V[:, 1], V[:, 2])
+    l, b = csiborgtools.radec_to_galactic(V[:, 1], V[:, 2])
 
     data = [alpha, beta, Vmag, l, b, sigma_v]
     names = ["alpha", "beta", "Vmag", "l", "b", "sigma_v"]
