@@ -31,7 +31,8 @@ from sklearn.neighbors import NearestNeighbors
 
 from ..params import paths_glamdring
 from ..utils import (cartesian_to_radec, great_circle_distance, number_counts,
-                     periodic_distance_two_points, real2redshift)
+                     periodic_distance_two_points, real2redshift,
+                     radec_to_galactic)
 from .paths import Paths
 from .snapshot import is_instance_of_base_snapshot_subclass
 
@@ -47,6 +48,7 @@ class BaseCatalogue(ABC):
     """
     _properties = ["cartesian_pos",
                    "spherical_pos",
+                   "galactic_pos",
                    "dist",
                    "cartesian_redshiftspace_pos",
                    "spherical_redshiftspace_pos",
@@ -597,6 +599,9 @@ class BaseCatalogue(ABC):
             elif key == "spherical_pos":
                 out = cartesian_to_radec(
                     self["__cartesian_pos"] - self.observer_location)
+            elif key == "galactic_pos":
+                out = self["__spherical_pos"]
+                out[:, 1], out[:, 2] = radec_to_galactic(out[:, 1], out[:, 2])
             elif key == "dist":
                 out = numpy.linalg.norm(
                     self["__cartesian_pos"] - self.observer_location, axis=1)
