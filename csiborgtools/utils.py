@@ -19,6 +19,8 @@ from copy import deepcopy
 from datetime import datetime
 
 import numpy as np
+from astropy import units as u
+from astropy.coordinates import SkyCoord
 from numba import jit
 from numpyro.infer import util
 from scipy.stats import multivariate_normal
@@ -152,6 +154,24 @@ def radec_to_cartesian(X):
         dist * cdec * np.sin(ra * np.pi / 180),
         dist * np.sin(dec * np.pi / 180)
         ]).T
+
+
+def radec_to_galactic(ra, dec):
+    """
+    Convert right ascension and declination to galactic coordinates (all in
+    degrees.)
+
+    Parameters
+    ----------
+    ra, dec : float or 1-dimensional array
+        Right ascension and declination in degrees.
+
+    Returns
+    -------
+    l, b : float or 1-dimensional array
+    """
+    c = SkyCoord(ra=ra*u.degree, dec=dec*u.degree, frame='icrs')
+    return c.galactic.l.degree, c.galactic.b.degree
 
 
 @jit(nopython=True, fastmath=True, boundscheck=False)

@@ -26,8 +26,6 @@ from warnings import catch_warnings, simplefilter, warn
 import numpy as np
 import numpyro
 import numpyro.distributions as dist
-from astropy import units as u
-from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
 from h5py import File
 from jax import jit
@@ -43,6 +41,7 @@ from sklearn.model_selection import KFold
 from tqdm import trange
 
 from ..params import simname2Omega_m
+from ..utils import radec_to_galactic
 
 SPEED_OF_LIGHT = 299792.458  # km / s
 H0 = 100                     # km / s / Mpc
@@ -51,24 +50,6 @@ H0 = 100                     # km / s / Mpc
 def t():
     """Shortcut to get the current time."""
     return datetime.now().strftime("%H:%M:%S")
-
-
-def radec_to_galactic(ra, dec):
-    """
-    Convert right ascension and declination to galactic coordinates (all in
-    degrees.)
-
-    Parameters
-    ----------
-    ra, dec : float or 1-dimensional array
-        Right ascension and declination in degrees.
-
-    Returns
-    -------
-    l, b : float or 1-dimensional array
-    """
-    c = SkyCoord(ra=ra*u.degree, dec=dec*u.degree, frame='icrs')
-    return c.galactic.l.degree, c.galactic.b.degree
 
 
 ###############################################################################
