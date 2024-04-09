@@ -969,7 +969,7 @@ class BORG2Field(BaseField):
         rho_mean = omega0 * 277.53662724583074  # h^2 Msun / kpc^3
         field += 1
         field *= rho_mean
-        # return field
+        return field
 
     def velocity_field(self, MAS, grid):
         raise RuntimeError("The velocity field is not available.")
