@@ -1,9 +1,9 @@
 nthreads=1
-memory=40
+memory=12
 on_login=0
-queue="cmb"
+queue="berg"
 env="/mnt/zfsusers/rstiskalek/csiborgtools/venv_csiborg/bin/python"
-file="mass_enclosed.py"
+file="field_bulk.py"
 
 simname=${1}
 

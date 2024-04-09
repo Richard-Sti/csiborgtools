@@ -148,7 +148,7 @@ def main_borg(args, folder):
         if args.simname == "borg1":
             reader = csiborgtools.read.BORG1Field(nsim)
             field = reader.density_field()
-        elif args.simname == "borg2":
+        elif args.simname == "borg2" or args.simname == "borg2_all":
             reader = csiborgtools.read.BORG2Field(nsim)
             field = reader.density_field()
         else:
@@ -204,7 +204,7 @@ def main_csiborg(args, folder):
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--simname", type=str, help="Simulation name.",
-                        choices=["csiborg1", "csiborg2_main", "csiborg2_varysmall", "csiborg2_random", "borg1", "borg2"])  # noqa
+                        choices=["csiborg1", "csiborg2_main", "csiborg2_varysmall", "csiborg2_random", "borg1", "borg2", "borg2_all"])  # noqa
     args = parser.parse_args()
 
     folder = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_shells"
