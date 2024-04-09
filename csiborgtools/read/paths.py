@@ -100,6 +100,9 @@ class Paths:
         elif simname == "csiborg2_main" or simname == "borg2":
             files = glob(join(self.csiborg2_main_srcdir, "chain_*"))
             files = [int(search(r'chain_(\d+)', f).group(1)) for f in files]
+        elif simname == "borg2_all":
+            files = glob(join(self.borg2_dir, "mcmc_*"))
+            files = [int(search(r'mcmc_(\d+)', f).group(1)) for f in files]
         elif simname == "csiborg2_random":
             files = glob(join(self.csiborg2_random_srcdir, "chain_*"))
             files = [int(search(r'chain_(\d+)', f).group(1)) for f in files]
