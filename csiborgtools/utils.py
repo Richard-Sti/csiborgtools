@@ -35,6 +35,19 @@ def center_of_mass(particle_positions, particles_mass, boxsize):
     """
     Calculate the center of mass of a halo while assuming periodic boundary
     conditions of a cubical box.
+
+    Parameters
+    ----------
+    particle_positions : 2-dimensional array of shape `(nparticles, 3)`
+        Particle positions in the box.
+    particles_mass : 1-dimensional array of shape `(nparticles,)`
+        Particle masses.
+    boxsize : float
+        Box size.
+
+    Returns
+    -------
+    1-dimensional array of shape `(3,)`
     """
     cm = np.zeros(3, dtype=particle_positions.dtype)
     totmass = sum(particles_mass)
@@ -60,28 +73,46 @@ def periodic_distance(points, reference_point, boxsize):
     """
     Compute the 3D distance between multiple points and a reference point using
     periodic boundary conditions.
+
+    Parameters
+    ----------
+    points : 2-dimensional array of shape `(npoints, 3)`
+        Points to calculate the distance from.
+    reference_point : 1-dimensional array of shape `(3,)`
+        Reference point.
+    boxsize : float
+        Box size.
+
+    Returns
+    -------
+    1-dimensional array of shape `(npoints,)`
     """
     npoints = len(points)
-    half_box = boxsize / 2
 
     dist = np.zeros(npoints, dtype=points.dtype)
     for i in range(npoints):
-        for j in range(3):
-            dist_1d = abs(points[i, j] - reference_point[j])
-
-            if dist_1d > (half_box):
-                dist_1d = boxsize - dist_1d
-
-            dist[i] += dist_1d**2
-
-        dist[i] = dist[i]**0.5
+        dist[i] = periodic_distance_two_points(
+            points[i], reference_point, boxsize)
 
     return dist
 
 
 @jit(nopython=True, fastmath=True, boundscheck=False)
 def periodic_distance_two_points(p1, p2, boxsize):
-    """Compute the 3D distance between two points in a periodic box."""
+    """
+    Compute the 3D distance between two points in a periodic box.
+
+    Parameters
+    ----------
+    p1, p2 : 1-dimensional array of shape `(3,)`
+        Points to calculate the distance between.
+    boxsize : float
+        Box size.
+
+    Returns
+    -------
+    float
+    """
     half_box = boxsize / 2
 
     dist = 0
@@ -98,7 +129,20 @@ def periodic_distance_two_points(p1, p2, boxsize):
 
 @jit(nopython=True, boundscheck=False)
 def periodic_wrap_grid(pos, boxsize=1):
-    """Wrap positions in a periodic box."""
+    """
+    Wrap positions in a periodic box. Overwrites the input array.
+
+    Parameters
+    ----------
+    pos : 2-dimensional array of shape `(npoints, 3)`
+        Positions to wrap.
+    boxsize : float, optional
+        Box size.
+
+    Returns
+    -------
+    2-dimensional array of shape `(npoints, 3)`
+    """
     for n in range(pos.shape[0]):
         for i in range(3):
             if pos[n, i] > boxsize:
@@ -113,6 +157,15 @@ def periodic_wrap_grid(pos, boxsize=1):
 def delta2ncells(field):
     """
     Calculate the number of cells in `field` that are non-zero.
+
+    Parameters
+    ----------
+    field : 3-dimensional array of shape `(nx, ny, nz)`
+        Field to calculate the number of non-zero cells.
+
+    Returns
+    -------
+    int
     """
     tot = 0
     imax, jmax, kmax = field.shape
@@ -124,19 +177,43 @@ def delta2ncells(field):
     return tot
 
 
-def cartesian_to_radec(X):
+def cartesian_to_radec(X, return_degrees=True, origin=[0., 0., 0.]):
     """
     Calculate the radial distance, RA [0, 360) deg and dec [-90, 90] deg.
+
+    Parameters
+    ----------
+    X : 2-dimensional array of shape `(npoints, 3)`
+        Cartesian coordinates.
+    return_degrees : bool, optional
+        Whether to return the angles in degrees.
+    origin : 1-dimensional array of shape `(3,)`, optional
+        Origin of the coordinate system.
+
+    Returns
+    -------
+    out : 2-dimensional array of shape `(npoints, 3)`
+        Spherical coordinates: distance, RA and dec.
     """
     x, y, z = X[:, 0], X[:, 1], X[:, 2]
+
+    x -= origin[0]
+    y -= origin[1]
+    z -= origin[2]
 
     dist = np.linalg.norm(X, axis=1)
     dec = np.arcsin(z / dist)
     ra = np.arctan2(y, x)
     ra[ra < 0] += 2 * np.pi
 
-    ra *= 180 / np.pi
-    dec *= 180 / np.pi
+    if return_degrees:
+        ra *= 180 / np.pi
+        dec *= 180 / np.pi
+
+    # Place the origin back
+    x += origin[0]
+    y += origin[1]
+    z += origin[2]
 
     return np.vstack([dist, ra, dec]).T
 
@@ -145,6 +222,15 @@ def radec_to_cartesian(X):
     """
     Calculate Cartesian coordinates from radial distance, RA [0, 360) deg  and
     dec [-90, 90] deg.
+
+    Parameters
+    ----------
+    X : 2-dimensional array of shape `(npoints, 3)`
+        Spherical coordinates: distance, RA and dec.
+
+    Returns
+    -------
+    2-dimensional array of shape `(npoints, 3)`
     """
     dist, ra, dec = X[:, 0], X[:, 1], X[:, 2]
 
@@ -175,23 +261,43 @@ def radec_to_galactic(ra, dec):
 
 
 @jit(nopython=True, fastmath=True, boundscheck=False)
-def great_circle_distance(x1, x2):
+def great_circle_distance(x1, x2, in_degrees=True):
     """
     Great circle distance between two points on a sphere, defined by RA and
     dec, both in degrees.
+
+    Parameters
+    ----------
+    x1, x2 : 1-dimensional arrays of shape `(2,)`
+        RA and dec in degrees.
+    in_degrees : bool, optional
+        Whether the input is in degrees.
+
+    Returns
+    -------
+    float
     """
     ra1, dec1 = x1
     ra2, dec2 = x2
 
-    ra1 *= np.pi / 180
-    dec1 *= np.pi / 180
-    ra2 *= np.pi / 180
-    dec2 *= np.pi / 180
+    if in_degrees:
+        ra1 *= np.pi / 180
+        dec1 *= np.pi / 180
+        ra2 *= np.pi / 180
+        dec2 *= np.pi / 180
 
-    return 180 / np.pi * np.arccos(
-        np.sin(dec1) * np.sin(dec2)
-        + np.cos(dec1) * np.cos(dec2) * np.cos(ra1 - ra2)
-        )
+    dist = np.arccos(np.sin(dec1) * np.sin(dec2)
+                     + np.cos(dec1) * np.cos(dec2) * np.cos(ra1 - ra2))
+
+    # Convert to degrees and ensure the inputs are unchanged.
+    if in_degrees:
+        dist *= 180 / np.pi
+        ra1 *= 180 / np.pi
+        dec1 *= 180 / np.pi
+        ra2 *= 180 / np.pi
+        dec2 *= 180 / np.pi
+
+    return dist
 
 
 def cosine_similarity(x, y):
@@ -316,6 +422,17 @@ def real2redshift(pos, vel, observer_location, observer_velocity, boxsize,
 def number_counts(x, bin_edges):
     """
     Calculate counts of samples in bins.
+
+    Parameters
+    ----------
+    x : 1-dimensional array
+        Samples to bin.
+    bin_edges : 1-dimensional array
+        Bin edges.
+
+    Returns
+    -------
+    1-dimensional array
     """
     out = np.full(bin_edges.size - 1, np.nan, dtype=np.float32)
     for i in range(bin_edges.size - 1):
@@ -326,6 +443,21 @@ def number_counts(x, bin_edges):
 def binned_statistic(x, y, left_edges, bin_width, statistic):
     """
     Calculate a binned statistic.
+
+    Parameters
+    ----------
+    x, y : 1-dimensional arrays
+        Values by which to bin and calculate the statistic on, respectively.
+    left_edges : 1-dimensional array
+        Left edges of the bins.
+    bin_width : float
+        Width of the bins.
+    statistic : callable
+        Function to calculate the statistic, must be `f(x)`.
+
+    Returns
+    -------
+    1-dimensional array
     """
     out = np.full(left_edges.size, np.nan, dtype=x.dtype)
 
