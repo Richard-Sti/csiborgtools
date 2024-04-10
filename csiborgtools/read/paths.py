@@ -59,6 +59,8 @@ class Paths:
         Path to the BORG2 simulation directory.
     tng300_1_dir : str
         Path to the TNG300-1 simulation directory.
+    aux_cat_dir : str
+        Path to the directory containing auxiliary catalogues.
     """
     def __init__(self,
                  csiborg1_srcdir,
@@ -69,7 +71,8 @@ class Paths:
                  quijote_dir,
                  borg1_dir,
                  borg2_dir,
-                 tng300_1_dir
+                 tng300_1_dir,
+                 aux_cat_dir
                  ):
         self.csiborg1_srcdir = csiborg1_srcdir
         self.csiborg2_main_srcdir = csiborg2_main_srcdir
@@ -80,6 +83,7 @@ class Paths:
         self.borg2_dir = borg2_dir
         self.tng300_1_dir = tng300_1_dir
         self.postdir = postdir
+        self.aux_cat_dir = aux_cat_dir
 
     def get_ics(self, simname):
         """
@@ -248,6 +252,24 @@ class Paths:
                         f"fof_{str(nsnap).zfill(3)}.hdf5")
         else:
             raise ValueError(f"Unknown simulation name `{simname}`.")
+
+    def external_halo_catalogue(self, name):
+        """
+        Path to an external halo catalogue.
+
+        Parameters
+        ----------
+        name : str
+            Catalogue name.
+
+        Returns
+        -------
+        str
+        """
+        if name == "MDPL2":
+            return join(self.aux_cat_dir, "MDPL2_FOF_125.hdf5")
+        else:
+            raise ValueError(f"Unknown external FOF catalogue `{name}`.")
 
     def initial_lagpatch(self, nsim, simname):
         """
