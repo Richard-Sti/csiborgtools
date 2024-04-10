@@ -582,6 +582,29 @@ class BaseCatalogue(ABC):
         """
         return self._properties + self._custom_keys
 
+    def pick_fiducial_observer(self, n, rmax):
+        r"""
+        Select a new fiducial observer in the box.
+
+        Parameters
+        ----------
+        n : int
+            Fiducial observer index.
+        rmax : float
+            Max. distance from the fiducial obs. in :math:`\mathrm{cMpc} / h`.
+        """
+        self.clear_cache()
+        print(fiducial_observers(self.boxsize, rmax))
+        self.observer_location = fiducial_observers(self.boxsize, rmax)[n]
+        self.observer_velocity = None
+
+        if self._bounds is None:
+            bounds = {"dist": (0, rmax)}
+        else:
+            bounds = {**self._bounds, "dist": (0, rmax)}
+
+        self._make_mask(bounds)
+
     def __getitem__(self, key):
         # For internal calls we don't want to load the filtered data and use
         # the __ prefixed keys. The internal calls are not being cached.
@@ -1366,27 +1389,83 @@ class QuijoteCatalogue(BaseCatalogue):
         fpath = self.paths.initial_lagpatch(self.nsim, self.simname)
         return numpy.load(fpath)["lagpatch_size"]
 
-    def pick_fiducial_observer(self, n, rmax):
-        r"""
-        Select a new fiducial observer in the box.
 
-        Parameters
-        ----------
-        n : int
-            Fiducial observer index.
-        rmax : float
-            Max. distance from the fiducial obs. in :math:`\mathrm{cMpc} / h`.
-        """
-        self.clear_cache()
-        self.observer_location = fiducial_observers(self.box.boxsize, rmax)[n]
-        self.observer_velocity = None
+###############################################################################
+#                     External halo catalogues                                #
+###############################################################################
 
-        if self._bounds is None:
-            bounds = {"dist": (0, rmax)}
-        else:
-            bounds = {**self._bounds, "dist": (0, rmax)}
+class MDPL2Catalogue(BaseCatalogue):
+    r"""
+    XXX
 
-        self._make_mask(bounds)
+    Parameters
+    ----------
+    nsim : int
+        IC realisation index.
+    paths : py:class`csiborgtools.read.Paths`, optional
+        Paths object.
+    snapshot : subclass of py:class:`BaseSnapshot`, optional
+        Snapshot object corresponding to the catalogue.
+    bounds : dict
+        Parameter bounds; keys as parameter names, values as (min, max)
+        tuples. Use `dist` for radial distance, `None` for no bound.
+    observer_velocity : array, optional
+        Observer's velocity in :math:`\mathrm{km} / \mathrm{s}`.
+    cache_maxsize : int, optional
+        Maximum number of cached arrays.
+    """
+    def __init__(self, paths=None, bounds=None, cache_maxsize=64):
+        boxsize = 1000.
+        super().__init__()
+        x0 = boxsize / 2
+        super().init_with_snapshot(
+            "MDPL2", 0, 125, paths, None, bounds, boxsize, [x0, x0, x0], None,
+            False, cache_maxsize)
+
+        self._custom_keys = []
+        self._bounds = bounds
+
+    def _read_fof_catalogue(self, kind):
+        fpath = self.paths.external_halo_catalogue(self.simname)
+
+        with File(fpath, 'r') as f:
+            if kind == "index":
+                return numpy.arange(len(f["x"]))
+
+            if kind not in f.keys():
+                raise ValueError(f"FoF catalogue key '{kind}' not available. Available keys are: {list(f.keys())}")  # noqa
+            out = f[kind][...]
+        return out
+
+    @property
+    def coordinates(self):
+        return numpy.vstack(
+            [self._read_fof_catalogue(key) for key in ["x", "y", "z"]]).T
+
+    @property
+    def velocities(self):
+        return numpy.vstack(
+            [self._read_fof_catalogue(key) for key in ["vx", "vy", "vz"]]).T
+
+    @property
+    def totmass(self):
+        return self._read_fof_catalogue("mass")
+
+    @property
+    def npart(self):
+        raise RuntimeError("Number of particles is not available.")
+
+    @property
+    def index(self):
+        return self._read_fof_catalogue("index")
+
+    @property
+    def lagpatch_coordinates(self):
+        raise RuntimeError("Lagrangian patch information is not available")
+
+    @property
+    def lagpatch_radius(self):
+        raise RuntimeError("Lagrangian patch information is not available")
 
 
 ###############################################################################
