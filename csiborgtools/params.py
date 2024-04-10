@@ -147,6 +147,7 @@ paths_glamdring = {
     "borg1_dir": "/mnt/users/hdesmond/BORG_final",
     "borg2_dir": "/mnt/extraspace/rstiskalek/BORG_STOPYRA_2023",
     "tng300_1_dir": "/mnt/extraspace/rstiskalek/TNG300-1/",
+    "aux_cat_dir": "/mnt/extraspace/rstiskalek/catalogs",
     }
 
 
