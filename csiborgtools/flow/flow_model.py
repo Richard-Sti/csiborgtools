@@ -212,7 +212,12 @@ class DataLoader:
             raise ValueError("Invalid simulation index.")
         nsim = nsims[ksim]
 
-        with File(paths.field_los(simname, catalogue), 'r') as f:
+        if "Pantheon+" in catalogue:
+            fpath = paths.field_los(simname, "Pantheon+")
+        else:
+            fpath = paths.field_los(simname, catalogue)
+
+        with File(fpath, 'r') as f:
             has_smoothed = True if f[f"density_{nsim}"].ndim > 2 else False
             if has_smoothed and (ksmooth is None or not isinstance(ksmooth, int)):  # noqa
                 raise ValueError("The output contains smoothed field but "
@@ -236,9 +241,13 @@ class DataLoader:
                 for key in f.keys():
                     arr[key] = f[key][:]
         elif catalogue in ["LOSS", "Foundation", "SFI_gals", "2MTF",
-                           "Pantheon+", "SFI_gals_masked", "SFI_groups"]:
+                           "Pantheon+", "SFI_gals_masked", "SFI_groups",
+                           "Pantheon+_groups", "Pantheon+_groups_zSN"]:
             with File(catalogue_fpath, 'r') as f:
-                grp = f[catalogue]
+                if "Pantheon+" in catalogue:
+                    grp = f["Pantheon+"]
+                else:
+                    grp = f[catalogue]
 
                 dtype = [(key, np.float32) for key in grp.keys()]
                 arr = np.empty(len(grp["RA"]), dtype=dtype)
@@ -1381,15 +1390,23 @@ def get_model(loader, zcmb_max=None, verbose=True):
             los_overdensity[mask], los_velocity[mask], RA[mask], dec[mask],
             zCMB[mask], mB[mask], x1[mask], c[mask], e_mB[mask], e_x1[mask],
             e_c[mask], loader.rdist, loader._Omega_m)
-    elif kind == "Pantheon+":
+    elif "Pantheon+" in kind:
         keys = ["RA", "DEC", "zCMB", "mB", "x1", "c", "biasCor_m_b", "mBERR",
-                "x1ERR", "cERR", "biasCorErr_m_b"]
+                "x1ERR", "cERR", "biasCorErr_m_b", "zCMB_SN", "zCMB_Group"]
 
-        RA, dec, zCMB, mB, x1, c, bias_corr_mB, e_mB, e_x1, e_c, e_bias_corr_mB = (loader.cat[k] for k in keys)  # noqa
+        RA, dec, zCMB, mB, x1, c, bias_corr_mB, e_mB, e_x1, e_c, e_bias_corr_mB, zCMB_SN, zCMB_Group = (loader.cat[k] for k in keys)  # noqa
         mB -= bias_corr_mB
         e_mB = np.sqrt(e_mB**2 + e_bias_corr_mB**2)
 
         mask = (zCMB < zcmb_max)
+
+        if kind == "Pantheon+_groups":
+            mask &= np.isfinite(zCMB_Group)
+
+        if kind == "Pantheon+_groups_zSN":
+            mask &= np.isfinite(zCMB_Group)
+            zCMB = zCMB_SN
+
         model = SN_PV_validation_model(
             los_overdensity[mask], los_velocity[mask], RA[mask], dec[mask],
             zCMB[mask], mB[mask], x1[mask], c[mask], e_mB[mask], e_x1[mask],
