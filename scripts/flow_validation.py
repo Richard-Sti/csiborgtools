@@ -53,7 +53,8 @@ def get_model(args, nsim_iterator, get_model_kwargs):
         fpath = join(folder, "A2.h5")
     elif args.catalogue in ["LOSS", "Foundation", "Pantheon+", "SFI_gals",
                             "2MTF", "SFI_groups", "SFI_gals_masked",
-                            "Pantheon+_groups", "Pantheon+_groups_zSN"]:
+                            "Pantheon+_groups", "Pantheon+_groups_zSN",
+                            "Pantheon+_zSN"]:
         fpath = join(folder, "PV_compilation.hdf5")
     elif "CB2_" in args.catalogue:
         kind = args.catalogue.split("_")[-1]

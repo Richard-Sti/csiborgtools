@@ -38,7 +38,7 @@ def read_samples(catalogue, simname, ksmooth, include_calibration=False,
     Vx, Vy, Vz, beta, sigma_v, alpha = [], [], [], [], [], []
     BIC, AIC, logZ, chi2 = [], [], [], []
 
-    if catalogue in ["LOSS", "Foundation", "Pantheon+"]:
+    if catalogue in ["LOSS", "Foundation"] or "Pantheon+" in catalogue:
         alpha_cal, beta_cal, mag_cal, e_mu_intrinsic = [], [], [], []
     elif catalogue in ["2MTF", "SFI_gals", "SFI_gals_masked"]:
         a, b, e_mu_intrinsic = [], [], []
@@ -86,7 +86,7 @@ def read_samples(catalogue, simname, ksmooth, include_calibration=False,
             except KeyError:
                 chi2.append([0.])
 
-            if catalogue in ["LOSS", "Foundation", "Pantheon+"]:
+            if catalogue in ["LOSS", "Foundation"]  or "Pantheon+" in catalogue:  # noqa
                 alpha_cal.append(f[f"sim_{nsim}/alpha_cal"][:])
                 beta_cal.append(f[f"sim_{nsim}/beta_cal"][:])
                 mag_cal.append(f[f"sim_{nsim}/mag_cal"][:])
@@ -106,7 +106,7 @@ def read_samples(catalogue, simname, ksmooth, include_calibration=False,
 
     gof = np.hstack(BIC), np.hstack(AIC), np.hstack(logZ), np.hstack(chi2)
 
-    if catalogue in ["LOSS", "Foundation", "Pantheon+"]:
+    if catalogue in ["LOSS", "Foundation"] or "Pantheon+" in catalogue:
         alpha_cal, beta_cal, mag_cal, e_mu_intrinsic = np.hstack(alpha_cal), np.hstack(beta_cal), np.hstack(mag_cal), np.hstack(e_mu_intrinsic)  # noqa
     elif catalogue in ["2MTF", "SFI_gals", "SFI_gals_masked"]:
         a, b, e_mu_intrinsic = np.hstack(a), np.hstack(b), np.hstack(e_mu_intrinsic)  # noqa
@@ -118,6 +118,7 @@ def read_samples(catalogue, simname, ksmooth, include_calibration=False,
         raise ValueError(f"Catalogue {catalogue} not recognized.")
 
     # Calculate magnitude of V_ext
+
     Vmag = np.sqrt(Vx**2 + Vy**2 + Vz**2)
     # Calculate direction in galactic coordinates of V_ext
     V = np.vstack([Vx, Vy, Vz]).T
@@ -128,7 +129,7 @@ def read_samples(catalogue, simname, ksmooth, include_calibration=False,
     names = ["alpha", "beta", "Vmag", "l", "b", "sigma_v"]
 
     if include_calibration:
-        if catalogue in ["LOSS", "Foundation", "Pantheon+"]:
+        if catalogue in ["LOSS", "Foundation"] or "Pantheon+" in catalogue:
             data += [alpha_cal, beta_cal, mag_cal, e_mu_intrinsic]
             names += ["alpha_cal", "beta_cal", "mag_cal", "e_mu_intrinsic"]
         elif catalogue in ["2MTF", "SFI_gals", "SFI_gals_masked"]:

@@ -242,7 +242,8 @@ class DataLoader:
                     arr[key] = f[key][:]
         elif catalogue in ["LOSS", "Foundation", "SFI_gals", "2MTF",
                            "Pantheon+", "SFI_gals_masked", "SFI_groups",
-                           "Pantheon+_groups", "Pantheon+_groups_zSN"]:
+                           "Pantheon+_groups", "Pantheon+_groups_zSN",
+                           "Pantheon+_zSN"]:
             with File(catalogue_fpath, 'r') as f:
                 if "Pantheon+" in catalogue:
                     grp = f["Pantheon+"]
@@ -1405,6 +1406,9 @@ def get_model(loader, zcmb_max=None, verbose=True):
 
         if kind == "Pantheon+_groups_zSN":
             mask &= np.isfinite(zCMB_Group)
+            zCMB = zCMB_SN
+
+        if kind == "Pantheon+_zSN":
             zCMB = zCMB_SN
 
         model = SN_PV_validation_model(
