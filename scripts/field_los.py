@@ -61,7 +61,7 @@ def get_los(catalogue_name, simname, comm):
         if catalogue_name in ["LOSS", "Foundation", "SFI_gals",
                               "SFI_gals_masked", "SFI_groups", "2MTF",
                               "Pantheon+"]:
-            fpath = join(folder, "PV_compilation_Supranta2019.hdf5")
+            fpath = join(folder, "PV_compilation.hdf5")
             with File(fpath, 'r') as f:
                 grp = f[catalogue_name]
                 RA = grp["RA"][:]
