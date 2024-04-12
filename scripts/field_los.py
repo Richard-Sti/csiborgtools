@@ -286,7 +286,7 @@ if __name__ == "__main__":
 
     rmax = 200
     dr = 0.5
-    smooth_scales = [0, 2]
+    smooth_scales = [0, 2, 4]
 
     comm = MPI.COMM_WORLD
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
