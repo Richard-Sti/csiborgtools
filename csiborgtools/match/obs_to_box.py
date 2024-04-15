@@ -173,6 +173,25 @@ class MatchingProbability(BaseMatchingProbability):
         nd = self.HMF(log_mass)
         return 1 - np.exp(-4 / 3 * np.pi * r**3 * nd)
 
+    def inverse_cdf(self, cdf, log_mass):
+        """
+        Calculate the inverse CDF of finding a halo of a given mass at a given
+        distance from a random point.
+
+        Parameters
+        ----------
+        cdf : float
+            CDF of finding a halo of a given mass at a given distance.
+        log_mass : float
+            Logarithmic mass of the halo in `Msun / h`.
+
+        Returns
+        -------
+        float
+        """
+        nd = self.HMF(log_mass)
+        return (np.log(1 - cdf) / (-4 / 3 * np.pi * nd))**(1 / 3)
+
     def cdf_per_halo(self, refpos, ref_log_mass=None, rmax=50,
                      return_full=True):
         """
