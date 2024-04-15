@@ -26,6 +26,8 @@ from astropy.io import fits
 from astropy.cosmology import FlatLambdaCDM
 from scipy import constants
 
+from ..utils import radec_to_cartesian
+
 
 ###############################################################################
 #                           Text survey base class                            #
@@ -757,6 +759,42 @@ class BaseSingleObservation(ABC):
         self._spherical_pos = pos
 
     @property
+    def mass(self):
+        """
+        Total mass estimate in Msun / h.
+
+        Returns
+        -------
+        float
+        """
+        if self._mass is None:
+            raise ValueError("`mass` is not set!")
+        return self._mass
+
+    @mass.setter
+    def mass(self, mass):
+        if not isinstance(mass, (int, float)):
+            raise ValueError("`mass` must be a float.")
+        self._mass = mass
+
+    def cartesian_pos(self, boxsize):
+        """
+        Cartesian position of the observation in Mpc / h, assuming the observer
+        is in the centre of the box.
+
+        Parameters
+        ----------
+        boxsize : float
+            Box size in Mpc / h.
+
+        Returns
+        -------
+        1-dimensional array of shape (3,)
+        """
+        return radec_to_cartesian(
+            self.spherical_pos.reshape(1, 3)).reshape(-1,) + boxsize / 2
+
+    @property
     def name(self):
         """
         Observated object name.
@@ -788,13 +826,16 @@ class ObservedCluster(BaseSingleObservation):
         Declination in degrees.
     dist : float
         Distance in Mpc / h.
+    mass : float
+        Total mass estimate in Msun / h.
     name : str
         Cluster name.
     """
-    def __init__(self, RA, dec, dist, name):
+    def __init__(self, RA, dec, dist, mass, name):
         super().__init__()
         self.name = name
         self.spherical_pos = [dist, RA, dec]
+        self.mass = mass
 
 
 ###############################################################################
