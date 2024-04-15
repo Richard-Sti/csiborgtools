@@ -14,6 +14,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 from csiborgtools import clustering, field, flow, halo, match, read, summary    # noqa
 
+from .clusters import clusters                                                  # noqa
 from .utils import (center_of_mass, delta2ncells, number_counts,                # noqa
                     periodic_distance, periodic_distance_two_points,            # noqa
                     binned_statistic, cosine_similarity, fprint,                # noqa
@@ -58,18 +59,3 @@ class SDSSxALFALFA:
         survey = read.SDSS(fpath, h=1, sel_steps=sel_steps)
         survey.name = "SDSSxALFALFA"
         return survey
-
-
-###############################################################################
-#                              Clusters                                       #
-###############################################################################
-
-clusters = {"Virgo": read.ObservedCluster(RA=hms_to_degrees(12, 27),
-                                          dec=dms_to_degrees(12, 43),
-                                          dist=16.5 * 0.7,
-                                          name="Virgo"),
-            "Fornax": read.ObservedCluster(RA=hms_to_degrees(3, 38),
-                                           dec=dms_to_degrees(-35, 27),
-                                           dist=19 * 0.7,
-                                           name="Fornax"),
-            }
