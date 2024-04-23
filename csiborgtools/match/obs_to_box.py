@@ -22,6 +22,7 @@ from colossus.cosmology import cosmology
 from colossus.lss import mass_function
 from scipy.interpolate import interp1d
 from sklearn.neighbors import NearestNeighbors
+from tqdm import trange
 
 ###############################################################################
 #                     Matching probability class                              #
@@ -253,7 +254,8 @@ class MatchingProbability(BaseMatchingProbability):
         return cdf, dlogmass, indxs
 
     def match_halo(self, refpos, ref_log_mass, pvalue_threshold=0.005,
-                   max_absdlogmass=1., rmax=50, verbose=True):
+                   max_absdlogmass=1., rmax=50, verbose=True,
+                   catalogue_index=0):
         """
         Match a halo in the constrained simulation to a reference halo.
         Considers match the highest significance halo within `rmax` and
@@ -275,6 +277,8 @@ class MatchingProbability(BaseMatchingProbability):
             Maximum distance from the reference point to consider.
         verbose : bool, optional
             If `True`, print information about the match.
+        catalogue_index : int, optional
+            Optional catalogue index for more informative printing.
 
         Returns
         -------
@@ -297,10 +301,96 @@ class MatchingProbability(BaseMatchingProbability):
             return None, None
 
         if verbose and len(matches) > 1:
-            print(f"Found {len(matches)} plausible matches.")
+            print(f"Found {len(matches)} plausible matches in catalogue {catalogue_index}.")  # noqa
             for i, k in enumerate(matches):
                 j = indxs[k]
-                print(f"    {i + 1}: CDF = {cdf[k]:.3e}, index = {j}, logM = {self.halo_log_mass[j]:.3f} Msun / h")  # noqa
+                logM = self.halo_log_mass[j]
+                dx = np.linalg.norm(self.halo_pos[j] - refpos)
+                print(f"    {i + 1}: CDF = {cdf[k]:.3e}, index = {j}, logM = {logM:.3f} Msun / h, dx = {dx:.3f} Mpc / h.")  # noqa
+
+            print(flush=True)
 
         k = matches[0]
         return cdf[k], indxs[k]
+
+
+class MatchCatalogues:
+    """
+    A wrapper for `MatchingProbability` that allows to match observed clusters
+    to haloes in multiple catalogues.
+
+    Parameters
+    ----------
+    catalogues : list
+        List of halo catalogues of constrained simulations.
+    cosmo_params : dict, optional
+        Cosmological parameters of the constrained simulation to calculate
+        the corresponding FOF mass function.
+    """
+    def __init__(self, catalogues,
+                 cosmo_params={'flat': True, 'H0': 67.66, 'Om0': 0.3111,
+                               'Ob0': 0.0489, 'sigma8': 0.8101, 'ns': 0.9665}):
+        mdef = "fof"
+        self._catalogues = catalogues
+        self._prob_models = [None] * len(catalogues)
+
+        for i in trange(len(catalogues)):
+            pos = catalogues[i]["cartesian_pos"]
+            log_mass = np.log10(catalogues[i]["totmass"])
+
+            self._prob_models[i] = MatchingProbability(
+                pos, log_mass, mdef, cosmo_params)
+
+    def __getitem__(self, index):
+        return self._prob_models[index]
+
+    def __len__(self):
+        return len(self._catalogues)
+
+    def __call__(self, refpos, ref_log_mass, pvalue_threshold=0.05,
+                 max_absdlogmass=1., rmax=50, verbose=True):
+        """
+        Calculate the CDFs of finding a halo of a certain mass at a given
+        distance from a reference point for all catalogues.
+
+        Parameters
+        ----------
+        refpos : 1-dimensional array of shape `(3,)`
+            Reference position.
+        ref_log_mass : float
+            Reference log mass.
+        pvalue_threshold : float, optional
+            Threshold for the CDF to be considered a match.
+        max_absdlogmass : float, optional
+            Maximum difference in log mass between the reference and the
+            matched halo.
+        rmax : float, optional
+            Maximum distance from the reference point to consider.
+        verbose : bool, optional
+            Verbosity flag.
+
+        Returns
+        -------
+        cdfs : dict
+            Dictionary of CDFs per halo, with keys being the simulation
+            indices.
+        indxs : dict
+            Dictionary of indices of the matched haloes, with keys being the
+            simulation indices.
+        """
+        cdfs, indxs = {}, {}
+        for i in trange(len(self), desc="Matching catalogues",
+                        disable=not verbose):
+            cdf, indx = self._prob_models[i].match_halo(
+                refpos, ref_log_mass, pvalue_threshold, max_absdlogmass, rmax,
+                verbose, i)
+
+            if cdf is not None:
+                cdfs[i] = cdf
+                indxs[i] = indx
+
+        n = len(self) - len(cdfs)
+        if n > 0 and verbose:
+            print(f"Failed to assign haloes in {n} catalogues.")
+
+        return cdfs, indxs
