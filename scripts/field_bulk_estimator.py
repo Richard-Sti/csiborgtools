@@ -82,23 +82,25 @@ def main(simname, nsim, folder, Rmax):
         # Get the distance of each particle from the observer and sort it.
         rdist = np.linalg.norm(pos_current, axis=1)
         indxs = np.argsort(rdist)
+
         pos_current = pos_current[indxs]
-        vel = vel[indxs]
+        vel_current = vel[indxs]
         rdist = rdist[indxs]
 
         # Volume average
         bf_volume[i, ...] = csiborgtools.field.particles_enclosed_momentum(
-            rdist, mass, vel, distances)
+            rdist, mass, vel_current, distances)
         bf_volume[i, ...] /= csiborgtools.field.particles_enclosed_mass(
             rdist, mass, distances)[:, np.newaxis]
 
         # Peery 2018 1 / r^2 weighted
         bf_peery[i, ...] = csiborgtools.field.bulkflow_peery2018(
-            rdist, mass, pos_current, vel, distances, "1/r^2", verbose=False)
+            rdist, mass, pos_current, vel_current, distances, "1/r^2",
+            verbose=False)
 
         # Constant weight
         bf_const[i, ...] = csiborgtools.field.bulkflow_peery2018(
-            rdist, mass, pos_current, vel, distances, "constant",
+            rdist, mass, pos_current, vel_current, distances, "constant",
             verbose=False)
 
     # Finally save the output
@@ -117,6 +119,7 @@ if __name__ == "__main__":
     folder = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_shells"
 
     comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
 
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     boxsize = csiborgtools.simname2boxsize(args.simname)
@@ -124,9 +127,8 @@ if __name__ == "__main__":
     def main_wrapper(nsim):
         main(args.simname, nsim, folder, Rmax)
 
-    # nsims = list(paths.get_ics(args.simname))
-    nsims = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-    if comm.Get_rank() == 0:
+    nsims = list(paths.get_ics(args.simname))
+    if rank == 0:
         print(f"Running with {len(nsims)} Quijote simulations.")
 
     work_delegation(main_wrapper, nsims, comm, master_verbose=True)
@@ -134,26 +136,27 @@ if __name__ == "__main__":
     comm.Barrier()
 
     # Collect the results
-    for i, nsim in enumerate(nsims):
-        fname = join(folder, f"bf_estimators_{args.simname}_{nsim}.npz")
-        data = np.load(fname)
+    if rank == 0:
+        for i, nsim in enumerate(nsims):
+            fname = join(folder, f"bf_estimators_{args.simname}_{nsim}.npz")
+            data = np.load(fname)
 
-        if i == 0:
-            bf_volume = np.empty((len(nsims), *data["bf_volume"].shape))
-            bf_peery = np.empty_like(bf_volume)
-            bf_const = np.empty_like(bf_volume)
+            if i == 0:
+                bf_volume = np.empty((len(nsims), *data["bf_volume"].shape))
+                bf_peery = np.empty_like(bf_volume)
+                bf_const = np.empty_like(bf_volume)
 
-            distances = data["distances"]
+                distances = data["distances"]
 
-        bf_volume[i, ...] = data["bf_volume"]
-        bf_peery[i, ...] = data["bf_peery"]
-        bf_const[i, ...] = data["bf_const"]
+            bf_volume[i, ...] = data["bf_volume"]
+            bf_peery[i, ...] = data["bf_peery"]
+            bf_const[i, ...] = data["bf_const"]
 
-        # Remove file from this rank
-        remove(fname)
+            # Remove file from this rank
+            remove(fname)
 
-    # Save the results
-    fname = join(folder, f"bf_estimators_{args.simname}.npz")
-    print(f"Saving final results to `{fname}`.")
-    np.savez(fname, bf_volume=bf_volume, bf_peery=bf_peery, bf_const=bf_const,
-             distances=distances)
+        # Save the results
+        fname = join(folder, f"bf_estimators_{args.simname}.npz")
+        print(f"Saving final results to `{fname}`.")
+        np.savez(fname, bf_volume=bf_volume, bf_peery=bf_peery,
+                 bf_const=bf_const, distances=distances)
