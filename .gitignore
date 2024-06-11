@@ -37,3 +37,5 @@ scripts_independent/clear.sh
 plots/*
 
 notebooks/test.ipynb
+data/BulkFlowPlot.npy
+data/upglade_z_0p05_all.h5
