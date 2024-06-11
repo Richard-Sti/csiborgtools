@@ -25,7 +25,7 @@ import csiborgtools
 import numpy as np
 from mpi4py import MPI
 from taskmaster import work_delegation  # noqa
-from tqdm import trange
+
 
 ###############################################################################
 #                Read in information about the simulation                     #
@@ -76,7 +76,9 @@ def main(simname, nsim, folder, Rmax):
     bf_peery = np.full_like(bf_volume, np.nan)
     bf_const = np.full_like(bf_volume, np.nan)
 
-    for i in trange(len(observers), desc=f"Observers {nsim}`"):
+    for i in range(len(observers)):
+        print(f"{t()}: Calculating bulk flow for observer {i + 1} of simulation {nsim}.")  # noqa
+
         # Subtract the observer position.
         pos_current = pos - observers[i]
         # Get the distance of each particle from the observer and sort it.
