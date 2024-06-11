@@ -12,10 +12,13 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-
-
-import numpy
+"""
+Code to calculate the enclosed mass, momentum or bulk flow from various
+radial-velocity based estimators (that may be flawed, be careful).
+"""
+import numpy as np
 from numba import jit
+from tqdm import tqdm
 
 
 ###############################################################################
@@ -55,7 +58,7 @@ def particles_enclosed_mass(rdist, mass, distances):
     enclosed_mass : 1-dimensional array
         Enclosed mass at each distance.
     """
-    enclosed_mass = numpy.full_like(distances, 0.)
+    enclosed_mass = np.full_like(distances, 0.)
     start_index = 0
     for i, dist in enumerate(distances):
         if i > 0:
@@ -121,9 +124,10 @@ def field_enclosed_mass(field, distances, boxsize):
     enclosed_volume : 1-dimensional array
         Enclosed grid-like volume at each distance.
     """
-    enclosed_mass = numpy.zeros_like(distances)
-    enclosed_volume = numpy.zeros_like(distances)
-    for i, dist in enumerate(distances):
+    enclosed_mass = np.zeros_like(distances)
+    enclosed_volume = np.zeros_like(distances)
+
+    for i, dist in enumerate(tqdm(distances)):
         enclosed_mass[i], enclosed_volume[i] = _field_enclosed_mass(
             field, dist, boxsize)
 
@@ -137,7 +141,7 @@ def field_enclosed_mass(field, distances, boxsize):
 
 @jit(nopython=True, boundscheck=False)
 def _enclosed_momentum(rdist, mass, vel, rmax, start_index):
-    bulk_momentum = numpy.zeros(3, dtype=rdist.dtype)
+    bulk_momentum = np.zeros(3, dtype=rdist.dtype)
 
     for i in range(start_index, len(rdist)):
         if rdist[i] <= rmax:
@@ -169,7 +173,7 @@ def particles_enclosed_momentum(rdist, mass, vel, distances):
     bulk_momentum : 2-dimensional array
         Enclosed momentum at each distance.
     """
-    bulk_momentum = numpy.zeros((len(distances), 3))
+    bulk_momentum = np.zeros((len(distances), 3))
     start_index = 0
     for i, dist in enumerate(distances):
         if i > 0:
@@ -180,3 +184,67 @@ def particles_enclosed_momentum(rdist, mass, vel, distances):
         bulk_momentum[i] += v
 
     return bulk_momentum
+
+
+###############################################################################
+#                         Bulk flow estimators                                #
+###############################################################################
+
+
+def bulkflow_peery2018(rdist, mass, pos, vel, distances, weights,
+                       verbose=True):
+    """
+    Calculate the bulk flow from a set of particles using the estimator from
+    Peery+2018. Supports either `1/r^2` or `constant` weights. Particles
+    are assumed to be sorted by distance from the center of the box.
+
+    Parameters
+    ----------
+    rdist : 1-dimensional array
+        Sorted distance of particles from the center of the box.
+    mass : 1-dimensional array
+        Sorted mass of particles.
+    pos : 2-dimensional array
+        Sorted position of particles.
+    vel : 2-dimensional array
+        Sorted velocity of particles.
+    distances : 1-dimensional array
+        Distances at which to calculate the bulk flow.
+    weights : str
+        Weights to use in the estimator, either `1/r^2` or `constant`.
+    verbose : bool
+        Verbosity flag.
+
+    Returns
+    -------
+    bulk_flow : 2-dimensional array
+    """
+    # Select only the particles within the maximum distance to speed up the
+    # calculation.
+    if verbose:
+        print("Selecting particles within the maximum distance...")
+    kmax = np.searchsorted(rdist, np.max(distances))
+    rdist = rdist[:kmax]
+    mass = mass[:kmax]
+    pos = pos[:kmax]
+    vel = vel[:kmax]
+
+    if verbose:
+        print("Computing the cumulative quantities...")
+    if weights == "1/r^2":
+        cumulative_x = np.cumsum(mass[:, np.newaxis] * np.sum(vel * pos, axis=1)[:, np.newaxis] * pos / rdist[:, np.newaxis]**4, axis=0)  # noqa
+        norm = lambda R: R**2  # noqa
+    elif weights == "constant":
+        cumulative_x = np.cumsum(mass[:, np.newaxis] * np.sum(vel * pos, axis=1)[:, np.newaxis] * pos / rdist[:, np.newaxis]**2, axis=0)  # noqa
+        norm = lambda R: 3.  # noqa
+    else:
+        raise ValueError("Invalid weights.")
+    cumulative_x /= np.cumsum(mass)[:, np.newaxis]
+
+    B = np.zeros((len(distances), 3))
+    for i in range(3):
+        for j, R in enumerate(distances):
+            k = np.searchsorted(rdist, R)
+            B[j, i] = norm(R) * cumulative_x[k - 1, i]
+
+    return B
