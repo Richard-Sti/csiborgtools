@@ -14,6 +14,8 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 from os import system
 
+import numpy as np
+
 if __name__ == "__main__":
     # chains = [15717, 15817, 15917, 16017, 16117, 16217, 16317, 16417, 16517,
     #           16617, 16717, 16817, 16917, 17017, 17117, 17217, 17317, 17417]
@@ -28,12 +30,15 @@ if __name__ == "__main__":
     # simname = "csiborg2_random"
     # mode = 1
 
-    chains = [7444 + n * 24 for n in range(101)]
-    simname = "csiborg1"
-    mode = 2
+    # chains = [7444 + n * 24 for n in range(101)]
+    # simname = "csiborg1"
+    # mode = 2
+    chains = np.hstack([np.arange(0, 10), np.arange(10000, 10030 + 1)])[1:]
+    simname = "quijote"
+    mode = 0
 
     env = "/mnt/zfsusers/rstiskalek/csiborgtools/venv_csiborg/bin/python"
-    memory = 64
+    memory = 32
 
     for chain in chains:
         out = f"output_{simname}_{chain}_%j.out"
