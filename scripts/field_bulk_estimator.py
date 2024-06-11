@@ -24,7 +24,7 @@ from os.path import join
 import csiborgtools
 import numpy as np
 from mpi4py import MPI
-from taskmaster import work_delegation
+from taskmaster import work_delegation  # noqa
 from tqdm import trange
 
 ###############################################################################
