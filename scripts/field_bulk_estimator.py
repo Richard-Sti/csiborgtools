@@ -14,7 +14,8 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 A script to calculate the bulk flow in Quijote to compare the volume average
-definition to various estimators that rely on radial velocities.
+definition to various estimators that rely on radial velocities (e.g. Nusser
+2014 and Peery+2018).
 """
 from argparse import ArgumentParser
 from datetime import datetime
