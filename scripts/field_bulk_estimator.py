@@ -107,7 +107,7 @@ def main(simname, nsim, folder, Rmax):
             verbose=False)
 
     # Finally save the output
-    fname = join(folder, f"bf_estimators_{simname}_{nsim}.npz")
+    fname = join(folder, f"bf_estimators_addconstant_{simname}_{nsim}.npz")
     print(f"Saving to `{fname}`.")
     np.savez(fname, bf_volume=bf_volume, bf_peery=bf_peery, bf_const=bf_const,
              distances=distances)
@@ -134,8 +134,8 @@ if __name__ == "__main__":
     if rank == 0:
         print(f"Running with {len(nsims)} Quijote simulations.")
 
+    comm.Barrier()
     work_delegation(main_wrapper, nsims, comm, master_verbose=True)
-
     comm.Barrier()
 
     # Collect the results
