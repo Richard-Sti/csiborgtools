@@ -1,14 +1,12 @@
 nthreads=20
 memory=24
-on_login=0
+on_login=1
 queue="berg"
 env="/mnt/zfsusers/rstiskalek/csiborgtools/venv_csiborg/bin/python"
-file="field_bulk_estimator.py"
-
-simname="quijote"
+file="quijote_bulkflow.py"
 
 
-pythoncm="$env $file --simname $simname"
+pythoncm="$env $file"
 if [ $on_login -eq 1 ]; then
     echo $pythoncm
     $pythoncm
