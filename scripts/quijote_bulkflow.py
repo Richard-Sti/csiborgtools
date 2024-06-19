@@ -116,7 +116,7 @@ def main(nsim, folder, fname_basis, Rmax, subtract_observer_velocity,
 
         # Subtract the observer velocity
         if subtract_observer_velocity:
-            rscale = 0.5
+            rscale = 0.5  # Mpc / h
             weights = np.exp(-0.5 * (rdist_part / rscale)**2)
             obs_vel_x = np.average(part_vel_current[:, 0], weights=weights)
             obs_vel_y = np.average(part_vel_current[:, 1], weights=weights)
