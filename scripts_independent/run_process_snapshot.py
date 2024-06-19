@@ -14,7 +14,6 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 from os import system
 
-import numpy as np
 
 if __name__ == "__main__":
     # chains = [15717, 15817, 15917, 16017, 16117, 16217, 16317, 16417, 16517,
@@ -33,7 +32,7 @@ if __name__ == "__main__":
     # chains = [7444 + n * 24 for n in range(101)]
     # simname = "csiborg1"
     # mode = 2
-    chains = np.hstack([np.arange(0, 10), np.arange(10000, 10030 + 1)])[1:]
+    chains = [i for i in range(40 + 1)]
     simname = "quijote"
     mode = 0
 
