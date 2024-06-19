@@ -32,7 +32,7 @@ if __name__ == "__main__":
     # chains = [7444 + n * 24 for n in range(101)]
     # simname = "csiborg1"
     # mode = 2
-    chains = [i for i in range(40 + 1)]
+    chains = [i for i in range(41, 50 + 1)]
     simname = "quijote"
     mode = 0
 
