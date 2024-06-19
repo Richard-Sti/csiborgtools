@@ -77,8 +77,16 @@ def get_los(catalogue_name, simname, comm):
             with File(fname, 'r') as f:
                 RA = f["RA"][:]
                 dec = f["DEC"][:]
+        elif catalogue_name == "UPGLADE":
+            fname = "/mnt/users/rstiskalek/csiborgtools/data/upglade_z_0p05_all_PROCESSED.h5"  # noqa
+            with File(fname, 'r') as f:
+                RA = f["RA"][:]
+                dec = f["dec"][:]
         else:
             raise ValueError(f"Unknown field name: `{catalogue_name}`.")
+
+        if comm.Get_rank() == 0:
+            print(f"The dataset contains {len(RA)} objects.")
 
         # The Carrick+2015 is in galactic coordinates, so we need to convert
         # the RA/dec to galactic coordinates.
@@ -210,7 +218,7 @@ def combine_from_simulations(catalogue_name, simname, nsims, outfolder,
 
 
 def interpolate_field(pos, simname, nsim, MAS, grid, dump_folder, rmax,
-                      dr, smooth_scales):
+                      dr, smooth_scales, verbose=False):
     """
     Interpolate the density and velocity fields along the line of sight.
 
@@ -243,11 +251,13 @@ def interpolate_field(pos, simname, nsim, MAS, grid, dump_folder, rmax,
     fname_out = join(dump_folder, f"los_{simname}_{nsim}.hdf5")
 
     # First do the density field.
+    if verbose:
+        print(f"Interpolating density field for IC realisation `{nsim}`.",
+              flush=True)
     density = get_field(simname, nsim, "density", MAS, grid)
-
     rdist, finterp = csiborgtools.field.evaluate_los(
         density, sky_pos=pos, boxsize=boxsize, rmax=rmax, dr=dr,
-        smooth_scales=smooth_scales, verbose=False)
+        smooth_scales=smooth_scales, verbose=verbose)
 
     print(f"Writing temporary file `{fname_out}`.")
     with File(fname_out, 'w') as f:
@@ -257,11 +267,14 @@ def interpolate_field(pos, simname, nsim, MAS, grid, dump_folder, rmax,
     del density, rdist, finterp
     collect()
 
+    if verbose:
+        print(f"Interpolating velocity field for IC realisation `{nsim}`.",
+              flush=True)
     velocity = get_field(simname, nsim, "velocity", MAS, grid)
     rdist, finterp = csiborgtools.field.evaluate_los(
         velocity[0], velocity[1], velocity[2],
         sky_pos=pos, boxsize=boxsize, rmax=rmax, dr=dr,
-        smooth_scales=smooth_scales, verbose=False)
+        smooth_scales=smooth_scales, verbose=verbose)
 
     with File(fname_out, 'a') as f:
         f.create_dataset("velocity", data=finterp)
@@ -308,7 +321,8 @@ if __name__ == "__main__":
 
     def main(nsim):
         interpolate_field(pos, args.simname, nsim, args.MAS, args.grid,
-                          dump_folder, rmax, dr, smooth_scales)
+                          dump_folder, rmax, dr, smooth_scales,
+                          verbose=comm.Get_size() == 1)
 
     work_delegation(main, nsims, comm, master_verbose=True)
     comm.Barrier()
