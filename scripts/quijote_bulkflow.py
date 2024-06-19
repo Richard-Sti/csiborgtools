@@ -70,7 +70,8 @@ def volume_bulk_flow(rdist, mass, vel, distances):
 ###############################################################################
 
 
-def main(nsim, folder, fname_basis, Rmax, verbose=True):
+def main(nsim, folder, fname_basis, Rmax, subtract_observer_velocity,
+         verbose=True):
     boxsize = csiborgtools.simname2boxsize("quijote")
     observers = csiborgtools.read.fiducial_observers(boxsize, Rmax)
     distances = np.linspace(0, Rmax, 101)[1:]
@@ -85,6 +86,10 @@ def main(nsim, folder, fname_basis, Rmax, verbose=True):
     bf_volume_part = np.full((len(observers), len(distances), 3), np.nan)
     bf_volume_halo = np.full_like(bf_volume_part, np.nan)
     bf_volume_halo_uniform = np.full_like(bf_volume_part, np.nan)
+    bf_vrad_weighted_part = np.full_like(bf_volume_part, np.nan)
+    bf_vrad_weighted_halo_uniform = np.full_like(bf_volume_part, np.nan)
+    bf_vrad_weighted_halo = np.full_like(bf_volume_part, np.nan)
+
     for i in range(len(observers)):
         print(f"{t()}: Calculating bulk flow for observer {i + 1} of simulation {nsim}.")  # noqa
 
@@ -94,6 +99,7 @@ def main(nsim, folder, fname_basis, Rmax, verbose=True):
             return_distance=True, sort_results=True)
         rdist_part, indxs = rdist_part[0], indxs[0]
 
+        part_pos_current = part_pos[indxs] - observers[i]
         part_vel_current = part_vel[indxs]
         # Quijote particle masses are all equal
         part_mass = np.ones_like(rdist_part)
@@ -108,6 +114,22 @@ def main(nsim, folder, fname_basis, Rmax, verbose=True):
         halo_vel_current = halo_vel[indxs]
         halo_mass_current = halo_mass[indxs]
 
+        # Subtract the observer velocity
+        if subtract_observer_velocity:
+            rscale = 0.5
+            weights = np.exp(-0.5 * (rdist_part / rscale)**2)
+            obs_vel_x = np.average(part_vel_current[:, 0], weights=weights)
+            obs_vel_y = np.average(part_vel_current[:, 1], weights=weights)
+            obs_vel_z = np.average(part_vel_current[:, 2], weights=weights)
+
+            part_vel_current[:, 0] -= obs_vel_x
+            part_vel_current[:, 1] -= obs_vel_y
+            part_vel_current[:, 2] -= obs_vel_z
+
+            halo_vel_current[:, 0] -= obs_vel_x
+            halo_vel_current[:, 1] -= obs_vel_y
+            halo_vel_current[:, 2] -= obs_vel_z
+
         # Calculate the volume average bulk flows
         bf_volume_part[i, ...] = volume_bulk_flow(
             rdist_part, part_mass, part_vel_current, distances)
@@ -116,12 +138,23 @@ def main(nsim, folder, fname_basis, Rmax, verbose=True):
         bf_volume_halo_uniform[i, ...] = volume_bulk_flow(
             rdist_halo, np.ones_like(halo_mass_current), halo_vel_current,
             distances)
+        bf_vrad_weighted_part[i, ...] = csiborgtools.field.bulkflow_peery2018(
+            rdist_part, part_mass, part_pos_current, part_vel_current,
+            distances, weights="1/r^2", verbose=False)
+
+        # Calculate the bulk flow from projected velocities w. 1/r^2 weights
+        bf_vrad_weighted_halo_uniform[i, ...] = csiborgtools.field.bulkflow_peery2018(  # noqa
+            rdist_halo, np.ones_like(halo_mass_current), halo_pos_current,
+            halo_vel_current, distances, weights="1/r^2", verbose=False)
+        bf_vrad_weighted_halo[i, ...] = csiborgtools.field.bulkflow_peery2018(
+            rdist_halo, halo_mass_current, halo_pos_current,
+            halo_vel_current, distances, weights="1/r^2", verbose=False)
 
         # Store the haloes around this observer
         samples[i] = {
             "halo_pos": halo_pos_current,
             "halo_vel": halo_vel_current,
-            "halo_mass": halo_mass}
+            "halo_mass": halo_mass_current}
 
     # Finally save the output
     fname = join(folder, f"{fname_basis}_{nsim}.hdf5")
@@ -131,7 +164,10 @@ def main(nsim, folder, fname_basis, Rmax, verbose=True):
         f["distances"] = distances
         f["bf_volume_part"] = bf_volume_part
         f["bf_volume_halo"] = bf_volume_halo
-        f["bf_volune_halo_uniform"] = bf_volume_halo_uniform
+        f["bf_vrad_weighted_part"] = bf_vrad_weighted_part
+        f["bf_volume_halo_uniform"] = bf_volume_halo_uniform
+        f["bf_vrad_weighted_halo_uniform"] = bf_vrad_weighted_halo_uniform
+        f["bf_vrad_weighted_halo"] = bf_vrad_weighted_halo
 
         for i in range(len(observers)):
             g = f.create_group(f"obs_{str(i)}")
@@ -142,18 +178,22 @@ def main(nsim, folder, fname_basis, Rmax, verbose=True):
 
 if __name__ == "__main__":
     Rmax = 150
+    subtract_observer_velocity = False
     folder = "/mnt/extraspace/rstiskalek/quijote/BulkFlow_fiducial"
     fname_basis = "BF_nsim"
+    if subtract_observer_velocity:
+        fname_basis += "_subtracted_observer_velocity"
 
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
 
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    nsims = list(paths.get_ics("quijote"))
 
     def main_wrapper(nsim):
-        main(nsim, folder, fname_basis, Rmax, verbose=rank == 0)
+        main(nsim, folder, fname_basis, Rmax, subtract_observer_velocity,
+             verbose=rank == 0)
 
-    nsims = list(paths.get_ics("quijote"))[:1]
     if rank == 0:
         print(f"Running with {len(nsims)} Quijote simulations.")
 
