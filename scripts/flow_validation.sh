@@ -7,8 +7,9 @@ queue="berg"
 env="/mnt/users/rstiskalek/csiborgtools/venv_csiborg/bin/python"
 file="flow_validation.py"
 
+#"Pantheon+_zSN"
 catalogue="Pantheon+_groups"
-simname="csiborg2_varysmall"
+simname="Carrick2015"
 
 
 pythoncm="$env $file --catalogue $catalogue --simname $simname --ksmooth $ksmooth"
