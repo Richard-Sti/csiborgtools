@@ -1372,7 +1372,7 @@ class QuijoteCatalogue(BaseCatalogue):
 
     @property
     def totmass(self):
-        return self._read_fof_catalogue("group_mass")
+        return self._read_fof_catalogue("GroupMass")
 
     @property
     def index(self):
