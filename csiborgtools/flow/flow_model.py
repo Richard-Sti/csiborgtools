@@ -231,9 +231,7 @@ class DataLoader:
         return rdist, los_density, los_velocity
 
     def _read_catalogue(self, catalogue, catalogue_fpath):
-        """
-        Read in the distance indicator catalogue.
-        """
+        """Read in the distance indicator catalogue."""
         if catalogue == "A2":
             with File(catalogue_fpath, 'r') as f:
                 dtype = [(key, np.float32) for key in f.keys()]
@@ -256,10 +254,18 @@ class DataLoader:
                     arr[key] = grp[key][:]
         elif "CB2_" in catalogue:
             with File(catalogue_fpath, 'r') as f:
-
                 dtype = [(key, np.float32) for key in f.keys()]
                 arr = np.empty(len(f["RA"]), dtype=dtype)
                 for key in f.keys():
+                    arr[key] = f[key][:]
+        elif "UPGLADE" in catalogue:
+            with File(catalogue_fpath, 'r') as f:
+                dtype = [(key, np.float32) for key in f.keys()]
+                arr = np.empty(len(f["RA"]), dtype=dtype)
+                for key in f.keys():
+                    if key == "mask":
+                        continue
+
                     arr[key] = f[key][:]
         else:
             raise ValueError(f"Unknown catalogue: `{catalogue}`.")
@@ -916,6 +922,8 @@ class SN_PV_validation_model(BaseFlowValidationModel):
         Right ascension and declination in degrees.
     z_obs : 1-dimensional array of shape (n_objects)
         Observed redshifts.
+    e_zobs : 1-dimensional array of shape (n_objects)
+        Errors on the observed redshifts.
     mB, x1, c : 1-dimensional arrays of shape (n_objects)
         SALT2 light curve parameters.
     e_mB, e_x1, e_c : 1-dimensional arrays of shape (n_objects)
@@ -927,7 +935,7 @@ class SN_PV_validation_model(BaseFlowValidationModel):
     """
 
     def __init__(self, los_density, los_velocity, RA, dec, z_obs,
-                 mB, x1, c, e_mB, e_x1, e_c, r_xrange, Omega_m):
+                 e_zobs, mB, x1, c, e_mB, e_x1, e_c, r_xrange, Omega_m):
         dt = jnp.float32
         # Convert everything to JAX arrays.
         self._los_density = jnp.asarray(los_density, dtype=dt)
@@ -936,6 +944,11 @@ class SN_PV_validation_model(BaseFlowValidationModel):
         self._RA = jnp.asarray(np.deg2rad(RA), dtype=dt)
         self._dec = jnp.asarray(np.deg2rad(dec), dtype=dt)
         self._z_obs = jnp.asarray(z_obs, dtype=dt)
+        if e_zobs is not None:
+            self._e2_cz_obs = jnp.asarray(
+                (SPEED_OF_LIGHT * e_zobs)**2, dtype=dt)
+        else:
+            self._e2_cz_obs = jnp.zeros_like(self._z_obs)
 
         self._mB = jnp.asarray(mB, dtype=dt)
         self._x1 = jnp.asarray(x1, dtype=dt)
@@ -1121,6 +1134,7 @@ class SN_PV_validation_model(BaseFlowValidationModel):
         alpha_cal = numpyro.sample("alpha_cal", self._alpha_cal)
         beta_cal = numpyro.sample("beta_cal", self._beta_cal)
 
+        cz_err = jnp.sqrt(sigma_v**2 + self._e2_cz_obs)
         Vext_rad = project_Vext(Vx, Vy, Vz, self._RA, self._dec)
 
         mu = self.mu(mag_cal, alpha_cal, beta_cal)
@@ -1137,7 +1151,7 @@ class SN_PV_validation_model(BaseFlowValidationModel):
             # Calculate p(z_obs) and multiply it by p(r)
             zobs_pred = self._f_zobs(beta, Vext_rad[i], self._los_velocity[i])
             ptilde *= calculate_likelihood_zobs(
-                self._z_obs[i], zobs_pred, sigma_v)
+                self._z_obs[i], zobs_pred, cz_err[i])
 
             return ll + jnp.log(self._f_simps(ptilde) / pnorm), None
 
@@ -1385,17 +1399,19 @@ def get_model(loader, zcmb_max=None, verbose=True):
     if kind in ["LOSS", "Foundation"]:
         keys = ["RA", "DEC", "z_CMB", "mB", "x1", "c", "e_mB", "e_x1", "e_c"]
         RA, dec, zCMB, mB, x1, c, e_mB, e_x1, e_c = (loader.cat[k] for k in keys)  # noqa
+        e_zCMB = None
 
         mask = (zCMB < zcmb_max)
         model = SN_PV_validation_model(
             los_overdensity[mask], los_velocity[mask], RA[mask], dec[mask],
-            zCMB[mask], mB[mask], x1[mask], c[mask], e_mB[mask], e_x1[mask],
-            e_c[mask], loader.rdist, loader._Omega_m)
+            zCMB[mask], e_zCMB, mB[mask], x1[mask], c[mask], e_mB[mask],
+            e_x1[mask], e_c[mask], loader.rdist, loader._Omega_m)
     elif "Pantheon+" in kind:
         keys = ["RA", "DEC", "zCMB", "mB", "x1", "c", "biasCor_m_b", "mBERR",
-                "x1ERR", "cERR", "biasCorErr_m_b", "zCMB_SN", "zCMB_Group"]
+                "x1ERR", "cERR", "biasCorErr_m_b", "zCMB_SN", "zCMB_Group",
+                "zCMBERR"]
 
-        RA, dec, zCMB, mB, x1, c, bias_corr_mB, e_mB, e_x1, e_c, e_bias_corr_mB, zCMB_SN, zCMB_Group = (loader.cat[k] for k in keys)  # noqa
+        RA, dec, zCMB, mB, x1, c, bias_corr_mB, e_mB, e_x1, e_c, e_bias_corr_mB, zCMB_SN, zCMB_Group, e_zCMB = (loader.cat[k] for k in keys)  # noqa
         mB -= bias_corr_mB
         e_mB = np.sqrt(e_mB**2 + e_bias_corr_mB**2)
 
@@ -1413,8 +1429,8 @@ def get_model(loader, zcmb_max=None, verbose=True):
 
         model = SN_PV_validation_model(
             los_overdensity[mask], los_velocity[mask], RA[mask], dec[mask],
-            zCMB[mask], mB[mask], x1[mask], c[mask], e_mB[mask], e_x1[mask],
-            e_c[mask], loader.rdist, loader._Omega_m)
+            zCMB[mask], e_zCMB[mask], mB[mask], x1[mask], c[mask], e_mB[mask],
+            e_x1[mask], e_c[mask], loader.rdist, loader._Omega_m)
     elif kind in ["SFI_gals", "2MTF", "SFI_gals_masked"]:
         keys = ["RA", "DEC", "z_CMB", "mag", "eta", "e_mag", "e_eta"]
         RA, dec, zCMB, mag, eta, e_mag, e_eta = (loader.cat[k] for k in keys)
