@@ -36,6 +36,9 @@ scripts_independent/clear.sh
 # Generated plots
 plots/*
 
+# Data files
+data/*
+
 notebooks/test.ipynb
 data/BulkFlowPlot.npy
 data/upglade_z_0p05_all.h5
