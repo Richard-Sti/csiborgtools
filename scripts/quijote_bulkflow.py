@@ -178,11 +178,9 @@ def main(nsim, folder, fname_basis, Rmax, subtract_observer_velocity,
 
 if __name__ == "__main__":
     Rmax = 150
-    subtract_observer_velocity = False
+    subtract_observer_velocity = True
     folder = "/mnt/extraspace/rstiskalek/quijote/BulkFlow_fiducial"
-    fname_basis = "BF_nsim"
-    if subtract_observer_velocity:
-        fname_basis += "_subtracted_observer_velocity"
+    fname_basis = "sBF_nsim" if subtract_observer_velocity else "BF_nsim"
 
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
