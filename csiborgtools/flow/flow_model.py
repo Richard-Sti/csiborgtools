@@ -79,21 +79,26 @@ class DataLoader:
     store_full_velocity : bool, optional
         Whether to store the full 3D velocity field. Otherwise stores only
         the radial velocity.
+    verbose : bool, optional
+        Verbose flag.
     """
     def __init__(self, simname, ksim, catalogue, catalogue_fpath, paths,
-                 ksmooth=None, store_full_velocity=False):
-        print(f"{t()}: reading the catalogue.")
+                 ksmooth=None, store_full_velocity=False, verbose=True):
+        if verbose:
+            print(f"{t()}: reading the catalogue.", flush=True)
         self._cat = self._read_catalogue(catalogue, catalogue_fpath)
         self._catname = catalogue
 
-        print(f"{t()}: reading the interpolated field.")
+        if verbose:
+            print(f"{t()}: reading the interpolated field.", flush=True)
         self._field_rdist, self._los_density, self._los_velocity = self._read_field(  # noqa
             simname, ksim, catalogue, ksmooth, paths)
 
         if len(self._field_rdist) % 2 == 0:
-            warn(f"The number of radial steps is even. Skipping the first "
-                 f"step at {self._field_rdist[0]} because Simpson's rule "
-                 "requires an odd number of steps.")
+            if verbose:
+                warn(f"The number of radial steps is even. Skipping the first "
+                     f"step at {self._field_rdist[0]} because Simpson's rule "
+                     "requires an odd number of steps.")
             self._field_rdist = self._field_rdist[1:]
             self._los_density = self._los_density[..., 1:]
             self._los_velocity = self._los_velocity[..., 1:]
@@ -102,7 +107,8 @@ class DataLoader:
             raise ValueError("The number of objects in the catalogue does not "
                              "match the number of objects in the field.")
 
-        print(f"{t()}: calculating the radial velocity.")
+        if verbose:
+            print(f"{t()}: calculating the radial velocity.", flush=True)
         nobject = len(self._los_density)
         dtype = self._los_density.dtype
 
