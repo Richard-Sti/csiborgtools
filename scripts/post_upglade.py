@@ -19,17 +19,22 @@ to include other peculiar velocity models.
 
 TODO: Switch to the zSN calibration.
 """
+from datetime import datetime
+from os import remove
 from os.path import join
-from sys import remove
 
+import csiborgtools
 import numpy as np
 from h5py import File
 from mpi4py import MPI
 from taskmaster import work_delegation  # noqa
-
-import csiborgtools
+from tqdm import tqdm
 
 SPEED_OF_LIGHT = 299792.458  # km / s
+
+
+def t():
+    return datetime.now().strftime("%H:%M:%S")
 
 
 def load_calibration(catalogue, simname, nsim, ksmooth, verbose=False):
@@ -46,25 +51,28 @@ def load_calibration(catalogue, simname, nsim, ksmooth, verbose=False):
     if verbose:
         k = list(calibration_samples.keys())[0]
         nsamples = len(calibration_samples[k])
-        print(f"Found {nsamples} calibration posterior samples.")
+        print(f"{t()}: found {nsamples} calibration posterior samples.",
+              flush=True)
 
     return calibration_samples
 
 
-def main(loader, model, indxs, fdir, fname, num_split):
+def main(loader, model, indxs, fdir, fname, num_split, verbose):
     out = np.full(
         len(indxs), np.nan,
         dtype=[("mean_zcosmo", float), ("std_zcosmo", float)])
 
     # Process each galaxy in this split
-    for n in indxs:
+    for i, n in enumerate(tqdm(indxs, desc=f"Split {num_split}",
+                               disable=not verbose)):
         x, y = model.posterior_zcosmo(
             loader.cat["zcmb"][n], loader.cat["RA"][n], loader.cat["DEC"][n],
             loader.los_density[n], loader.los_radial_velocity[n],
-            extra_sigma_v=loader.cat["e_zcmb"][n] * SPEED_OF_LIGHT)
+            extra_sigma_v=loader.cat["e_zcmb"][n] * SPEED_OF_LIGHT,
+            verbose=False)
 
         mu, std = model.posterior_mean_std(x, y)
-        out["mean_zcosmo"][n], out["std_zcosmo"][n] = mu, std
+        out["mean_zcosmo"][i], out["std_zcosmo"][i] = mu, std
 
     # Save the results of this rank
     fname = join(fdir, f"{fname}_{num_split}.hdf5")
@@ -95,7 +103,7 @@ if __name__ == "__main__":
     fpath_data = "/mnt/users/rstiskalek/csiborgtools/data/upglade_z_0p05_all_PROCESSED.h5"  # noqa
 
     # Number of splits for MPI
-    nsplits = 1000
+    nsplits = 10
 
     # Folder to save the results
     fdir = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/peculiar_velocity/UPGLADE"  # noqa
@@ -103,13 +111,15 @@ if __name__ == "__main__":
 
     # Load in the data, calibration samples and the model
     loader = csiborgtools.flow.DataLoader(
-        simname, nsim, catalogue, fpath_data, paths, ksmooth=ksmooth)
+        simname, nsim, catalogue, fpath_data, paths, ksmooth=ksmooth,
+        verbose=rank == 0)
     calibration_samples = load_calibration(
         catalogue_calibration, simname, nsim, ksmooth, verbose=rank == 0)
     model = csiborgtools.flow.Observed2CosmologicalRedshift(
         calibration_samples, loader.rdist, loader._Omega_m)
     if rank == 0:
-        print("Loaded calibration samples and model.", flush=True)
+        print(f"{t()}: the catalogue size is {loader.cat['zcmb'].size}.")
+        print(f"{t()}: loaded calibration samples and model.", flush=True)
 
     # Decide how to split up the job
     if rank == 0:
@@ -123,7 +133,7 @@ if __name__ == "__main__":
 
     # Process all splits with MPI, the rank 0 delegates the jobs.
     def main_wrapper(n):
-        main(loader, model, split_indxs[n], fdir, fname, n)
+        main(loader, model, split_indxs[n], fdir, fname, n, verbose=size == 1)
 
     comm.Barrier()
     work_delegation(
@@ -135,18 +145,15 @@ if __name__ == "__main__":
         print("Combining results from all ranks.", flush=True)
         mean_zcosmo = np.full(loader.cat["zcmb"].size, np.nan)
         std_zcosmo = np.full_like(mean_zcosmo, np.nan)
-        out = np.full(
-            len(indxs), np.nan,
-            dtype=[("id", int), ("mean_zcosmo", float), ("std_zcosmo", float)])
 
         for n in range(nsplits):
-            fname = join(fdir, f"{fname}_{n}.hdf5")
-            with File(fname, 'r') as f:
+            fname_current = join(fdir, f"{fname}_{n}.hdf5")
+            with File(fname_current, 'r') as f:
                 mask = f["indxs"][:]
                 mean_zcosmo[mask] = f["mean_zcosmo"][:]
                 std_zcosmo[mask] = f["std_zcosmo"][:]
 
-            remove(fname)
+            remove(fname_current)
 
         # Save the results
         fname = join(fdir, f"{fname}.hdf5")
