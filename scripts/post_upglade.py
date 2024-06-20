@@ -16,8 +16,6 @@
 Script to calculate cosmological redshifts from observed redshifts assuming
 the Carrick+2015 peculiar velocity model. In the future this may be extended
 to include other peculiar velocity models.
-
-TODO: Switch to the zSN calibration.
 """
 from datetime import datetime
 from os import remove
@@ -96,14 +94,14 @@ if __name__ == "__main__":
     simname = "Carrick2015"
     ksmooth = 0
     nsim = 0
-    catalogue_calibration = "Pantheon+"
+    catalogue_calibration = "Pantheon+_zSN"
 
     # Galaxy sample parameters
     catalogue = "UPGLADE"
     fpath_data = "/mnt/users/rstiskalek/csiborgtools/data/upglade_z_0p05_all_PROCESSED.h5"  # noqa
 
     # Number of splits for MPI
-    nsplits = 10
+    nsplits = 1000
 
     # Folder to save the results
     fdir = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/peculiar_velocity/UPGLADE"  # noqa
