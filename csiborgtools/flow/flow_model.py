@@ -48,7 +48,6 @@ H0 = 100                     # km / s / Mpc
 
 
 def t():
-    """Shortcut to get the current time."""
     return datetime.now().strftime("%H:%M:%S")
 
 
