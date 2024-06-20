@@ -81,7 +81,7 @@ def get_los(catalogue_name, simname, comm):
             fname = "/mnt/users/rstiskalek/csiborgtools/data/upglade_z_0p05_all_PROCESSED.h5"  # noqa
             with File(fname, 'r') as f:
                 RA = f["RA"][:]
-                dec = f["dec"][:]
+                dec = f["DEC"][:]
         else:
             raise ValueError(f"Unknown field name: `{catalogue_name}`.")
 
