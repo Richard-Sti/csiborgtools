@@ -17,7 +17,7 @@ Unified interface for simulation catalogues. Currently supports CSiBORG1,
 CSiBORG2 and Quijote. For specific implementation always check the relevant
 classes in this module.
 """
-from abc import ABC, abstractproperty
+from abc import ABC, abstractmethod
 from collections import OrderedDict
 from functools import lru_cache
 from gc import collect
@@ -104,13 +104,7 @@ class BaseCatalogue(ABC):
 
     @property
     def simname(self):
-        """
-        Simulation name.
-
-        Returns
-        -------
-        str
-        """
+        """Simulation name."""
         if self._simname is None:
             raise RuntimeError("`simname` is not set!")
         return self._simname
@@ -123,13 +117,7 @@ class BaseCatalogue(ABC):
 
     @property
     def nsim(self):
-        """
-        Simulation IC realisation index.
-
-        Returns
-        -------
-        int
-        """
+        """Simulation IC realisation index."""
         if self._nsim is None:
             raise RuntimeError("`nsim` is not set!")
         return self._nsim
@@ -142,13 +130,7 @@ class BaseCatalogue(ABC):
 
     @property
     def nsnap(self):
-        """
-        Catalogue snapshot index.
-
-        Returns
-        -------
-        int
-        """
+        """Catalogue snapshot index."""
         if self._nsnap is None:
             raise RuntimeError("`nsnap` is not set!")
         return self._nsnap
@@ -186,26 +168,14 @@ class BaseCatalogue(ABC):
 
     @property
     def paths(self):
-        """
-        Paths manager.
-
-        Returns
-        -------
-        py:class:`csiborgtools.read.Paths`
-        """
+        """Paths manager."""
         if self._paths is None:
             return Paths(**paths_glamdring)
         return self._paths
 
     @property
     def boxsize(self):
-        """
-        Box size in `cMpc / h`.
-
-        Returns
-        -------
-        float
-        """
+        """Box size in `cMpc / h`."""
         if self._boxsize is None:
             raise RuntimeError("`boxsize` is not set!")
         return self._boxsize
@@ -221,10 +191,6 @@ class BaseCatalogue(ABC):
         """
         Whether to flip the x- and z-coordinates to undo the MUSIC bug to match
         observations.
-
-        Returns
-        -------
-        bool
         """
         return self._flip_xz
 
@@ -236,13 +202,7 @@ class BaseCatalogue(ABC):
 
     @property
     def cache_maxsize(self):
-        """
-        Maximum length of the cache dictionary.
-
-        Returns
-        -------
-        int
-        """
+        """Maximum length of the cache dictionary."""
         if self._cache_maxsize is None:
             raise RuntimeError("`cache_maxsize` is not set!")
         return self._cache_maxsize
@@ -253,111 +213,57 @@ class BaseCatalogue(ABC):
         self._cache_maxsize = cache_maxsize
 
     def cache_keys(self):
-        """
-        Current keys of the cache dictionary.
-
-        Parameters
-        ----------
-        list of str
-        """
+        """Current keys of the cache dictionary."""
         return list(self._cache.keys())
 
     def cache_length(self):
-        """
-        Current length of the cache dictionary.
-
-        Returns
-        -------
-        int
-        """
+        """Current length of the cache dictionary."""
         return len(self._cache)
 
-    @abstractproperty
+    @property
+    @abstractmethod
     def coordinates(self):
-        """
-        Halo coordinates.
-
-        Returns
-        -------
-        2-dimensional array
-        """
+        """Halo coordinates."""
         pass
 
-    @abstractproperty
+    @property
+    @abstractmethod
     def velocities(self):
-        """
-        Halo peculiar velocities.
-
-        Returns
-        -------
-        2-dimensional array
-        """
+        """Halo peculiar velocities."""
         pass
 
-    @abstractproperty
+    @property
+    @abstractmethod
     def npart(self):
-        """
-        Number of particles in a halo.
-
-        Returns
-        -------
-        1-dimensional array
-        """
+        """Number of particles in a halo."""
         pass
 
-    @abstractproperty
+    @property
+    @abstractmethod
     def totmass(self):
-        """
-        Total particle mass of a halo.
-
-        Returns
-        -------
-        1-dimensional array
-        """
+        """Total particle mass of a halo."""
         pass
 
-    @abstractproperty
+    @property
+    @abstractmethod
     def index(self):
-        """
-        Halo index.
-
-        Returns
-        -------
-        1-dimensional array
-        """
+        """Halo index."""
         pass
 
-    @abstractproperty
+    @property
+    @abstractmethod
     def lagpatch_coordinates(self):
-        """
-        Lagrangian patch coordinates.
-
-        Returns
-        -------
-        2-dimensional array
-        """
+        """Lagrangian patch coordinates."""
         pass
 
-    @abstractproperty
+    @property
+    @abstractmethod
     def lagpatch_radius(self):
-        """
-        Lagrangian patch radius.
-
-        Returns
-        -------
-        1-dimensional array
-        """
+        """Lagrangian patch radius."""
         pass
 
     @property
     def observer_location(self):
-        """
-        Observer location.
-
-        Returns
-        -------
-        1-dimensional array
-        """
         if self._observer_location is None:
             raise RuntimeError("`observer_location` is not set!")
         return self._observer_location
@@ -371,13 +277,6 @@ class BaseCatalogue(ABC):
 
     @property
     def observer_velocity(self):
-        """
-        Observer velocity.
-
-        Returns
-        -------
-        1-dimensional array
-        """
         if self._observer_velocity is None:
             raise RuntimeError("`observer_velocity` is not set!")
         return self._observer_velocity
@@ -562,24 +461,12 @@ class BaseCatalogue(ABC):
         self._load_filtered = True
 
     def clear_cache(self):
-        """
-        Clear the cache dictionary.
-
-        Returns
-        -------
-        None
-        """
+        """Clear the cache dictionary."""
         self._cache.clear()
         collect()
 
     def keys(self):
-        """
-        Catalogue keys.
-
-        Returns
-        -------
-        list
-        """
+        """Catalogue keys."""
         return self._properties + self._custom_keys
 
     def pick_fiducial_observer(self, n, rmax):
@@ -945,13 +832,7 @@ class CSiBORG2MergerTreeReader:
 
     @property
     def simname(self):
-        """
-        Simulation name.
-
-        Returns
-        -------
-        str
-        """
+        """Simulation name."""
         if self._simname is None:
             raise RuntimeError("`simname` is not set!")
         return self._simname
@@ -964,13 +845,7 @@ class CSiBORG2MergerTreeReader:
 
     @property
     def nsim(self):
-        """
-        Simulation IC realisation index.
-
-        Returns
-        -------
-        int
-        """
+        """Simulation IC realisation index."""
         if self._nsim is None:
             raise RuntimeError("`nsim` is not set!")
         return self._nsim
@@ -983,24 +858,12 @@ class CSiBORG2MergerTreeReader:
 
     @property
     def kind(self):
-        """
-        Simulation kind.
-
-        Returns
-        -------
-        str
-        """
+        """Simulation kind."""
         return self._simname.split("_")[-1]
 
     @property
     def paths(self):
-        """
-        Paths manager.
-
-        Returns
-        -------
-        py:class:`csiborgtools.read.Paths`
-        """
+        """Paths manager."""
         if self._paths is None:
             return Paths(**paths_glamdring)
         return self._paths
@@ -1207,13 +1070,7 @@ class CSiBORG2SUBFINDCatalogue(BaseCatalogue):
 
     @property
     def kind(self):
-        """
-        Simulation kind.
-
-        Returns
-        -------
-        str
-        """
+        """Simulation kind."""
         return self._simname.split("_")[-1]
 
     def _read_subfind_catalogue(self, kind):
@@ -1396,24 +1253,19 @@ class QuijoteCatalogue(BaseCatalogue):
 
 class MDPL2Catalogue(BaseCatalogue):
     r"""
-    XXX
+    MDPL2 (FoF) halo catalogue at `z = 0`.
 
     Parameters
     ----------
-    nsim : int
-        IC realisation index.
     paths : py:class`csiborgtools.read.Paths`, optional
         Paths object.
-    snapshot : subclass of py:class:`BaseSnapshot`, optional
-        Snapshot object corresponding to the catalogue.
     bounds : dict
         Parameter bounds; keys as parameter names, values as (min, max)
         tuples. Use `dist` for radial distance, `None` for no bound.
-    observer_velocity : array, optional
-        Observer's velocity in :math:`\mathrm{km} / \mathrm{s}`.
     cache_maxsize : int, optional
         Maximum number of cached arrays.
     """
+
     def __init__(self, paths=None, bounds=None, cache_maxsize=64):
         boxsize = 1000.
         super().__init__()
