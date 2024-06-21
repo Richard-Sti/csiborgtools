@@ -15,7 +15,7 @@
 """
 Scripts to read in observation.
 """
-from abc import ABC, abstractproperty
+from abc import ABC, abstractmethod
 from os.path import join
 from warnings import warn
 
@@ -191,26 +191,14 @@ class FitsSurvey(ABC):
 
     @property
     def file(self):
-        """
-        The survey FITS file.
-
-        Returns
-        -------
-        file : py:class:`astropy.io.fits.hdu.hdulist.HDUList`
-        """
+        """The survey FITS file."""
         if self._file is None:
             raise ValueError("`file` is not set!")
         return self._file
 
     @property
     def h(self):
-        """
-        Little h.
-
-        Returns
-        -------
-        h : float
-        """
+        """Little h."""
         return self._h
 
     @h.setter
@@ -240,15 +228,10 @@ class FitsSurvey(ABC):
         """
         return self._routines
 
-    @abstractproperty
+    @property
+    @abstractmethod
     def size(self):
-        """
-        Return the number of samples in the catalogue.
-
-        Returns
-        -------
-        size : int
-        """
+        """Number of samples in the catalogue."""
         pass
 
     @property
@@ -259,18 +242,11 @@ class FitsSurvey(ABC):
 
     @property
     def selection_mask(self):
-        """
-        Selection mask, generated with `fmask` when initialised.
-
-        Returns
-        -------
-        mask : 1-dimensional boolean array
-        """
+        """Selection mask, generated with `fmask` when initialised."""
         return self._selection_mask
 
     @selection_mask.setter
     def selection_mask(self, mask):
-        """Set the selection mask."""
         if not (isinstance(mask, numpy.ndarray)
                 and mask.ndim == 1
                 and mask.dtype == bool):
@@ -280,50 +256,21 @@ class FitsSurvey(ABC):
 
     @property
     def fits_keys(self):
-        """
-        Keys of the FITS file `self.file`.
-
-        Parameters
-        ----------
-        keys : list of str
-        """
+        """Keys of the FITS file `self.file`."""
         return self.file[1].data.columns.names
 
     @property
     def routine_keys(self):
-        """
-        Routine keys.
-
-        Parameters
-        ----------
-        keys : list of str
-        """
+        """Routine keys."""
         return list(self.routines.keys())
 
     def get_fitsitem(self, key):
-        """
-        Get a column `key` from the FITS file `self.file`.
-
-        Parameters
-        ----------
-        key : str
-            FITS key.
-
-        Returns
-        -------
-        col : 1-dimensional array
-        """
+        """Get a column `key` from the FITS file `self.file`."""
         return self.file[1].data[key]
 
     @property
     def keys(self):
-        """
-        Routine and FITS keys.
-
-        Returns
-        -------
-        keys : list of str
-        """
+        """Routine and FITS keys."""
         return self.routine_keys + self.fits_keys + ["INDEX"]
 
     def make_mask(self, steps):
@@ -760,13 +707,7 @@ class BaseSingleObservation(ABC):
 
     @property
     def mass(self):
-        """
-        Total mass estimate in Msun / h.
-
-        Returns
-        -------
-        float
-        """
+        """Total mass estimate in Msun / h."""
         if self._mass is None:
             raise ValueError("`mass` is not set!")
         return self._mass
@@ -779,30 +720,15 @@ class BaseSingleObservation(ABC):
 
     def cartesian_pos(self, boxsize):
         """
-        Cartesian position of the observation in Mpc / h, assuming the observer
-        is in the centre of the box.
-
-        Parameters
-        ----------
-        boxsize : float
-            Box size in Mpc / h.
-
-        Returns
-        -------
-        1-dimensional array of shape (3,)
+        Cartesian position in Mpc / h, assuming the observer is in the centre
+        of the box.
         """
         return radec_to_cartesian(
             self.spherical_pos.reshape(1, 3)).reshape(-1,) + boxsize / 2
 
     @property
     def name(self):
-        """
-        Observated object name.
-
-        Returns
-        -------
-        str
-        """
+        """Object name."""
         if self._name is None:
             raise ValueError("`name` is not set!")
         return self._name
