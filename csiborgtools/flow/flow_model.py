@@ -13,14 +13,15 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-Validation of the CSiBORG velocity field against PV measurements. Based on [1].
+Validation of the CSiBORG velocity field against PV measurements. A lot here
+is based on [1], though with many modifications. Throughout, comoving distances
+are in `Mpc / h` and velocities in `km / s`.
 
 References
 ----------
 [1] https://arxiv.org/abs/1912.09383.
 """
 from abc import ABC, abstractmethod
-from datetime import datetime
 from warnings import catch_warnings, simplefilter, warn
 
 import numpy as np
@@ -40,15 +41,10 @@ from scipy.optimize import fmin_powell
 from sklearn.model_selection import KFold
 from tqdm import trange
 
-from ..params import simname2Omega_m
-from ..utils import radec_to_galactic
+from ..params import SPEED_OF_LIGHT, simname2Omega_m
+from ..utils import fprint, radec_to_galactic
 
-SPEED_OF_LIGHT = 299792.458  # km / s
 H0 = 100                     # km / s / Mpc
-
-
-def t():
-    return datetime.now().strftime("%H:%M:%S")
 
 
 ###############################################################################
@@ -83,13 +79,11 @@ class DataLoader:
     """
     def __init__(self, simname, ksim, catalogue, catalogue_fpath, paths,
                  ksmooth=None, store_full_velocity=False, verbose=True):
-        if verbose:
-            print(f"{t()}: reading the catalogue.", flush=True)
+        fprint("reading the catalogue,", verbose)
         self._cat = self._read_catalogue(catalogue, catalogue_fpath)
         self._catname = catalogue
 
-        if verbose:
-            print(f"{t()}: reading the interpolated field.", flush=True)
+        fprint("reading the interpolated field,", verbose)
         self._field_rdist, self._los_density, self._los_velocity = self._read_field(  # noqa
             simname, ksim, catalogue, ksmooth, paths)
 
@@ -106,8 +100,7 @@ class DataLoader:
             raise ValueError("The number of objects in the catalogue does not "
                              "match the number of objects in the field.")
 
-        if verbose:
-            print(f"{t()}: calculating the radial velocity.", flush=True)
+        fprint("calculating the radial velocity.", verbose)
         nobject = len(self._los_density)
         dtype = self._los_density.dtype
 
@@ -144,74 +137,37 @@ class DataLoader:
 
     @property
     def cat(self):
-        """
-        The distance indicators catalogue.
-
-        Returns
-        -------
-        structured array
-        """
+        """The distance indicators catalogue (structured array)."""
         return self._cat[self._mask]
 
     @property
     def catname(self):
-        """
-        Name of the catalogue.
-
-        Returns
-        -------
-        str
-        """
+        """Catalogue name."""
         return self._catname
 
     @property
     def rdist(self):
-        """
-        Radial distances where the field was interpolated for each object.
-
-        Returns
-        -------
-        1-dimensional array
-        """
+        """Radial distances at which the field was interpolated."""
         return self._field_rdist
 
     @property
     def los_density(self):
-        """
-        Density field along the line of sight.
-
-        Returns
-        ----------
-        2-dimensional array of shape (n_objects, n_steps)
-        """
+        """Density field along the line of sight `(n_objects, n_steps)`."""
         return self._los_density[self._mask]
 
     @property
     def los_velocity(self):
-        """
-        Velocity field along the line of sight.
-
-        Returns
-        -------
-        3-dimensional array of shape (3, n_objects, n_steps)
-        """
+        """Velocity field along the line of sight `(3, n_objects, n_steps)`."""
         if self._los_velocity is None:
             raise ValueError("The 3D velocities were not stored.")
         return self._los_velocity[self._mask]
 
     @property
     def los_radial_velocity(self):
-        """
-        Radial velocity along the line of sight.
-
-        Returns
-        -------
-        2-dimensional array of shape (n_objects, n_steps)
-        """
+        """Radial velocity along the line of sight `(n_objects, n_steps)`."""
         return self._los_radial_velocity[self._mask]
 
     def _read_field(self, simname, ksim, catalogue, ksmooth, paths):
-        """Read in the interpolated field."""
         nsims = paths.get_ics(simname)
         if not (0 <= ksim < len(nsims)):
             raise ValueError("Invalid simulation index.")
@@ -236,7 +192,6 @@ class DataLoader:
         return rdist, los_density, los_velocity
 
     def _read_catalogue(self, catalogue, catalogue_fpath):
-        """Read in the distance indicator catalogue."""
         if catalogue == "A2":
             with File(catalogue_fpath, 'r') as f:
                 dtype = [(key, np.float32) for key in f.keys()]
@@ -279,20 +234,8 @@ class DataLoader:
 
     def make_jackknife_mask(self, i, n_splits, seed=42):
         """
-        Set the jackknife mask to exclude the `i`-th split.
-
-        Parameters
-        ----------
-        i : int
-            Index of the split to exclude.
-        n_splits : int
-            Number of splits.
-        seed : int, optional
-            Random seed.
-
-        Returns
-        -------
-        None, sets `mask` internally.
+        Set the internal jackknife mask to exclude the `i`-th split out of
+        `n_splits`.
         """
         cv = KFold(n_splits=n_splits, shuffle=True, random_state=seed)
         n = len(self._cat)
@@ -320,20 +263,8 @@ class DataLoader:
 
 def radial_velocity_los(los_velocity, ra, dec):
     """
-    Calculate the radial velocity along the line of sight.
-
-    Parameters
-    ----------
-    los_velocity : 2-dimensional array of shape (3, n_steps)
-        Line of sight velocity field.
-    ra, dec : floats
-        Right ascension and declination of the line of sight.
-    is_degrees : bool, optional
-        Whether the angles are in degrees.
-
-    Returns
-    -------
-    1-dimensional array of shape (n_steps)
+    Calculate the radial velocity along the LOS from the 3D velocity
+    along the LOS `(3, n_steps)`.
     """
     types = (float, np.float32, np.float64)
     if not isinstance(ra, types) and not isinstance(dec, types):
@@ -359,15 +290,6 @@ def lognorm_mean_std_to_loc_scale(mu, std):
     """
     Calculate the location and scale parameters for the log-normal distribution
     from the mean and standard deviation.
-
-    Parameters
-    ----------
-    mu, std : float
-        Mean and standard deviation.
-
-    Returns
-    -------
-    loc, scale : float
     """
     loc = np.log(mu) - 0.5 * np.log(1 + (std / mu) ** 2)
     scale = np.sqrt(np.log(1 + (std / mu) ** 2))
@@ -378,17 +300,6 @@ def simps(y, dx):
     """
     Simpson's rule 1D integration, assuming that the number of steps is even
     and that the step size is constant.
-
-    Parameters
-    ----------
-    y : 1-dimensional array
-        Function values.
-    dx : float
-        Step size.
-
-    Returns
-    -------
-    float
     """
     if len(y) % 2 == 0:
         raise ValueError("The number of steps must be odd.")
@@ -400,17 +311,6 @@ def dist2redshift(dist, Omega_m):
     """
     Convert comoving distance to cosmological redshift if the Universe is
     flat and z << 1.
-
-    Parameters
-    ----------
-    dist : float or 1-dimensional array
-        Comoving distance in `Mpc / h`.
-    Omega_m : float
-        Matter density parameter.
-
-    Returns
-    -------
-    float or 1-dimensional array
     """
     eta = 3 * Omega_m / 2
     return 1 / eta * (1 - (1 - 2 * H0 * dist / SPEED_OF_LIGHT * eta)**0.5)
@@ -420,17 +320,6 @@ def redshift2dist(z, Omega_m):
     """
     Convert cosmological redshift to comoving distance if the Universe is
     flat and z << 1.
-
-    Parameters
-    ----------
-    z : float or 1-dimensional array
-        Cosmological redshift.
-    Omega_m : float
-        Matter density parameter.
-
-    Returns
-    -------
-    float or 1-dimensional array
     """
     q0 = 3 * Omega_m / 2 - 1
     return SPEED_OF_LIGHT * z / (2 * H0) * (2 - z * (1 + q0))
@@ -440,37 +329,13 @@ def gradient_redshift2dist(z, Omega_m):
     """
     Gradient of the redshift to comoving distance conversion if the Universe is
     flat and z << 1.
-
-    Parameters
-    ----------
-    z : float or 1-dimensional array
-        Cosmological redshift.
-    Omega_m : float
-        Matter density parameter.
-
-    Returns
-    -------
-    float or 1-dimensional array
     """
     q0 = 3 * Omega_m / 2 - 1
     return SPEED_OF_LIGHT / H0 * (1 - z * (1 + q0))
 
 
 def dist2distmodulus(dist, Omega_m):
-    """
-    Convert comoving distance to distance modulus, assuming z << 1.
-
-    Parameters
-    ----------
-    dist : float or 1-dimensional array
-        Comoving distance in `Mpc / h`.
-    Omega_m : float
-        Matter density parameter.
-
-    Returns
-    -------
-    float or 1-dimensional array
-    """
+    """Convert comoving distance to distance modulus, assuming z << 1."""
     zcosmo = dist2redshift(dist, Omega_m)
     luminosity_distance = dist * (1 + zcosmo)
     return 5 * jnp.log10(luminosity_distance) + 25
@@ -479,9 +344,8 @@ def dist2distmodulus(dist, Omega_m):
 def distmodulus2dist(mu, Omega_m, ninterp=10000, zmax=0.1, mu2comoving=None,
                      return_interpolator=False):
     """
-    Convert distance modulus to comoving distance. Note that this is a costly
-    implementation, as it builts up the interpolator every time it is called
-    unless it is provided.
+    Convert distance modulus to comoving distance. This is costly as it builds
+    up the interpolator every time it is called, unless it is provided.
 
     Parameters
     ----------
@@ -520,9 +384,8 @@ def distmodulus2dist(mu, Omega_m, ninterp=10000, zmax=0.1, mu2comoving=None,
 def distmodulus2redsfhit(mu, Omega_m, ninterp=10000, zmax=0.1, mu2z=None,
                          return_interpolator=False):
     """
-    Convert distance modulus to cosmological redshift. Note that this is a
-    costly implementation, as it builts up the interpolator every time it is
-    called unless it is provided.
+    Convert distance modulus to cosmological redshift. This is costly as it
+    builts up the interpolator every time it is called, unless it is provided.
 
     Parameters
     ----------
@@ -556,49 +419,18 @@ def distmodulus2redsfhit(mu, Omega_m, ninterp=10000, zmax=0.1, mu2z=None,
     return mu2z(mu)
 
 
-def project_Vext(Vext_x, Vext_y, Vext_z, RA, dec):
-    """
-    Project the external velocity onto the line of sight along direction
-    specified by RA/dec. Note that the angles must be in radians.
-
-    Parameters
-    ----------
-    Vext_x, Vext_y, Vext_z : floats
-        Components of the external velocity.
-    RA, dec : floats
-        Right ascension and declination in radians
-
-    Returns
-    -------
-    float
-    """
-    cos_dec = jnp.cos(dec)
-    return (Vext_x * jnp.cos(RA) * cos_dec
-            + Vext_y * jnp.sin(RA) * cos_dec
-            + Vext_z * jnp.sin(dec))
+def project_Vext(Vext_x, Vext_y, Vext_z, RA_radians, dec_radians):
+    """Project the external velocity vector onto the line of sight."""
+    cos_dec = jnp.cos(dec_radians)
+    return (Vext_x * jnp.cos(RA_radians) * cos_dec
+            + Vext_y * jnp.sin(RA_radians) * cos_dec
+            + Vext_z * jnp.sin(dec_radians))
 
 
 def predict_zobs(dist, beta, Vext_radial, vpec_radial, Omega_m):
     """
     Predict the observed redshift at a given comoving distance given some
     velocity field.
-
-    Parameters
-    ----------
-    dist : float
-        Comoving distance in `Mpc / h`.
-    beta : float
-        Velocity bias parameter.
-    Vext_radial : float
-        Radial component of the external velocity along the LOS.
-    vpec_radial : float
-        Radial component of the peculiar velocity along the LOS.
-    Omega_m : float
-        Matter density parameter.
-
-    Returns
-    -------
-    float
     """
     zcosmo = dist2redshift(dist, Omega_m)
 
@@ -613,7 +445,7 @@ def predict_zobs(dist, beta, Vext_radial, vpec_radial, Omega_m):
 def calculate_ptilde_wo_bias(xrange, mu, err, r_squared_xrange=None,
                              is_err_squared=False):
     """
-    Calculate `ptilde(r)` without any bias.
+    Calculate `ptilde(r)` without (im)homogeneous Malmquist bias.
 
     Parameters
     ----------
@@ -648,19 +480,6 @@ def calculate_likelihood_zobs(zobs, zobs_pred, sigma_v):
     """
     Calculate the likelihood of the observed redshift given the predicted
     redshift.
-
-    Parameters
-    ----------
-    zobs : float
-        Observed redshift.
-    zobs_pred : float
-        Predicted redshift.
-    sigma_v : float
-        Velocity uncertainty.
-
-    Returns
-    -------
-    float
     """
     dcz = SPEED_OF_LIGHT * (zobs - zobs_pred)
     return jnp.exp(-0.5 * (dcz / sigma_v)**2) / jnp.sqrt(2 * np.pi) / sigma_v
@@ -668,7 +487,7 @@ def calculate_likelihood_zobs(zobs, zobs_pred, sigma_v):
 
 def stack_normal(mus, stds):
     """
-    Stack the normal distributions and approximate the stacked distribution
+    Stack normal distributions and approximate the stacked distribution
     by a single Gaussian.
 
     Parameters
@@ -690,9 +509,6 @@ def stack_normal(mus, stds):
 
 
 class BaseFlowValidationModel(ABC):
-    """
-    Base class for the flow validation models.
-    """
 
     @property
     def ndata(self):
@@ -813,17 +629,16 @@ class SD_PV_validation_model(BaseFlowValidationModel):
 
     def __init__(self, los_density, los_velocity, RA, dec, z_obs,
                  r_hMpc, e_r_hMpc, r_xrange, Omega_m):
-        dt = jnp.float32
         # Convert everything to JAX arrays.
-        self._los_density = jnp.asarray(los_density, dtype=dt)
-        self._los_velocity = jnp.asarray(los_velocity, dtype=dt)
+        self._los_density = jnp.asarray(los_density)
+        self._los_velocity = jnp.asarray(los_velocity)
 
-        self._RA = jnp.asarray(np.deg2rad(RA), dtype=dt)
-        self._dec = jnp.asarray(np.deg2rad(dec), dtype=dt)
-        self._z_obs = jnp.asarray(z_obs, dtype=dt)
+        self._RA = jnp.asarray(np.deg2rad(RA))
+        self._dec = jnp.asarray(np.deg2rad(dec))
+        self._z_obs = jnp.asarray(z_obs)
 
-        self._r_hMpc = jnp.asarray(r_hMpc, dtype=dt)
-        self._e2_rhMpc = jnp.asarray(e_r_hMpc**2, dtype=dt)
+        self._r_hMpc = jnp.asarray(r_hMpc)
+        self._e2_rhMpc = jnp.asarray(e_r_hMpc**2)
 
         # Get radius squared
         r2_xrange = r_xrange**2
@@ -941,26 +756,24 @@ class SN_PV_validation_model(BaseFlowValidationModel):
 
     def __init__(self, los_density, los_velocity, RA, dec, z_obs,
                  e_zobs, mB, x1, c, e_mB, e_x1, e_c, r_xrange, Omega_m):
-        dt = jnp.float32
         # Convert everything to JAX arrays.
-        self._los_density = jnp.asarray(los_density, dtype=dt)
-        self._los_velocity = jnp.asarray(los_velocity, dtype=dt)
+        self._los_density = jnp.asarray(los_density)
+        self._los_velocity = jnp.asarray(los_velocity)
 
-        self._RA = jnp.asarray(np.deg2rad(RA), dtype=dt)
-        self._dec = jnp.asarray(np.deg2rad(dec), dtype=dt)
-        self._z_obs = jnp.asarray(z_obs, dtype=dt)
+        self._RA = jnp.asarray(np.deg2rad(RA))
+        self._dec = jnp.asarray(np.deg2rad(dec))
+        self._z_obs = jnp.asarray(z_obs)
         if e_zobs is not None:
-            self._e2_cz_obs = jnp.asarray(
-                (SPEED_OF_LIGHT * e_zobs)**2, dtype=dt)
+            self._e2_cz_obs = jnp.asarray((SPEED_OF_LIGHT * e_zobs)**2)
         else:
             self._e2_cz_obs = jnp.zeros_like(self._z_obs)
 
-        self._mB = jnp.asarray(mB, dtype=dt)
-        self._x1 = jnp.asarray(x1, dtype=dt)
-        self._c = jnp.asarray(c, dtype=dt)
-        self._e2_mB = jnp.asarray(e_mB**2, dtype=dt)
-        self._e2_x1 = jnp.asarray(e_x1**2, dtype=dt)
-        self._e2_c = jnp.asarray(e_c**2, dtype=dt)
+        self._mB = jnp.asarray(mB)
+        self._x1 = jnp.asarray(x1)
+        self._c = jnp.asarray(c)
+        self._e2_mB = jnp.asarray(e_mB**2)
+        self._e2_x1 = jnp.asarray(e_x1**2)
+        self._e2_c = jnp.asarray(e_c**2)
 
         # Get radius squared
         r2_xrange = r_xrange**2
@@ -1001,32 +814,12 @@ class SN_PV_validation_model(BaseFlowValidationModel):
 
     def mu(self, mag_cal, alpha_cal, beta_cal):
         """
-        Distance modulus of each object the given SALT2 calibration parameters.
-
-        Parameters
-        ----------
-        mag_cal, alpha_cal, beta_cal : floats
-            SALT2 calibration parameters.
-
-        Returns
-        -------
-        1-dimensional array
+        Distance modulus of each object given SALT2 calibration parameters.
         """
         return self._mB - mag_cal + alpha_cal * self._x1 - beta_cal * self._c
 
     def squared_e_mu(self, alpha_cal, beta_cal, e_mu_intrinsic):
-        """
-        Linearly-propagated squared error on the SALT2 distance modulus.
-
-        Parameters
-        ----------
-        alpha_cal, beta_cal, e_mu_intrinsic : floats
-            SALT2 calibration parameters.
-
-        Returns
-        -------
-        1-dimensional array
-        """
+        """Linearly-propagated squared error on the SALT2 distance modulus."""
         return (self._e2_mB + alpha_cal**2 * self._e2_x1
                 + beta_cal**2 * self._e2_c + e_mu_intrinsic**2)
 
@@ -1122,10 +915,6 @@ class SN_PV_validation_model(BaseFlowValidationModel):
         sample_beta : bool, optional
             Whether to sample the velocity bias parameter `beta`, otherwise
             it is fixed to 1.
-
-        Returns
-        -------
-        None
         """
         Vx = numpyro.sample("Vext_x", self._Vext)
         Vy = numpyro.sample("Vext_y", self._Vext)
@@ -1192,19 +981,18 @@ class TF_PV_validation_model(BaseFlowValidationModel):
 
     def __init__(self, los_density, los_velocity, RA, dec, z_obs,
                  mag, eta, e_mag, e_eta, r_xrange, Omega_m):
-        dt = jnp.float32
         # Convert everything to JAX arrays.
-        self._los_density = jnp.asarray(los_density, dtype=dt)
-        self._los_velocity = jnp.asarray(los_velocity, dtype=dt)
+        self._los_density = jnp.asarray(los_density)
+        self._los_velocity = jnp.asarray(los_velocity)
 
-        self._RA = jnp.asarray(np.deg2rad(RA), dtype=dt)
-        self._dec = jnp.asarray(np.deg2rad(dec), dtype=dt)
-        self._z_obs = jnp.asarray(z_obs, dtype=dt)
+        self._RA = jnp.asarray(np.deg2rad(RA))
+        self._dec = jnp.asarray(np.deg2rad(dec))
+        self._z_obs = jnp.asarray(z_obs)
 
-        self._mag = jnp.asarray(mag, dtype=dt)
-        self._eta = jnp.asarray(eta, dtype=dt)
-        self._e2_mag = jnp.asarray(e_mag**2, dtype=dt)
-        self._e2_eta = jnp.asarray(e_eta**2, dtype=dt)
+        self._mag = jnp.asarray(mag)
+        self._eta = jnp.asarray(eta)
+        self._e2_mag = jnp.asarray(e_mag**2)
+        self._e2_eta = jnp.asarray(e_eta**2)
 
         # Get radius squared
         r2_xrange = r_xrange**2
@@ -1243,34 +1031,11 @@ class TF_PV_validation_model(BaseFlowValidationModel):
         self._r_xrange = r_xrange
 
     def mu(self, a, b):
-        """
-        Distance modulus of each object the given Tully-Fisher calibration.
-
-        Parameters
-        ----------
-        a, b : floats
-            Tully-Fisher calibration parameters.
-
-        Returns
-        -------
-        1-dimensional array
-        """
-
+        """Distance modulus of each object given the TFR calibration."""
         return self._mag - (a + b * self._eta)
 
     def squared_e_mu(self, b, e_mu_intrinsic):
-        """
-        Squared error on the Tully-Fisher distance modulus.
-
-        Parameters
-        ----------
-        b, e_mu_intrinsic : floats
-            Tully-Fisher calibration parameters.
-
-        Returns
-        -------
-        1-dimensional array
-        """
+        """Linearly propagated squared error on the TFR distance modulus."""
         return (self._e2_mag + b**2 * self._e2_eta + e_mu_intrinsic**2)
 
     def predict_zcosmo_from_calibration(self, **kwargs):
@@ -1331,10 +1096,6 @@ class TF_PV_validation_model(BaseFlowValidationModel):
         sample_beta : bool, optional
             Whether to sample the velocity bias parameter `beta`, otherwise
             it is fixed to 1.
-
-        Returns
-        -------
-        None
         """
         Vx = numpyro.sample("Vext_x", self._Vext)
         Vy = numpyro.sample("Vext_y", self._Vext)
@@ -1671,7 +1432,6 @@ def _posterior_element(r, beta, Vext_radial, los_velocity, Omega_m, zobs,
 class BaseObserved2CosmologicalRedshift(ABC):
     """Base class for `Observed2CosmologicalRedshift`."""
     def __init__(self, calibration_samples, r_xrange):
-        dt = jnp.float32
         # Check calibration samples input.
         for i, key in enumerate(calibration_samples.keys()):
             x = calibration_samples[key]
@@ -1687,14 +1447,13 @@ class BaseObserved2CosmologicalRedshift(ABC):
             if len(x) != ncalibratrion:
                 raise ValueError("Calibration samples do not have the same length.")  # noqa
 
-            # Enforce the same data type.
-            calibration_samples[key] = jnp.asarray(x, dtype=dt)
+            calibration_samples[key] = jnp.asarray(x)
 
         if "alpha" not in calibration_samples:
-            calibration_samples["alpha"] = jnp.ones(ncalibratrion, dtype=dt)
+            calibration_samples["alpha"] = jnp.ones(ncalibratrion)
 
         if "beta" not in calibration_samples:
-            calibration_samples["beta"] = jnp.ones(ncalibratrion, dtype=dt)
+            calibration_samples["beta"] = jnp.ones(ncalibratrion)
 
         # Get the stepsize, we need it to be constant for Simpson's rule.
         dr = np.diff(r_xrange)
@@ -1714,18 +1473,7 @@ class BaseObserved2CosmologicalRedshift(ABC):
         self._simps = jit(lambda y: simps(y, dr))
 
     def get_calibration_samples(self, key):
-        """
-        Get calibration samples for a given key.
-
-        Parameters
-        ----------
-        key : str
-            Key of the calibration samples.
-
-        Returns
-        -------
-        1-dimensional array
-        """
+        """Get calibration samples for a given key."""
         if key not in self._calibration_samples:
             raise ValueError(f"Key `{key}` not found in calibration samples. Available keys are: `{self.calibration_keys}`.")  # noqa
 
@@ -1733,24 +1481,12 @@ class BaseObserved2CosmologicalRedshift(ABC):
 
     @property
     def ncalibration_samples(self):
-        """
-        Number of calibration samples.
-
-        Returns
-        -------
-        int
-        """
+        """Number of calibration samples."""
         return self._ncalibration_samples
 
     @property
     def calibration_keys(self):
-        """
-        Calibration sample keys.
-
-        Returns
-        -------
-        list of str
-        """
+        """Calibration sample keys."""
         return list(self._calibration_samples.keys())
 
 
@@ -1785,22 +1521,8 @@ class Observed2CosmologicalRedshift(BaseObserved2CosmologicalRedshift):
     def posterior_mean_std(self, x, px):
         """
         Calculate the mean and standard deviation of a 1-dimensional PDF.
-        Assumes that the PDF is already normalized. Assumes that the PDF
-        spacing is that of `r_xrange` which is inferred when initializing this
-        class.
-
-        Parameters
-        ----------
-        x : 1-dimensional array
-            Values at which the PDF is evaluated. Note that the PDF must be
-            normalized.
-        px : 1-dimensional array
-            PDF values.
-        dx
-
-        Returns
-        -------
-        mu, std : floats
+        Assumes that the PDF is already normalized and that the spacing is that
+        of `r_xrange` which is inferred when initializing this class.
         """
         mu = self._simps(x * px)
         std = (self._simps(x**2 * px) - mu**2)**0.5
