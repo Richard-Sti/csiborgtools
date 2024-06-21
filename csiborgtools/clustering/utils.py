@@ -138,17 +138,6 @@ def wrapRA(ra, indeg):
     """
     Wrap RA from :math:`[-180, 180)` to :math`[0, 360)` degrees if `indeg` or
     equivalently in radians otherwise.
-
-    Paramaters
-    ----------
-    ra : 1-dimensional array
-        Right ascension.
-    indeg : bool
-        Whether the right ascension is in degrees.
-
-    Returns
-    -------
-    wrapped_ra : 1-dimensional array
     """
     mask = ra < 0
     if numpy.sum(mask) == 0:
