@@ -360,8 +360,6 @@ class Paths:
             return f"/mnt/zfsusers/hdesmond/BORG_final/mcmc_{nsim}.h5"
 
         if simname == "csiborg2X":
-            warn("`MAS` and `grid` options are not used for CSiBORG2X.",
-                 UserWarning)
             basedir = "/mnt/extraspace/rstiskalek/MANTICORE/resimulations/fields/2MPP_N128_DES_PROD/R512"  # noqa
             if kind == "overdensity":
                 return join(basedir, f"mcmc_{nsim}", "delta_field.hdf5")
