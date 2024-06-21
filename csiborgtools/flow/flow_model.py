@@ -61,7 +61,7 @@ class DataLoader:
     ----------
     simname : str
         Simulation name.
-    ksims : int
+    ksim : int or list of int
         Index of the simulation to read in (not the IC index).
     catalogue : str
         Name of the catalogue with LOS objects.
@@ -96,12 +96,12 @@ class DataLoader:
             self._los_density = self._los_density[..., 1:]
             self._los_velocity = self._los_velocity[..., 1:]
 
-        if len(self._cat) != len(self._los_density):
+        if len(self._cat) != self._los_density.shape[1]:
             raise ValueError("The number of objects in the catalogue does not "
                              "match the number of objects in the field.")
 
         fprint("calculating the radial velocity.", verbose)
-        nobject = len(self._los_density)
+        nobject = self._los_density.shape[1]
         dtype = self._los_density.dtype
 
         # In case of Carrick 2015 the box is in galactic coordinates..
@@ -110,10 +110,12 @@ class DataLoader:
         else:
             d1, d2 = self._cat["RA"], self._cat["DEC"]
 
-        radvel = np.empty((nobject, len(self._field_rdist)), dtype)
-        for i in range(nobject):
-            radvel[i, :] = radial_velocity_los(self._los_velocity[:, i, ...],
-                                               d1[i], d2[i])
+        num_sims = len(self._los_density)
+        radvel = np.empty((num_sims, nobject, len(self._field_rdist)), dtype)
+        for k in range(num_sims):
+            for i in range(nobject):
+                radvel[k, i, :] = radial_velocity_los(
+                    self._los_velocity[k, :, i, ...], d1[i], d2[i])
         self._los_radial_velocity = radvel
 
         if not store_full_velocity:
@@ -152,42 +154,61 @@ class DataLoader:
 
     @property
     def los_density(self):
-        """Density field along the line of sight `(n_objects, n_steps)`."""
-        return self._los_density[self._mask]
+        """
+        Density field along the line of sight `(n_sims, n_objects, n_steps)`
+        """
+        return self._los_density[:, self._mask, ...]
 
     @property
     def los_velocity(self):
-        """Velocity field along the line of sight `(3, n_objects, n_steps)`."""
+        """
+        Velocity field along the line of sight `(n_sims, 3, n_objects,
+        n_steps)`.
+        """
         if self._los_velocity is None:
             raise ValueError("The 3D velocities were not stored.")
-        return self._los_velocity[self._mask]
+
+        return self._los_velocity[:, :, self._mask, ...]
 
     @property
     def los_radial_velocity(self):
-        """Radial velocity along the line of sight `(n_objects, n_steps)`."""
-        return self._los_radial_velocity[self._mask]
+        """
+        Radial velocity along the line of sight `(n_sims, n_objects, n_steps)`.
+        """
+        return self._los_radial_velocity[:, self._mask, ...]
 
-    def _read_field(self, simname, ksim, catalogue, ksmooth, paths):
+    def _read_field(self, simname, ksims, catalogue, ksmooth, paths):
         nsims = paths.get_ics(simname)
-        if not (0 <= ksim < len(nsims)):
-            raise ValueError("Invalid simulation index.")
-        nsim = nsims[ksim]
+        if isinstance(ksims, int):
+            ksims = [ksims]
+
+        if not all(0 <= ksim < len(nsims) for ksim in ksims):
+            raise ValueError(f"Invalid simulation index: `{ksims}`")
 
         if "Pantheon+" in catalogue:
             fpath = paths.field_los(simname, "Pantheon+")
         else:
             fpath = paths.field_los(simname, catalogue)
 
-        with File(fpath, 'r') as f:
-            has_smoothed = True if f[f"density_{nsim}"].ndim > 2 else False
-            if has_smoothed and (ksmooth is None or not isinstance(ksmooth, int)):  # noqa
-                raise ValueError("The output contains smoothed field but "
-                                 "`ksmooth` is None. It must be provided.")
+        los_density = [None] * len(ksims)
+        los_velocity = [None] * len(ksims)
 
-            indx = (..., ksmooth) if has_smoothed else (...)
-            los_density = f[f"density_{nsim}"][indx]
-            los_velocity = f[f"velocity_{nsim}"][indx]
-            rdist = f[f"rdist_{nsims[0]}"][:]
+        for n, ksim in enumerate(ksims):
+            nsim = nsims[ksim]
+
+            with File(fpath, 'r') as f:
+                has_smoothed = True if f[f"density_{nsim}"].ndim > 2 else False
+                if has_smoothed and (ksmooth is None or not isinstance(ksmooth, int)):  # noqa
+                    raise ValueError("The output contains smoothed field but "
+                                     "`ksmooth` is None. It must be provided.")
+
+                indx = (..., ksmooth) if has_smoothed else (...)
+                los_density[n] = f[f"density_{nsim}"][indx]
+                los_velocity[n] = f[f"velocity_{nsim}"][indx]
+                rdist = f[f"rdist_{nsim}"][...]
+
+        los_density = np.stack(los_density)
+        los_velocity = np.stack(los_velocity)
 
         return rdist, los_density, los_velocity
 
@@ -1029,6 +1050,7 @@ class TF_PV_validation_model(BaseFlowValidationModel):
 
         self._Omega_m = Omega_m
         self._r_xrange = r_xrange
+        self._num_sims = len(los_density)
 
     def mu(self, a, b):
         """Distance modulus of each object given the TFR calibration."""
@@ -1113,26 +1135,36 @@ class TF_PV_validation_model(BaseFlowValidationModel):
         mu = self.mu(a, b)
         squared_e_mu = self.squared_e_mu(b, e_mu_intrinsic)
 
-        def scan_body(i):
+        def ll_galaxy(i, k):
+            # `i`` is the galaxy index, `k`` is the simulation index.
             # Calculate p(r) and multiply it by the galaxy bias
             ptilde = self._f_ptilde_wo_bias(mu[i], squared_e_mu[i])
-            ptilde *= self._los_density[i]**alpha
+            ptilde *= self._los_density[k, i]**alpha
 
             # Normalization of p(r)
             pnorm = self._f_simps(ptilde)
 
             # Calculate p(z_obs) and multiply it by p(r)
-            zobs_pred = self._f_zobs(beta, Vext_rad[i], self._los_velocity[i])
+            zobs_pred = self._f_zobs(
+                beta, Vext_rad[i], self._los_velocity[k, i])
             ptilde *= calculate_likelihood_zobs(
                 self._z_obs[i], zobs_pred, sigma_v)
 
-            # return ll + jnp.log(self._f_simps(ptilde) / pnorm), None
             return jnp.log(self._f_simps(ptilde) / pnorm)
 
         def pmap_body(indxs):
-            return jnp.sum(vmap(scan_body)(indxs))
+            if self._num_sims == 1:
+                return jnp.sum(vmap(ll_galaxy, in_axes=(0, None))(indxs, 0))
 
-        # NOTE: move this elsewhere?
+            def scan_body(ll, k):
+                ll_k = jnp.sum(vmap(ll_galaxy, in_axes=(0, None))(indxs, k))
+                return ll + ll_k, None
+
+            ll = 0.
+            ll, __ = scan(scan_body, ll, jnp.arange(self._num_sims))
+            return ll
+
+        # Parallelize with devices over the galaxies.
         indxs = jnp.arange(self.ndata).reshape(len(devices()), -1)
         ll = pmap(pmap_body)(indxs)
         numpyro.factor("ll", jnp.sum(ll))
@@ -1198,9 +1230,9 @@ def get_model(loader, zcmb_max=None, verbose=True):
             zCMB = zCMB_SN
 
         model = SN_PV_validation_model(
-            los_overdensity[mask], los_velocity[mask], RA[mask], dec[mask],
-            zCMB[mask], e_zCMB[mask], mB[mask], x1[mask], c[mask], e_mB[mask],
-            e_x1[mask], e_c[mask], loader.rdist, loader._Omega_m)
+            los_overdensity[:, mask], los_velocity[:, mask], RA[mask],
+            dec[mask], zCMB[mask], e_zCMB[mask], mB[mask], x1[mask], c[mask],
+            e_mB[mask], e_x1[mask], e_c[mask], loader.rdist, loader._Omega_m)
     elif kind in ["SFI_gals", "2MTF", "SFI_gals_masked"]:
         keys = ["RA", "DEC", "z_CMB", "mag", "eta", "e_mag", "e_eta"]
         RA, dec, zCMB, mag, eta, e_mag, e_eta = (loader.cat[k] for k in keys)
@@ -1211,17 +1243,17 @@ def get_model(loader, zcmb_max=None, verbose=True):
             if verbose:
                 print("Emplyed eta cut for SFI galaxies.", flush=True)
         model = TF_PV_validation_model(
-            los_overdensity[mask], los_velocity[mask], RA[mask], dec[mask],
-            zCMB[mask], mag[mask], eta[mask], e_mag[mask], e_eta[mask],
-            loader.rdist, loader._Omega_m)
+            los_overdensity[:, mask], los_velocity[:, mask], RA[mask],
+            dec[mask], zCMB[mask], mag[mask], eta[mask], e_mag[mask],
+            e_eta[mask], loader.rdist, loader._Omega_m)
     elif kind == "SFI_groups":
         keys = ["RA", "DEC", "zCMB", "r_hMpc", "e_r_hMpc"]
         RA, dec, zCMB, r_hMpc, e_r_hMpc = (loader.cat[k] for k in keys)
 
         mask = (zCMB < zcmb_max)
         model = SD_PV_validation_model(
-            los_overdensity[mask], los_velocity[mask], RA[mask], dec[mask],
-            zCMB[mask], r_hMpc[mask], e_r_hMpc[mask], loader.rdist,
+            los_overdensity[:, mask], los_velocity[:, mask], RA[mask],
+            dec[mask], zCMB[mask], r_hMpc[mask], e_r_hMpc[mask], loader.rdist,
             loader._Omega_m)
     elif "CB2_" in kind:
         keys = ["RA", "DEC", "zobs", "r_hMpc"]
