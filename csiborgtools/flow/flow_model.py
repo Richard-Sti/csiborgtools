@@ -630,9 +630,9 @@ class SD_PV_validation_model(BaseFlowValidationModel):
 
     Parameters
     ----------
-    los_density : 2-dimensional array of shape (n_objects, n_steps)
+    los_density : 3-dimensional array of shape (n_sims, n_objects, n_steps)
         LOS density field.
-    los_velocity : 3-dimensional array of shape (n_objects, n_steps)
+    los_velocity : 3-dimensional array of shape (n_sims, n_objects, n_steps)
         LOS radial velocity field.
     RA, dec : 1-dimensional arrays of shape (n_objects)
         Right ascension and declination in degrees.
@@ -755,9 +755,9 @@ class SN_PV_validation_model(BaseFlowValidationModel):
 
     Parameters
     ----------
-    los_density : 2-dimensional array of shape (n_objects, n_steps)
+    los_density : 3-dimensional array of shape (n_sims, n_objects, n_steps)
         LOS density field.
-    los_velocity : 3-dimensional array of shape (n_objects, n_steps)
+    los_velocity : 3-dimensional array of shape (n_sims, n_objects, n_steps)
         LOS radial velocity field.
     RA, dec : 1-dimensional arrays of shape (n_objects)
         Right ascension and declination in degrees.
@@ -982,9 +982,9 @@ class TF_PV_validation_model(BaseFlowValidationModel):
 
     Parameters
     ----------
-    los_density : 2-dimensional array of shape (n_objects, n_steps)
+    los_density : 3-dimensional array of shape (n_sims, n_objects, n_steps)
         LOS density field.
-    los_velocity : 3-dimensional array of shape (n_objects, n_steps)
+    los_velocity : 3-dimensional array of shape (n_sims, n_objects, n_steps)
         LOS radial velocity field.
     RA, dec : 1-dimensional arrays of shape (n_objects)
         Right ascension and declination in degrees.
