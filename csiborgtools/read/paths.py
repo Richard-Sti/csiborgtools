@@ -86,18 +86,7 @@ class Paths:
         self.aux_cat_dir = aux_cat_dir
 
     def get_ics(self, simname):
-        """
-        Get available IC realisation IDs for a given simulation.
-
-        Parameters
-        ----------
-        simname : str
-            Simulation name.
-
-        Returns
-        -------
-        ids : 1-dimensional array
-        """
+        """Get available IC realisation IDs for a given simulation."""
         if simname == "csiborg1" or simname == "borg1":
             files = glob(join(self.csiborg1_srcdir, "chain_*"))
             files = [int(search(r'chain_(\d+)', f).group(1)) for f in files]
@@ -126,20 +115,7 @@ class Paths:
         return numpy.sort(files)
 
     def get_snapshots(self, nsim, simname):
-        """
-        List of available snapshots of simulation.
-
-        Parameters
-        ----------
-        nsim : int
-            IC realisation index.
-        simname : str
-            Simulation name.
-
-        Returns
-        -------
-        snapshots : 1-dimensional array
-        """
+        """List available snapshots of simulation."""
         if simname == "csiborg1":
             snaps = glob(join(self.csiborg1_srcdir, f"chain_{nsim}",
                               "snapshot_*"))
@@ -178,22 +154,7 @@ class Paths:
         return snaps
 
     def snapshot(self, nsnap, nsim, simname):
-        """
-        Path to a simulation snapshot.
-
-        Parameters
-        ----------
-        nsnap : int
-            Snapshot index. For Quijote, `ICs` indicates the IC snapshot.
-        nsim : int
-            IC realisation index.
-        simname : str
-            Simulation name.
-
-        Returns
-        -------
-        str
-        """
+        """Path to a simulation snapshot."""
         if simname == "csiborg1":
             fpath = join(self.csiborg1_srcdir, f"chain_{nsim}",
                          f"snapshot_{str(nsnap).zfill(5)}.hdf5")
@@ -217,22 +178,7 @@ class Paths:
         return fpath
 
     def snapshot_catalogue(self, nsnap, nsim, simname):
-        """
-        Path to the halo catalogue of a simulation snapshot.
-
-        Parameters
-        ----------
-        nsnap : int
-            Snapshot index.
-        nsim : int
-            IC realisation index.
-        simname : str
-            Simulation name.
-
-        Returns
-        -------
-        str
-        """
+        """Path to the halo catalogue of a simulation snapshot."""
         if simname == "csiborg1":
             return join(self.csiborg1_srcdir, f"chain_{nsim}",
                         f"fof_{str(nsnap).zfill(5)}.hdf5")
@@ -254,18 +200,7 @@ class Paths:
             raise ValueError(f"Unknown simulation name `{simname}`.")
 
     def external_halo_catalogue(self, name):
-        """
-        Path to an external halo catalogue.
-
-        Parameters
-        ----------
-        name : str
-            Catalogue name.
-
-        Returns
-        -------
-        str
-        """
+        """Path to an external halo catalogue."""
         if name == "MDPL2":
             return join(self.aux_cat_dir, "MDPL2_FOF_125.hdf5")
         else:
@@ -275,17 +210,6 @@ class Paths:
         """
         Path to the Lagrangain patch information of a simulation for halos
         defined at z = 0.
-
-        Parameters
-        ----------
-        nsim : int
-            IC realisation index.
-        simname : str
-            Simulation name.
-
-        Returns
-        -------
-        str
         """
         if simname == "csiborg1":
             return join(self.csiborg1_srcdir, f"chain_{nsim}",
@@ -306,20 +230,7 @@ class Paths:
             raise ValueError(f"Unknown simulation name `{simname}`.")
 
     def trees(self, nsim, simname):
-        """
-        Path to the halo trees of a simulation snapshot.
-
-        Parameters
-        ----------
-        nsim : int
-            IC realisation index.
-        simname : str
-            Simulation name.
-
-        Returns
-        -------
-        str
-        """
+        """Path to the halo trees of a simulation snapshot."""
         if simname == "csiborg1":
             raise ValueError("Trees not available for CSiBORG1.")
         elif simname == "csiborg2_main":
@@ -377,20 +288,7 @@ class Paths:
         return join(fdir, fname)
 
     def random_mah(self, simname, nsim):
-        """
-        Path to the files containing MAHs from random simulations.
-
-        Parameters
-        ----------
-        simname : str
-            Simulation name.
-        nsim0 : int
-            IC realisation index of the simulation.
-
-        Returns
-        -------
-        str
-        """
+        """Path to the files containing MAHs from random simulations."""
         fdir = join(self.postdir, "random_mah")
         try_create_directory(fdir)
 
@@ -441,26 +339,7 @@ class Paths:
         return join(fdir, fname)
 
     def field(self, kind, MAS, grid, nsim, simname):
-        r"""
-        Path to the files containing the calculated fields in CSiBORG.
-
-        Parameters
-        ----------
-        kind : str
-            Field type.
-        MAS : str
-           Mass-assignment scheme.
-        grid : int
-            Grid size.
-        nsim : int
-            IC realisation index.
-        simname : str
-            Simulation name.
-
-        Returns
-        -------
-        str
-        """
+        """Path to the files containing the calculated fields."""
         if simname == "borg2":
             return join(self.borg2_dir, f"mcmc_{nsim}.h5")
 
@@ -493,22 +372,8 @@ class Paths:
 
     def observer_peculiar_velocity(self, MAS, grid, nsim, simname):
         """
-        Path to the files containing the observer peculiar velocity.
-
-        Parameters
-        ----------
-        MAS : str
-            Mass-assignment scheme.
-        grid : int
-            Grid size.
-        nsim : int
-            IC realisation index.
-        simname : str
-            Simulation name.
-
-        Returns
-        -------
-        str
+        Path to the files containing the observer peculiar velocity defined as
+        the velocity of the centre of the box.
         """
         fdir = join(self.postdir, "environment")
         try_create_directory(fdir)

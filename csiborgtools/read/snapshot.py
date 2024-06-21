@@ -17,7 +17,7 @@ Classes for reading in snapshots and unifying the snapshot interface. Here
 should be implemented things such as flipping x- and z-axes, to make sure that
 observed RA-dec can be mapped into the simulation box.
 """
-from abc import ABC, abstractmethod, abstractproperty
+from abc import ABC, abstractmethod
 from os.path import join
 
 import numpy
@@ -62,59 +62,29 @@ class BaseSnapshot(ABC):
 
     @property
     def nsim(self):
-        """
-        Simulation index.
-
-        Returns
-        -------
-        int
-        """
+        """Simulation index."""
         return self._nsim
 
     @property
     def nsnap(self):
-        """
-        Snapshot index.
-
-        Returns
-        -------
-        int
-        """
+        """Snapshot index."""
         return self._nsnap
 
     @property
     def simname(self):
-        """
-        Simulation name.
-
-        Returns
-        -------
-        str
-        """
+        """Simulation name."""
         if self._simname is None:
             raise ValueError("Simulation name not set.")
         return self._simname
 
     @property
     def boxsize(self):
-        """
-        Simulation boxsize in `cMpc/h`.
-
-        Returns
-        -------
-        float
-        """
+        """Simulation boxsize in `cMpc/h`."""
         return simname2boxsize(self.simname)
 
     @property
     def paths(self):
-        """
-        Paths manager.
-
-        Returns
-        -------
-        Paths
-        """
+        """Paths manager."""
         if self._paths is None:
             self._paths = Paths(**paths_glamdring)
         return self._paths
@@ -124,10 +94,6 @@ class BaseSnapshot(ABC):
         """
         Whether to keep the snapshot file open when reading halo particles.
         This is useful for repeated access to the snapshot.
-
-        Returns
-        -------
-        bool
         """
         return self._keep_snapshot_open
 
@@ -136,61 +102,37 @@ class BaseSnapshot(ABC):
         """
         Whether to flip the x- and z-axes to undo the MUSIC bug so that the
         coordinates are consistent with observations.
-
-        Returns
-        -------
-        bool
         """
         return self._flip_xz
 
-    @abstractproperty
+    @property
+    @abstractmethod
     def coordinates(self):
-        """
-        Return the particle coordinates.
-
-        Returns
-        -------
-        coords : 2-dimensional array
-        """
+        """Particle coordinates."""
         pass
 
-    @abstractproperty
+    @property
+    @abstractmethod
     def velocities(self):
-        """
-        Return the particle velocities.
-
-        Returns
-        -------
-        vel : 2-dimensional array
-        """
+        """Particle velocities."""
         pass
 
-    @abstractproperty
+    @property
+    @abstractmethod
     def masses(self):
-        """
-        Return the particle masses.
-
-        Returns
-        -------
-        mass : 1-dimensional array
-        """
+        """Particle masses."""
         pass
 
-    @abstractproperty
+    @property
+    @abstractmethod
     def particle_ids(self):
-        """
-        Return the particle IDs.
-
-        Returns
-        -------
-        ids : 1-dimensional array
-        """
+        """Particle IDs."""
         pass
 
     @abstractmethod
     def halo_coordinates(self, halo_id, is_group):
         """
-        Return the halo particle coordinates.
+        Halo particle coordinates.
 
         Parameters
         ----------
@@ -253,19 +195,12 @@ class BaseSnapshot(ABC):
 
     @abstractmethod
     def _make_hid2offset(self):
-        """
-        Private class function to make the halo ID to offset dictionary.
-        """
         pass
 
     def open_snapshot(self):
         """
         Open the snapshot file, particularly used in the context of loading in
         particles of individual haloes.
-
-        Returns
-        -------
-        h5py.File
         """
         if not self.keep_snapshot_open:
             # Check if the snapshot path is set
@@ -283,10 +218,6 @@ class BaseSnapshot(ABC):
     def close_snapshot(self):
         """
         Close the snapshot file opened with `open_snapshot`.
-
-        Returns
-        -------
-        None
         """
         if not self.keep_snapshot_open:
             return
@@ -648,24 +579,12 @@ class BaseField(ABC):
 
     @property
     def nsim(self):
-        """
-        Simulation index.
-
-        Returns
-        -------
-        int
-        """
+        """Simulation index."""
         return self._nsim
 
     @property
     def paths(self):
-        """
-        Paths manager.
-
-        Returns
-        -------
-        Paths
-        """
+        """Paths manager."""
         if self._paths is None:
             self._paths = Paths(**paths_glamdring)
         return self._paths
@@ -675,65 +594,22 @@ class BaseField(ABC):
         """
         Whether to flip the x- and z-axes to undo the MUSIC bug so that the
         coordinates are consistent with observations.
-
-        Returns
-        -------
-        bool
         """
         return self._flip_xz
 
     @abstractmethod
     def density_field(self, MAS, grid):
-        """
-        Return the pre-computed density field.
-
-        Parameters
-        ----------
-        MAS : str
-            Mass assignment scheme.
-        grid : int
-            Grid size.
-
-        Returns
-        -------
-        field : 3-dimensional array
-        """
+        """Precomputed density field."""
         pass
 
     @abstractmethod
     def velocity_field(self, MAS, grid):
-        """
-        Return the pre-computed velocity field.
-
-        Parameters
-        ----------
-        MAS : str
-            Mass assignment scheme.
-        grid : int
-            Grid size.
-
-        Returns
-        -------
-        field : 4-dimensional array
-        """
+        """Precomputed velocity field."""
         pass
 
     @abstractmethod
     def radial_velocity_field(self, MAS, grid):
-        """
-        Return the pre-computed radial velocity field.
-
-        Parameters
-        ----------
-        MAS : str
-            Mass assignment scheme.
-        grid : int
-            Grid size.
-
-        Returns
-        -------
-        field : 3-dimensional array
-        """
+        """Precomputed radial velocity field."""
         pass
 
 
@@ -1046,5 +922,4 @@ def is_instance_of_base_snapshot_subclass(obj):
     Check if `obj` is an instance of a subclass of `BaseSnapshot`.
     """
     return isinstance(obj, BaseSnapshot) and any(
-        issubclass(cls, BaseSnapshot) for cls in obj.__class__.__bases__
-    )
+        issubclass(cls, BaseSnapshot) for cls in obj.__class__.__bases__)
