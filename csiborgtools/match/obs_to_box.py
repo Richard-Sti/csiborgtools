@@ -13,7 +13,9 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-Code to match observations to a constrained simulation.
+Code to match observations to a constrained simulation. Throughout, masses are
+assumed to be in `Msun / h`, distances in `Mpc / h` and the HMF in
+`h^3 Mpc^-3 dex^-1`.
 """
 from abc import ABC
 
@@ -30,17 +32,10 @@ from tqdm import trange
 
 
 class BaseMatchingProbability(ABC):
-    """Base class for `MatchingProbability`."""
 
     @property
     def halo_pos(self):
-        """
-        Halo positions in the constrained simulation.
-
-        Returns
-        -------
-        2-dimensional array of shape `(n, 3)`
-        """
+        """Halo positions in the constrained simulation."""
         return self._halo_pos
 
     @halo_pos.setter
@@ -51,13 +46,7 @@ class BaseMatchingProbability(ABC):
 
     @property
     def halo_log_mass(self):
-        """
-        Halo log mass in the constrained simulation.
-
-        Returns
-        -------
-        1-dimensional array of shape `(n,)`
-        """
+        """Halo logarithmic mass in the constrained simulation."""
         return self._halo_log_mass
 
     @halo_log_mass.setter
@@ -68,30 +57,11 @@ class BaseMatchingProbability(ABC):
 
     @property
     def nhalo(self):
-        """"
-        Number of haloes in the constrained simulation that are used for
-        matching.
-
-        Returns
-        -------
-        int
-        """
+        """"Number of haloes in the constrained simulation."""
         return self.halo_log_mass.size
 
     def HMF(self, log_mass):
-        """
-        Evaluate the halo mass function at a given mass.
-
-        Parameters
-        ----------
-        log_mass : float
-            Logarithmic mass of the halo in `Msun / h`.
-
-        Returns
-        -------
-        HMF : float
-            The HMF in `h^3 Mpc^-3 dex^-1`.
-        """
+        """Evaluate the halo mass function at a given log mass."""
         return self._hmf(log_mass)
 
 
@@ -140,17 +110,6 @@ class MatchingProbability(BaseMatchingProbability):
         """
         Calculate the PDF of finding a halo of a given mass at a given distance
         from a random point.
-
-        Parameters
-        ----------
-        r : float
-            Distance from the random point in `Mpc / h`.
-        log_mass : float
-            Logarithmic mass of the halo in `Msun / h`.
-
-        Returns
-        -------
-        float
         """
         nd = self.HMF(log_mass)
         return 4 * np.pi * r**2 * nd * np.exp(-4 / 3 * np.pi * r**3 * nd)
@@ -159,17 +118,6 @@ class MatchingProbability(BaseMatchingProbability):
         """
         Calculate the CDF of finding a halo of a given mass at a given distance
         from a random point.
-
-        Parameters
-        ----------
-        r : float
-            Distance from the random point in `Mpc / h`.
-        log_mass : float
-            Logarithmic mass of the halo in `Msun / h`.
-
-        Returns
-        -------
-        float
         """
         nd = self.HMF(log_mass)
         return 1 - np.exp(-4 / 3 * np.pi * r**3 * nd)
@@ -178,17 +126,6 @@ class MatchingProbability(BaseMatchingProbability):
         """
         Calculate the inverse CDF of finding a halo of a given mass at a given
         distance from a random point.
-
-        Parameters
-        ----------
-        cdf : float
-            CDF of finding a halo of a given mass at a given distance.
-        log_mass : float
-            Logarithmic mass of the halo in `Msun / h`.
-
-        Returns
-        -------
-        float
         """
         nd = self.HMF(log_mass)
         return (np.log(1 - cdf) / (-4 / 3 * np.pi * nd))**(1 / 3)
