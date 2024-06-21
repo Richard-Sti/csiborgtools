@@ -17,8 +17,8 @@ from .catalogue import (CSiBORG1Catalogue, CSiBORG2Catalogue,                   
                         CSiBORG2MergerTreeReader, QuijoteCatalogue,             # noqa
                         MDPL2Catalogue, fiducial_observers)                     # noqa
 from .snapshot import (CSiBORG1Snapshot, CSiBORG2Snapshot, QuijoteSnapshot,     # noqa
-                       CSiBORG1Field, CSiBORG2Field, QuijoteField, BORG2Field,  # noqa
-                       BORG1Field, TNG300_1Field)                               # noqa
+                       CSiBORG1Field, CSiBORG2Field, CSiBORG2XField,            # noqa
+                       QuijoteField, BORG2Field, BORG1Field, TNG300_1Field)     # noqa
 from .obs import (SDSS, MCXCClusters, PlanckClusters, TwoMPPGalaxies,           # noqa
                   TwoMPPGroups, ObservedCluster, match_array_to_no_masking,     # noqa
                   cols_to_structured)                                           # noqa
