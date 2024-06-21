@@ -14,6 +14,10 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 Collection of stand-off utility functions used in the scripts.
+
+Right ascension and declination is always assumed to be in degrees such that
+RA is in [0, 360) and dec is in [-90, 90]. Galactic coordinates are also in
+degrees.
 """
 from copy import deepcopy
 from datetime import datetime
@@ -32,23 +36,7 @@ from scipy.stats import multivariate_normal
 
 @jit(nopython=True, fastmath=True, boundscheck=False)
 def center_of_mass(particle_positions, particles_mass, boxsize):
-    """
-    Calculate the center of mass of a halo while assuming periodic boundary
-    conditions of a cubical box.
-
-    Parameters
-    ----------
-    particle_positions : 2-dimensional array of shape `(nparticles, 3)`
-        Particle positions in the box.
-    particles_mass : 1-dimensional array of shape `(nparticles,)`
-        Particle masses.
-    boxsize : float
-        Box size.
-
-    Returns
-    -------
-    1-dimensional array of shape `(3,)`
-    """
+    """Calculate the CM, assuming periodic boundary conditions in a cube."""
     cm = np.zeros(3, dtype=particle_positions.dtype)
     totmass = sum(particles_mass)
 
@@ -71,21 +59,8 @@ def center_of_mass(particle_positions, particles_mass, boxsize):
 @jit(nopython=True, fastmath=True, boundscheck=False)
 def periodic_distance(points, reference_point, boxsize):
     """
-    Compute the 3D distance between multiple points and a reference point using
-    periodic boundary conditions.
-
-    Parameters
-    ----------
-    points : 2-dimensional array of shape `(npoints, 3)`
-        Points to calculate the distance from.
-    reference_point : 1-dimensional array of shape `(3,)`
-        Reference point.
-    boxsize : float
-        Box size.
-
-    Returns
-    -------
-    1-dimensional array of shape `(npoints,)`
+    Compute the 3D distance between multiple points and a reference point
+    using periodic boundary conditions.
     """
     npoints = len(points)
 
@@ -99,20 +74,7 @@ def periodic_distance(points, reference_point, boxsize):
 
 @jit(nopython=True, fastmath=True, boundscheck=False)
 def periodic_distance_two_points(p1, p2, boxsize):
-    """
-    Compute the 3D distance between two points in a periodic box.
-
-    Parameters
-    ----------
-    p1, p2 : 1-dimensional array of shape `(3,)`
-        Points to calculate the distance between.
-    boxsize : float
-        Box size.
-
-    Returns
-    -------
-    float
-    """
+    """Compute the 3D distance between two points in a periodic box."""
     half_box = boxsize / 2
 
     dist = 0
@@ -129,20 +91,7 @@ def periodic_distance_two_points(p1, p2, boxsize):
 
 @jit(nopython=True, boundscheck=False)
 def periodic_wrap_grid(pos, boxsize=1):
-    """
-    Wrap positions in a periodic box. Overwrites the input array.
-
-    Parameters
-    ----------
-    pos : 2-dimensional array of shape `(npoints, 3)`
-        Positions to wrap.
-    boxsize : float, optional
-        Box size.
-
-    Returns
-    -------
-    2-dimensional array of shape `(npoints, 3)`
-    """
+    """Wrap positions in a periodic box. Overwrites the input array."""
     for n in range(pos.shape[0]):
         for i in range(3):
             if pos[n, i] > boxsize:
@@ -156,16 +105,8 @@ def periodic_wrap_grid(pos, boxsize=1):
 @jit(nopython=True, fastmath=True, boundscheck=False)
 def delta2ncells(field):
     """
-    Calculate the number of cells in `field` that are non-zero.
-
-    Parameters
-    ----------
-    field : 3-dimensional array of shape `(nx, ny, nz)`
-        Field to calculate the number of non-zero cells.
-
-    Returns
-    -------
-    int
+    Calculate the number of cells in `field` of shape `(nx, ny, nz)` that are
+    non-zero.
     """
     tot = 0
     imax, jmax, kmax = field.shape
@@ -178,23 +119,7 @@ def delta2ncells(field):
 
 
 def cartesian_to_radec(X, return_degrees=True, origin=[0., 0., 0.]):
-    """
-    Calculate the radial distance, RA [0, 360) deg and dec [-90, 90] deg.
-
-    Parameters
-    ----------
-    X : 2-dimensional array of shape `(npoints, 3)`
-        Cartesian coordinates.
-    return_degrees : bool, optional
-        Whether to return the angles in degrees.
-    origin : 1-dimensional array of shape `(3,)`, optional
-        Origin of the coordinate system.
-
-    Returns
-    -------
-    out : 2-dimensional array of shape `(npoints, 3)`
-        Spherical coordinates: distance, RA and dec.
-    """
+    """Calculate the radial distance, RA and deg."""
     x, y, z = X[:, 0], X[:, 1], X[:, 2]
 
     x -= origin[0]
@@ -204,6 +129,7 @@ def cartesian_to_radec(X, return_degrees=True, origin=[0., 0., 0.]):
     dist = np.linalg.norm(X, axis=1)
     dec = np.arcsin(z / dist)
     ra = np.arctan2(y, x)
+    # Wrapping to ensure RA is in [0, 2pi) (later converted to degrees).
     ra[ra < 0] += 2 * np.pi
 
     if return_degrees:
@@ -220,17 +146,8 @@ def cartesian_to_radec(X, return_degrees=True, origin=[0., 0., 0.]):
 
 def radec_to_cartesian(X):
     """
-    Calculate Cartesian coordinates from radial distance, RA [0, 360) deg  and
-    dec [-90, 90] deg.
-
-    Parameters
-    ----------
-    X : 2-dimensional array of shape `(npoints, 3)`
-        Spherical coordinates: distance, RA and dec.
-
-    Returns
-    -------
-    2-dimensional array of shape `(npoints, 3)`
+    Calculate Cartesian coordinates from radial distance, RA and dec
+    `(npoints, 3)`.
     """
     dist, ra, dec = X[:, 0], X[:, 1], X[:, 2]
 
@@ -243,19 +160,7 @@ def radec_to_cartesian(X):
 
 
 def radec_to_galactic(ra, dec):
-    """
-    Convert right ascension and declination to galactic coordinates (all in
-    degrees.)
-
-    Parameters
-    ----------
-    ra, dec : float or 1-dimensional array
-        Right ascension and declination in degrees.
-
-    Returns
-    -------
-    l, b : float or 1-dimensional array
-    """
+    """Convert right ascension and declination to galactic coordinates."""
     c = SkyCoord(ra=ra*u.degree, dec=dec*u.degree, frame='icrs')
     return c.galactic.l.degree, c.galactic.b.degree
 
@@ -263,19 +168,8 @@ def radec_to_galactic(ra, dec):
 @jit(nopython=True, fastmath=True, boundscheck=False)
 def great_circle_distance(x1, x2, in_degrees=True):
     """
-    Great circle distance between two points on a sphere, defined by RA and
-    dec, both in degrees.
-
-    Parameters
-    ----------
-    x1, x2 : 1-dimensional arrays of shape `(2,)`
-        RA and dec in degrees.
-    in_degrees : bool, optional
-        Whether the input is in degrees.
-
-    Returns
-    -------
-    float
+    Great circle distance between two points, each of shape `(2,)`, specified
+    by RA an dec.
     """
     ra1, dec1 = x1
     ra2, dec2 = x2
@@ -303,19 +197,8 @@ def great_circle_distance(x1, x2, in_degrees=True):
 def cosine_similarity(x, y):
     r"""
     Calculate the cosine similarity between two Cartesian vectors. Defined
-    as :math:`\Sum_{i} x_i y_{i} / (|x| * |y|)`.
-
-    Parameters
-    ----------
-    x : 1-dimensional array
-        The first vector.
-    y : 1- or 2-dimensional array
-        The second vector. Can be 2-dimensional of shape `(n_samples, 3)`,
-        in which case the calculation is broadcasted.
-
-    Returns
-    -------
-    out : float or 1-dimensional array
+    as :math:`\Sum_{i} x_i y_{i} / (|x| * |y|)`. Optionally, `y` can be a
+    2-dimensional array of shape `(n_samples, 3)`.
     """
     if x.ndim != 1:
         raise ValueError("`x` must be a 1-dimensional array.")
@@ -330,39 +213,19 @@ def cosine_similarity(x, y):
 
 
 def hms_to_degrees(hours, minutes=None, seconds=None):
-    """
-    Convert hours, minutes and seconds to degrees.
-
-    Parameters
-    ----------
-    hours, minutes, seconds : float
-
-    Returns
-    -------
-    float
-    """
+    """Convert hours, minutes and seconds to degrees."""
     return hours * 15 + (minutes or 0) / 60 * 15 + (seconds or 0) / 3600 * 15
 
 
 def dms_to_degrees(degrees, arcminutes=None, arcseconds=None):
-    """
-    Convert degrees, arcminutes and arcseconds to decimal degrees.
-
-    Parameters
-    ----------
-    degrees, arcminutes, arcseconds : float
-
-    Returns
-    -------
-    float
-    """
+    """Convert degrees, arcminutes and arcseconds to decimal degrees."""
     return degrees + (arcminutes or 0) / 60 + (arcseconds or 0) / 3600
 
 
 def real2redshift(pos, vel, observer_location, observer_velocity, boxsize,
                   periodic_wrap=True, make_copy=True):
     r"""
-    Convert real-space position to redshift space position.
+    Convert real space position to redshift space position.
 
     Parameters
     ----------
@@ -461,20 +324,7 @@ def heliocentric_to_cmb(z_helio, RA, dec, e_z_helio=None):
 
 @jit(nopython=True, fastmath=True, boundscheck=False)
 def number_counts(x, bin_edges):
-    """
-    Calculate counts of samples in bins.
-
-    Parameters
-    ----------
-    x : 1-dimensional array
-        Samples to bin.
-    bin_edges : 1-dimensional array
-        Bin edges.
-
-    Returns
-    -------
-    1-dimensional array
-    """
+    """Calculate counts of samples in bins."""
     out = np.full(bin_edges.size - 1, np.nan, dtype=np.float32)
     for i in range(bin_edges.size - 1):
         out[i] = np.sum((x >= bin_edges[i]) & (x < bin_edges[i + 1]))
@@ -483,22 +333,7 @@ def number_counts(x, bin_edges):
 
 def binned_statistic(x, y, left_edges, bin_width, statistic):
     """
-    Calculate a binned statistic.
-
-    Parameters
-    ----------
-    x, y : 1-dimensional arrays
-        Values by which to bin and calculate the statistic on, respectively.
-    left_edges : 1-dimensional array
-        Left edges of the bins.
-    bin_width : float
-        Width of the bins.
-    statistic : callable
-        Function to calculate the statistic, must be `f(x)`.
-
-    Returns
-    -------
-    1-dimensional array
+    Calculate a binned statistic, `statistic` must be a callable `f(x)`.
     """
     out = np.full(left_edges.size, np.nan, dtype=x.dtype)
 
@@ -525,15 +360,6 @@ def calculate_acf(data):
     """
     Calculates the autocorrelation of some data. Taken from `epsie` package
     written by Collin Capano.
-
-    Parameters
-    ----------
-    data : 1-dimensional array
-        The data to calculate the autocorrelation of.
-
-    Returns
-    -------
-    acf : 1-dimensional array
     """
     # zero the mean
     data = data - data.mean()
@@ -553,19 +379,9 @@ def calculate_acf(data):
 def calculate_acl(data):
     """
     Calculate the autocorrelation length of some data. Taken from `epsie`
-    package written by Collin Capano. Algorithm used is from:
-        N. Madras and A.D. Sokal, J. Stat. Phys. 50, 109 (1988).
-
-    Parameters
-    ----------
-    data : 1-dimensional array
-        The data to calculate the autocorrelation length of.
-
-    Returns
-    -------
-    acl : int
+    package written by Collin Capano. Algorithm used is from: N. Madras and
+    A.D. Sokal, J. Stat. Phys. 50, 109 (1988).
     """
-    # calculate the acf
     acf = calculate_acf(data)
     # now the ACL: Following from Sokal, this is estimated
     # as the first point where M*tau[k] <= k, where
@@ -585,20 +401,8 @@ def calculate_acl(data):
 
 def thin_samples_by_acl(samples):
     """
-    Thin MCMC samples by the autocorrelation length of each chain.
-
-    Parameters
-    ----------
-    samples : dict
-        Dictionary of samples. Each value is a 2-dimensional array of shape
-        `(nchains, nsamples)`.
-
-    Returns
-    -------
-    thinned_samples : dict
-        Dictionary of thinned samples. Each value is a 1-dimensional array of
-        shape `(n_thinned_samples)`, where the samples are concatenated across
-        the chain.
+    Thin MCMC samples (dictionary with arrays of shape `(nchains, nsamples)`)
+    by the autocorrelation length of each chain and concatenate the chains.
     """
     keys = list(samples.keys())
     nchains = 1 if samples[keys[0]].ndim == 1 else samples[keys[0]].shape[0]

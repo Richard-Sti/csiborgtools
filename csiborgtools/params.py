@@ -53,39 +53,18 @@ CB2_REDSHIFT = [69.0000210000063, 40.250007218751264, 28.24050991940438,
 
 
 def snap2redshift(snapnum, simname):
-    """
-    Convert a snapshot number to redshift.
-
-    Parameters
-    ----------
-    snapnum : int
-        Snapshot number.
-    simname : str
-        Simulation name.
-
-    Returns
-    -------
-    float
-    """
+    """Convert a snapshot number to redshift."""
     if "csiborg2_" in simname:
-        return CB2_REDSHIFT[snapnum]
+        try:
+            return CB2_REDSHIFT[snapnum]
+        except KeyError:
+            raise ValueError(f"Unknown snapshot: `{snapnum}`.")
     else:
-        raise ValueError(f"Unknown simname: {simname}")
+        raise ValueError(f"Unsupported simulation: `{simname}`.")
 
 
 def simname2boxsize(simname):
-    """
-    Return boxsize in `Mpc/h` for a given simname.
-
-    Parameters
-    ----------
-    simname : str
-        Simulation name.
-
-    Returns
-    -------
-    boxsize : float
-    """
+    """Return boxsize in `Mpc/h` for a given simulation."""
     d = {"csiborg1": 677.7,
          "csiborg2_main": 676.6,
          "csiborg2_varysmall": 676.6,
@@ -97,28 +76,16 @@ def simname2boxsize(simname):
          "TNG300-1": 205.,
          "Carrick2015": 400.,
          }
-
     boxsize = d.get(simname, None)
 
     if boxsize is None:
-        raise ValueError("Unknown simname: {}".format(simname))
+        raise ValueError(f"Unknown simulation: `{simname}`.")
 
     return boxsize
 
 
 def simname2Omega_m(simname):
-    """
-    Return Omega_m for a given simname.
-
-    Parameters
-    ----------
-    simname : str
-        Simulation name.
-
-    Returns
-    -------
-    Omega_m: float
-    """
+    """Return `Omega_m` for a given simulation"""
     d = {"csiborg1": 0.307,
          "csiborg2_main": 0.3111,
          "csiborg2_random": 0.3111,
@@ -132,7 +99,7 @@ def simname2Omega_m(simname):
     omega_m = d.get(simname, None)
 
     if omega_m is None:
-        raise ValueError("Unknown simname: {}".format(simname))
+        raise ValueError(f"Unknown simulation: `{simname}`.")
 
     return omega_m
 
@@ -141,7 +108,7 @@ paths_glamdring = {
     "csiborg1_srcdir": "/mnt/extraspace/rstiskalek/csiborg1",
     "csiborg2_main_srcdir": "/mnt/extraspace/rstiskalek/csiborg2_main",
     "csiborg2_varysmall_srcdir": "/mnt/extraspace/rstiskalek/csiborg2_varysmall",   # noqa
-    "csiborg2_random_srcdir": "/mnt/extraspace/rstiskalek/csiborg2_random",         # noqa
+    "csiborg2_random_srcdir": "/mnt/extraspace/rstiskalek/csiborg2_random",
     "postdir": "/mnt/extraspace/rstiskalek/csiborg_postprocessing/",
     "quijote_dir": "/mnt/extraspace/rstiskalek/quijote",
     "borg1_dir": "/mnt/users/hdesmond/BORG_final",
@@ -149,10 +116,3 @@ paths_glamdring = {
     "tng300_1_dir": "/mnt/extraspace/rstiskalek/TNG300-1/",
     "aux_cat_dir": "/mnt/extraspace/rstiskalek/catalogs",
     }
-
-
-# neighbour_kwargs = {"rmax_radial": 155 / 0.705,
-#                     "nbins_radial": 50,
-#                     "rmax_neighbour": 100.,
-#                     "nbins_neighbour": 150,
-#                     "paths_kind": paths_glamdring}
