@@ -29,9 +29,9 @@ import numpyro
 import numpyro.distributions as dist
 from astropy.cosmology import FlatLambdaCDM
 from h5py import File
-from jax import jit
+from jax import devices, jit
 from jax import numpy as jnp
-from jax import vmap
+from jax import pmap, vmap
 from jax.lax import cond, scan
 from jax.random import PRNGKey
 from numdifftools import Hessian
@@ -44,7 +44,7 @@ from tqdm import trange
 from ..params import SPEED_OF_LIGHT, simname2Omega_m
 from ..utils import fprint, radec_to_galactic
 
-H0 = 100                     # km / s / Mpc
+H0 = 100  # km / s / Mpc
 
 
 ###############################################################################
@@ -1113,7 +1113,7 @@ class TF_PV_validation_model(BaseFlowValidationModel):
         mu = self.mu(a, b)
         squared_e_mu = self.squared_e_mu(b, e_mu_intrinsic)
 
-        def scan_body(ll, i):
+        def scan_body(i):
             # Calculate p(r) and multiply it by the galaxy bias
             ptilde = self._f_ptilde_wo_bias(mu[i], squared_e_mu[i])
             ptilde *= self._los_density[i]**alpha
@@ -1126,12 +1126,16 @@ class TF_PV_validation_model(BaseFlowValidationModel):
             ptilde *= calculate_likelihood_zobs(
                 self._z_obs[i], zobs_pred, sigma_v)
 
-            return ll + jnp.log(self._f_simps(ptilde) / pnorm), None
+            # return ll + jnp.log(self._f_simps(ptilde) / pnorm), None
+            return jnp.log(self._f_simps(ptilde) / pnorm)
 
-        ll = 0.
-        ll, __ = scan(scan_body, ll, jnp.arange(self.ndata))
+        def pmap_body(indxs):
+            return jnp.sum(vmap(scan_body)(indxs))
 
-        numpyro.factor("ll", ll)
+        # NOTE: move this elsewhere?
+        indxs = jnp.arange(self.ndata).reshape(len(devices()), -1)
+        ll = pmap(pmap_body)(indxs)
+        numpyro.factor("ll", jnp.sum(ll))
 
 
 ###############################################################################
