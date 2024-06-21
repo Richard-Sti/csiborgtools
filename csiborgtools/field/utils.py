@@ -22,9 +22,7 @@ import healpy
 
 
 def force_single_precision(x):
-    """
-    Attempt to convert an array `x` to float 32.
-    """
+    """Attempt to convert an array `x` to float32."""
     if x.dtype != numpy.float32:
         x = x.astype(numpy.float32)
     return x
@@ -32,9 +30,7 @@ def force_single_precision(x):
 
 @jit(nopython=True)
 def divide_nonzero(field0, field1):
-    """
-    Perform in-place `field0 /= field1` but only where `field1 != 0`.
-    """
+    """Perform in-place `field0 /= field1` but only where `field1 != 0`."""
     assert field0.shape == field1.shape, "Field shapes must match."
 
     imax, jmax, kmax = field0.shape
@@ -47,17 +43,8 @@ def divide_nonzero(field0, field1):
 
 def nside2radec(nside):
     """
-    Generate RA [0, 360] deg. and declination [-90, 90] deg for HEALPix pixel
+    Generate RA [0, 360] deg and declination [-90, 90] deg for HEALPix pixel
     centres at a given nside.
-
-    Parameters
-    ----------
-    nside : int
-        HEALPix nside.
-
-    Returns
-    -------
-    angpos : 2-dimensional array of shape (npix, 2)
     """
     pixs = numpy.arange(healpy.nside2npix(nside))
     theta, phi = healpy.pix2ang(nside, pixs)
