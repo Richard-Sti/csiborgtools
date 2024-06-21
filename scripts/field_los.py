@@ -126,9 +126,11 @@ def get_field(simname, nsim, kind, MAS, grid):
     # Open the field reader.
     if simname == "csiborg1":
         field_reader = csiborgtools.read.CSiBORG1Field(nsim)
-    elif "csiborg2" in simname:
+    elif "csiborg2_" in simname:
         simkind = simname.split("_")[-1]
         field_reader = csiborgtools.read.CSiBORG2Field(nsim, simkind)
+    elif simname == "csiborg2X":
+        field_reader = csiborgtools.read.CSiBORG2XField(nsim)
     elif simname == "Carrick2015":
         folder = "/mnt/extraspace/rstiskalek/catalogs"
         warn(f"Using local paths from `{folder}`.", RuntimeWarning)
@@ -158,9 +160,9 @@ def get_field(simname, nsim, kind, MAS, grid):
 
     # Read in the field.
     if kind == "density":
-        field = field_reader.density_field(MAS, grid)
+        field = field_reader.density_field(MAS=MAS, grid=grid)
     elif kind == "velocity":
-        field = field_reader.velocity_field(MAS, grid)
+        field = field_reader.velocity_field(MAS=MAS, grid=grid)
     else:
         raise ValueError(f"Unknown field kind: `{kind}`.")
 
