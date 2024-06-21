@@ -16,7 +16,7 @@
 CSiBORG paths manager.
 """
 from glob import glob
-from os import makedirs
+from os import makedirs, listdir
 from os.path import isdir, join
 from warnings import warn
 from re import search
@@ -103,6 +103,12 @@ class Paths:
             files = glob(join(self.csiborg2_varysmall_srcdir, "chain_*"))
             files = [int(search(r'chain_16417_(\d+)', f).group(1))
                      for f in files]
+        elif simname == "csiborg2X":
+            # NOTE this too is preliminary
+            fname = "/mnt/extraspace/rstiskalek/MANTICORE/resimulations/fields/2MPP_N128_DES_PROD/R512"  # noqa
+            fdirs = listdir(fname)
+            files = [int(search(r'\d+', fdir).group())
+                     for fdir in fdirs if search(r'\d+', fdir)]
         elif simname == "quijote":
             files = glob(join(self.quijote_dir, "fiducial_processed",
                               "chain_*"))
@@ -140,6 +146,8 @@ class Paths:
             snaps = [int(search(r'snapshot_16417_(\d+)', f).group(1))
                      for f in snaps]
             snaps = sorted(snaps)
+        elif simname == "csiborg2X":
+            raise ValueError("Snapshots not available for CSiBORG2X.")
         elif simname == "quijote":
             snaps = glob(join(self.quijote_dir, "fiducial_processed",
                               f"chain_{nsim}", "snapshot_*"))
@@ -150,7 +158,7 @@ class Paths:
             if has_ics:
                 snaps.insert(0, "ICs")
         else:
-            raise ValueError(f"Unknown simulation name `{simname}`.")
+            raise ValueError(f"Unsupported simulation name `{simname}`.")
         return snaps
 
     def snapshot(self, nsnap, nsim, simname):
@@ -168,12 +176,14 @@ class Paths:
             fpath = join(self.csiborg2_varysmall_srcdir,
                          f"chain_16417_{str(nsim).zfill(3)}", "output",
                          f"snapshot_{str(nsnap).zfill(3)}.hdf5")
+        elif simname == "csiborg2X":
+            raise ValueError("Snapshots not available for CSiBORG2X.")
         elif simname == "quijote":
             fpath = join(self.quijote_dir, "fiducial_processed",
                          f"chain_{nsim}",
                          f"snapshot_{str(nsnap).zfill(3)}.hdf5")
         else:
-            raise ValueError(f"Unknown simulation name `{simname}`.")
+            raise ValueError(f"Unsupported simulation name `{simname}`.")
 
         return fpath
 
@@ -192,12 +202,14 @@ class Paths:
             return join(self.csiborg2_varysmall_srcdir,
                         f"chain_16417_{str(nsim).zfill(3)}", "output",
                         f"fof_subhalo_tab_{str(nsnap).zfill(3)}.hdf5")
+        elif simname == "csiborg2X":
+            raise ValueError("Snapshots not available for CSiBORG2X.")
         elif simname == "quijote":
             return join(self.quijote_dir, "fiducial_processed",
                         f"chain_{nsim}",
                         f"fof_{str(nsnap).zfill(3)}.hdf5")
         else:
-            raise ValueError(f"Unknown simulation name `{simname}`.")
+            raise ValueError(f"Unsupported simulation name `{simname}`.")
 
     def external_halo_catalogue(self, name):
         """Path to an external halo catalogue."""
@@ -227,7 +239,7 @@ class Paths:
             return join(self.quijote_dir, "fiducial_processed",
                         f"chain_{nsim}", "initial_lagpatch.npy")
         else:
-            raise ValueError(f"Unknown simulation name `{simname}`.")
+            raise ValueError(f"Unsupported simulation name `{simname}`.")
 
     def trees(self, nsim, simname):
         """Path to the halo trees of a simulation snapshot."""
@@ -246,7 +258,7 @@ class Paths:
         elif simname == "quijote":
             raise ValueError("Trees not available for Quijote.")
         else:
-            raise ValueError(f"Unknown simulation name `{simname}`.")
+            raise ValueError(f"Unsupported simulation name `{simname}`.")
 
     def overlap(self, simname, nsim0, nsimx, min_logmass, smoothed):
         """
@@ -344,8 +356,19 @@ class Paths:
             return join(self.borg2_dir, f"mcmc_{nsim}.h5")
 
         if simname == "borg1":
-            #
+            # NOTE Replace eventually with non-local paths
             return f"/mnt/zfsusers/hdesmond/BORG_final/mcmc_{nsim}.h5"
+
+        if simname == "csiborg2X":
+            warn("`MAS` and `grid` options are not used for CSiBORG2X.",
+                 UserWarning)
+            basedir = "/mnt/extraspace/rstiskalek/MANTICORE/resimulations/fields/2MPP_N128_DES_PROD/R512"  # noqa
+            if kind == "overdensity":
+                return join(basedir, f"mcmc_{nsim}", "delta_field.hdf5")
+            elif kind == "velocity":
+                return join(basedir, f"mcmc_{nsim}", "vel_field.hdf5")
+            else:
+                raise ValueError(f"Unsupported CSiBORG2X field: `{kind}`.")
 
         if MAS == "SPH" and kind in ["density", "velocity"]:
             if simname == "csiborg1":
