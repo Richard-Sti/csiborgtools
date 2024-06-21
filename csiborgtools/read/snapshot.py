@@ -23,7 +23,7 @@ from os.path import join
 import numpy
 from h5py import File
 
-from ..params import paths_glamdring, simname2boxsize
+from ..params import paths_glamdring, simname2boxsize, simname2Omega_m
 from .paths import Paths
 from .util import find_boxed
 
@@ -708,13 +708,7 @@ class CSiBORG2Field(BaseField):
 
     @property
     def kind(self):
-        """
-        CSiBORG2 run kind.
-
-        Returns
-        -------
-        str
-        """
+        """CSiBORG2 run kind."""
         return self._kind
 
     @kind.setter
@@ -772,6 +766,51 @@ class CSiBORG2Field(BaseField):
         return numpy.load(fpath)
 
 
+class CSiBORG2XField(BaseField):
+    """
+    CSiBORG2X `z = 0` field class.
+
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+    paths : Paths, optional
+        Paths object. By default, the paths are set to the `glamdring` paths.
+    """
+    def __init__(self, nsim, paths=None):
+        super().__init__(nsim, paths, False)
+
+    def overdensity_field(self):
+        fpath = self.paths.field(
+            "overdensity", None, None, self.nsim, "csiborg2X")
+        with File(fpath, "r") as f:
+            field = f["delta_cic"][...].astype(numpy.float32)
+
+        return field
+
+    def density_field(self):
+        field = self.overdensity_field()
+        omega0 = simname2Omega_m("csiborg2X")
+        rho_mean = omega0 * 277.53662724583074  # Msun / kpc^3
+        field += 1
+        field *= rho_mean
+        return field
+
+    def velocity_field(self):
+        fpath = self.paths.field(
+            "velocity", None, None, self.nsim, "csiborg2X")
+        with File(fpath, "r") as f:
+            v0 = f["v_0"][...]
+            v1 = f["v_1"][...]
+            v2 = f["v_2"][...]
+            field = numpy.array([v0, v1, v2])
+
+        return field
+
+    def radial_velocity_field(self, MAS, grid):
+        raise RuntimeError("The radial velocity field is not available.")
+
+
 ###############################################################################
 #                           BORG1 field class                                 #
 ###############################################################################
@@ -800,7 +839,7 @@ class BORG1Field(BaseField):
 
     def density_field(self):
         field = self.overdensity_field()
-        omega0 = 0.307
+        omega0 = simname2Omega_m("borg1")
         rho_mean = omega0 * 277.53662724583074  # Msun / kpc^3
         field += 1
         field *= rho_mean
@@ -841,7 +880,7 @@ class BORG2Field(BaseField):
 
     def density_field(self):
         field = self.overdensity_field()
-        omega0 = 0.3111
+        omega0 = simname2Omega_m("borg2")
         rho_mean = omega0 * 277.53662724583074  # h^2 Msun / kpc^3
         field += 1
         field *= rho_mean
