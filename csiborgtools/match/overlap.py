@@ -13,7 +13,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-Support for matching halos between CSiBORG IC realisations based on their
+Code for matching halos between CSiBORG IC realisations based on their
 Lagrangian patch overlap.
 """
 from abc import ABC
@@ -112,10 +112,6 @@ class RealisationsMatcher(BaseMatcher):
         """
         Multiplier of the sum of the initial Lagrangian patch sizes of a halo
         pair. Determines the range within which neighbors are returned.
-
-        Returns
-        -------
-        float
         """
         return self._nmult
 
@@ -130,10 +126,6 @@ class RealisationsMatcher(BaseMatcher):
         """
         Tolerance on the absolute logarithmic mass difference of potential
         matches.
-
-        Returns
-        -------
-        float
         """
         return self._dlogmass
 
@@ -148,10 +140,6 @@ class RealisationsMatcher(BaseMatcher):
         """
         Mass key whose similarity is to be checked. Must be a valid key in the
         halo catalogue.
-
-        Returns
-        -------
-        str
         """
         return self._mass_key
 
