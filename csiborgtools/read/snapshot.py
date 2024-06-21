@@ -780,7 +780,7 @@ class CSiBORG2XField(BaseField):
     def __init__(self, nsim, paths=None):
         super().__init__(nsim, paths, False)
 
-    def overdensity_field(self):
+    def overdensity_field(self, **kwargs):
         fpath = self.paths.field(
             "overdensity", None, None, self.nsim, "csiborg2X")
         with File(fpath, "r") as f:
@@ -788,7 +788,7 @@ class CSiBORG2XField(BaseField):
 
         return field
 
-    def density_field(self):
+    def density_field(self, **kwargs):
         field = self.overdensity_field()
         omega0 = simname2Omega_m("csiborg2X")
         rho_mean = omega0 * 277.53662724583074  # Msun / kpc^3
@@ -796,7 +796,7 @@ class CSiBORG2XField(BaseField):
         field *= rho_mean
         return field
 
-    def velocity_field(self):
+    def velocity_field(self, **kwargs):
         fpath = self.paths.field(
             "velocity", None, None, self.nsim, "csiborg2X")
         with File(fpath, "r") as f:
@@ -807,7 +807,7 @@ class CSiBORG2XField(BaseField):
 
         return field
 
-    def radial_velocity_field(self, MAS, grid):
+    def radial_velocity_field(self, **kwargs):
         raise RuntimeError("The radial velocity field is not available.")
 
 
