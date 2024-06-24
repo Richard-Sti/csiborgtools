@@ -22,22 +22,21 @@ References
 [1] https://arxiv.org/abs/1912.09383.
 """
 from abc import ABC, abstractmethod
-from warnings import catch_warnings, simplefilter, warn
+from warnings import warn
 
 import numpy as np
 import numpyro
-import numpyro.distributions as dist
-from astropy.cosmology import FlatLambdaCDM
+from astropy.cosmology import FlatLambdaCDM, z_at_value
+from astropy import units as u
 from h5py import File
-from jax import devices, jit
+from jax import jit
 from jax import numpy as jnp
-from jax import pmap, vmap
-from jax.lax import cond, scan
-from jax.random import PRNGKey
-from numdifftools import Hessian
-from numpyro.infer import Predictive, util
+from jax import vmap
+from jax.scipy.special import logsumexp
+from numpyro import sample
+from numpyro.distributions import LogNormal, Normal
+from quadax import simpson
 from scipy.interpolate import interp1d
-from scipy.optimize import fmin_powell
 from sklearn.model_selection import KFold
 from tqdm import trange
 
@@ -317,17 +316,6 @@ def lognorm_mean_std_to_loc_scale(mu, std):
     return loc, scale
 
 
-def simps(y, dx):
-    """
-    Simpson's rule 1D integration, assuming that the number of steps is even
-    and that the step size is constant.
-    """
-    if len(y) % 2 == 0:
-        raise ValueError("The number of steps must be odd.")
-
-    return dx / 3 * jnp.sum(y[0:-1:2] + 4 * y[1::2] + y[2::2])
-
-
 def dist2redshift(dist, Omega_m):
     """
     Convert comoving distance to cosmological redshift if the Universe is
@@ -463,37 +451,11 @@ def predict_zobs(dist, beta, Vext_radial, vpec_radial, Omega_m):
 #                          Flow validation models                             #
 ###############################################################################
 
-def calculate_ptilde_wo_bias(xrange, mu, err, r_squared_xrange=None,
-                             is_err_squared=False):
-    """
-    Calculate `ptilde(r)` without (im)homogeneous Malmquist bias.
 
-    Parameters
-    ----------
-    xrange : 1-dimensional array
-        Radial distances where the field was interpolated for each object.
-    mu : float
-        Comoving distance in `Mpc / h`.
-    err : float
-        Error on the comoving distance in `Mpc / h`.
-    r_squared_xrange : 1-dimensional array, optional
-        Radial distances squared where the field was interpolated for each
-        object. If not provided, the `r^2` correction is not applied.
-    is_err_squared : bool, optional
-        Whether the error is already squared.
-
-    Returns
-    -------
-    1-dimensional array
-    """
-    if is_err_squared:
-        ptilde = jnp.exp(-0.5 * (xrange - mu)**2 / err)
-    else:
-        ptilde = jnp.exp(-0.5 * ((xrange - mu) / err)**2)
-
-    if r_squared_xrange is not None:
-        ptilde *= r_squared_xrange
-
+def calculate_ptilde_wo_bias(xrange, mu, err_squared, r_squared_xrange):
+    """Calculate `ptilde(r)` without imhomogeneous Malmquist bias."""
+    ptilde = jnp.exp(-0.5 * (xrange - mu)**2 / err_squared)
+    ptilde *= r_squared_xrange
     return ptilde
 
 
@@ -502,256 +464,151 @@ def calculate_likelihood_zobs(zobs, zobs_pred, sigma_v):
     Calculate the likelihood of the observed redshift given the predicted
     redshift.
     """
-    dcz = SPEED_OF_LIGHT * (zobs - zobs_pred)
+    dcz = SPEED_OF_LIGHT * (zobs[:, None] - zobs_pred)
+    sigma_v = sigma_v[:, None]
     return jnp.exp(-0.5 * (dcz / sigma_v)**2) / jnp.sqrt(2 * np.pi) / sigma_v
 
-
-def stack_normal(mus, stds):
-    """
-    Stack normal distributions and approximate the stacked distribution
-    by a single Gaussian.
-
-    Parameters
-    ----------
-    mus : 1-dimensional array
-        Means of the normal distributions.
-    stds : 1-dimensional array
-        Standard deviations of the normal distributions.
-
-    Returns
-    -------
-    mu, std : floats
-    """
-    if mus.ndim > 1 or stds.ndim > 1 and mus.shape != stds.shape:
-        raise ValueError("Shape of `mus` and `stds` must be the same and 1D.")
-    mu = np.mean(mus)
-    std = (np.sum(stds**2 + (mus - mu)**2) / len(mus))**0.5
-    return mu, std
+###############################################################################
+#                          Base flow validation                               #
+###############################################################################
 
 
 class BaseFlowValidationModel(ABC):
 
+    def _setattr_as_jax(self, names, values):
+        for name, value in zip(names, values):
+            setattr(self, f"{name}", jnp.asarray(value))
+
+    def _set_calibration_params(self, calibration_params):
+        names = []
+        values = []
+        for key, value in calibration_params.items():
+            if "e_" in key:
+                key = key.replace("e_", "e2_")
+                value = value**2
+
+            names.append(key)
+            values.append(value)
+
+        self._setattr_as_jax(names, values)
+
+    def _set_radial_spacing(self, r_xrange, Omega_m):
+        cosmo = FlatLambdaCDM(H0=H0, Om0=Omega_m)
+
+        r2_xrange = r_xrange**2
+        r2_xrange /= r2_xrange.mean()
+        self.r_xrange = r_xrange
+        self.r2_xrange = r2_xrange
+
+        z_xrange = z_at_value(cosmo.comoving_distance, r_xrange * u.Mpc)
+        mu_xrange = cosmo.distmod(z_xrange).value
+        self.z_xrange = jnp.asarray(z_xrange)
+        self.mu_xrange = jnp.asarray(mu_xrange)
+
+        # Get the stepsize, we need it to be constant for Simpson's rule.
+        dr = np.diff(r_xrange)
+        if not np.all(np.isclose(dr, dr[0], atol=1e-5)):
+            raise ValueError("The radial step size must be constant.")
+        self.dr = dr[0]
+
     @property
     def ndata(self):
-        """
-        Number of PV objects in the catalogue.
+        """Number of PV objects in the catalogue."""
+        return len(self.RA)
 
-        Returns
-        -------
-        int
-        """
-        return len(self._RA)
-
-    @abstractmethod
-    def predict_zobs_single(self, **kwargs):
-        pass
-
-    def predict_zobs(self, samples):
-        """
-        Predict the observed redshifts given the samples from the posterior.
-
-        Parameters
-        ----------
-        samples : dict of 1-dimensional arrays
-            Posterior samples.
-
-        Returns
-        -------
-        zobs_mean : 2-dimensional array of shape (ndata, nsamples)
-            Mean of the predicted redshifts.
-        zobs_std : 2-dimensional array of shape (ndata, nsamples)
-            Standard deviation of the predicted redshifts.
-        """
-        keys = list(samples.keys())
-        nsamples = len(samples[keys[0]])
-
-        zobs_mean = np.empty((self.ndata, nsamples), dtype=np.float32)
-        zobs_std = np.empty_like(zobs_mean)
-
-        # JIT compile the function, it is called many times.
-        f = jit(self.predict_zobs_single)
-
-        for i in trange(nsamples):
-            x = {key: samples[key][i] for key in keys}
-            if "alpha" not in keys:
-                x["alpha"] = 1.0
-
-            e_z = samples["sigma_v"][i] / SPEED_OF_LIGHT
-
-            mu, var = f(**x)
-            zobs_mean[:, i] = mu
-            zobs_std[:, i] = (var + e_z**2)**0.5
-
-        return zobs_mean, zobs_std
-
-    def summarize_zobs_pred(self, zobs_mean, zobs_pred):
-        """
-        Summarize the predicted observed redshifts from each posterior sample
-        by stacking their Gaussian distribution and approximating the stacked
-        distribution by a single Gaussian.
-
-        Parameters
-        ----------
-        zobs_mean : 2-dimensional array of shape (ndata, nsamples)
-            Mean of the predicted redshifts.
-        zobs_pred : 2-dimensional array of shape (ndata, nsamples)
-            Predicted redshifts.
-
-        Returns
-        -------
-        mu : 1-dimensional array
-            Mean of predicted redshift, averaged over the posterior samples.
-        std : 1-dimensional array
-            Standard deviation of the predicted redshift, averaged over the
-            posterior samples.
-        """
-        mu = np.empty(self.ndata, dtype=np.float32)
-        std = np.empty_like(mu)
-
-        for i in range(self.ndata):
-            mu[i], std[i] = stack_normal(zobs_mean[i], zobs_pred[i])
-
-        return mu, std
-
-    @abstractmethod
-    def predict_zcosmo_from_calibration(self, **kwargs):
-        pass
+    @property
+    def num_sims(self):
+        """Number of simulations."""
+        return len(self.los_density)
 
     @abstractmethod
     def __call__(self, **kwargs):
         pass
 
 
-class SD_PV_validation_model(BaseFlowValidationModel):
+###############################################################################
+#                          SNIa parameters sampling                           #
+###############################################################################
+
+
+def distmod_SN(mB, x1, c, mag_cal, alpha_cal, beta_cal):
+    """Distance modulus of a SALT2 SN Ia."""
+    return mB - mag_cal + alpha_cal * x1 - beta_cal * c
+
+
+def e2_distmod_SN(e2_mB, e2_x1, e2_c, alpha_cal, beta_cal, e_mu_intrinsic):
+    """Squared error on the distance modulus of a SALT2 SN Ia."""
+    return (e2_mB + alpha_cal**2 * e2_x1 + beta_cal**2 * e2_c
+            + e_mu_intrinsic**2)
+
+
+def sample_SN(e_mu_mean, e_mu_std, mag_cal_mean, mag_cal_std, alpha_cal_mean,
+              alpha_cal_std, beta_cal_mean, beta_cal_std):
+    """Sample SNIe Tripp parameters."""
+    e_mu = sample("e_mu", LogNormal(*lognorm_mean_std_to_loc_scale(e_mu_mean, e_mu_std)))  # noqa
+    mag_cal = sample("mag_cal", Normal(mag_cal_mean, mag_cal_std))
+    alpha_cal = sample("alpha_cal", Normal(alpha_cal_mean, alpha_cal_std))
+
+    beta_cal = sample("beta_cal", Normal(beta_cal_mean, beta_cal_std))
+
+    return e_mu, mag_cal, alpha_cal, beta_cal
+
+
+###############################################################################
+#                          Tully-Fisher parameters sampling                   #
+###############################################################################
+
+def distmod_TFR(mag, eta, a, b):
+    """Distance modulus of a TFR calibration."""
+    return mag - (a + b * eta)
+
+
+def e2_distmod_TFR(e2_mag, e2_eta, b, e_mu_intrinsic):
+    """Squared error on the TFR distance modulus."""
+    return e2_mag + b**2 * e2_eta + e_mu_intrinsic**2
+
+
+def sample_TFR(e_mu_mean, e_mu_std, a_mean, a_std, b_mean, b_std):
+    """Sample Tully-Fisher calibration parameters."""
+    e_mu = sample("e_mu", LogNormal(*lognorm_mean_std_to_loc_scale(e_mu_mean, e_mu_std)))  # noqa
+    a = sample("a", Normal(a_mean, a_std))
+    b = sample("b", Normal(b_mean, b_std))
+
+    return e_mu, a, b
+
+
+###############################################################################
+#                    Calibration parameters sampling                          #
+###############################################################################
+
+
+def sample_calibration(Vext_std, alpha_mean, alpha_std, beta_mean, beta_std,
+                       sigma_v_mean, sigma_v_std, sample_alpha, sample_beta):
+    """Sample the flow calibration."""
+    Vext = sample("Vext", Normal(0, Vext_std).expand([3]))
+    sigma_v = sample("sigma_v", LogNormal(*lognorm_mean_std_to_loc_scale(sigma_v_mean, sigma_v_std)))  # noqa
+
+    if sample_alpha:
+        alpha = sample("alpha", Normal(alpha_mean, alpha_std))
+    else:
+        alpha = 1.0
+
+    if sample_beta:
+        beta = sample("beta", Normal(beta_mean, beta_std))
+    else:
+        beta = 1.0
+
+    return Vext, sigma_v, alpha, beta
+
+
+###############################################################################
+#                            PV calibration model                             #
+###############################################################################
+
+
+class PV_validation_model(BaseFlowValidationModel):
     """
-    Simple distance peculiar velocity (PV) validation model, assuming that
-    we already have a calibrated estimate of the comoving distance to the
-    objects.
-
-    Parameters
-    ----------
-    los_density : 3-dimensional array of shape (n_sims, n_objects, n_steps)
-        LOS density field.
-    los_velocity : 3-dimensional array of shape (n_sims, n_objects, n_steps)
-        LOS radial velocity field.
-    RA, dec : 1-dimensional arrays of shape (n_objects)
-        Right ascension and declination in degrees.
-    z_obs : 1-dimensional array of shape (n_objects)
-        Observed redshifts.
-    r_hMpc : 1-dimensional array of shape (n_objects)
-        Estimated comoving distances in `h^-1 Mpc`.
-    e_r_hMpc : 1-dimensional array of shape (n_objects)
-        Errors on the estimated comoving distances in `h^-1 Mpc`.
-    r_xrange : 1-dimensional array
-        Radial distances where the field was interpolated for each object.
-    Omega_m : float
-        Matter density parameter.
-    """
-
-    def __init__(self, los_density, los_velocity, RA, dec, z_obs,
-                 r_hMpc, e_r_hMpc, r_xrange, Omega_m):
-        # Convert everything to JAX arrays.
-        self._los_density = jnp.asarray(los_density)
-        self._los_velocity = jnp.asarray(los_velocity)
-
-        self._RA = jnp.asarray(np.deg2rad(RA))
-        self._dec = jnp.asarray(np.deg2rad(dec))
-        self._z_obs = jnp.asarray(z_obs)
-
-        self._r_hMpc = jnp.asarray(r_hMpc)
-        self._e2_rhMpc = jnp.asarray(e_r_hMpc**2)
-
-        # Get radius squared
-        r2_xrange = r_xrange**2
-        r2_xrange /= r2_xrange.mean()
-
-        # Get the stepsize, we need it to be constant for Simpson's rule.
-        dr = np.diff(r_xrange)
-        if not np.all(np.isclose(dr, dr[0], atol=1e-5)):
-            raise ValueError("The radial step size must be constant.")
-        dr = dr[0]
-
-        self._r_xrange = r_xrange
-
-        # Get the various vmapped functions
-        self._f_ptilde_wo_bias = lambda mu, err: calculate_ptilde_wo_bias(r_xrange, mu, err, r2_xrange, True)   # noqa
-        self._f_simps = lambda y: simps(y, dr)                                                                  # noqa
-        self._f_zobs = lambda beta, Vr, vpec_rad: predict_zobs(r_xrange, beta, Vr, vpec_rad, Omega_m)           # noqa
-
-        self._vmap_ptilde_wo_bias = vmap(lambda mu, err: calculate_ptilde_wo_bias(r_xrange, mu, err, r2_xrange, True))                  # noqa
-        self._vmap_simps = vmap(lambda y: simps(y, dr))
-        self._vmap_zobs = vmap(lambda beta, Vr, vpec_rad: predict_zobs(r_xrange, beta, Vr, vpec_rad, Omega_m), in_axes=(None, 0, 0))    # noqa
-
-        # Distribution of external velocity components
-        self._Vext = dist.Uniform(-500, 500)
-        # Distribution of density, velocity and location bias parameters
-        self._alpha = dist.LogNormal(*lognorm_mean_std_to_loc_scale(1.0, 0.5))     # noqa
-        self._beta = dist.Normal(1., 0.5)
-        # Distribution of velocity uncertainty sigma_v
-        self._sigma_v = dist.LogNormal(*lognorm_mean_std_to_loc_scale(150, 100))   # noqa
-        self._h = dist.LogNormal(*lognorm_mean_std_to_loc_scale(1., 0.25))
-
-        self._Omega_m = Omega_m
-
-    def predict_zobs_single(self, **kwargs):
-        raise NotImplementedError("This method is not implemented yet.")
-
-    def predict_zcosmo_from_calibration(self, **kwargs):
-        raise NotImplementedError("This method is not implemented yet.")
-
-    def __call__(self, sample_alpha=True, sample_beta=True, sample_h=True):
-        """
-        The simple distance NumPyro PV validation model.
-
-        Parameters
-        ----------
-        sample_alpha : bool, optional
-            Whether to sample the density bias parameter `alpha`, otherwise
-            it is fixed to 1.
-        sample_beta : bool, optional
-            Whether to sample the velocity bias parameter `beta`, otherwise
-            it is fixed to 1.
-        sample_h : bool, optional
-            Whether to sample the location bias parameter `h`, otherwise
-            it is fixed to 1.
-        """
-        Vx = numpyro.sample("Vext_x", self._Vext)
-        Vy = numpyro.sample("Vext_y", self._Vext)
-        Vz = numpyro.sample("Vext_z", self._Vext)
-
-        alpha = numpyro.sample("alpha", self._alpha) if sample_alpha else 1.0
-        beta = numpyro.sample("beta", self._beta) if sample_beta else 1.0
-        sigma_v = numpyro.sample("sigma_v", self._sigma_v)
-
-        h = numpyro.sample("h", self._h) if sample_h else 1.0
-
-        Vext_rad = project_Vext(Vx, Vy, Vz, self._RA, self._dec)
-
-        def scan_body(ll, i):
-            # Calculate p(r) and multiply it by the galaxy bias
-            ptilde = self._f_ptilde_wo_bias(
-                h * self._r_hMpc[i], h**2 * self._e2_rhMpc[i])
-            ptilde *= self._los_density[i]**alpha
-
-            # Normalization of p(r)
-            pnorm = self._f_simps(ptilde)
-
-            # Calculate p(z_obs) and multiply it by p(r)
-            zobs_pred = self._f_zobs(beta, Vext_rad[i], self._los_velocity[i])
-            ptilde *= calculate_likelihood_zobs(
-                self._z_obs[i], zobs_pred, sigma_v)
-
-            return ll + jnp.log(self._f_simps(ptilde) / pnorm), None
-
-        ll = 0.
-        ll, __ = scan(scan_body, ll, jnp.arange(self.ndata))
-        numpyro.factor("ll", ll)
-
-
-class SN_PV_validation_model(BaseFlowValidationModel):
-    """
-    Supernova peculiar velocity (PV) validation model that includes the
-    calibration of the SALT2 light curve parameters.
+    Peculiar velocity validation model.
 
     Parameters
     ----------
@@ -765,10 +622,8 @@ class SN_PV_validation_model(BaseFlowValidationModel):
         Observed redshifts.
     e_zobs : 1-dimensional array of shape (n_objects)
         Errors on the observed redshifts.
-    mB, x1, c : 1-dimensional arrays of shape (n_objects)
-        SALT2 light curve parameters.
-    e_mB, e_x1, e_c : 1-dimensional arrays of shape (n_objects)
-        Errors on the SALT2 light curve parameters.
+    calibration_params: dict
+        Calibration parameters of each object.
     r_xrange : 1-dimensional array
         Radial distances where the field was interpolated for each object.
     Omega_m : float
@@ -776,398 +631,62 @@ class SN_PV_validation_model(BaseFlowValidationModel):
     """
 
     def __init__(self, los_density, los_velocity, RA, dec, z_obs,
-                 e_zobs, mB, x1, c, e_mB, e_x1, e_c, r_xrange, Omega_m):
-        # Convert everything to JAX arrays.
-        self._los_density = jnp.asarray(los_density)
-        self._los_velocity = jnp.asarray(los_velocity)
-
-        self._RA = jnp.asarray(np.deg2rad(RA))
-        self._dec = jnp.asarray(np.deg2rad(dec))
-        self._z_obs = jnp.asarray(z_obs)
+                 e_zobs, calibration_params, r_xrange, Omega_m, kind):
         if e_zobs is not None:
-            self._e2_cz_obs = jnp.asarray((SPEED_OF_LIGHT * e_zobs)**2)
+            e2_cz_obs = jnp.asarray((SPEED_OF_LIGHT * e_zobs)**2)
         else:
-            self._e2_cz_obs = jnp.zeros_like(self._z_obs)
+            e2_cz_obs = jnp.zeros_like(z_obs)
 
-        self._mB = jnp.asarray(mB)
-        self._x1 = jnp.asarray(x1)
-        self._c = jnp.asarray(c)
-        self._e2_mB = jnp.asarray(e_mB**2)
-        self._e2_x1 = jnp.asarray(e_x1**2)
-        self._e2_c = jnp.asarray(e_c**2)
+        # Convert RA/dec to radians.
+        RA = np.deg2rad(RA)
+        dec = np.deg2rad(dec)
 
-        # Get radius squared
-        r2_xrange = r_xrange**2
-        r2_xrange /= r2_xrange.mean()
-        mu_xrange = dist2distmodulus(r_xrange, Omega_m)
+        names = ["los_density", "los_velocity", "RA", "dec", "z_obs",
+                 "e2_cz_obs"]
+        values = [los_density, los_velocity, RA, dec, z_obs, e2_cz_obs]
+        self._setattr_as_jax(names, values)
+        self._set_calibration_params(calibration_params)
+        self._set_radial_spacing(r_xrange, Omega_m)
 
-        # Get the stepsize, we need it to be constant for Simpson's rule.
-        dr = np.diff(r_xrange)
-        if not np.all(np.isclose(dr, dr[0], atol=1e-5)):
-            raise ValueError("The radial step size must be constant.")
-        dr = dr[0]
+        self.kind = kind
+        self.Omega_m = Omega_m
 
-        # Get the various functions, also vmapped
-        self._f_ptilde_wo_bias = lambda mu, err: calculate_ptilde_wo_bias(mu_xrange, mu, err, r2_xrange, True)  # noqa
-        self._f_simps = lambda y: simps(y, dr)                                                                  # noqa
-        self._f_zobs = lambda beta, Vr, vpec_rad: predict_zobs(r_xrange, beta, Vr, vpec_rad, Omega_m)           # noqa
+    def __call__(self, calibration_hyperparams, distmod_hyperparams):
+        """NumPyro PV validation model."""
+        Vext, sigma_v, alpha, beta = sample_calibration(**calibration_hyperparams)  # noqa
+        cz_err = jnp.sqrt(sigma_v**2 + self.e2_cz_obs)
+        Vext_rad = project_Vext(Vext[0], Vext[1], Vext[2], self.RA, self.dec)
 
-        self._vmap_ptilde_wo_bias = vmap(lambda mu, err: calculate_ptilde_wo_bias(mu_xrange, mu, err, r2_xrange, True))                  # noqa
-        self._vmap_simps = vmap(lambda y: simps(y, dr))
-        self._vmap_zobs = vmap(lambda beta, Vr, vpec_rad: predict_zobs(r_xrange, beta, Vr, vpec_rad, Omega_m), in_axes=(None, 0, 0))    # noqa
+        if self.kind == "SN":
+            e_mu, mag_cal, alpha_cal, beta_cal = sample_SN(**distmod_hyperparams)  # noqa
+            mu = distmod_SN(
+                self.mB, self.x1, self.c, mag_cal, alpha_cal, beta_cal)
+            squared_e_mu = e2_distmod_SN(
+                self.e2_mB, self.e2_x1, self.e2_c, alpha_cal, beta_cal, e_mu)
+        elif self.kind == "TFR":
+            e_mu, a, b = sample_TFR(**distmod_hyperparams)
+            mu = distmod_TFR(self.mag, self.eta, a, b)
+            squared_e_mu = e2_distmod_TFR(self.e2_mag, self.e2_eta, b, e_mu)
+        else:
+            raise ValueError(f"Unknown kind: `{self.kind}`.")
 
-        # Distribution of external velocity components
-        self._Vext = dist.Uniform(-500, 500)
-        # Distribution of velocity and density bias parameters
-        self._alpha = dist.LogNormal(*lognorm_mean_std_to_loc_scale(1.0, 0.5))
-        self._beta = dist.Normal(1., 0.5)
-        # Distribution of velocity uncertainty
-        self._sigma_v = dist.LogNormal(*lognorm_mean_std_to_loc_scale(150, 100))   # noqa
+        # Calculate p(r) (Malmquist bias). Shape is (ndata, nxrange)
+        ptilde = jnp.transpose(vmap(calculate_ptilde_wo_bias, in_axes=(0, None, None, 0))(self.mu_xrange, mu, squared_e_mu, self.r2_xrange))  # noqa
+        # Inhomogeneous Malmquist bias. Shape is (n_sims, ndata, nxrange)
+        ptilde = self.los_density**alpha * ptilde
+        # Normalization of p(r). Shape is (n_sims, ndata)
+        pnorm = simpson(ptilde, dx=self.dr, axis=-1)
 
-        # Distribution of light curve calibration parameters
-        self._mag_cal = dist.Normal(-18.25, 0.5)
-        self._alpha_cal = dist.Normal(0.148, 0.05)
-        self._beta_cal = dist.Normal(3.112, 1.0)
-        self._e_mu = dist.LogNormal(*lognorm_mean_std_to_loc_scale(0.1, 0.05))
+        # Calculate z_obs at each distance. Shape is (n_sims, ndata, nxrange)
+        vrad = beta * self.los_velocity + Vext_rad[None, :, None]
+        zobs = (1 + self.z_xrange[None, None, :]) * (1 + vrad / SPEED_OF_LIGHT) - 1  # noqa
 
-        self._Omega_m = Omega_m
-        self._r_xrange = r_xrange
+        ptilde *= calculate_likelihood_zobs(self.z_obs, zobs, cz_err)
+        ll = jnp.log(simpson(ptilde, dx=self.dr, axis=-1)) - jnp.log(pnorm)
+        ll = jnp.sum(logsumexp(ll, b=1. / self.num_sims, axis=0))
 
-    def mu(self, mag_cal, alpha_cal, beta_cal):
-        """
-        Distance modulus of each object given SALT2 calibration parameters.
-        """
-        return self._mB - mag_cal + alpha_cal * self._x1 - beta_cal * self._c
-
-    def squared_e_mu(self, alpha_cal, beta_cal, e_mu_intrinsic):
-        """Linearly-propagated squared error on the SALT2 distance modulus."""
-        return (self._e2_mB + alpha_cal**2 * self._e2_x1
-                + beta_cal**2 * self._e2_c + e_mu_intrinsic**2)
-
-    def predict_zcosmo_from_calibration(self, mag_cal, alpha_cal, beta_cal,
-                                        to_jit=True):
-        """
-        Predict the cosmological redshift given the SALT2 calibration
-        parameters.
-
-        Parameters
-        ----------
-        mag_cal, alpha_cal, beta_cal : floats
-            SALT2 calibration parameters.
-        to_jit : bool, optional
-            Whether to JIT compile the distance modulus function.
-
-        Returns
-        -------
-        zcosmo_mean : 1-dimensional array
-            Mean of the predicted redshifts.
-        zcosmo_std : 1-dimensional array
-            Standard deviation of the predicted redshifts.
-        """
-        if not ((mag_cal.shape == alpha_cal.shape == beta_cal.shape) and mag_cal.ndim == 1):  # noqa
-            raise ValueError("The shape of calibration parameters must be 1D and equal.")     # noqa
-
-        fmu = jit(self.mu) if to_jit else self.mu
-        zcosmo = np.empty((len(mag_cal), self.ndata), dtype=np.float32)
-        mu2z = None
-
-        for i in trange(len(mag_cal)):
-            x = fmu(mag_cal[i], alpha_cal[i], beta_cal[i])
-            zcosmo[i], mu2z = distmodulus2redsfhit(x, self._Omega_m, mu2z=mu2z,
-                                                   return_interpolator=True)
-
-        zcosmo_mean = zcosmo.mean(axis=0)
-        zcosmo_std = zcosmo.std(axis=0)
-
-        return zcosmo_mean, zcosmo_std
-
-    def predict_zobs_single(self, Vext_x, Vext_y, Vext_z, alpha, beta,
-                            e_mu_intrinsic, mag_cal, alpha_cal, beta_cal,
-                            **kwargs):
-        """
-        Predict the observed redshifts given the samples from the posterior.
-
-        Parameters
-        ----------
-        Vext_x, Vext_y, Vext_z : floats
-            Components of the external velocity.
-        alpha, beta : floats
-            Density and velocity bias parameters.
-        e_mu_intrinsic, mag_cal, alpha_cal, beta_cal : floats
-            Calibration parameters.
-        kwargs : dict
-            Additional arguments (for compatibility).
-
-        Returns
-        -------
-        zobs_mean : 1-dimensional array
-            Mean of the predicted redshifts.
-        zobs_var : 1-dimensional array
-            Variance of the predicted redshifts.
-        """
-        mu = self.mu(mag_cal, alpha_cal, beta_cal)
-        squared_e_mu = self.squared_e_mu(alpha_cal, beta_cal, e_mu_intrinsic)
-        Vext_rad = project_Vext(Vext_x, Vext_y, Vext_z, self._RA, self._dec)
-
-        # Calculate p(r) (Malmquist bias)
-        ptilde = self._vmap_ptilde_wo_bias(mu, squared_e_mu)
-        ptilde *= self._los_density**alpha
-        ptilde /= self._vmap_simps(ptilde).reshape(-1, 1)
-
-        # Predicted mean z_obs
-        zobs_pred = self._vmap_zobs(beta, Vext_rad, self._los_velocity)
-        zobs_mean = self._vmap_simps(zobs_pred * ptilde)
-
-        # Variance of the predicted z_obs
-        zobs_pred -= zobs_mean.reshape(-1, 1)
-        zobs_var = self._vmap_simps(zobs_pred**2 * ptilde)
-
-        return zobs_mean, zobs_var
-
-    def __call__(self, sample_alpha=True, sample_beta=True):
-        """
-        The supernova NumPyro PV validation model with SALT2 calibration.
-
-        Parameters
-        ----------
-        sample_alpha : bool, optional
-            Whether to sample the density bias parameter `alpha`, otherwise
-            it is fixed to 1.
-        sample_beta : bool, optional
-            Whether to sample the velocity bias parameter `beta`, otherwise
-            it is fixed to 1.
-        """
-        Vx = numpyro.sample("Vext_x", self._Vext)
-        Vy = numpyro.sample("Vext_y", self._Vext)
-        Vz = numpyro.sample("Vext_z", self._Vext)
-        alpha = numpyro.sample("alpha", self._alpha) if sample_alpha else 1.0
-        beta = numpyro.sample("beta", self._beta) if sample_beta else 1.0
-        sigma_v = numpyro.sample("sigma_v", self._sigma_v)
-
-        e_mu_intrinsic = numpyro.sample("e_mu_intrinsic", self._e_mu)
-        mag_cal = numpyro.sample("mag_cal", self._mag_cal)
-        alpha_cal = numpyro.sample("alpha_cal", self._alpha_cal)
-        beta_cal = numpyro.sample("beta_cal", self._beta_cal)
-
-        cz_err = jnp.sqrt(sigma_v**2 + self._e2_cz_obs)
-        Vext_rad = project_Vext(Vx, Vy, Vz, self._RA, self._dec)
-
-        mu = self.mu(mag_cal, alpha_cal, beta_cal)
-        squared_e_mu = self.squared_e_mu(alpha_cal, beta_cal, e_mu_intrinsic)
-
-        def scan_body(ll, i):
-            # Calculate p(r) and multiply it by the galaxy bias
-            ptilde = self._f_ptilde_wo_bias(mu[i], squared_e_mu[i])
-            ptilde *= self._los_density[i]**alpha
-
-            # Normalization of p(r)
-            pnorm = self._f_simps(ptilde)
-
-            # Calculate p(z_obs) and multiply it by p(r)
-            zobs_pred = self._f_zobs(beta, Vext_rad[i], self._los_velocity[i])
-            ptilde *= calculate_likelihood_zobs(
-                self._z_obs[i], zobs_pred, cz_err[i])
-
-            return ll + jnp.log(self._f_simps(ptilde) / pnorm), None
-
-        ll = 0.
-        ll, __ = scan(scan_body, ll, jnp.arange(self.ndata))
+        numpyro.deterministic("ll_values", ll)
         numpyro.factor("ll", ll)
-
-
-class TF_PV_validation_model(BaseFlowValidationModel):
-    """
-    Tully-Fisher peculiar velocity (PV) validation model that includes the
-    calibration of the Tully-Fisher distance `mu = m - (a + b * eta)`.
-
-    Parameters
-    ----------
-    los_density : 3-dimensional array of shape (n_sims, n_objects, n_steps)
-        LOS density field.
-    los_velocity : 3-dimensional array of shape (n_sims, n_objects, n_steps)
-        LOS radial velocity field.
-    RA, dec : 1-dimensional arrays of shape (n_objects)
-        Right ascension and declination in degrees.
-    z_obs : 1-dimensional array of shape (n_objects)
-        Observed redshifts.
-    mag, eta : 1-dimensional arrays of shape (n_objects)
-        Apparent magnitude and `eta` parameter.
-    e_mag, e_eta : 1-dimensional arrays of shape (n_objects)
-        Errors on the apparent magnitude and `eta` parameter.
-    r_xrange : 1-dimensional array
-        Radial distances where the field was interpolated for each object.
-    Omega_m : float
-        Matter density parameter.
-    """
-
-    def __init__(self, los_density, los_velocity, RA, dec, z_obs,
-                 mag, eta, e_mag, e_eta, r_xrange, Omega_m):
-        # Convert everything to JAX arrays.
-        self._los_density = jnp.asarray(los_density)
-        self._los_velocity = jnp.asarray(los_velocity)
-
-        self._RA = jnp.asarray(np.deg2rad(RA))
-        self._dec = jnp.asarray(np.deg2rad(dec))
-        self._z_obs = jnp.asarray(z_obs)
-
-        self._mag = jnp.asarray(mag)
-        self._eta = jnp.asarray(eta)
-        self._e2_mag = jnp.asarray(e_mag**2)
-        self._e2_eta = jnp.asarray(e_eta**2)
-
-        # Get radius squared
-        r2_xrange = r_xrange**2
-        r2_xrange /= r2_xrange.mean()
-        mu_xrange = dist2distmodulus(r_xrange, Omega_m)
-
-        # Get the stepsize, we need it to be constant for Simpson's rule.
-        dr = np.diff(r_xrange)
-        if not np.all(np.isclose(dr, dr[0], atol=1e-5)):
-            raise ValueError("The radial step size must be constant.")
-        dr = dr[0]
-
-        # Get the various vmapped functions
-        self._f_ptilde_wo_bias = lambda mu, err: calculate_ptilde_wo_bias(mu_xrange, mu, err, r2_xrange, True)  # noqa
-        self._f_simps = lambda y: simps(y, dr)                                                                  # noqa
-        self._f_zobs = lambda beta, Vr, vpec_rad: predict_zobs(r_xrange, beta, Vr, vpec_rad, Omega_m)           # noqa
-
-        self._vmap_ptilde_wo_bias = vmap(lambda mu, err: calculate_ptilde_wo_bias(mu_xrange, mu, err, r2_xrange, True))                  # noqa
-        self._vmap_simps = vmap(lambda y: simps(y, dr))
-        self._vmap_zobs = vmap(lambda beta, Vr, vpec_rad: predict_zobs(r_xrange, beta, Vr, vpec_rad, Omega_m), in_axes=(None, 0, 0))    # noqa
-
-        # Distribution of external velocity components
-        self._Vext = dist.Uniform(-1000, 1000)
-        # Distribution of velocity and density bias parameters
-        self._alpha = dist.LogNormal(*lognorm_mean_std_to_loc_scale(1.0, 0.5))     # noqa
-        self._beta = dist.Normal(1., 0.5)
-        # Distribution of velocity uncertainty
-        self._sigma_v = dist.LogNormal(*lognorm_mean_std_to_loc_scale(150, 100))   # noqa
-
-        # Distribution of Tully-Fisher calibration parameters
-        self._a = dist.Normal(-21., 0.5)
-        self._b = dist.Normal(-5.95, 0.1)
-        self._e_mu = dist.LogNormal(*lognorm_mean_std_to_loc_scale(0.3, 0.1))      # noqa
-
-        self._Omega_m = Omega_m
-        self._r_xrange = r_xrange
-        self._num_sims = len(los_density)
-
-    def mu(self, a, b):
-        """Distance modulus of each object given the TFR calibration."""
-        return self._mag - (a + b * self._eta)
-
-    def squared_e_mu(self, b, e_mu_intrinsic):
-        """Linearly propagated squared error on the TFR distance modulus."""
-        return (self._e2_mag + b**2 * self._e2_eta + e_mu_intrinsic**2)
-
-    def predict_zcosmo_from_calibration(self, **kwargs):
-        raise NotImplementedError("This method is not implemented yet.")
-
-    def predict_zobs_single(self, Vext_x, Vext_y, Vext_z, alpha, beta,
-                            e_mu_intrinsic, a, b, **kwargs):
-        """
-        Predict the observed redshifts given the samples from the posterior.
-
-        Parameters
-        ----------
-        Vext_x, Vext_y, Vext_z : floats
-            Components of the external velocity.
-        alpha, beta : floats
-            Density and velocity bias parameters.
-        e_mu_intrinsic, a, b : floats
-            Calibration parameters.
-        kwargs : dict
-            Additional arguments (for compatibility).
-
-        Returns
-        -------
-        zobs_mean : 1-dimensional array
-            Mean of the predicted redshifts.
-        zobs_var : 1-dimensional array
-            Variance of the predicted redshifts.
-        """
-        mu = self.mu(a, b)
-        squared_e_mu = self.squared_e_mu(b, e_mu_intrinsic)
-
-        Vext_rad = project_Vext(Vext_x, Vext_y, Vext_z, self._RA, self._dec)
-
-        # Calculate p(r) (Malmquist bias)
-        ptilde = self._vmap_ptilde_wo_bias(mu, squared_e_mu)
-        ptilde *= self._los_density**alpha
-        ptilde /= self._vmap_simps(ptilde).reshape(-1, 1)
-
-        # Predicted mean z_obs
-        zobs_pred = self._vmap_zobs(beta, Vext_rad, self._los_velocity)
-        zobs_mean = self._vmap_simps(zobs_pred * ptilde)
-
-        # Variance of the predicted z_obs
-        zobs_pred -= zobs_mean.reshape(-1, 1)
-        zobs_var = self._vmap_simps(zobs_pred**2 * ptilde)
-
-        return zobs_mean, zobs_var
-
-    def __call__(self, sample_alpha=True, sample_beta=True):
-        """
-        The Tully-Fisher NumPyro PV validation model.
-
-        Parameters
-        ----------
-        sample_alpha : bool, optional
-            Whether to sample the density bias parameter `alpha`, otherwise
-            it is fixed to 1.
-        sample_beta : bool, optional
-            Whether to sample the velocity bias parameter `beta`, otherwise
-            it is fixed to 1.
-        """
-        Vx = numpyro.sample("Vext_x", self._Vext)
-        Vy = numpyro.sample("Vext_y", self._Vext)
-        Vz = numpyro.sample("Vext_z", self._Vext)
-        alpha = numpyro.sample("alpha", self._alpha) if sample_alpha else 1.0
-        beta = numpyro.sample("beta", self._beta) if sample_beta else 1.0
-        sigma_v = numpyro.sample("sigma_v", self._sigma_v)
-
-        e_mu_intrinsic = numpyro.sample("e_mu_intrinsic", self._e_mu)
-        a = numpyro.sample("a", self._a)
-        b = numpyro.sample("b", self._b)
-
-        Vext_rad = project_Vext(Vx, Vy, Vz, self._RA, self._dec)
-
-        mu = self.mu(a, b)
-        squared_e_mu = self.squared_e_mu(b, e_mu_intrinsic)
-
-        def ll_galaxy(i, k):
-            # `i`` is the galaxy index, `k`` is the simulation index.
-            # Calculate p(r) and multiply it by the galaxy bias
-            ptilde = self._f_ptilde_wo_bias(mu[i], squared_e_mu[i])
-            ptilde *= self._los_density[k, i]**alpha
-
-            # Normalization of p(r)
-            pnorm = self._f_simps(ptilde)
-
-            # Calculate p(z_obs) and multiply it by p(r)
-            zobs_pred = self._f_zobs(
-                beta, Vext_rad[i], self._los_velocity[k, i])
-            ptilde *= calculate_likelihood_zobs(
-                self._z_obs[i], zobs_pred, sigma_v)
-
-            return jnp.log(self._f_simps(ptilde) / pnorm)
-
-        def pmap_body(indxs):
-            if self._num_sims == 1:
-                return jnp.sum(vmap(ll_galaxy, in_axes=(0, None))(indxs, 0))
-
-            def scan_body(ll, k):
-                ll_k = jnp.sum(vmap(ll_galaxy, in_axes=(0, None))(indxs, k))
-                return ll + ll_k, None
-
-            ll = 0.
-            ll, __ = scan(scan_body, ll, jnp.arange(self._num_sims))
-            return ll
-
-        # Parallelize with devices over the galaxies.
-        indxs = jnp.arange(self.ndata).reshape(len(devices()), -1)
-        ll = pmap(pmap_body)(indxs)
-        numpyro.factor("ll", jnp.sum(ll))
 
 
 ###############################################################################
@@ -1204,10 +723,15 @@ def get_model(loader, zcmb_max=None, verbose=True):
         e_zCMB = None
 
         mask = (zCMB < zcmb_max)
-        model = SN_PV_validation_model(
-            los_overdensity[mask], los_velocity[mask], RA[mask], dec[mask],
-            zCMB[mask], e_zCMB, mB[mask], x1[mask], c[mask], e_mB[mask],
-            e_x1[mask], e_c[mask], loader.rdist, loader._Omega_m)
+        calibration_params = {"mB": mB[mask], "x1": x1[mask], "c": c[mask],
+                              "e_mB": e_mB[mask], "e_x1": e_x1[mask],
+                              "e_c": e_c[mask]}
+
+        model = PV_validation_model(
+            los_overdensity[:, mask], los_velocity[:, mask], RA[mask],
+            dec[mask], zCMB[mask], e_zCMB, calibration_params,
+            loader.rdist, loader._Omega_m, "SN")
+        # return model_old, model
     elif "Pantheon+" in kind:
         keys = ["RA", "DEC", "zCMB", "mB", "x1", "c", "biasCor_m_b", "mBERR",
                 "x1ERR", "cERR", "biasCorErr_m_b", "zCMB_SN", "zCMB_Group",
@@ -1229,10 +753,13 @@ def get_model(loader, zcmb_max=None, verbose=True):
         if kind == "Pantheon+_zSN":
             zCMB = zCMB_SN
 
-        model = SN_PV_validation_model(
+        calibration_params = {"mB": mB[mask], "x1": x1[mask], "c": c[mask],
+                              "e_mB": e_mB[mask], "e_x1": e_x1[mask],
+                              "e_c": e_c[mask]}
+        model = PV_validation_model(
             los_overdensity[:, mask], los_velocity[:, mask], RA[mask],
-            dec[mask], zCMB[mask], e_zCMB[mask], mB[mask], x1[mask], c[mask],
-            e_mB[mask], e_x1[mask], e_c[mask], loader.rdist, loader._Omega_m)
+            dec[mask], zCMB[mask], e_zCMB[mask], calibration_params,
+            loader.rdist, loader._Omega_m, "SN")
     elif kind in ["SFI_gals", "2MTF", "SFI_gals_masked"]:
         keys = ["RA", "DEC", "z_CMB", "mag", "eta", "e_mag", "e_eta"]
         RA, dec, zCMB, mag, eta, e_mag, e_eta = (loader.cat[k] for k in keys)
@@ -1242,31 +769,13 @@ def get_model(loader, zcmb_max=None, verbose=True):
             mask &= (eta > -0.15) & (eta < 0.2)
             if verbose:
                 print("Emplyed eta cut for SFI galaxies.", flush=True)
-        model = TF_PV_validation_model(
+
+        calibration_params = {"mag": mag[mask], "eta": eta[mask],
+                              "e_mag": e_mag[mask], "e_eta": e_eta[mask]}
+        model = PV_validation_model(
             los_overdensity[:, mask], los_velocity[:, mask], RA[mask],
-            dec[mask], zCMB[mask], mag[mask], eta[mask], e_mag[mask],
-            e_eta[mask], loader.rdist, loader._Omega_m)
-    elif kind == "SFI_groups":
-        keys = ["RA", "DEC", "zCMB", "r_hMpc", "e_r_hMpc"]
-        RA, dec, zCMB, r_hMpc, e_r_hMpc = (loader.cat[k] for k in keys)
-
-        mask = (zCMB < zcmb_max)
-        model = SD_PV_validation_model(
-            los_overdensity[:, mask], los_velocity[:, mask], RA[mask],
-            dec[mask], zCMB[mask], r_hMpc[mask], e_r_hMpc[mask], loader.rdist,
-            loader._Omega_m)
-    elif "CB2_" in kind:
-        keys = ["RA", "DEC", "zobs", "r_hMpc"]
-        RA, dec, zCMB, r_hMpc = (loader.cat[k] for k in keys)
-
-        # Set fiducially to be 10% of the distance
-        e_r_hMpc = 0.1 * r_hMpc
-
-        mask = (zCMB < zcmb_max)
-        model = SD_PV_validation_model(
-            los_overdensity[mask], los_velocity[mask], RA[mask], dec[mask],
-            zCMB[mask], r_hMpc[mask], e_r_hMpc[mask], loader.rdist,
-            loader._Omega_m)
+            dec[mask], zCMB[mask], None, calibration_params, loader.rdist,
+            loader._Omega_m, "TFR")
     else:
         raise ValueError(f"Catalogue `{kind}` not recognized.")
 
@@ -1274,178 +783,6 @@ def get_model(loader, zcmb_max=None, verbose=True):
         print(f"Selected {np.sum(mask)}/{len(mask)} galaxies.", flush=True)
 
     return model
-
-
-###############################################################################
-#                  Maximizing likelihood of a NumPyro model                   #
-###############################################################################
-
-
-def sample_prior(model, seed, model_kwargs, as_dict=False):
-    """
-    Sample a single set of parameters from the prior of the model.
-
-    Parameters
-    ----------
-    model : NumPyro model
-        NumPyro model.
-    seed : int
-        Random seed.
-    model_kwargs : dict
-        Additional keyword arguments to pass to the model.
-    as_dict : bool, optional
-        Whether to return the parameters as a dictionary or a list of
-        parameters.
-
-    Returns
-    -------
-    x, keys : tuple
-        Tuple of parameters and their names. If `as_dict` is True, returns
-        only a dictionary.
-    """
-    predictive = Predictive(model, num_samples=1)
-    samples = predictive(PRNGKey(seed), **model_kwargs)
-
-    if as_dict:
-        return samples
-
-    keys = list(samples.keys())
-    if "ll" in keys:
-        keys.remove("ll")
-
-    x = np.asarray([samples[key][0] for key in keys])
-    return x, keys
-
-
-def make_loss(model, keys, model_kwargs, to_jit=True):
-    """
-    Generate a loss function for the NumPyro model, that is the negative
-    log-likelihood. Note that this loss function cannot be automatically
-    differentiated.
-
-    Parameters
-    ----------
-    model : NumPyro model
-        NumPyro model.
-    keys : list
-        List of parameter names.
-    model_kwargs : dict
-        Additional keyword arguments to pass to the model.
-    to_jit : bool, optional
-        Whether to JIT the loss function.
-
-    Returns
-    -------
-    loss : function
-        Loss function `f(x)` where `x` is a list of parameters ordered
-        according to `keys`.
-    """
-    def f(x):
-        samples = {key: x[i] for i, key in enumerate(keys)}
-
-        loss = -util.log_likelihood(model, samples, **model_kwargs)["ll"]
-
-        loss += cond(samples["sigma_v"] > 0, lambda: 0., lambda: jnp.inf)
-        loss += cond(samples["e_mu_intrinsic"] > 0, lambda: 0., lambda: jnp.inf)  # noqa
-
-        return cond(jnp.isfinite(loss), lambda: loss, lambda: jnp.inf)
-
-    if to_jit:
-        return jit(f)
-
-    return f
-
-
-def optimize_model_with_jackknife(loader, k, n_splits=5, sample_alpha=True,
-                                  get_model_kwargs={}, seed=42):
-    """
-    Optimize the log-likelihood of a model for `n_splits` jackknifes.
-
-    Parameters
-    ----------
-    loader : DataLoader
-        DataLoader instance.
-    k : int
-        Simulation index.
-    n_splits : int, optional
-        Number of jackknife splits.
-    sample_alpha : bool, optional
-        Whether to sample the density bias parameter `alpha`.
-    get_model_kwargs : dict, optional
-        Additional keyword arguments to pass to the `get_model` function.
-    seed : int, optional
-        Random seed.
-
-    Returns
-    -------
-    samples : dict
-        Dictionary of optimized parameters for each jackknife split.
-    stats : dict
-        Dictionary of mean and standard deviation for each parameter.
-    fmin : 1-dimensional array
-        Minimum negative log-likelihood for each jackknife split.
-    logz : 1-dimensional array
-        Log-evidence for each jackknife split.
-    bic : 1-dimensional array
-        Bayesian information criterion for each jackknife split.
-    """
-    mask = np.zeros(n_splits, dtype=bool)
-    x0 = None
-
-    # Loop over the CV splits.
-    for i in trange(n_splits):
-        loader.make_jackknife_mask(i, n_splits, seed=seed)
-        model = get_model(loader, k, verbose=False, **get_model_kwargs)
-
-        if x0 is None:
-            x0, keys = sample_prior(model, seed, sample_alpha)
-            x = np.full((n_splits, len(x0)), np.nan)
-            fmin = np.full(n_splits, np.nan)
-            logz = np.full(n_splits, np.nan)
-            bic = np.full(n_splits, np.nan)
-
-            loss = make_loss(model, keys, sample_alpha=sample_alpha,
-                             to_jit=True)
-            for j in range(100):
-                if np.isfinite(loss(x0)):
-                    break
-                x0, __ = sample_prior(model, seed + 1, sample_alpha)
-            else:
-                raise ValueError("Failed to find finite initial loss.")
-
-        else:
-            loss = make_loss(model, keys, sample_alpha=sample_alpha,
-                             to_jit=True)
-
-        with catch_warnings():
-            simplefilter("ignore")
-            res = fmin_powell(loss, x0, disp=False)
-
-        if np.all(np.isfinite(res)):
-            x[i] = res
-            mask[i] = True
-            x0 = res
-            fmin[i] = loss(res)
-
-            f_hess = Hessian(loss, method="forward", richardson_terms=1)
-            hess = f_hess(res)
-            D = len(keys)
-            logz[i] = (
-                - fmin[i]
-                + 0.5 * np.log(np.abs(np.linalg.det(np.linalg.inv(hess))))
-                + D / 2 * np.log(2 * np.pi))
-
-            bic[i] = len(keys) * np.log(len(loader.cat["RA"])) + 2 * fmin[i]
-
-    samples = {key: x[:, i][mask] for i, key in enumerate(keys)}
-
-    mean = [np.mean(samples[key]) for key in keys]
-    std = [(len(samples[key] - 1) * np.var(samples[key], ddof=0))**0.5
-           for key in keys]
-    stats = {key: (mean[i], std[i]) for i, key in enumerate(keys)}
-
-    loader.reset_mask()
-    return samples, stats, fmin, logz, bic
 
 
 ###############################################################################
