@@ -26,8 +26,6 @@ import numpy as np
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from numba import jit
-from numpyro.infer import util
-from scipy.stats import multivariate_normal
 
 ###############################################################################
 #                           Positions                                         #
@@ -429,7 +427,7 @@ def thin_samples_by_acl(samples):
     return thinned_samples
 
 
-def numpyro_gof(model, mcmc, model_kwargs={}):
+def numpyro_gof(model, mcmc):
     """
     Get the goodness-of-fit statistics for a sampled Numpyro model. Calculates
     the BIC and AIC using the maximum likelihood sampled point and the log
@@ -441,43 +439,38 @@ def numpyro_gof(model, mcmc, model_kwargs={}):
         The model to evaluate.
     mcmc : numpyro MCMC
         The MCMC object containing the samples.
-    ndata : int
-        The number of data points.
-    model_kwargs : dict, optional
-        Additional keyword arguments to pass to the model.
 
     Returns
     -------
-    gof : dict
-        Dictionary containing the BIC, AIC and logZ.
+    BIC, AIC: floats
     """
-    samples = mcmc.get_samples(group_by_chain=False)
-    log_likelihood = util.log_likelihood(model, samples, **model_kwargs)["ll"]
-
-    # Calculate the BIC using the maximum likelihood sampled point.
+    samples = mcmc.get_samples()
+    if "ll_values" not in samples:
+        raise ValueError("The samples must contain the log likelihood values under the key `ll_values`.")  # noqa
+    log_likelihood = samples["ll_values"]
     kmax = np.argmax(log_likelihood)
-    nparam = len(samples)
+
+    # How many parameters?
+    nparam = 0
+    for key, val in samples.items():
+        # Skip the likelihood values
+        if key == "ll_values":
+            continue
+
+        if val.ndim == 1:
+            nparam += 1
+        elif val.ndim == 2:
+            nparam += val.shape[-1]
+        else:
+            raise ValueError("Invalid dimensionality of samples to count the number of parameters.")  # noqa
+
     try:
         ndata = model.ndata
     except AttributeError as e:
         raise AttributeError("The model must have an attribute `ndata` "
                              "indicating the number of data points.") from e
-    BIC = -2 * log_likelihood[kmax] + nparam * np.log(ndata)
 
-    # Calculate AIC
+    BIC = nparam * np.log(ndata) - 2 * log_likelihood[kmax]
     AIC = 2 * nparam - 2 * log_likelihood[kmax]
 
-    # Calculate log(Z) using Laplace approximation.
-    X = np.vstack([samples[key] for key in samples.keys()]).T
-    mu, cov = multivariate_normal.fit(X)
-    test_sample = {key: mu[i] for i, key in enumerate(samples.keys())}
-
-    ll_mu = util.log_likelihood(model, test_sample, **model_kwargs)["ll"]
-    cov_det = np.linalg.det(cov)
-    D = len(mu)
-    logZ = ll_mu + 0.5 * np.log(cov_det) + D / 2 * np.log(2 * np.pi)
-
-    # Convert to float
-    out = {"BIC": BIC, "AIC": AIC, "logZ": logZ}
-    out = {key: float(val) for key, val in out.items()}
-    return out
+    return float(BIC), float(AIC)
