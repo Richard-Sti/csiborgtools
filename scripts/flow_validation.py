@@ -16,7 +16,16 @@
 Script to run the PV validation model on various catalogues and simulations.
 The script is not MPI parallelised, instead it is best run on a GPU.
 """
-from argparse import ArgumentParser
+from argparse import ArgumentParser, ArgumentTypeError
+
+
+def none_or_int(value):
+    if value.lower() == "none":
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        raise ArgumentTypeError(f"Invalid value: {value}. Must be an integer or 'none'.")  # noqa
 
 
 def parse_args():
@@ -25,8 +34,10 @@ def parse_args():
                         help="Simulation name.")
     parser.add_argument("--catalogue", type=str, required=True,
                         help="PV catalogue.")
-    parser.add_argument("--ksmooth", type=int, required=True,
+    parser.add_argument("--ksmooth", type=int, default=1,
                         help="Smoothing index.")
+    parser.add_argument("--ksim", type=none_or_int, default=None,
+                        help="IC iteration number. If 'None', all IC realizations are used.")  # noqa
     parser.add_argument("--ndevice", type=int, default=1,
                         help="Number of devices to request.")
     parser.add_argument("--device", type=str, default="cpu",
@@ -63,7 +74,12 @@ def get_model(paths, get_model_kwargs, verbose=True):
     folder = "/mnt/extraspace/rstiskalek/catalogs/"
 
     nsims = paths.get_ics(ARGS.simname)
-    # nsims = [paths.get_ics(ARGS.simname)[4]]
+    if ARGS.ksim is None:
+        nsim_iterator = [i for i in range(len(nsims))]
+    else:
+        nsim_iterator = [ARGS.ksim]
+        nsims = [nsims[ARGS.ksim]]
+
     if verbose:
         print(f"{'Simulation:':<20} {ARGS.simname}")
         print(f"{'Catalogue:':<20} {ARGS.catalogue}")
@@ -80,7 +96,6 @@ def get_model(paths, get_model_kwargs, verbose=True):
     else:
         raise ValueError(f"Unsupported catalogue: `{ARGS.catalogue}`.")
 
-    nsim_iterator = [i for i in range(len(nsims))]
     loader = csiborgtools.flow.DataLoader(ARGS.simname, nsim_iterator,
                                           ARGS.catalogue, fpath, paths,
                                           ksmooth=ARGS.ksmooth)
@@ -102,7 +117,10 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder, kwargs_print):
     mcmc.print_summary()
     samples = mcmc.get_samples()
 
-    fname = f"samples_{ARGS.simname}_{ARGS.catalogue}_{ARGS.ksmooth}.hdf5"
+    fname = f"samples_{ARGS.simname}_{ARGS.catalogue}_ksmooth{ARGS.ksmooth}.hdf5"  # noqa
+    if ARGS.ksim is not None:
+        fname = fname.replace(".hdf5", f"_nsim{ARGS.ksim}.hdf5")
+
     fname = join(out_folder, fname)
     print(f"Saving results to `{fname}`.")
     with File(fname, "w") as f:
