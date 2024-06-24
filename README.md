@@ -2,6 +2,11 @@
 
 Tools for analysing the suite of Constrained Simulations in BORG (CSiBORG) simulations. The interface is designed to work with the following suites of simulations: *CSiBORG1* (dark matter-only RAMSES), *CSiBORG2* (dark matter-only Gadget4), *Quijote* (dark-matter only Gadget2), however with little effort it can support other simulations as well.
 
+
+## TODO
+- [ ] In flow models test in a script that indeed the parallelization is working.
+- [ ] Extend the parallelization to supernovae/simple distances.
+
 ## Ongoing projects
 
 ### Data to calculate
