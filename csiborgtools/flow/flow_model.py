@@ -838,12 +838,12 @@ class BaseObserved2CosmologicalRedshift(ABC):
         self._ncalibration_samples = ncalibratrion
 
         # It is best to JIT compile the functions right here.
-        self._vmap_simps = jit(vmap(lambda y: simps(y, dr)))
+        self._vmap_simps = jit(vmap(lambda y: simpson(y, dx=dr)))
         axs = (0, None, None, 0, None, None, None, None, 0, 0)
         self._vmap_posterior_element = vmap(_posterior_element, in_axes=axs)
         self._vmap_posterior_element = jit(self._vmap_posterior_element)
 
-        self._simps = jit(lambda y: simps(y, dr))
+        self._simps = jit(lambda y: simpson(y, dx=dr))
 
     def get_calibration_samples(self, key):
         """Get calibration samples for a given key."""
