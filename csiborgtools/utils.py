@@ -444,7 +444,7 @@ def numpyro_gof(model, mcmc):
     -------
     BIC, AIC: floats
     """
-    samples = mcmc.get_samples()
+    samples = deepcopy(mcmc.get_samples())
     log_likelihood = samples.pop("ll_values", None)
     if log_likelihood is None:
         raise ValueError("The samples must contain the log likelihood values under the key `ll_values`.")  # noqa
