@@ -103,7 +103,8 @@ def get_model(paths, get_model_kwargs, verbose=True):
     return csiborgtools.flow.get_model(loader, **get_model_kwargs)
 
 
-def run_model(model, nsteps, nburn,  model_kwargs, out_folder, kwargs_print):
+def run_model(model, nsteps, nburn,  model_kwargs, out_folder, sample_beta,
+              kwargs_print):
     """Run the NumPyro model and save output to a file."""
     nuts_kernel = NUTS(model, init_strategy=init_to_median(num_samples=1000))
     mcmc = MCMC(nuts_kernel, num_warmup=nburn, num_samples=nsteps)
@@ -120,6 +121,9 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder, kwargs_print):
     fname = f"samples_{ARGS.simname}_{ARGS.catalogue}_ksmooth{ARGS.ksmooth}.hdf5"  # noqa
     if ARGS.ksim is not None:
         fname = fname.replace(".hdf5", f"_nsim{ARGS.ksim}.hdf5")
+
+    if sample_beta:
+        fname = fname.replace(".hdf5", "_sample_beta.hdf5")
 
     fname = join(out_folder, fname)
     print(f"Saving results to `{fname}`.")
@@ -181,7 +185,8 @@ if __name__ == "__main__":
                                "alpha_mean": 1.0, "alpha_std": 0.5,
                                "beta_mean": 1.0, "beta_std": 0.5,
                                "sigma_v_mean": 200., "sigma_v_std": 100.,
-                               "sample_alpha": True, "sample_beta": True,
+                               "sample_alpha": sample_alpha,
+                               "sample_beta": sample_beta,
                                }
     print_variables(
         calibration_hyperparams.keys(), calibration_hyperparams.values())
@@ -211,4 +216,5 @@ if __name__ == "__main__":
     get_model_kwargs = {"zcmb_max": zcmb_max}
 
     model = get_model(paths, get_model_kwargs, )
-    run_model(model, nsteps, nburn, model_kwargs, out_folder, kwargs_print)
+    run_model(model, nsteps, nburn, model_kwargs, out_folder, sample_beta,
+              kwargs_print)
