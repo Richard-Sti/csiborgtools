@@ -1,6 +1,7 @@
 # Python virtual environments
 venv/
 venv_csiborg/
+venv_gpu_csiborgtools/
 
 # Compiled Python files
 *.pyc
