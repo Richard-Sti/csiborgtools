@@ -427,44 +427,34 @@ def thin_samples_by_acl(samples):
     return thinned_samples
 
 
-def numpyro_gof(model, mcmc):
+def numpyro_gof(samples, log_likelihood, ndata):
     """
-    Get the goodness-of-fit statistics for a sampled Numpyro model. Calculates
-    the BIC and AIC using the maximum likelihood sampled point and the log
-    evidence using the Laplace approximation.
+    Get the BIC/AIC of HMC samples from a Numpyro model.
 
     Parameters
     ----------
-    model : numpyro model
-        The model to evaluate.
-    mcmc : numpyro MCMC
-        The MCMC object containing the samples.
+    samples: dict
+        Dictionary of samples from the Numpyro MCMC object.
+    log_likelihood: numpy array
+        Log likelihood values of the samples.
+    ndata: int
+        Number of data points.
 
     Returns
     -------
     BIC, AIC: floats
     """
-    samples = deepcopy(mcmc.get_samples())
-    log_likelihood = samples.pop("ll_values", None)
-    if log_likelihood is None:
-        raise ValueError("The samples must contain the log likelihood values under the key `ll_values`.")  # noqa
     kmax = np.argmax(log_likelihood)
 
     # How many parameters?
     nparam = 0
-    for key, val in samples.items():
+    for val in samples.values():
         if val.ndim == 1:
             nparam += 1
         elif val.ndim == 2:
             nparam += val.shape[-1]
         else:
             raise ValueError("Invalid dimensionality of samples to count the number of parameters.")  # noqa
-
-    try:
-        ndata = model.ndata
-    except AttributeError as e:
-        raise AttributeError("The model must have an attribute `ndata` "
-                             "indicating the number of data points.") from e
 
     BIC = nparam * np.log(ndata) - 2 * log_likelihood[kmax]
     AIC = 2 * nparam - 2 * log_likelihood[kmax]
