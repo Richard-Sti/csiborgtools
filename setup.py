@@ -3,16 +3,20 @@ from setuptools import find_packages, setup
 BUILD_REQ = ["numpy", "scipy"]
 INSTALL_REQ = BUILD_REQ
 INSTALL_REQ += [
-                "numba",
-                "tqdm",
-                "healpy",
-                "astropy",
-                "scikit-learn",
-                "h5py",
-                "pynbody",
-                "joblib",
-                "quadax"
-                ]
+    "astropy",
+    "colossus",
+    "h5py",
+    "healpy",
+    "joblib",
+    "mpi4py",
+    "numba",
+    "numpyro",
+    "pynbody",
+    "Pylians",
+    "quadax",
+    "scikit-learn",
+    "tqdm",
+]
 
 setup(
     name="csiborgtools",
