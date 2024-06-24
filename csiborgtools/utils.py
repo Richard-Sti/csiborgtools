@@ -445,18 +445,14 @@ def numpyro_gof(model, mcmc):
     BIC, AIC: floats
     """
     samples = mcmc.get_samples()
-    if "ll_values" not in samples:
+    log_likelihood = samples.pop("ll_values", None)
+    if log_likelihood is None:
         raise ValueError("The samples must contain the log likelihood values under the key `ll_values`.")  # noqa
-    log_likelihood = samples["ll_values"]
     kmax = np.argmax(log_likelihood)
 
     # How many parameters?
     nparam = 0
     for key, val in samples.items():
-        # Skip the likelihood values
-        if key == "ll_values":
-            continue
-
         if val.ndim == 1:
             nparam += 1
         elif val.ndim == 2:
