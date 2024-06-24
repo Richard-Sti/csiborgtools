@@ -14,9 +14,6 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 from .flow_model import (DataLoader, radial_velocity_los, dist2redshift,        # noqa
                          dist2distmodulus, predict_zobs, project_Vext,          # noqa
-                         SD_PV_validation_model, SN_PV_validation_model,        # noqa
-                         TF_PV_validation_model, radec_to_galactic,             # noqa
-                         sample_prior, make_loss, get_model,                    # noqa
-                         optimize_model_with_jackknife, distmodulus2dist,       # noqa
+                         PV_validation_model, get_model, distmodulus2dist,      # noqa
                          Observed2CosmologicalRedshift,                         # noqa
                          stack_pzosmo_over_realizations)                        # noqa
