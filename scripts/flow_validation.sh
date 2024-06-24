@@ -10,12 +10,13 @@ env="/mnt/users/rstiskalek/csiborgtools/venv_gpu_csiborgtools/bin/python"
 file="flow_validation.py"
 
 #"Pantheon+_zSN"
-simname="csiborg1"
-catalogue="Pantheon+_groups"
+simname="csiborg2X"
+catalogue="LOSS"
 ksmooth=0
+ksim=0
 
 
-pythoncm="$env $file --catalogue $catalogue --simname $simname --ksmooth $ksmooth --ndevice $nthreads --device $device"
+pythoncm="$env $file --catalogue $catalogue --simname $simname --ksim $ksim --ksmooth $ksmooth --ndevice $nthreads --device $device"
 
 if [ $on_login -eq 1 ]; then
     # Add a error if too many devices
