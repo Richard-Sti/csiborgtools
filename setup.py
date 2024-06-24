@@ -11,6 +11,7 @@ INSTALL_REQ += [
                 "h5py",
                 "pynbody",
                 "joblib",
+                "quadax"
                 ]
 
 setup(
