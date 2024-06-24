@@ -106,17 +106,29 @@ def get_model(paths, get_model_kwargs, verbose=True):
 def run_model(model, nsteps, nburn,  model_kwargs, out_folder, sample_beta,
               kwargs_print):
     """Run the NumPyro model and save output to a file."""
+    try:
+        ndata = model.ndata
+    except AttributeError as e:
+        raise AttributeError("The model must have an attribute `ndata` "
+                             "indicating the number of data points.") from e
+
     nuts_kernel = NUTS(model, init_strategy=init_to_median(num_samples=1000))
     mcmc = MCMC(nuts_kernel, num_warmup=nburn, num_samples=nsteps)
     rng_key = jax.random.PRNGKey(42)
 
-    mcmc.run(rng_key, **model_kwargs)
-    BIC, AIC = csiborgtools.numpyro_gof(model, mcmc)
+    mcmc.run(rng_key, extra_fields=("potential_energy",), **model_kwargs)
+    samples = mcmc.get_samples()
+
+    log_posterior = -mcmc.get_extra_fields()["potential_energy"]
+    try:
+        log_likelihood = samples["ll_values"]
+    except KeyError:
+        raise ValueError("The samples must contain the log likelihood values under the key `ll_values`.")  # noqa
+
+    BIC, AIC = csiborgtools.numpyro_gof(samples, log_likelihood, ndata)
     print(f"{'BIC':<20} {BIC}")
     print(f"{'AIC':<20} {AIC}")
-
     mcmc.print_summary()
-    samples = mcmc.get_samples()
 
     fname = f"samples_{ARGS.simname}_{ARGS.catalogue}_ksmooth{ARGS.ksmooth}.hdf5"  # noqa
     if ARGS.ksim is not None:
@@ -132,6 +144,10 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder, sample_beta,
         grp = f.create_group("samples")
         for key, value in samples.items():
             grp.create_dataset(key, data=value)
+
+        # Write log likelihood and posterior
+        f.create_dataset("log_likelihood", data=log_likelihood)
+        f.create_dataset("log_posterior", data=log_posterior)
 
         # Write goodness of fit
         grp = f.create_group("gof")
