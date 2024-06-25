@@ -102,7 +102,7 @@ def _field_enclosed_mass(field, rmax, boxsize):
     return mass * cell_volume, volume * cell_volume
 
 
-def field_enclosed_mass(field, distances, boxsize):
+def field_enclosed_mass(field, distances, boxsize, verbose=True):
     """
     Calculate the approximate enclosed mass within a given radius from a
     density field, counts the mass in cells and volume of cells whose
@@ -116,6 +116,8 @@ def field_enclosed_mass(field, distances, boxsize):
         Radii to calculate the enclosed mass at in `Mpc / h`.
     boxsize : float
         Box size in `Mpc / h`.
+    verbose : bool
+        Verbosity flag.
 
     Returns
     -------
@@ -127,7 +129,7 @@ def field_enclosed_mass(field, distances, boxsize):
     enclosed_mass = np.zeros_like(distances)
     enclosed_volume = np.zeros_like(distances)
 
-    for i, dist in enumerate(tqdm(distances)):
+    for i, dist in enumerate(tqdm(distances, disable=not verbose)):
         enclosed_mass[i], enclosed_volume[i] = _field_enclosed_mass(
             field, dist, boxsize)
 
