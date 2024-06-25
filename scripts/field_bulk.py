@@ -25,7 +25,7 @@ from os.path import join
 from gc import collect
 
 import csiborgtools
-import numpy
+import numpy as np
 from tqdm import tqdm
 
 from datetime import datetime
@@ -101,7 +101,7 @@ def get_particles(reader, boxsize, get_velocity=True, verbose=True):
     pos = reader.coordinates()
     dtype = pos.dtype
     pos -= boxsize / 2
-    dist = numpy.linalg.norm(pos, axis=1).astype(dtype)
+    dist = np.linalg.norm(pos, axis=1).astype(dtype)
     del pos
     collect()
 
@@ -116,7 +116,7 @@ def get_particles(reader, boxsize, get_velocity=True, verbose=True):
 
     if verbose:
         print(f"{t()}: sorting arrays.")
-    indxs = numpy.argsort(dist)
+    indxs = np.argsort(dist)
     dist = dist[indxs]
     mass = mass[indxs]
     if get_velocity:
@@ -140,10 +140,10 @@ def main_borg(args, folder):
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     boxsize = csiborgtools.simname2boxsize(args.simname)
     nsims = paths.get_ics(args.simname)
-    distances = numpy.linspace(0, boxsize / 2, 101)[1:]
+    distances = np.linspace(0, boxsize / 2, 101)[1:]
 
-    cumulative_mass = numpy.zeros((len(nsims), len(distances)))
-    cumulative_volume = numpy.zeros((len(nsims), len(distances)))
+    cumulative_mass = np.zeros((len(nsims), len(distances)))
+    cumulative_volume = np.zeros((len(nsims), len(distances)))
     for i, nsim in enumerate(tqdm(nsims, desc="Simulations")):
         if args.simname == "borg1":
             reader = csiborgtools.read.BORG1Field(nsim)
@@ -160,21 +160,21 @@ def main_borg(args, folder):
     # Finally save the output
     fname = f"enclosed_mass_{args.simname}.npz"
     fname = join(folder, fname)
-    numpy.savez(fname, enclosed_mass=cumulative_mass, distances=distances,
-                enclosed_volume=cumulative_volume)
+    np.savez(fname, enclosed_mass=cumulative_mass, distances=distances,
+             enclosed_volume=cumulative_volume)
 
 
 def main_csiborg(args, folder):
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     boxsize = csiborgtools.simname2boxsize(args.simname)
     nsims = paths.get_ics(args.simname)
-    distances = numpy.linspace(0, boxsize / 2, 501)[1:]
+    distances = np.linspace(0, boxsize / 2, 501)[1:]
 
     # Initialize arrays to store the results
-    cumulative_mass = numpy.zeros((len(nsims), len(distances)))
-    mass135 = numpy.zeros(len(nsims))
-    masstot = numpy.zeros(len(nsims))
-    cumulative_velocity = numpy.zeros((len(nsims), len(distances), 3))
+    cumulative_mass = np.zeros((len(nsims), len(distances)))
+    mass135 = np.zeros(len(nsims))
+    masstot = np.zeros(len(nsims))
+    cumulative_velocity = np.zeros((len(nsims), len(distances), 3))
 
     for i, nsim in enumerate(tqdm(nsims, desc="Simulations")):
         reader = get_reader(args.simname, paths, nsim)
@@ -185,7 +185,7 @@ def main_csiborg(args, folder):
             rdist, mass, distances)
         mass135[i] = csiborgtools.field.particles_enclosed_mass(
             rdist, mass, [135])[0]
-        masstot[i] = numpy.sum(mass)
+        masstot[i] = np.sum(mass)
 
         # Calculate velocities
         cumulative_velocity[i, ...] = csiborgtools.field.particles_enclosed_momentum(  # noqa
@@ -196,19 +196,61 @@ def main_csiborg(args, folder):
     # Finally save the output
     fname = f"enclosed_mass_{args.simname}.npz"
     fname = join(folder, fname)
-    numpy.savez(fname, enclosed_mass=cumulative_mass, mass135=mass135,
-                masstot=masstot, distances=distances,
-                cumulative_velocity=cumulative_velocity)
+    np.savez(fname, enclosed_mass=cumulative_mass, mass135=mass135,
+             masstot=masstot, distances=distances,
+             cumulative_velocity=cumulative_velocity)
+
+
+def main_csiborg2X(args, folder):
+    """Bulk flow in the Manticore boxes provided by Stuart."""
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+    boxsize = csiborgtools.simname2boxsize(args.simname)
+    nsims = paths.get_ics(args.simname)
+    distances = np.linspace(0, boxsize / 2, 101)[1:]
+
+    cumulative_mass = np.zeros((len(nsims), len(distances)))
+    cumulative_volume = np.zeros((len(nsims), len(distances)))
+    cumulative_vel_x = np.zeros((len(nsims), len(distances)))
+    cumulative_vel_y = np.zeros_like(cumulative_vel_x)
+    cumulative_vel_z = np.zeros_like(cumulative_vel_x)
+    for i, nsim in enumerate(tqdm(nsims, desc="Simulations")):
+        reader = csiborgtools.read.CSiBORG2XField(nsim, paths)
+
+        density_field = reader.density_field()
+        velocity_field = reader.velocity_field()
+
+        cumulative_mass[i, :], cumulative_volume[i, :] = csiborgtools.field.field_enclosed_mass(  # noqa
+            density_field, distances, boxsize, verbose=False)
+
+        cumulative_vel_x[i, :], __ = csiborgtools.field.field_enclosed_mass(
+            velocity_field[0], distances, boxsize, verbose=False)
+        cumulative_vel_y[i, :], __ = csiborgtools.field.field_enclosed_mass(
+            velocity_field[1], distances, boxsize, verbose=False)
+        cumulative_vel_z[i, :], __ = csiborgtools.field.field_enclosed_mass(
+            velocity_field[2], distances, boxsize, verbose=False)
+
+    cumulative_vel = np.stack(
+        [cumulative_vel_x, cumulative_vel_y, cumulative_vel_z], axis=-1)
+    cumulative_vel /= cumulative_volume[..., None]
+
+    # Finally save the output
+    fname = f"enclosed_mass_{args.simname}.npz"
+    fname = join(folder, fname)
+    np.savez(fname, enclosed_mass=cumulative_mass, distances=distances,
+             cumulative_velocity=cumulative_vel,
+             enclosed_volume=cumulative_volume)
 
 
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--simname", type=str, help="Simulation name.",
-                        choices=["csiborg1", "csiborg2_main", "csiborg2_varysmall", "csiborg2_random", "borg1", "borg2", "borg2_all"])  # noqa
+                        choices=["csiborg1", "csiborg2_main", "csiborg2_varysmall", "csiborg2_random", "borg1", "borg2", "borg2_all", "csiborg2X"])  # noqa
     args = parser.parse_args()
 
     folder = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_shells"
-    if "csiborg" in args.simname:
+    if args.simname == "csiborg2X":
+        main_csiborg2X(args, folder)
+    elif "csiborg" in args.simname:
         main_csiborg(args, folder)
     elif "borg" in args.simname:
         main_borg(args, folder)
