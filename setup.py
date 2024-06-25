@@ -11,8 +11,6 @@ INSTALL_REQ += [
     "mpi4py",
     "numba",
     "numpyro",
-    "pynbody",
-    "Pylians",
     "quadax",
     "scikit-learn",
     "tqdm",
