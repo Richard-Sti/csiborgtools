@@ -427,7 +427,12 @@ def thin_samples_by_acl(samples):
     return thinned_samples
 
 
-def numpyro_gof(samples, log_likelihood, ndata):
+###############################################################################
+#                            Model comparison                                 #
+###############################################################################
+
+
+def BIC_AIC(samples, log_likelihood, ndata):
     """
     Get the BIC/AIC of HMC samples from a Numpyro model.
 
@@ -460,3 +465,90 @@ def numpyro_gof(samples, log_likelihood, ndata):
     AIC = 2 * nparam - 2 * log_likelihood[kmax]
 
     return float(BIC), float(AIC)
+
+
+def dict_samples_to_array(samples):
+    """Convert a dictionary of samples to a 2-dimensional array."""
+    data = []
+    names = []
+
+    for key, value in samples.items():
+        if value.ndim == 1:
+            data.append(value)
+            names.append(key)
+        elif value.ndim == 2:
+            for i in range(value.shape[-1]):
+                data.append(value[:, i])
+                names.append(f"{key}_{i}")
+        else:
+            raise ValueError("Invalid dimensionality of samples to stack.")
+
+    return np.vstack(data).T, names
+
+
+def harmonic_evidence(samples, log_posterior, temperature=0.8, epochs_num=20,
+                      return_flow_samples=True, verbose=True):
+    """
+    Calculate the evidence using the `harmonic` package. The model has a few
+    more hyperparameters that are set to defaults now.
+
+    Parameters
+    ----------
+    samples: 3-dimensional array
+        MCMC samples of shape `(nchains, nsamples, ndim)`.
+    log_posterior: 2-dimensional array
+        Log posterior values of shape `(nchains, nsamples)`.
+    temperature: float, optional
+        Temperature of the `harmonic` model.
+    epochs_num: int, optional
+        Number of epochs for training the model.
+    return_flow_samples: bool, optional
+        Whether to return the flow samples.
+    verbose: bool, optional
+        Whether to print progress.
+
+    Returns
+    -------
+    ln_inv_evidence, err_ln_inv_evidence: float and tuple of floats
+        The log inverse evidence and its error.
+    flow_samples: 2-dimensional array, optional
+        Flow samples of shape `(nsamples, ndim)`. To check their agreement
+        with the input samples.
+    """
+    try:
+        import harmonic as hm
+    except ImportError:
+        raise ImportError("The `harmonic` package is required to calculate the evidence.") from None  # noqa
+
+    # Do some standard checks of inputs.
+    if samples.ndim != 3:
+        raise ValueError("The samples must be a 3-dimensional array of shape `(nchains, nsamples, ndim)`.")  # noqa
+
+    if log_posterior.ndim != 2 and log_posterior.shape[:2] != samples.shape[:2]:                             # noqa
+        raise ValueError("The log posterior must be a 2-dimensional array of shape `(nchains, nsamples)`.")  # noqa
+
+    ndim = samples.shape[-1]
+    chains = hm.Chains(ndim)
+    chains.add_chains_3d(samples, log_posterior)
+    chains_train, chains_infer = hm.utils.split_data(
+        chains, training_proportion=0.5)
+
+    # This has a few more hyperparameters that are set to defaults now.
+    # TODO: Decide if this is the right model.
+    model = hm.model.RQSplineModel(
+        ndim, standardize=True, temperature=temperature)
+    model.fit(chains_train.samples, epochs=epochs_num, verbose=verbose)
+
+    ev = hm.Evidence(chains_infer.nchains, model)
+    ev.add_chains(chains_infer)
+    ln_inv_evidence = ev.ln_evidence_inv
+    err_ln_inv_evidence = ev.compute_ln_inv_evidence_errors()
+
+    if return_flow_samples:
+        samples = samples.reshape((-1, ndim))
+        samp_num = samples.shape[0]
+        flow_samples = model.sample(samp_num)
+
+        return ln_inv_evidence, err_ln_inv_evidence, flow_samples
+
+    return ln_inv_evidence, err_ln_inv_evidence
