@@ -534,7 +534,6 @@ def harmonic_evidence(samples, log_posterior, temperature=0.8, epochs_num=20,
         chains, training_proportion=0.5)
 
     # This has a few more hyperparameters that are set to defaults now.
-    # TODO: Decide if this is the right model.
     model = hm.model.RQSplineModel(
         ndim, standardize=True, temperature=temperature)
     model.fit(chains_train.samples, epochs=epochs_num, verbose=verbose)
