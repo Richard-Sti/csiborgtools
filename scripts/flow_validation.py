@@ -124,7 +124,7 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder, sample_beta,
     if log_likelihood is None:
         raise ValueError("The samples must contain the log likelihood values under the key `ll_values`.")  # noqa
 
-    BIC, AIC = csiborgtools.numpyro_gof(samples, log_likelihood, ndata)
+    BIC, AIC = csiborgtools.BIC_AIC(samples, log_likelihood, ndata)
     print(f"{'BIC':<20} {BIC}")
     print(f"{'AIC':<20} {AIC}")
     mcmc.print_summary()
