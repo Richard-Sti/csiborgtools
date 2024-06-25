@@ -120,9 +120,8 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder, sample_beta,
     samples = mcmc.get_samples()
 
     log_posterior = -mcmc.get_extra_fields()["potential_energy"]
-    try:
-        log_likelihood = samples["ll_values"]
-    except KeyError:
+    log_likelihood = samples.pop("ll_values")
+    if log_likelihood is None:
         raise ValueError("The samples must contain the log likelihood values under the key `ll_values`.")  # noqa
 
     BIC, AIC = csiborgtools.numpyro_gof(samples, log_likelihood, ndata)
@@ -186,7 +185,7 @@ if __name__ == "__main__":
     #                        Fixed user parameters                            #
     ###########################################################################
 
-    nsteps = 1000
+    nsteps = 30000
     nburn = 500
     zcmb_max = 0.06
     sample_alpha = True
