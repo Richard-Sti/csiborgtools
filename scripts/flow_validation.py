@@ -103,8 +103,18 @@ def get_model(paths, get_model_kwargs, verbose=True):
     return csiborgtools.flow.get_model(loader, **get_model_kwargs)
 
 
+def get_harmonic_evidence(samples, log_posterior, nchains_harmonic, epoch_num):
+    """Compute evidence using the `harmonic` package."""
+    data, names = csiborgtools.dict_samples_to_array(samples)
+    data = data.reshape(nchains_harmonic, -1, len(names))
+    log_posterior = log_posterior.reshape(10, -1)
+
+    return csiborgtools.harmonic_evidence(
+        data, log_posterior, return_flow_samples=False, epochs_num=epoch_num)
+
+
 def run_model(model, nsteps, nburn,  model_kwargs, out_folder, sample_beta,
-              kwargs_print):
+              calculate_evidence, nchains_harmonic, epoch_num, kwargs_print):
     """Run the NumPyro model and save output to a file."""
     try:
         ndata = model.ndata
@@ -129,6 +139,16 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder, sample_beta,
     print(f"{'AIC':<20} {AIC}")
     mcmc.print_summary()
 
+    if calculate_evidence:
+        print("Calculating the evidence using `harmonic`.", flush=True)
+        ln_evidence, ln_evidence_err = get_harmonic_evidence(
+            samples, log_posterior, nchains_harmonic, epoch_num)
+        print(f"{'ln(Z)':<20} {ln_evidence}")
+        print(f"{'ln(Z) error':<20} {ln_evidence_err}")
+    else:
+        ln_evidence = jax.numpy.nan
+        ln_evidence_err = (jax.numpy.nan, jax.numpy.nan)
+
     fname = f"samples_{ARGS.simname}_{ARGS.catalogue}_ksmooth{ARGS.ksmooth}.hdf5"  # noqa
     if ARGS.ksim is not None:
         fname = fname.replace(".hdf5", f"_nsim{ARGS.ksim}.hdf5")
@@ -152,6 +172,8 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder, sample_beta,
         grp = f.create_group("gof")
         grp.create_dataset("BIC", data=BIC)
         grp.create_dataset("AIC", data=AIC)
+        grp.create_dataset("lnZ", data=ln_evidence)
+        grp.create_dataset("lnZ_err", data=ln_evidence_err)
 
     fname_summary = fname.replace(".hdf5", ".txt")
     print(f"Saving summary to `{fname_summary}`.")
@@ -166,6 +188,8 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder, sample_beta,
         print("HMC summary:")
         print(f"{'BIC':<20} {BIC}")
         print(f"{'AIC':<20} {AIC}")
+        print(f"{'ln(Z)':<20} {ln_evidence}")
+        print(f"{'ln(Z) error':<20} {ln_evidence_err}")
         mcmc.print_summary(exclude_deterministic=False)
         sys.stdout = original_stdout
 
@@ -190,10 +214,18 @@ if __name__ == "__main__":
     zcmb_max = 0.06
     sample_alpha = True
     sample_beta = True
+    calculate_evidence = True
+    nchains_harmonic = 10
+    num_epochs = 30
+
+    if nsteps % nchains_harmonic != 0:
+        raise ValueError("The number of steps must be divisible by the number of chains.")  # noqa
 
     main_params = {"nsteps": nsteps, "nburn": nburn, "zcmb_max": zcmb_max,
-                   "sample_alpha": sample_alpha, "sample_beta": sample_beta}
-
+                   "sample_alpha": sample_alpha, "sample_beta": sample_beta,
+                   "calculate_evidence": calculate_evidence,
+                   "nchains_harmonic": nchains_harmonic,
+                   "num_epochs": num_epochs}
     print_variables(main_params.keys(), main_params.values())
 
     calibration_hyperparams = {"Vext_std": 250,
@@ -232,4 +264,4 @@ if __name__ == "__main__":
 
     model = get_model(paths, get_model_kwargs, )
     run_model(model, nsteps, nburn, model_kwargs, out_folder, sample_beta,
-              kwargs_print)
+              calculate_evidence, nchains_harmonic, num_epochs, kwargs_print)
