@@ -20,8 +20,9 @@ from .utils import (center_of_mass, delta2ncells, number_counts,                
                     binned_statistic, cosine_similarity, fprint,                # noqa
                     hms_to_degrees, dms_to_degrees, great_circle_distance,      # noqa
                     radec_to_cartesian, cartesian_to_radec,                     # noqa
-                    thin_samples_by_acl, numpyro_gof, radec_to_galactic,        # noqa
-                    heliocentric_to_cmb, calculate_acl)                         # noqa
+                    thin_samples_by_acl, BIC_AIC, radec_to_galactic,            # noqa
+                    heliocentric_to_cmb, calculate_acl, harmonic_evidence,      # noqa
+                    dict_samples_to_array)                                      # noqa
 from .params import (paths_glamdring, simname2boxsize, simname2Omega_m,         # noqa
                      snap2redshift)                                             # noqa
 
