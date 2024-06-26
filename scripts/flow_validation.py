@@ -209,12 +209,12 @@ if __name__ == "__main__":
     #                        Fixed user parameters                            #
     ###########################################################################
 
-    nsteps = 30000
+    nsteps = 5000
     nburn = 500
     zcmb_max = 0.06
     sample_alpha = True
     sample_beta = True
-    calculate_evidence = True
+    calculate_evidence = False
     nchains_harmonic = 10
     num_epochs = 30
 
