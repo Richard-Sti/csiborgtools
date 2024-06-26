@@ -650,6 +650,7 @@ class PV_validation_model(BaseFlowValidationModel):
 
         self.kind = kind
         self.Omega_m = Omega_m
+        self.norm = - self.ndata * jnp.log(self.num_sims)
 
     def __call__(self, calibration_hyperparams, distmod_hyperparams):
         """NumPyro PV validation model."""
@@ -683,7 +684,7 @@ class PV_validation_model(BaseFlowValidationModel):
 
         ptilde *= calculate_likelihood_zobs(self.z_obs, zobs, cz_err)
         ll = jnp.log(simpson(ptilde, dx=self.dr, axis=-1)) - jnp.log(pnorm)
-        ll = jnp.sum(logsumexp(ll, b=1. / self.num_sims, axis=0))
+        ll = jnp.sum(logsumexp(ll, axis=0)) + self.norm
 
         numpyro.deterministic("ll_values", ll)
         numpyro.factor("ll", ll)
