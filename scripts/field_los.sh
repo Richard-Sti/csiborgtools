@@ -1,6 +1,6 @@
 nthreads=1
 memory=7
-on_login=0
+on_login=1
 queue="berg"
 env="/mnt/users/rstiskalek/csiborgtools/venv_csiborg/bin/python"
 file="field_los.py"
