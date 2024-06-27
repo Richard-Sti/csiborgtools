@@ -163,6 +163,12 @@ def radec_to_galactic(ra, dec):
     return c.galactic.l.degree, c.galactic.b.degree
 
 
+def radec_to_supergalactic(ra, dec):
+    """Convert right ascension and declination to supergalactic coordinates."""
+    c = SkyCoord(ra=ra*u.degree, dec=dec*u.degree, frame='icrs')
+    return c.supergalactic.sgl.degree, c.supergalactic.sgb.degree
+
+
 @jit(nopython=True, fastmath=True, boundscheck=False)
 def great_circle_distance(x1, x2, in_degrees=True):
     """
