@@ -137,7 +137,8 @@ class DataLoader:
         if simname in ["Carrick2015", "CF4", "CF4gp"]:
             self._los_density += 1
 
-        # But some CF4 delta values are < -1
+        # But some CF4 delta values are < -1. Check that CF4 really reports
+        # this.
         if simname in ["CF4", "CF4gp"]:
             self._los_density = np.clip(self._los_density, 1e-5, None,)
 
