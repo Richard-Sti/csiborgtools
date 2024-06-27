@@ -89,6 +89,7 @@ def main(nsim, folder, fname_basis, Rmax, subtract_observer_velocity,
     bf_vrad_weighted_part = np.full_like(bf_volume_part, np.nan)
     bf_vrad_weighted_halo_uniform = np.full_like(bf_volume_part, np.nan)
     bf_vrad_weighted_halo = np.full_like(bf_volume_part, np.nan)
+    obs_vel = np.full((len(observers), 3), np.nan)
 
     for i in range(len(observers)):
         print(f"{t()}: Calculating bulk flow for observer {i + 1} of simulation {nsim}.")  # noqa
@@ -115,13 +116,17 @@ def main(nsim, folder, fname_basis, Rmax, subtract_observer_velocity,
         halo_mass_current = halo_mass[indxs]
 
         # Subtract the observer velocity
-        if subtract_observer_velocity:
-            rscale = 0.5  # Mpc / h
-            weights = np.exp(-0.5 * (rdist_part / rscale)**2)
-            obs_vel_x = np.average(part_vel_current[:, 0], weights=weights)
-            obs_vel_y = np.average(part_vel_current[:, 1], weights=weights)
-            obs_vel_z = np.average(part_vel_current[:, 2], weights=weights)
+        rscale = 0.5  # Mpc / h
+        weights = np.exp(-0.5 * (rdist_part / rscale)**2)
+        obs_vel_x = np.average(part_vel_current[:, 0], weights=weights)
+        obs_vel_y = np.average(part_vel_current[:, 1], weights=weights)
+        obs_vel_z = np.average(part_vel_current[:, 2], weights=weights)
 
+        obs_vel[i, 0] = obs_vel_x
+        obs_vel[i, 1] = obs_vel_y
+        obs_vel[i, 2] = obs_vel_z
+
+        if subtract_observer_velocity:
             part_vel_current[:, 0] -= obs_vel_x
             part_vel_current[:, 1] -= obs_vel_y
             part_vel_current[:, 2] -= obs_vel_z
@@ -168,6 +173,7 @@ def main(nsim, folder, fname_basis, Rmax, subtract_observer_velocity,
         f["bf_volume_halo_uniform"] = bf_volume_halo_uniform
         f["bf_vrad_weighted_halo_uniform"] = bf_vrad_weighted_halo_uniform
         f["bf_vrad_weighted_halo"] = bf_vrad_weighted_halo
+        f["obs_vel"] = obs_vel
 
         for i in range(len(observers)):
             g = f.create_group(f"obs_{str(i)}")
