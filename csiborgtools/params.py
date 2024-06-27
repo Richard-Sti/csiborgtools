@@ -77,8 +77,8 @@ def simname2boxsize(simname):
          "quijote": 1000.,
          "TNG300-1": 205.,
          "Carrick2015": 400.,
-         "CF4": 512.,
-         "CF4gp": 512.,
+         "CF4": 1000.,  # These need to be checked with Helene Courtois.
+         "CF4gp": 1000.,
          }
     boxsize = d.get(simname, None)
 
