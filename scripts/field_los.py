@@ -95,7 +95,6 @@ def get_los(catalogue_name, simname, comm):
             c = SkyCoord(ra=RA*u.degree, dec=dec*u.degree, frame='icrs')
             pos = np.vstack((c.galactic.l, c.galactic.b)).T
         elif "CF4" in simname:
-            raise NotImplementedError("Something wrong here..")
             # CF4 fields are in supergalactic coordinates.
             c = SkyCoord(ra=RA*u.degree, dec=dec*u.degree, frame='icrs')
             pos = np.vstack((c.supergalactic.sgl, c.supergalactic.sgb)).T

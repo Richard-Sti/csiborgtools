@@ -109,7 +109,6 @@ class DataLoader:
             d1, d2 = radec_to_galactic(self._cat["RA"], self._cat["DEC"])
         elif "CF4" in simname:
             # CF4 box is in supergalactic coordinates
-            raise NotImplementedError("Something wrong here..")
             d1, d2 = radec_to_supergalactic(self._cat["RA"], self._cat["DEC"])
         else:
             d1, d2 = self._cat["RA"], self._cat["DEC"]
