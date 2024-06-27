@@ -115,6 +115,8 @@ class Paths:
             files = [int(search(r'chain_(\d+)', f).group(1)) for f in files]
         elif simname == "Carrick2015":
             return [0]
+        elif simname in ["CF4", "CF4gp"]:
+            return [0]
         else:
             raise ValueError(f"Unknown simulation name `{simname}`.")
 
