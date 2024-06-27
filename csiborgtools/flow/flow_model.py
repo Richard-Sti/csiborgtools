@@ -41,7 +41,7 @@ from sklearn.model_selection import KFold
 from tqdm import trange
 
 from ..params import SPEED_OF_LIGHT, simname2Omega_m
-from ..utils import fprint, radec_to_galactic
+from ..utils import fprint, radec_to_galactic, radec_to_supergalactic
 
 H0 = 100  # km / s / Mpc
 
@@ -105,7 +105,12 @@ class DataLoader:
 
         # In case of Carrick 2015 the box is in galactic coordinates..
         if simname == "Carrick2015":
+            # Carrick+2015 box is in galactic coordinates
             d1, d2 = radec_to_galactic(self._cat["RA"], self._cat["DEC"])
+        elif "CF4" in simname:
+            # CF4 box is in supergalactic coordinates
+            raise NotImplementedError("Something wrong here..")
+            d1, d2 = radec_to_supergalactic(self._cat["RA"], self._cat["DEC"])
         else:
             d1, d2 = self._cat["RA"], self._cat["DEC"]
 
@@ -129,9 +134,13 @@ class DataLoader:
             mean_rho_matter *= self._Omega_m
             self._los_density /= mean_rho_matter
 
-        # Since Carrick+2015 provide `rho / <rho> - 1`
-        if simname == "Carrick2015":
+        # Since Carrick+2015 and CF4 provide `rho / <rho> - 1`
+        if simname in ["Carrick2015", "CF4", "CF4gp"]:
             self._los_density += 1
+
+        # But some CF4 delta values are < -1
+        if simname in ["CF4", "CF4gp"]:
+            self._los_density = np.clip(self._los_density, 1e-5, None,)
 
         self._mask = np.ones(len(self._cat), dtype=bool)
         self._catname = catalogue

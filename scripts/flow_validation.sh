@@ -17,11 +17,11 @@ if [ "$on_login" != "1" ] && [ "$on_login" != "0" ]; then
 fi
 
 # Submit a job for each combination of simname, catalogue, ksim
-for simname in "csiborg2_main"; do
-    for catalogue in "2MTF"; do
+for simname in "CF4"; do
+    for catalogue in "LOSS"; do
         # for ksim in 0 1 2; do
-        for ksim in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 "none"; do
-        # for ksim in 0; do
+        # for ksim in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 "none"; do
+        for ksim in 0; do
             pythoncm="$env $file --catalogue $catalogue --simname $simname --ksim $ksim --ksmooth $ksmooth --ndevice $ndevice --device $device"
 
             if [ $on_login -eq 1 ]; then

@@ -28,7 +28,8 @@ from astropy import units as u
 from astropy.coordinates import SkyCoord
 from h5py import File
 from mpi4py import MPI
-from taskmaster import work_delegation
+from taskmaster import work_delegation  # noqa
+from astropy.io import fits
 
 from utils import get_nsims
 
@@ -88,14 +89,18 @@ def get_los(catalogue_name, simname, comm):
         if comm.Get_rank() == 0:
             print(f"The dataset contains {len(RA)} objects.")
 
-        # The Carrick+2015 is in galactic coordinates, so we need to convert
-        # the RA/dec to galactic coordinates.
         if simname == "Carrick2015":
+            # The Carrick+2015 is in galactic coordinates, so we need to
+            # convert the RA/dec to galactic coordinates.
             c = SkyCoord(ra=RA*u.degree, dec=dec*u.degree, frame='icrs')
             pos = np.vstack((c.galactic.l, c.galactic.b)).T
+        elif "CF4" in simname:
+            raise NotImplementedError("Something wrong here..")
+            # CF4 fields are in supergalactic coordinates.
+            c = SkyCoord(ra=RA*u.degree, dec=dec*u.degree, frame='icrs')
+            pos = np.vstack((c.supergalactic.sgl, c.supergalactic.sgb)).T
         else:
             pos = np.vstack((RA, dec)).T
-
     else:
         pos = None
 
@@ -155,6 +160,25 @@ def get_field(simname, nsim, kind, MAS, grid):
             return field
         else:
             raise ValueError(f"Unknown field kind: `{kind}`.")
+    elif "CF4" in simname:
+        folder = "/mnt/extraspace/rstiskalek/catalogs"
+        warn(f"Using local paths from `{folder}`.", RuntimeWarning)
+
+        if kind == "density":
+            fpath = join(folder, "CF4_new_64-z008_delta.fits")
+        elif kind == "velocity":
+            fpath = join(folder, "CF4_new_64-z008_velocity.fits")
+        else:
+            raise ValueError(f"Unknown field kind: `{kind}`.")
+
+        fpath = fpath.replace("CF4", "CF4gp") if "CF4gp" in simname else fpath
+        field = fits.open(fpath)[0].data
+
+        # https://projets.ip2i.in2p3.fr//cosmicflows/ says to multiply by 52
+        if kind == "velocity":
+            field *= 52
+
+        return field.astype(np.float32)
     else:
         raise ValueError(f"Unknown simulation name: `{simname}`.")
 
