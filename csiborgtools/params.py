@@ -77,6 +77,8 @@ def simname2boxsize(simname):
          "quijote": 1000.,
          "TNG300-1": 205.,
          "Carrick2015": 400.,
+         "CF4": 512.,
+         "CF4gp": 512.,
          }
     boxsize = d.get(simname, None)
 
@@ -97,6 +99,8 @@ def simname2Omega_m(simname):
          "borg2": 0.3111,
          "borg2_all": 0.3111,
          "Carrick2015": 0.3,
+         "CF4": 0.3,
+         "CF4gp": 0.3,
          }
 
     omega_m = d.get(simname, None)
