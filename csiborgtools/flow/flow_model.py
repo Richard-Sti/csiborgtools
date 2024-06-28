@@ -141,6 +141,12 @@ class DataLoader:
         if simname in ["CF4", "CF4gp"]:
             self._los_density = np.clip(self._los_density, 1e-5, None,)
 
+        # Lilow+2024 outside of the range data is NaN. Replace it with some
+        # finite values. This is OK because the PV tracers are not so far.
+        if simname == "Lilow2024":
+            self._los_density[np.isnan(self._los_density)] = 1.
+            self._los_radial_velocity[np.isnan(self._los_radial_velocity)] = 0.
+
         self._mask = np.ones(len(self._cat), dtype=bool)
         self._catname = catalogue
 
