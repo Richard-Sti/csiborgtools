@@ -117,6 +117,8 @@ class Paths:
             return [0]
         elif simname in ["CF4", "CF4gp"]:
             return [0]
+        elif simname == "Lilow2024":
+            return [0]
         else:
             raise ValueError(f"Unknown simulation name `{simname}`.")
 

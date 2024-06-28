@@ -89,9 +89,9 @@ def get_los(catalogue_name, simname, comm):
         if comm.Get_rank() == 0:
             print(f"The dataset contains {len(RA)} objects.")
 
-        if simname == "Carrick2015":
-            # The Carrick+2015 is in galactic coordinates, so we need to
-            # convert the RA/dec to galactic coordinates.
+        if simname in ["Carrick2015", "Lilow2024"]:
+            # The Carrick+2015 and Lilow+2024 are in galactic coordinates, so
+            # we need to convert the RA/dec to galactic coordinates.
             c = SkyCoord(ra=RA*u.degree, dec=dec*u.degree, frame='icrs')
             pos = np.vstack((c.galactic.l, c.galactic.b)).T
         elif "CF4" in simname:
@@ -176,6 +176,21 @@ def get_field(simname, nsim, kind, MAS, grid):
         # https://projets.ip2i.in2p3.fr//cosmicflows/ says to multiply by 52
         if kind == "velocity":
             field *= 52
+
+        return field.astype(np.float32)
+    elif simname == "Lilow2024":
+        folder = "/mnt/extraspace/rstiskalek/catalogs"
+        warn(f"Using local paths from `{folder}`.", RuntimeWarning)
+
+        if kind == "density":
+            fpath = join(folder, "Lilow2024_density.npy")
+            field = np.load(fpath)
+        elif kind == "velocity":
+            field = []
+            for p in ["x", "y", "z"]:
+                fpath = join(folder, f"Lilow2024_{p}Velocity.npy")
+                field.append(np.load(fpath).astype(np.float32))
+            field = np.stack(field)
 
         return field.astype(np.float32)
     else:

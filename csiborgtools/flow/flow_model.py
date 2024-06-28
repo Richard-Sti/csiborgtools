@@ -103,12 +103,11 @@ class DataLoader:
         nobject = self._los_density.shape[1]
         dtype = self._los_density.dtype
 
-        # In case of Carrick 2015 the box is in galactic coordinates..
-        if simname == "Carrick2015":
-            # Carrick+2015 box is in galactic coordinates
+        if simname in ["Carrick2015", "Lilow2024"]:
+            # Carrick+2015 and Lilow+2024 are in galactic coordinates
             d1, d2 = radec_to_galactic(self._cat["RA"], self._cat["DEC"])
         elif "CF4" in simname:
-            # CF4 box is in supergalactic coordinates
+            # CF4 is in supergalactic coordinates
             d1, d2 = radec_to_supergalactic(self._cat["RA"], self._cat["DEC"])
         else:
             d1, d2 = self._cat["RA"], self._cat["DEC"]
