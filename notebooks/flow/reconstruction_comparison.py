@@ -22,6 +22,12 @@ from h5py import File
 
 import csiborgtools
 
+# CMB-LG
+# params = ["Vmag", "l", "b"]
+# CMB = MCSamples(
+# samples=multivariate_normal([627, 276, 30], [22, 3, 3]).rvs(size=20000),
+# names=params, labels=names_to_latex(params, True), label="CMB")
+
 
 ###############################################################################
 #                       Get the filename of the samples                       #
