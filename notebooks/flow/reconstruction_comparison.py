@@ -17,16 +17,28 @@ from copy import copy
 from os.path import join
 
 import numpy as np
+from jax import numpy as jnp
 from getdist import MCSamples
 from h5py import File
 
 import csiborgtools
 
-# CMB-LG
-# params = ["Vmag", "l", "b"]
-# CMB = MCSamples(
-# samples=multivariate_normal([627, 276, 30], [22, 3, 3]).rvs(size=20000),
-# names=params, labels=names_to_latex(params, True), label="CMB")
+
+###############################################################################
+#                       Convert between coordinate systems                    #
+###############################################################################
+
+
+def cartesian_to_radec(x, y, z):
+    d = (x**2 + y**2 + z**2)**0.5
+    dec = np.arcsin(z / d)
+    ra = np.arctan2(y, x)
+    ra[ra < 0] += 2 * np.pi
+
+    ra *= 180 / np.pi
+    dec *= 180 / np.pi
+
+    return d, ra, dec
 
 
 ###############################################################################
@@ -119,7 +131,7 @@ def get_gof(kind, simname, catalogue, ksmooth=0, nsim=None, sample_beta=True):
 
 
 ###############################################################################
-#                       Read in samples                                      #
+#                           Read in samples                                   #
 ###############################################################################
 
 def get_samples(simname, catalogue, ksmooth=0, nsim=None, sample_beta=True,
@@ -147,6 +159,49 @@ def get_samples(simname, catalogue, ksmooth=0, nsim=None, sample_beta=True,
             Vext[:, 1], Vext[:, 2])
 
     return samples
+
+
+###############################################################################
+
+
+def get_bulkflow(simname, catalogue, ksmooth=0, nsim=None, sample_beta=True,
+                 convert_to_galactic=True):
+    # Read in the samples
+    fname_samples = get_fname(simname, catalogue, ksmooth, nsim, sample_beta)
+    with File(fname_samples, 'r') as f:
+        simulation_weights = f["simulation_weights"][...]
+        Vext = f["samples/Vext"][...]
+
+        try:
+            beta = f["samples/beta"][...]
+        except KeyError:
+            beta = jnp.ones_like(simulation_weights)
+
+    # Read in the bulk flow
+    f = np.load(f"/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_shells/enclosed_mass_{simname}.npz")  # noqa
+    r, Bsim = f["distances"], f["cumulative_velocity"]
+
+    # Mask out the unconstrained large scales
+    Rmax = 150  # Mpc/h
+    mask = r < Rmax
+    r = r[mask]
+    Bsim = Bsim[:, mask, :]
+
+    # Add the external flow to the bulk flow and weight it
+    simulation_weights = jnp.exp(simulation_weights)
+    B = Vext[None, None, :, :] + Bsim[:, :, None, :] * beta[None, None, :, None]  # noqa
+    B = jnp.sum(B * simulation_weights.T[:, None, :, None], axis=0)
+
+    if convert_to_galactic:
+        Bmag, Bl, Bb = cartesian_to_radec(B[..., 0], B[..., 1], B[..., 2])
+        Bl, Bb = csiborgtools.radec_to_galactic(Bl, Bb)
+        return r, np.stack([Bmag, Bl, Bb], axis=-1)
+
+    return r, B
+
+###############################################################################
+#                      Prepare samples for plotting                           #
+###############################################################################
 
 
 def samples_for_corner(samples):
