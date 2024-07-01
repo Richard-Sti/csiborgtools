@@ -21,15 +21,15 @@ The script is not parallelized in any way but it should not take very long, the
 main bottleneck is reading the data from disk.
 """
 from argparse import ArgumentParser
-from os.path import join
+from datetime import datetime
 from gc import collect
+from os.path import join
 
 import csiborgtools
 import numpy as np
+from astropy import units as u
+from astropy.coordinates import CartesianRepresentation, SkyCoord
 from tqdm import tqdm
-
-from datetime import datetime
-
 
 ###############################################################################
 #                Read in information about the simulation                     #
@@ -132,7 +132,7 @@ def get_particles(reader, boxsize, get_velocity=True, verbose=True):
 
 
 ###############################################################################
-#                       Main & command line interface                         #
+#                                 Main                                        #
 ###############################################################################
 
 
@@ -201,7 +201,7 @@ def main_csiborg(args, folder):
              cumulative_velocity=cumulative_velocity)
 
 
-def main_csiborg2X(args, folder):
+def main_from_field(args, folder):
     """Bulk flow in the Manticore boxes provided by Stuart."""
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     boxsize = csiborgtools.simname2boxsize(args.simname)
@@ -214,7 +214,14 @@ def main_csiborg2X(args, folder):
     cumulative_vel_y = np.zeros_like(cumulative_vel_x)
     cumulative_vel_z = np.zeros_like(cumulative_vel_x)
     for i, nsim in enumerate(tqdm(nsims, desc="Simulations")):
-        reader = csiborgtools.read.CSiBORG2XField(nsim, paths)
+        if args.simname == "csiborg2X":
+            reader = csiborgtools.read.CSiBORG2XField(nsim, paths)
+        elif args.simname == "Carrick2015":
+            reader = csiborgtools.read.Carrick2015Field(paths)
+        elif args.simname == "Lilow2024":
+            reader = csiborgtools.read.Lilow2024Field(paths)
+        else:
+            raise ValueError(f"Unknown simname: `{args.simname}`.")
 
         density_field = reader.density_field()
         velocity_field = reader.velocity_field()
@@ -229,6 +236,20 @@ def main_csiborg2X(args, folder):
         cumulative_vel_z[i, :], __ = csiborgtools.field.field_enclosed_mass(
             velocity_field[2], distances, boxsize, verbose=False)
 
+    if args.simname in ["Carrick2015", "Lilow2024"]:
+        # Carrick+2015 and Lilow+2024 box is in galactic coordinates, so we
+        # need to convert the bulk flow vector to RA/dec Cartesian
+        # representation.
+        galactic_cartesian = CartesianRepresentation(
+            cumulative_vel_x, cumulative_vel_y, cumulative_vel_z,
+            unit=u.km/u.s)
+        galactic_coord = SkyCoord(galactic_cartesian, frame='galactic')
+        icrs_cartesian = galactic_coord.icrs.cartesian
+
+        cumulative_vel_x = icrs_cartesian.x.to(u.km/u.s).value
+        cumulative_vel_y = icrs_cartesian.y.to(u.km/u.s).value
+        cumulative_vel_z = icrs_cartesian.z.to(u.km/u.s).value
+
     cumulative_vel = np.stack(
         [cumulative_vel_x, cumulative_vel_y, cumulative_vel_z], axis=-1)
     cumulative_vel /= cumulative_volume[..., None]
@@ -236,20 +257,28 @@ def main_csiborg2X(args, folder):
     # Finally save the output
     fname = f"enclosed_mass_{args.simname}.npz"
     fname = join(folder, fname)
+    print(f"Saving to `{fname}`.")
     np.savez(fname, enclosed_mass=cumulative_mass, distances=distances,
              cumulative_velocity=cumulative_vel,
              enclosed_volume=cumulative_volume)
 
 
+###############################################################################
+#                        Command line interface                               #
+###############################################################################
+
+
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--simname", type=str, help="Simulation name.",
-                        choices=["csiborg1", "csiborg2_main", "csiborg2_varysmall", "csiborg2_random", "borg1", "borg2", "borg2_all", "csiborg2X"])  # noqa
+                        choices=["csiborg1", "csiborg2_main", "csiborg2_varysmall", "csiborg2_random",  # noqa
+                                 "borg1", "borg2", "borg2_all", "csiborg2X", "Carrick2015",             # noqa
+                                 "Lilow2024"])                                                          # noqa
     args = parser.parse_args()
 
     folder = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_shells"
-    if args.simname == "csiborg2X":
-        main_csiborg2X(args, folder)
+    if args.simname in ["csiborg2X", "Carrick2015", "Lilow2024"]:
+        main_from_field(args, folder)
     elif "csiborg" in args.simname:
         main_csiborg(args, folder)
     elif "borg" in args.simname:
