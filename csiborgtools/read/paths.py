@@ -372,6 +372,24 @@ class Paths:
             else:
                 raise ValueError(f"Unsupported CSiBORG2X field: `{kind}`.")
 
+        if simname == "Carrick2015":
+            basedir = "/mnt/extraspace/rstiskalek/catalogs"
+            if kind == "overdensity":
+                return join(basedir, "twompp_density_carrick2015.npy")
+            elif kind == "velocity":
+                return join(basedir, "twompp_velocity_carrick2015.npy")
+            else:
+                raise ValueError(f"Unsupported Carrick2015 field: `{kind}`.")
+
+        if simname == "Lilow2024":
+            basedir = "/mnt/extraspace/rstiskalek/catalogs"
+            if kind == "overdensity":
+                return join(basedir, "Lilow2024_density.npy")
+            elif kind == "velocity":
+                return join(basedir, "Lilow2024_xVelocity.npy")
+            else:
+                raise ValueError(f"Unsupported Lilow2024 field: `{kind}`.")
+
         if MAS == "SPH" and kind in ["density", "velocity"]:
             if simname == "csiborg1":
                 return join(self.csiborg1_srcdir, "field",
