@@ -165,11 +165,11 @@ def get_samples(simname, catalogue, ksmooth=0, nsim=None, sample_beta=True,
 
 
 def get_bulkflow(simname, catalogue, ksmooth=0, nsim=None, sample_beta=True,
-                 convert_to_galactic=True):
+                 convert_to_galactic=True, simulation_only=False):
     # Read in the samples
     fname_samples = get_fname(simname, catalogue, ksmooth, nsim, sample_beta)
     with File(fname_samples, 'r') as f:
-        simulation_weights = f["simulation_weights"][...]
+        simulation_weights = jnp.exp(f["simulation_weights"][...])
         Vext = f["samples/Vext"][...]
 
         try:
@@ -188,8 +188,9 @@ def get_bulkflow(simname, catalogue, ksmooth=0, nsim=None, sample_beta=True,
     Bsim = Bsim[:, mask, :]
 
     # Add the external flow to the bulk flow and weight it
-    simulation_weights = jnp.exp(simulation_weights)
-    B = Vext[None, None, :, :] + Bsim[:, :, None, :] * beta[None, None, :, None]  # noqa
+    B = Bsim[:, :, None, :] * beta[None, None, :, None]  # noqa
+    if not simulation_only:
+        B += Vext[None, None, :, :]
     B = jnp.sum(B * simulation_weights.T[:, None, :, None], axis=0)
 
     if convert_to_galactic:
