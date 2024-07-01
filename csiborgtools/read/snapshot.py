@@ -20,7 +20,7 @@ observed RA-dec can be mapped into the simulation box.
 from abc import ABC, abstractmethod
 from os.path import join
 
-import numpy
+import numpy as np
 from h5py import File
 
 from ..params import paths_glamdring, simname2boxsize, simname2Omega_m
@@ -40,11 +40,11 @@ class BaseSnapshot(ABC):
                  flip_xz=False):
         self._keep_snapshot_open = None
 
-        if not isinstance(nsim, (int, numpy.integer)):
+        if not isinstance(nsim, (int, np.integer)):
             raise TypeError("`nsim` must be an integer")
         self._nsim = int(nsim)
 
-        if not isinstance(nsnap, (int, numpy.integer)):
+        if not isinstance(nsnap, (int, np.integer)):
             raise TypeError("`nsnap` must be an integer")
         self._nsnap = int(nsnap)
 
@@ -409,16 +409,16 @@ class CSiBORG2Snapshot(BaseSnapshot):
         with File(self._snapshot_path, "r") as f:
             if kind == "Masses":
                 npart = f["Header"].attrs["NumPart_Total"][1]
-                x = numpy.ones(npart, dtype=numpy.float32)
+                x = np.ones(npart, dtype=np.float32)
                 x *= f["Header"].attrs["MassTable"][1]
             else:
                 x = f[f"PartType1/{kind}"][...]
 
             if not high_resolution_only:
                 if x.ndim == 1:
-                    x = numpy.hstack([x, f[f"PartType5/{kind}"][...]])
+                    x = np.hstack([x, f[f"PartType5/{kind}"][...]])
                 else:
-                    x = numpy.vstack([x, f[f"PartType5/{kind}"][...]])
+                    x = np.vstack([x, f[f"PartType5/{kind}"][...]])
 
         if self.flip_xz and kind in ["Coordinates", "Velocities"]:
             x[:, [0, 2]] = x[:, [2, 0]]
@@ -453,7 +453,7 @@ class CSiBORG2Snapshot(BaseSnapshot):
 
         if i1 is not None and j1 - i1 > 0:
             if kind == "Masses":
-                x1 = numpy.ones(j1 - i1, dtype=numpy.float32)
+                x1 = np.ones(j1 - i1, dtype=np.float32)
                 x1 *= f["Header"].attrs["MassTable"][1]
             else:
                 x1 = f[f"PartType1/{kind}"][i1:j1]
@@ -481,9 +481,9 @@ class CSiBORG2Snapshot(BaseSnapshot):
             return x5
 
         if x1.ndim > 1:
-            x1 = numpy.vstack([x1, x5])
+            x1 = np.vstack([x1, x5])
         else:
-            x1 = numpy.hstack([x1, x5])
+            x1 = np.hstack([x1, x5])
 
         return x1
 
@@ -565,7 +565,7 @@ class BaseField(ABC):
     Base class for reading fields such as density or velocity fields.
     """
     def __init__(self, nsim, paths, flip_xz=False):
-        if isinstance(nsim, numpy.integer):
+        if isinstance(nsim, np.integer):
             nsim = int(nsim)
         if not isinstance(nsim, int):
             raise TypeError(f"`nsim` must be an integer. Received `{type(nsim)}`.")  # noqa
@@ -644,7 +644,7 @@ class CSiBORG1Field(BaseField):
                 field = f["density"][:]
                 field /= (677.7 * 1e3 / grid)**3  # Convert to h^2 Msun / kpc^3
         else:
-            field = numpy.load(fpath)
+            field = np.load(fpath)
 
         if self.flip_xz:
             field = field.T
@@ -660,9 +660,9 @@ class CSiBORG1Field(BaseField):
                 v0 = f["p0"][:] / density
                 v1 = f["p1"][:] / density
                 v2 = f["p2"][:] / density
-            field = numpy.array([v0, v1, v2])
+            field = np.array([v0, v1, v2])
         else:
-            field = numpy.load(fpath)
+            field = np.load(fpath)
 
         if self.flip_xz:
             field[0, ...] = field[0, ...].T
@@ -678,7 +678,7 @@ class CSiBORG1Field(BaseField):
                              "for the flipped x- and z-axes.")
 
         fpath = self.paths.field("radvel", MAS, grid, self.nsim, "csiborg1")
-        return numpy.load(fpath)
+        return np.load(fpath)
 
 
 ###############################################################################
@@ -727,7 +727,7 @@ class CSiBORG2Field(BaseField):
             field *= 1e10                     # Convert to Msun / h
             field /= (676.6 * 1e3 / grid)**3  # Convert to h^2 Msun / kpc^3
         else:
-            field = numpy.load(fpath)
+            field = np.load(fpath)
 
         if self.flip_xz:
             field = field.T
@@ -744,9 +744,9 @@ class CSiBORG2Field(BaseField):
                 v0 = f["p0"][:] / density
                 v1 = f["p1"][:] / density
                 v2 = f["p2"][:] / density
-            field = numpy.array([v0, v1, v2])
+            field = np.array([v0, v1, v2])
         else:
-            field = numpy.load(fpath)
+            field = np.load(fpath)
 
         if self.flip_xz:
             field[0, ...] = field[0, ...].T
@@ -763,7 +763,7 @@ class CSiBORG2Field(BaseField):
 
         fpath = self.paths.field("radvel", MAS, grid, self.nsim,
                                  f"csiborg2_{self.kind}")
-        return numpy.load(fpath)
+        return np.load(fpath)
 
 
 class CSiBORG2XField(BaseField):
@@ -784,7 +784,7 @@ class CSiBORG2XField(BaseField):
         fpath = self.paths.field(
             "overdensity", None, None, self.nsim, "csiborg2X")
         with File(fpath, "r") as f:
-            field = f["delta_cic"][...].astype(numpy.float32)
+            field = f["delta_cic"][...].astype(np.float32)
 
         return field
 
@@ -803,7 +803,7 @@ class CSiBORG2XField(BaseField):
             v0 = f["v_0"][...]
             v1 = f["v_1"][...]
             v2 = f["v_2"][...]
-            field = numpy.array([v0, v1, v2])
+            field = np.array([v0, v1, v2])
 
         return field
 
@@ -833,7 +833,7 @@ class BORG1Field(BaseField):
     def overdensity_field(self):
         fpath = self.paths.field(None, None, None, self.nsim, "borg1")
         with File(fpath, "r") as f:
-            field = f["scalars/BORG_final_density"][:].astype(numpy.float32)
+            field = f["scalars/BORG_final_density"][:].astype(np.float32)
 
         return field
 
@@ -874,7 +874,7 @@ class BORG2Field(BaseField):
     def overdensity_field(self):
         fpath = self.paths.field(None, None, None, self.nsim, "borg2")
         with File(fpath, "r") as f:
-            field = f["scalars/BORG_final_density"][:].astype(numpy.float32)
+            field = f["scalars/BORG_final_density"][:].astype(np.float32)
 
         return field
 
@@ -894,7 +894,7 @@ class BORG2Field(BaseField):
 
 
 ###############################################################################
-#                             TNG300-1 field                                  #
+#                             Additional fields                               #
 ###############################################################################
 
 class TNG300_1Field(BaseField):
@@ -922,17 +922,13 @@ class TNG300_1Field(BaseField):
     def density_field(self, MAS, grid):
         fpath = join(self.paths.tng300_1(), "postprocessing", "density_field",
                      f"rho_dm_099_{grid}_{MAS}.npy")
-        return numpy.load(fpath)
+        return np.load(fpath)
 
     def velocity_field(self, MAS, grid):
         raise RuntimeError("The velocity field is not available.")
 
     def radial_velocity_field(self, MAS, grid):
         raise RuntimeError("The radial velocity field is not available.")
-
-###############################################################################
-#                          Quijote field class                                #
-###############################################################################
 
 
 class QuijoteField(CSiBORG1Field):
@@ -949,6 +945,90 @@ class QuijoteField(CSiBORG1Field):
     def __init__(self, nsim, paths):
         super().__init__(nsim, paths, flip_xz=False)
         self._simname = "quijote"
+
+
+class Carrick2015Field(BaseField):
+    """
+    Carrick+2015 `z = 0` field class. The field is in galactic coordinates.
+
+    Parameters
+    ----------
+    paths : Paths, optional
+        Paths object. By default, the paths are set to the `glamdring` paths.
+    """
+    def __init__(self, paths=None):
+        super().__init__(0, paths, False)
+
+    def overdensity_field(self, **kwargs):
+        fpath = self.paths.field(
+            "overdensity", None, None, self.nsim, "Carrick2015")
+        return np.load(fpath)
+
+    def density_field(self, **kwargs):
+        field = self.overdensity_field()
+        omega0 = simname2Omega_m("Carrick2015")
+        rho_mean = omega0 * 277.53662724583074  # Msun / kpc^3
+        field += 1
+        field *= rho_mean
+        return field
+
+    def velocity_field(self, **kwargs):
+        fpath = self.paths.field(
+            "velocity", None, None, self.nsim, "Carrick2015")
+        field = np.load(fpath)
+        # Because the Carrick+2015 data is in the following form:
+        # "The velocities are predicted peculiar velocities in the CMB
+        # frame in Galactic Cartesian coordinates, generated from the
+        # \(\delta_g^*\) field with \(\beta^* = 0.43\) and an external
+        # dipole \(V_\mathrm{ext} = [89,-131,17]\) (Carrick et al Table 3)
+        # has already been added.""
+        field[0] -= 89
+        field[1] -= -131
+        field[2] -= 17
+        field /= 0.43
+        return field
+
+    def radial_velocity_field(self, **kwargs):
+        raise RuntimeError("The radial velocity field is not available.")
+
+
+class Lilow2024Field(BaseField):
+    """
+    Lilow+2024 `z = 0` field class. The field is in galactic coordinates.
+
+    Parameters
+    ----------
+    paths : Paths, optional
+        Paths object. By default, the paths are set to the `glamdring` paths.
+    """
+    def __init__(self, paths=None):
+        super().__init__(0, paths, False)
+
+    def overdensity_field(self, **kwargs):
+        fpath = self.paths.field(
+            "overdensity", None, None, self.nsim, "Lilow2024")
+        return np.load(fpath) - 1
+
+    def density_field(self, **kwargs):
+        field = self.overdensity_field()
+        omega0 = simname2Omega_m("Lilow2024")
+        rho_mean = omega0 * 277.53662724583074  # Msun / kpc^3
+        field += 1
+        field *= rho_mean
+        return field
+
+    def velocity_field(self, **kwargs):
+        fpath = self.paths.field(
+            "velocity", None, None, self.nsim, "Lilow2024")
+
+        vx = np.load(fpath)
+        vy = np.load(fpath.replace("xVelocity", "yVelocity"))
+        vz = np.load(fpath.replace("xVelocity", "zVelocity"))
+
+        return np.stack([vx, vy, vz])
+
+    def radial_velocity_field(self, **kwargs):
+        raise RuntimeError("The radial velocity field is not available.")
 
 
 ###############################################################################
