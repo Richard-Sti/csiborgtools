@@ -255,7 +255,7 @@ if __name__ == "__main__":
 
     if ARGS.catalogue in ["LOSS", "Foundation", "Pantheon+", "Pantheon+_groups", "Pantheon+_zSN"]:  # noqa
         distmod_hyperparams = {"e_mu_min": 0.001, "e_mu_max": 1.0,
-                               "mag_cal_mean": -18.25, "mag_cal_std": 0.5,
+                               "mag_cal_mean": -18.25, "mag_cal_std": 2.0,
                                "alpha_cal_mean": 0.148, "alpha_cal_std": 1.0,
                                "beta_cal_mean": 3.112, "beta_cal_std": 2.0,
                                }
