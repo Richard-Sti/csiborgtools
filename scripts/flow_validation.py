@@ -243,10 +243,10 @@ if __name__ == "__main__":
                    "num_epochs": num_epochs}
     print_variables(main_params.keys(), main_params.values())
 
-    calibration_hyperparams = {"Vext_std": 250,
-                               "alpha_mean": 1.0, "alpha_std": 0.5,
-                               "beta_mean": 1.0, "beta_std": 0.5,
-                               "sigma_v_mean": 200., "sigma_v_std": 100.,
+    calibration_hyperparams = {"Vext_std": 500,
+                               "alpha_min": -1.0, "alpha_max": 3.0,
+                               "beta_min": -1.0, "beta_max": 3.0,
+                               "sigma_v_min": 5.0, "sigma_v_max": 750.,
                                "sample_alpha": sample_alpha,
                                "sample_beta": sample_beta,
                                }
@@ -254,15 +254,15 @@ if __name__ == "__main__":
         calibration_hyperparams.keys(), calibration_hyperparams.values())
 
     if ARGS.catalogue in ["LOSS", "Foundation", "Pantheon+", "Pantheon+_groups", "Pantheon+_zSN"]:  # noqa
-        distmod_hyperparams = {"e_mu_mean": 0.1, "e_mu_std": 0.05,
+        distmod_hyperparams = {"e_mu_min": 0.001, "e_mu_max": 1.0,
                                "mag_cal_mean": -18.25, "mag_cal_std": 0.5,
-                               "alpha_cal_mean": 0.148, "alpha_cal_std": 0.05,
+                               "alpha_cal_mean": 0.148, "alpha_cal_std": 0.5,
                                "beta_cal_mean": 3.112, "beta_cal_std": 1.0,
                                }
     elif ARGS.catalogue in ["SFI_gals", "2MTF"]:
-        distmod_hyperparams = {"e_mu_mean": 0.3, "e_mu_std": 0.15,
-                               "a_mean": -21., "a_std": 0.5,
-                               "b_mean": -5.95, "b_std": 0.25,
+        distmod_hyperparams = {"e_mu_min": 0.001, "e_mu_max": 1.0,
+                               "a_mean": -21., "a_std": 2.0,
+                               "b_mean": -5.95, "b_std": 1.0,
                                }
     else:
         raise ValueError(f"Unsupported catalogue: `{ARGS.catalogue}`.")

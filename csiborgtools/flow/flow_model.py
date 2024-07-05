@@ -34,7 +34,7 @@ from jax import numpy as jnp
 from jax import vmap
 from jax.scipy.special import logsumexp
 from numpyro import sample
-from numpyro.distributions import LogNormal, Normal
+from numpyro.distributions import Normal, Uniform
 from quadax import simpson
 from scipy.interpolate import interp1d
 from sklearn.model_selection import KFold
@@ -556,10 +556,10 @@ def e2_distmod_SN(e2_mB, e2_x1, e2_c, alpha_cal, beta_cal, e_mu_intrinsic):
             + e_mu_intrinsic**2)
 
 
-def sample_SN(e_mu_mean, e_mu_std, mag_cal_mean, mag_cal_std, alpha_cal_mean,
+def sample_SN(e_mu_min, e_mu_max, mag_cal_mean, mag_cal_std, alpha_cal_mean,
               alpha_cal_std, beta_cal_mean, beta_cal_std):
     """Sample SNIe Tripp parameters."""
-    e_mu = sample("e_mu", LogNormal(*lognorm_mean_std_to_loc_scale(e_mu_mean, e_mu_std)))  # noqa
+    e_mu = sample("e_mu", Uniform(e_mu_min, e_mu_max))
     mag_cal = sample("mag_cal", Normal(mag_cal_mean, mag_cal_std))
     alpha_cal = sample("alpha_cal", Normal(alpha_cal_mean, alpha_cal_std))
 
@@ -582,9 +582,9 @@ def e2_distmod_TFR(e2_mag, e2_eta, b, e_mu_intrinsic):
     return e2_mag + b**2 * e2_eta + e_mu_intrinsic**2
 
 
-def sample_TFR(e_mu_mean, e_mu_std, a_mean, a_std, b_mean, b_std):
+def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std):
     """Sample Tully-Fisher calibration parameters."""
-    e_mu = sample("e_mu", LogNormal(*lognorm_mean_std_to_loc_scale(e_mu_mean, e_mu_std)))  # noqa
+    e_mu = sample("e_mu", Uniform(e_mu_min, e_mu_max))
     a = sample("a", Normal(a_mean, a_std))
     b = sample("b", Normal(b_mean, b_std))
 
@@ -596,19 +596,19 @@ def sample_TFR(e_mu_mean, e_mu_std, a_mean, a_std, b_mean, b_std):
 ###############################################################################
 
 
-def sample_calibration(Vext_std, alpha_mean, alpha_std, beta_mean, beta_std,
-                       sigma_v_mean, sigma_v_std, sample_alpha, sample_beta):
+def sample_calibration(Vext_std, alpha_min, alpha_max, beta_min, beta_max,
+                       sigma_v_min, sigma_v_max, sample_alpha, sample_beta):
     """Sample the flow calibration."""
     Vext = sample("Vext", Normal(0, Vext_std).expand([3]))
-    sigma_v = sample("sigma_v", LogNormal(*lognorm_mean_std_to_loc_scale(sigma_v_mean, sigma_v_std)))  # noqa
+    sigma_v = sample("sigma_v", Uniform(sigma_v_min, sigma_v_max))
 
     if sample_alpha:
-        alpha = sample("alpha", Normal(alpha_mean, alpha_std))
+        alpha = sample("alpha", Uniform(alpha_min, alpha_max))
     else:
         alpha = 1.0
 
     if sample_beta:
-        beta = sample("beta", Normal(beta_mean, beta_std))
+        beta = sample("beta", Uniform(beta_min, beta_max))
     else:
         beta = 1.0
 
