@@ -256,13 +256,13 @@ if __name__ == "__main__":
     if ARGS.catalogue in ["LOSS", "Foundation", "Pantheon+", "Pantheon+_groups", "Pantheon+_zSN"]:  # noqa
         distmod_hyperparams = {"e_mu_min": 0.001, "e_mu_max": 1.0,
                                "mag_cal_mean": -18.25, "mag_cal_std": 0.5,
-                               "alpha_cal_mean": 0.148, "alpha_cal_std": 0.5,
-                               "beta_cal_mean": 3.112, "beta_cal_std": 1.0,
+                               "alpha_cal_mean": 0.148, "alpha_cal_std": 1.0,
+                               "beta_cal_mean": 3.112, "beta_cal_std": 2.0,
                                }
     elif ARGS.catalogue in ["SFI_gals", "2MTF"]:
         distmod_hyperparams = {"e_mu_min": 0.001, "e_mu_max": 1.0,
-                               "a_mean": -21., "a_std": 2.0,
-                               "b_mean": -5.95, "b_std": 1.0,
+                               "a_mean": -21., "a_std": 5.0,
+                               "b_mean": -5.95, "b_std": 3.0,
                                }
     else:
         raise ValueError(f"Unsupported catalogue: `{ARGS.catalogue}`.")
