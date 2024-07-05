@@ -340,8 +340,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     rmax = 200
-    dr = 0.5
-    smooth_scales = [0, 4, 8, 16, 32]
+    dr = 0.25
+    smooth_scales = [0]
 
     comm = MPI.COMM_WORLD
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
