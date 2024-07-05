@@ -108,6 +108,8 @@ def simname_to_pretty(simname):
            "csiborg1": "CB1",
            "csiborg2_main": "CB2",
            "csiborg2X": "Manticore",
+           "CF4": "CF4",
+           "CF4gp": "CF4group",
            }
 
     if isinstance(simname, list):
