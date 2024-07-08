@@ -21,7 +21,6 @@ from abc import ABC, abstractmethod
 from collections import OrderedDict
 from functools import lru_cache
 from gc import collect
-from itertools import product
 from math import floor
 from astropy.cosmology import FlatLambdaCDM
 
@@ -1342,5 +1341,14 @@ def fiducial_observers(boxwidth, radius):
         Positions of the observers, with each position as a len-3 list.
     """
     nobs = floor(boxwidth / (2 * radius))
-    return [[val * radius for val in position]
-            for position in product([1, 3, 5], repeat=nobs)]
+
+    obs = []
+    for i in range(nobs):
+        x = (2 * i + 1) * radius
+        for j in range(nobs):
+            y = (2 * j + 1) * radius
+            for k in range(nobs):
+                z = (2 * k + 1) * radius
+                obs.append([x, y, z])
+
+    return obs
