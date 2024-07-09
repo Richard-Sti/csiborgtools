@@ -1,14 +1,14 @@
-nthreads=1
-memory=64
+nthreads=10
+memory=12
 on_login=${1}
 queue="berg"
 env="/mnt/zfsusers/rstiskalek/csiborgtools/venv_csiborg/bin/python"
 file="field_prop.py"
-kind="density"
-simname="csiborg1"
-nsims="9844"
+kind="velocity"
+simname="quijote"
+nsims="-1"
 MAS="PCS"
-grid=1024
+grid=256
 
 
 pythoncm="$env $file --nsims $nsims --simname $simname --kind $kind --MAS $MAS --grid $grid"
