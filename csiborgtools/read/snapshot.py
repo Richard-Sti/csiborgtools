@@ -637,7 +637,8 @@ class CSiBORG1Field(BaseField):
         self._simname = "csiborg1"
 
     def density_field(self, MAS, grid):
-        fpath = self.paths.field("density", MAS, grid, self.nsim, "csiborg1")
+        fpath = self.paths.field(
+            "density", MAS, grid, self.nsim, self._simname)
 
         if MAS == "SPH":
             with File(fpath, "r") as f:
@@ -652,7 +653,8 @@ class CSiBORG1Field(BaseField):
         return field
 
     def velocity_field(self, MAS, grid):
-        fpath = self.paths.field("velocity", MAS, grid, self.nsim, "csiborg1")
+        fpath = self.paths.field(
+            "velocity", MAS, grid, self.nsim, self._simname)
 
         if MAS == "SPH":
             with File(fpath, "r") as f:
@@ -677,7 +679,7 @@ class CSiBORG1Field(BaseField):
             raise ValueError("The radial velocity field is only implemented "
                              "for the flipped x- and z-axes.")
 
-        fpath = self.paths.field("radvel", MAS, grid, self.nsim, "csiborg1")
+        fpath = self.paths.field("radvel", MAS, grid, self.nsim, self._simname)
         return np.load(fpath)
 
 
