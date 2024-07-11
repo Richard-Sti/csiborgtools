@@ -25,64 +25,85 @@ particles or FoF haloes and to also save the resulting smaller halo catalogues.
 import csiborgtools
 import healpy as hp
 import numpy as np
+from csiborgtools.field import evaluate_cartesian_cic
 from h5py import File
 from tqdm import tqdm
 
 
 def load_field(nsim, MAS, grid, paths):
-    """
-    Load the precomputed radial velocity field from the Quijote simulations.
-    """
+    """Load the precomputed velocity field from the Quijote simulations."""
     reader = csiborgtools.read.QuijoteField(nsim, paths)
-    return reader.radial_velocity_field(MAS, grid)
+    return reader.velocity_field(MAS, grid)
 
 
-def skymap_coordinates(nside, R, boxsize):
-    """Generate 3D pixel positions at a given radius in box units."""
+def skymap_coordinates(nside, R):
+    """Generate 3D pixel positions at a given radius."""
     theta, phi = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)), )
     pos = R * np.vstack([np.sin(theta) * np.cos(phi),
                          np.sin(theta) * np.sin(phi),
                          np.cos(theta)]).T
 
-    # Move to box units and center
-    pos /= boxsize
-    pos += 0.5
     # Quijote expects float32, otherwise it will crash
     return pos.astype(np.float32)
 
 
-def make_skymap(radvel_field, map_pos):
+def make_radvel_skymap(velocity_field, pos, observer, boxsize):
     """
     Make a skymap of the radial velocity field at the given 3D positions which
     correspond to the pixels.
     """
-    return csiborgtools.field.evaluate_cartesian_cic(
-        radvel_field, pos=map_pos, smooth_scales=None)
+    # Velocities on the shell
+    Vx, Vy, Vz = [evaluate_cartesian_cic(velocity_field[i], pos=pos / boxsize,
+                                         smooth_scales=None) for i in range(3)]
+
+    # Observer velocity
+    obs = np.asarray(observer).reshape(1, 3) / boxsize
+    Vx_obs, Vy_obs, Vz_obs = [evaluate_cartesian_cic(
+        velocity_field[i], pos=obs, smooth_scales=None)[0] for i in range(3)]
+
+    # Subtract observer velocity
+    Vx -= Vx_obs
+    Vy -= Vy_obs
+    Vz -= Vz_obs
+
+    # Radial velocity
+    norm_pos = pos - observer
+    norm_pos /= np.linalg.norm(norm_pos, axis=1).reshape(-1, 1)
+    Vrad = Vx * norm_pos[:, 0] + Vy * norm_pos[:, 1] + Vz * norm_pos[:, 2]
+
+    return Vrad
 
 
-def main(nsims, nside, radii, boxsize, MAS, grid, fname):
+def main(nsims, observers, nside, ell_max, radii, boxsize, MAS, grid, fname):
     """Calculate the sky maps and C_ell."""
     # 3D pixel positions at each radius in box units
-    map_pos = [skymap_coordinates(nside, R, boxsize) for R in radii]
-    ell_max = 16
+    map_pos = [skymap_coordinates(nside, R) for R in radii]
 
     print(f"Writing to `{fname}`...")
     f = File(fname, 'w')
     f.create_dataset("ell", data=np.arange(ell_max + 1))
     f.create_dataset("radii", data=radii)
+    f.attrs["num_simulations"] = len(nsims)
+    f.attrs["num_observers"] = len(observers)
+    f.attrs["num_radii"] = len(radii)
+    f.attrs["npix_per_map"] = hp.nside2npix(nside)
 
     for nsim in tqdm(nsims, desc="Simulations"):
-        radvel_field = load_field(nsim, MAS, grid, paths)
+        grp_sim = f.create_group(f"nsim_{nsim}")
+        velocity_field = load_field(nsim, MAS, grid, paths)
 
-        grp = f.create_group(f"nsim_{str(nsim).zfill(5)}")
-        C_ell = np.zeros((len(radii), ell_max + 1))
+        for n in range(len(observers)):
+            grp_observer = grp_sim.create_group(f"observer_{n}")
 
-        for n in range(len(radii)):
-            skymap = make_skymap(radvel_field, map_pos[n])
-            C_ell[n] = hp.sphtfunc.anafast(skymap, lmax=ell_max)
-            grp.create_dataset(f"skymap_{n}", data=skymap)
+            for i in range(len(radii)):
+                pos = map_pos[i] + observers[n]
 
-        grp.create_dataset("C_ell", data=C_ell)
+                skymap = make_radvel_skymap(velocity_field, pos, observers[n],
+                                            boxsize)
+                C_ell = hp.sphtfunc.anafast(skymap, lmax=ell_max)
+
+                grp_observer.create_dataset(f"skymap_{i}", data=skymap)
+                grp_observer.create_dataset(f"C_ell_{i}", data=C_ell)
 
     print(f"Closing `{fname}`.")
     f.close()
@@ -91,12 +112,16 @@ def main(nsims, nside, radii, boxsize, MAS, grid, fname):
 if __name__ == "__main__":
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 
-    nside = 256
-    boxsize = 1000
     MAS = "PCS"
     grid = 512
-    radii = np.linspace(50, 500, 10)
+    nside = 256
+    ell_max = 16
+    boxsize = 1000
+    Rmax = 200
+    radii = np.linspace(100, 150, 5)
     fname = "/mnt/extraspace/rstiskalek/BBF/Quijote_Cell/C_ell_fiducial.h5"
     nsims = list(range(50))
+    # nsims = [0]
+    observers = csiborgtools.read.fiducial_observers(boxsize, Rmax)
 
-    main(nsims, nside, radii, boxsize, MAS, grid, fname)
+    main(nsims, observers, nside, ell_max, radii, boxsize, MAS, grid, fname)
