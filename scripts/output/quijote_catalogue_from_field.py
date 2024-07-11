@@ -28,13 +28,22 @@ from csiborgtools import fprint
 
 
 def load_fields(nsim, MAS, grid, paths):
-    reader = csiborgtools.read.QuijoteField(nsim, paths)
-    velocity_field = reader.velocity_field(MAS, grid)
+    # reader = csiborgtools.read.QuijoteField(nsim, paths)
+    # velocity_field = reader.velocity_field(MAS, grid)
 
     # reader = csiborgtools.read.CSiBORG2Field(nsim, "random", paths)
     # velocity_field = reader.velocity_field(MAS, grid)
 
-    return velocity_field
+    folder = "/mnt/extraspace/rstiskalek/catalogs"
+    fpath = join(folder, "twompp_velocity_carrick2015.npy")
+    field = np.load(fpath).astype(np.float32)
+    field[0] -= 89
+    field[1] -= -131
+    field[2] -= 17
+    # field /= 0.43
+    return field
+
+    # return velocity_field
 
 
 def uniform_points_at_radius(R, npoints, seed):
@@ -61,11 +70,17 @@ def main_field(velocity_field, radius, observers, npoints, fname, boxsize):
             velocity_field[i], pos=current_points_box_units,
             smooth_scales=None,) for i in range(3)]).T
 
+        vel_observer = np.vstack([csiborgtools.field.evaluate_cartesian_cic(
+            velocity_field[i],
+            pos=np.asarray(observer).reshape(1, 3) / boxsize,
+            smooth_scales=None) for i in range(3)]).T[0]
+
         with File(fname, 'a') as f:
             grp = f.create_group(f"obs_{i}")
             grp.create_dataset("pos", data=current_points)
             grp.create_dataset("vel", data=vel)
             grp.create_dataset("observer", data=observer)
+            grp.create_dataset("vel_observer", data=vel_observer)
 
     print(f"Written to `{fname}`.", flush=True)
 
@@ -115,11 +130,12 @@ if __name__ == "__main__":
     # grid = 512
     # MAS = "PCS"
     # boxsize = csiborgtools.simname2boxsize("quijote")
-    # rmax = 150
-    # radius_evaluate = 25
+    # rmax = 200
+    # radius_evaluate = 150
     # npoints = 1000
 
     # fiducial_observers = csiborgtools.read.fiducial_observers(boxsize, rmax)
+    # print(f"There are {len(fiducial_observers)} observers.")
     # # fiducial_observers = [[boxsize/2, boxsize/2, boxsize/2]]
     # nsims = [0]
 
@@ -132,10 +148,26 @@ if __name__ == "__main__":
     rmin = 100
     rmax = 100.5
     boxsize = csiborgtools.simname2boxsize("quijote")
-    fiducial_observers = csiborgtools.read.fiducial_observers(boxsize, rmax)
+    fiducial_observers = csiborgtools.read.fiducial_observers(boxsize, 200)
+    print(f"There are {len(fiducial_observers)} observers.")
     nsims = [0]
 
     for nsim in nsims:
         fname = join(fdir, f"particles_points_{nsim}.h5")
         pos, vel = load_particles(nsim, paths)
         main_particles(pos, vel, rmin, rmax, fiducial_observers, fname)
+
+    # grid = None
+    # MAS = None
+    # boxsize = csiborgtools.simname2boxsize("Carrick2015")
+    # radius_evaluate = 75
+    # npoints = 1000
+
+    # fiducial_observers = [[boxsize/2, boxsize/2, boxsize/2]]
+    # nsims = [0]
+
+    # for nsim in nsims:
+    #     fname = join(fdir, f"Carrick2015_field_points_{nsim}.h5")
+    #     velocity_field = load_fields(nsim, MAS, grid, paths)
+    #     main_field(velocity_field, radius_evaluate, fiducial_observers,
+    #                npoints, fname, boxsize)
