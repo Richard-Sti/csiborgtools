@@ -121,7 +121,6 @@ if __name__ == "__main__":
     radii = np.linspace(100, 150, 5)
     fname = "/mnt/extraspace/rstiskalek/BBF/Quijote_Cell/C_ell_fiducial.h5"
     nsims = list(range(50))
-    # nsims = [0]
     observers = csiborgtools.read.fiducial_observers(boxsize, Rmax)
 
     main(nsims, observers, nside, ell_max, radii, boxsize, MAS, grid, fname)
