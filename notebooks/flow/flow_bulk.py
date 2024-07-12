@@ -43,6 +43,24 @@ def read_enclosed_density(simname):
     return r, overdensity
 
 
+def read_enclosed_monopole(simname, rmax=155):
+    fname = join(FDIR, f"enclosed_mass_{simname}.npz")
+
+    if exists(fname):
+        data = np.load(fname)
+    else:
+        raise FileNotFoundError(f"File {fname} not found.")
+
+    r = data["distances"]
+    vmono = data["cumulative_velocity_mono"]
+
+    mask = r < rmax
+    r = r[mask]
+    vmono = vmono[..., mask]
+
+    return r, vmono
+
+
 def read_enclosed_flow(simname):
     fname = join(FDIR, f"enclosed_mass_{simname}.npz")
 
