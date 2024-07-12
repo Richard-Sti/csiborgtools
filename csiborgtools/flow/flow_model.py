@@ -596,11 +596,17 @@ def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std):
 ###############################################################################
 
 
-def sample_calibration(Vext_std, alpha_min, alpha_max, beta_min, beta_max,
-                       sigma_v_min, sigma_v_max, sample_alpha, sample_beta):
+def sample_calibration(Vext_min, Vext_max, Vmono_min, Vmono_max,
+                       alpha_min, alpha_max, beta_min, beta_max, sigma_v_min,
+                       sigma_v_max, sample_Vmono, sample_alpha, sample_beta):
     """Sample the flow calibration."""
-    Vext = sample("Vext", Normal(0, Vext_std).expand([3]))
+    Vext = sample("Vext", Uniform(Vext_min, Vext_max).expand([3]))
     sigma_v = sample("sigma_v", Uniform(sigma_v_min, sigma_v_max))
+
+    if sample_Vmono:
+        Vmono = sample("Vmono", Uniform(Vmono_min, Vmono_max))
+    else:
+        Vmono = 0.0
 
     if sample_alpha:
         alpha = sample("alpha", Uniform(alpha_min, alpha_max))
@@ -612,7 +618,7 @@ def sample_calibration(Vext_std, alpha_min, alpha_max, beta_min, beta_max,
     else:
         beta = 1.0
 
-    return Vext, sigma_v, alpha, beta
+    return Vext, Vmono, sigma_v, alpha, beta
 
 
 ###############################################################################
@@ -669,7 +675,7 @@ class PV_validation_model(BaseFlowValidationModel):
     def __call__(self, calibration_hyperparams, distmod_hyperparams,
                  store_ll_all=False):
         """NumPyro PV validation model."""
-        Vext, sigma_v, alpha, beta = sample_calibration(**calibration_hyperparams)  # noqa
+        Vext, Vmono, sigma_v, alpha, beta = sample_calibration(**calibration_hyperparams)  # noqa
         cz_err = jnp.sqrt(sigma_v**2 + self.e2_cz_obs)
         Vext_rad = project_Vext(Vext[0], Vext[1], Vext[2], self.RA, self.dec)
 
@@ -694,7 +700,7 @@ class PV_validation_model(BaseFlowValidationModel):
         pnorm = simpson(ptilde, dx=self.dr, axis=-1)
 
         # Calculate z_obs at each distance. Shape is (n_sims, ndata, nxrange)
-        vrad = beta * self.los_velocity + Vext_rad[None, :, None]
+        vrad = beta * self.los_velocity + Vext_rad[None, :, None] + Vmono
         zobs = (1 + self.z_xrange[None, None, :]) * (1 + vrad / SPEED_OF_LIGHT) - 1  # noqa
 
         ptilde *= calculate_likelihood_zobs(self.z_obs, zobs, cz_err)
