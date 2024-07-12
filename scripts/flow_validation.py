@@ -226,7 +226,7 @@ if __name__ == "__main__":
 
     nsteps = 5000
     nburn = 1000
-    zcmb_max = 0.06
+    zcmb_max = 0.03
     sample_alpha = True
     sample_beta = True
     calculate_evidence = False
@@ -243,10 +243,12 @@ if __name__ == "__main__":
                    "num_epochs": num_epochs}
     print_variables(main_params.keys(), main_params.values())
 
-    calibration_hyperparams = {"Vext_std": 500,
+    calibration_hyperparams = {"Vext_min": -1000, "Vext_max": 1000,
+                               "Vmono_min": -1000, "Vmono_max": 1000,
                                "alpha_min": -1.0, "alpha_max": 3.0,
                                "beta_min": -1.0, "beta_max": 3.0,
                                "sigma_v_min": 5.0, "sigma_v_max": 750.,
+                               "sample_Vmono": True,
                                "sample_alpha": sample_alpha,
                                "sample_beta": sample_beta,
                                }
