@@ -25,11 +25,13 @@ from datetime import datetime
 from gc import collect
 from os.path import join
 
-import csiborgtools
 import numpy as np
 from astropy import units as u
 from astropy.coordinates import CartesianRepresentation, SkyCoord
 from tqdm import tqdm
+
+import csiborgtools
+from csiborgtools.field import field_enclosed_mass
 
 ###############################################################################
 #                Read in information about the simulation                     #
@@ -154,7 +156,7 @@ def main_borg(args, folder):
         else:
             raise ValueError(f"Unknown simname: `{args.simname}`.")
 
-        cumulative_mass[i, :], cumulative_volume[i, :] = csiborgtools.field.field_enclosed_mass(  # noqa
+        cumulative_mass[i, :], cumulative_volume[i, :] = field_enclosed_mass(
             field, distances, boxsize)
 
     # Finally save the output
@@ -202,7 +204,7 @@ def main_csiborg(args, folder):
 
 
 def main_from_field(args, folder):
-    """Bulk flow in the Manticore boxes provided by Stuart."""
+    """Bulk flows in 3D fields"""
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     boxsize = csiborgtools.simname2boxsize(args.simname)
     nsims = paths.get_ics(args.simname)
@@ -210,6 +212,7 @@ def main_from_field(args, folder):
 
     cumulative_mass = np.zeros((len(nsims), len(distances)))
     cumulative_volume = np.zeros((len(nsims), len(distances)))
+    cumulative_vel_mono = np.zeros((len(nsims), len(distances)))
     cumulative_vel_x = np.zeros((len(nsims), len(distances)))
     cumulative_vel_y = np.zeros_like(cumulative_vel_x)
     cumulative_vel_z = np.zeros_like(cumulative_vel_x)
@@ -224,17 +227,29 @@ def main_from_field(args, folder):
             raise ValueError(f"Unknown simname: `{args.simname}`.")
 
         density_field = reader.density_field()
-        velocity_field = reader.velocity_field()
-
-        cumulative_mass[i, :], cumulative_volume[i, :] = csiborgtools.field.field_enclosed_mass(  # noqa
+        cumulative_mass[i, :], cumulative_volume[i, :] = field_enclosed_mass(
             density_field, distances, boxsize, verbose=False)
+        del density_field
+        collect()
 
-        cumulative_vel_x[i, :], __ = csiborgtools.field.field_enclosed_mass(
+        velocity_field = reader.velocity_field()
+        radial_velocity_field = csiborgtools.field.radial_velocity(
+            velocity_field, [0., 0., 0.])
+
+        cumulative_vel_mono[i, :], __ = field_enclosed_mass(
+            radial_velocity_field, distances, boxsize, verbose=False)
+        del radial_velocity_field
+        collect()
+
+        cumulative_vel_x[i, :], __ = field_enclosed_mass(
             velocity_field[0], distances, boxsize, verbose=False)
-        cumulative_vel_y[i, :], __ = csiborgtools.field.field_enclosed_mass(
+        cumulative_vel_y[i, :], __ = field_enclosed_mass(
             velocity_field[1], distances, boxsize, verbose=False)
-        cumulative_vel_z[i, :], __ = csiborgtools.field.field_enclosed_mass(
+        cumulative_vel_z[i, :], __ = field_enclosed_mass(
             velocity_field[2], distances, boxsize, verbose=False)
+
+        del velocity_field
+        collect()
 
     if args.simname in ["Carrick2015", "Lilow2024"]:
         # Carrick+2015 and Lilow+2024 box is in galactic coordinates, so we
@@ -253,12 +268,14 @@ def main_from_field(args, folder):
     cumulative_vel = np.stack(
         [cumulative_vel_x, cumulative_vel_y, cumulative_vel_z], axis=-1)
     cumulative_vel /= cumulative_volume[..., None]
+    cumulative_vel_mono /= cumulative_volume
 
     # Finally save the output
     fname = f"enclosed_mass_{args.simname}.npz"
     fname = join(folder, fname)
     print(f"Saving to `{fname}`.")
     np.savez(fname, enclosed_mass=cumulative_mass, distances=distances,
+             cumulative_velocity_mono=cumulative_vel_mono,
              cumulative_velocity=cumulative_vel,
              enclosed_volume=cumulative_volume)
 
