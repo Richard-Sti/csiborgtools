@@ -301,8 +301,11 @@ def radial_velocity(rho_vel, observer_velocity):
                 vy = rho_vel[1, i, j, k] - vy0
                 vz = rho_vel[2, i, j, k] - vz0
 
-                radvel[i, j, k] = ((px * vx + py * vy + pz * vz)
-                                   / numpy.sqrt(px**2 + py**2 + pz**2))
+                r = (px**2 + py**2 + pz**2)**0.5
+
+                # There will be at most one cell with r = 0
+                if r > 0:
+                    radvel[i, j, k] = (px * vx + py * vy + pz * vz) / r
     return radvel
 
 
