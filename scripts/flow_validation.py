@@ -226,7 +226,7 @@ if __name__ == "__main__":
 
     nsteps = 5000
     nburn = 1000
-    zcmb_max = 0.03
+    zcmb_max = 0.06
     sample_alpha = True
     sample_beta = True
     calculate_evidence = False
