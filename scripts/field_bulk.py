@@ -31,7 +31,9 @@ from astropy.coordinates import CartesianRepresentation, SkyCoord
 from tqdm import tqdm
 
 import csiborgtools
-from csiborgtools.field import field_enclosed_mass
+from csiborgtools import fprint
+from csiborgtools.field import (field_enclosed_mass, particles_enclosed_mass,
+                                particles_enclosed_momentum)
 
 ###############################################################################
 #                Read in information about the simulation                     #
@@ -97,27 +99,28 @@ def get_particles(reader, boxsize, get_velocity=True, verbose=True):
         Mass of particles.
     vel : 2-dimensional array, optional
         Velocity of particles.
+    vrad : 1-dimensional array, optional
+        Radial velocity of particles
     """
-    if verbose:
-        print(f"{t()},: reading coordinates and calculating radial distance.")
+    fprint("reading coordinates and calculating radial distance.", verbose)
     pos = reader.coordinates()
     dtype = pos.dtype
     pos -= boxsize / 2
     dist = np.linalg.norm(pos, axis=1).astype(dtype)
+    collect()
+
+    if get_velocity:
+        fprint("reading velocities.", verbose)
+        vel = reader.velocities().astype(dtype)
+        vrad = np.sum(pos, vel, axis=1) / dist
+
     del pos
     collect()
 
-    if verbose:
-        print(f"{t()}: reading masses.")
+    fprint("reading masses.")
     mass = reader.masses()
 
-    if get_velocity:
-        if verbose:
-            print(f"{t()}: reading velocities.")
-        vel = reader.velocities().astype(dtype)
-
-    if verbose:
-        print(f"{t()}: sorting arrays.")
+    fprint("sorting arrays.")
     indxs = np.argsort(dist)
     dist = dist[indxs]
     mass = mass[indxs]
@@ -128,7 +131,7 @@ def get_particles(reader, boxsize, get_velocity=True, verbose=True):
     collect()
 
     if get_velocity:
-        return dist, mass, vel
+        return dist, mass, vel, vrad
 
     return dist, mass
 
@@ -142,7 +145,7 @@ def main_borg(args, folder):
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     boxsize = csiborgtools.simname2boxsize(args.simname)
     nsims = paths.get_ics(args.simname)
-    distances = np.linspace(0, boxsize / 2, 101)[1:]
+    distances = np.linspace(0, boxsize / 2, 101)
 
     cumulative_mass = np.zeros((len(nsims), len(distances)))
     cumulative_volume = np.zeros((len(nsims), len(distances)))
@@ -176,31 +179,38 @@ def main_csiborg(args, folder):
     cumulative_mass = np.zeros((len(nsims), len(distances)))
     mass135 = np.zeros(len(nsims))
     masstot = np.zeros(len(nsims))
+    cumulative_vel_mono = np.zeros((len(nsims), len(distances)))
     cumulative_velocity = np.zeros((len(nsims), len(distances), 3))
 
     for i, nsim in enumerate(tqdm(nsims, desc="Simulations")):
         reader = get_reader(args.simname, paths, nsim)
-        rdist, mass, vel = get_particles(reader, boxsize,  verbose=False)
+        rdist, mass, vel, vrad = get_particles(reader, boxsize,  verbose=True)
 
         # Calculate masses
-        cumulative_mass[i, :] = csiborgtools.field.particles_enclosed_mass(
-            rdist, mass, distances)
-        mass135[i] = csiborgtools.field.particles_enclosed_mass(
-            rdist, mass, [135])[0]
+        cumulative_mass[i, :] = particles_enclosed_mass(rdist, mass, distances)
+        mass135[i] = particles_enclosed_mass(rdist, mass, [135])[0]
         masstot[i] = np.sum(mass)
 
+        # Calculate monopole momentum
+        cumulative_vel_mono[i] = particles_enclosed_mass(
+            rdist, vrad * mass, distances)
+
         # Calculate velocities
-        cumulative_velocity[i, ...] = csiborgtools.field.particles_enclosed_momentum(  # noqa
+        cumulative_velocity[i, ...] = particles_enclosed_momentum(
             rdist, mass, vel, distances)
-        for j in range(3):  # Normalize the momentum to get velocity out of it.
+
+        # Normalize the momentum to get velocity out of it.
+        for j in range(3):
             cumulative_velocity[i, :, j] /= cumulative_mass[i, :]
+        cumulative_vel_mono[i, ...] /= cumulative_mass[i, ...]
 
     # Finally save the output
     fname = f"enclosed_mass_{args.simname}.npz"
     fname = join(folder, fname)
     np.savez(fname, enclosed_mass=cumulative_mass, mass135=mass135,
              masstot=masstot, distances=distances,
-             cumulative_velocity=cumulative_velocity)
+             cumulative_velocity=cumulative_velocity,
+             cumulative_velocity_mono=cumulative_vel_mono)
 
 
 def main_from_field(args, folder):
