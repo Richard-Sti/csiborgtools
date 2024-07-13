@@ -45,23 +45,7 @@ def t():
 
 
 def get_reader(simname, paths, nsim):
-    """
-    Get the appropriate snaspshot reader for the simulation.
-
-    Parameters
-    ----------
-    simname : str
-        Name of the simulation.
-    paths : csiborgtools.read.Paths
-        Paths object.
-    nsim : int
-        Simulation index.
-
-    Returns
-    -------
-    reader : instance of csiborgtools.read.BaseSnapshot
-        Snapshot reader.
-    """
+    """Get the appropriate snapshot reader for the simulation."""
     if simname == "csiborg1":
         nsnap = max(paths.get_snapshots(nsim, simname))
         reader = csiborgtools.read.CSiBORG1Snapshot(nsim, nsnap, paths,
@@ -77,31 +61,7 @@ def get_reader(simname, paths, nsim):
 
 
 def get_particles(reader, boxsize, get_velocity=True, verbose=True):
-    """
-    Get the distance of particles from the center of the box and their masses.
-
-    Parameters
-    ----------
-    reader : instance of csiborgtools.read.BaseSnapshot
-        Snapshot reader.
-    boxsize : float
-        Box size in Mpc / h.
-    get_velocity : bool, optional
-        Whether to also return the velocity of particles.
-    verbose : bool
-        Verbosity flag.
-
-    Returns
-    -------
-    dist : 1-dimensional array
-        Distance of particles from the center of the box.
-    mass : 1-dimensional array
-        Mass of particles.
-    vel : 2-dimensional array, optional
-        Velocity of particles.
-    vrad : 1-dimensional array, optional
-        Radial velocity of particles
-    """
+    """Get the snapshot particles."""
     fprint("reading coordinates and calculating radial distance.", verbose)
     pos = reader.coordinates()
     dtype = pos.dtype
