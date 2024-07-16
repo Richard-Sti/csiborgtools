@@ -21,19 +21,21 @@ from tqdm import tqdm
 
 if __name__ == "__main__":
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    simname = "csiborg1"
+    simname = "csiborg2_random"
 
     nsims = paths.get_ics(simname)
     print(f"Number of simulations: {nsims}.")
 
-    fname_out = f"/mnt/users/rstiskalek/csiborgtools/data/halos_{simname}.hdf5"
+    fname_out = f"/mnt/users/rstiskalek/csiborgtools/data/random_halos_{simname}.hdf5"  # noqa
 
     print(f"Writing to `{fname_out}`.")
 
     with File(fname_out, 'w') as f:
         for nsim in tqdm(nsims, desc="Simulations"):
             grp = f.create_group(f"sim_{nsim}")
-            cat = csiborgtools.read.CSiBORG1Catalogue(nsim, paths)
+            # cat = csiborgtools.read.CSiBORG1Catalogue(nsim, paths)
+            cat = csiborgtools.read.CSiBORG2Catalogue(
+                nsim, 99, "random", paths, )
 
             grp["pos"] = cat["cartesian_pos"]
             grp["totmass"] = cat["totmass"]
