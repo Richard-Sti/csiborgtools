@@ -100,6 +100,8 @@ def get_model(paths, get_model_kwargs, verbose=True):
                                           ARGS.catalogue, fpath, paths,
                                           ksmooth=ARGS.ksmooth)
 
+    print(f"\n{'Num. radial steps':<20} {len(loader.rdist)}\n", flush=True)
+
     return csiborgtools.flow.get_model(loader, **get_model_kwargs)
 
 
@@ -227,8 +229,6 @@ if __name__ == "__main__":
     nsteps = 5000
     nburn = 1000
     zcmb_max = 0.06
-    sample_alpha = True
-    sample_beta = True
     calculate_evidence = False
     nchains_harmonic = 10
     num_epochs = 30
@@ -237,7 +237,6 @@ if __name__ == "__main__":
         raise ValueError("The number of steps must be divisible by the number of chains.")  # noqa
 
     main_params = {"nsteps": nsteps, "nburn": nburn, "zcmb_max": zcmb_max,
-                   "sample_alpha": sample_alpha, "sample_beta": sample_beta,
                    "calculate_evidence": calculate_evidence,
                    "nchains_harmonic": nchains_harmonic,
                    "num_epochs": num_epochs}
@@ -247,10 +246,11 @@ if __name__ == "__main__":
                                "Vmono_min": -1000, "Vmono_max": 1000,
                                "alpha_min": -1.0, "alpha_max": 3.0,
                                "beta_min": -1.0, "beta_max": 3.0,
-                               "sigma_v_min": 5.0, "sigma_v_max": 750.,
-                               "sample_Vmono": True,
-                               "sample_alpha": sample_alpha,
-                               "sample_beta": sample_beta,
+                               "sigma_v_min": 1.0, "sigma_v_max": 750.,
+                               "sample_Vmono": False,
+                               "sample_alpha": True,
+                               "sample_beta": True,
+                               "sample_sigma_v_ext": False,
                                }
     print_variables(
         calibration_hyperparams.keys(), calibration_hyperparams.values())
@@ -280,5 +280,6 @@ if __name__ == "__main__":
     get_model_kwargs = {"zcmb_max": zcmb_max}
 
     model = get_model(paths, get_model_kwargs, )
-    run_model(model, nsteps, nburn, model_kwargs, out_folder, sample_beta,
-              calculate_evidence, nchains_harmonic, num_epochs, kwargs_print)
+    run_model(model, nsteps, nburn, model_kwargs, out_folder,
+              calibration_hyperparams["sample_beta"], calculate_evidence,
+              nchains_harmonic, num_epochs, kwargs_print)
