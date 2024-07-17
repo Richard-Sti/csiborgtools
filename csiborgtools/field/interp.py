@@ -16,15 +16,14 @@
 Tools for interpolating 3D fields at arbitrary positions.
 """
 import MAS_library as MASL
-import numpy
+import numpy as np
 import smoothing_library as SL
-from scipy.interpolate import RegularGridInterpolator
 from numba import jit
+from scipy.interpolate import RegularGridInterpolator
 from tqdm import tqdm, trange
 
 from ..utils import periodic_wrap_grid, radec_to_cartesian
 from .utils import divide_nonzero, force_single_precision, nside2radec
-
 
 ###############################################################################
 #                       Cartesian interpolation                               #
@@ -61,7 +60,7 @@ def evaluate_cartesian_cic(*fields, pos, smooth_scales=None, verbose=False):
     else:
         shape = (pos.shape[0], len(smooth_scales))
 
-    interp_fields = [numpy.full(shape, numpy.nan, dtype=numpy.float32)
+    interp_fields = [np.full(shape, np.nan, dtype=np.float32)
                      for __ in range(len(fields))]
 
     for i, field in enumerate(fields):
@@ -73,7 +72,7 @@ def evaluate_cartesian_cic(*fields, pos, smooth_scales=None, verbose=False):
 
             for j, scale in enumerate(iterator):
                 if not scale > 0:
-                    fsmooth = numpy.copy(field)
+                    fsmooth = np.copy(field)
                 else:
                     fsmooth = smoothen_field(field, scale, 1., make_copy=True)
                 MASL.CIC_interp(fsmooth, 1., pos, interp_fields[i][:, j])
@@ -121,15 +120,15 @@ def evaluate_cartesian_regular(*fields, pos, smooth_scales=None,
     ngrid = fields[0].shape[0]
     cellsize = 1. / ngrid
 
-    X = numpy.linspace(0.5 * cellsize, 1 - 0.5 * cellsize, ngrid)
-    Y, Z = numpy.copy(X), numpy.copy(X)
+    X = np.linspace(0.5 * cellsize, 1 - 0.5 * cellsize, ngrid)
+    Y, Z = np.copy(X), np.copy(X)
 
-    interp_fields = [numpy.full(shape, numpy.nan, dtype=numpy.float32)
+    interp_fields = [np.full(shape, np.nan, dtype=np.float32)
                      for __ in range(len(fields))]
     for i, field in enumerate(fields):
         if smooth_scales is None:
             field_interp = RegularGridInterpolator(
-                (X, Y, Z), field, fill_value=None, bounds_error=False,
+                (X, Y, Z), field, fill_value=np.nan, bounds_error=False,
                 method=method)
             interp_fields[i] = field_interp(pos)
         else:
@@ -138,12 +137,12 @@ def evaluate_cartesian_regular(*fields, pos, smooth_scales=None,
 
             for j, scale in enumerate(iterator):
                 if not scale > 0:
-                    fsmooth = numpy.copy(field)
+                    fsmooth = np.copy(field)
                 else:
                     fsmooth = smoothen_field(field, scale, 1., make_copy=True)
 
                 field_interp = RegularGridInterpolator(
-                    (X, Y, Z), fsmooth, fill_value=None, bounds_error=False,
+                    (X, Y, Z), fsmooth, fill_value=np.nan, bounds_error=False,
                     method=method)
                 interp_fields[i][:, j] = field_interp(pos)
 
@@ -175,9 +174,9 @@ def observer_peculiar_velocity(velocity_field, smooth_scales=None,
     vpec : 1-dimensional array of shape `(3,)` or `(len(smooth_scales), 3)`
     """
     if observer is None:
-        pos = numpy.asanyarray([0.5, 0.5, 0.5]).reshape(1, 3)
+        pos = np.asanyarray([0.5, 0.5, 0.5]).reshape(1, 3)
     else:
-        pos = numpy.asanyarray(observer).reshape(1, 3)
+        pos = np.asanyarray(observer).reshape(1, 3)
 
     vx, vy, vz = evaluate_cartesian_cic(
         *velocity_field, pos=pos, smooth_scales=smooth_scales, verbose=verbose)
@@ -188,9 +187,9 @@ def observer_peculiar_velocity(velocity_field, smooth_scales=None,
     vz = vz.reshape(-1, )
 
     if smooth_scales is None:
-        return numpy.array([vx[0], vy[0], vz[0]])
+        return np.array([vx[0], vy[0], vz[0]])
 
-    return numpy.vstack([vx, vy, vz]).T
+    return np.vstack([vx, vy, vz]).T
 
 ###############################################################################
 #                   Evaluating the fields along a LOS                         #
@@ -233,19 +232,19 @@ def evaluate_los(*fields, sky_pos, boxsize, rmax, dr, smooth_scales=None,
     """
     mpc2box = 1. / boxsize
 
-    if not isinstance(sky_pos, numpy.ndarray) and sky_pos.ndim != 2:
+    if not isinstance(sky_pos, np.ndarray) and sky_pos.ndim != 2:
         raise ValueError("`sky_pos` must be a 2D array.")
     nsamples = len(sky_pos)
 
-    if rmax > 0.5 * boxsize:
+    if interpolation_method == "cic" and rmax > 0.5 * boxsize:
         raise ValueError("The maximum radius must be within the box.")
 
     # Radial positions to evaluate for each line of sight.
-    rdist = numpy.arange(0, rmax, dr, dtype=fields[0].dtype)
+    rdist = np.arange(0, rmax, dr, dtype=fields[0].dtype)
 
     # Create an array of radial positions and sky coordinates of each line of
     # sight.
-    pos = numpy.empty((nsamples * len(rdist), 3), dtype=fields[0].dtype)
+    pos = np.empty((nsamples * len(rdist), 3), dtype=fields[0].dtype)
     for i in range(nsamples):
         start, end = i * len(rdist), (i + 1) * len(rdist)
         pos[start:end, 0] = rdist * mpc2box
@@ -261,7 +260,7 @@ def evaluate_los(*fields, sky_pos, boxsize, rmax, dr, smooth_scales=None,
             smooth_scales = [smooth_scales]
 
         if isinstance(smooth_scales, list):
-            smooth_scales = numpy.array(smooth_scales, dtype=numpy.float32)
+            smooth_scales = np.array(smooth_scales, dtype=np.float32)
 
         smooth_scales *= mpc2box
 
@@ -286,8 +285,7 @@ def evaluate_los(*fields, sky_pos, boxsize, rmax, dr, smooth_scales=None,
 
     field_interp_reshaped = [None] * len(fields)
     for i in range(len(fields)):
-        samples = numpy.full(shape_single, numpy.nan,
-                             dtype=field_interp[i].dtype)
+        samples = np.full(shape_single, np.nan, dtype=field_interp[i].dtype)
         for j in range(nsamples):
             start, end = j * len(rdist), (j + 1) * len(rdist)
             samples[j] = field_interp[i][start:end, ...]
@@ -328,7 +326,7 @@ def evaluate_sky(*fields, pos, mpc2box, smooth_scales=None, verbose=False):
     (list of) 1-dimensional array of shape `(n_samples, len(smooth_scales))`
     """
     # Make a copy of the positions to avoid modifying the input.
-    pos = numpy.copy(pos)
+    pos = np.copy(pos)
 
     pos = force_single_precision(pos)
     pos[:, 0] *= mpc2box
@@ -340,7 +338,7 @@ def evaluate_sky(*fields, pos, mpc2box, smooth_scales=None, verbose=False):
             smooth_scales = [smooth_scales]
 
         if isinstance(smooth_scales, list):
-            smooth_scales = numpy.array(smooth_scales, dtype=numpy.float32)
+            smooth_scales = np.array(smooth_scales, dtype=np.float32)
 
         smooth_scales *= mpc2box
 
@@ -374,26 +372,26 @@ def make_sky(field, angpos, dist, boxsize, verbose=True):
     interp_field : 1-dimensional array of shape `(n_pos, )`.
     """
     dx = dist[1] - dist[0]
-    assert numpy.allclose(dist[1:] - dist[:-1], dx)
+    assert np.allclose(dist[1:] - dist[:-1], dx)
     assert angpos.ndim == 2 and dist.ndim == 1
 
     # We loop over the angular directions, at each step evaluating a vector
     # of distances. We pre-allocate arrays for speed.
-    dir_loop = numpy.full((dist.size, 3), numpy.nan, dtype=numpy.float32)
+    dir_loop = np.full((dist.size, 3), np.nan, dtype=np.float32)
 
     ndir = angpos.shape[0]
-    out = numpy.full(ndir, numpy.nan, dtype=numpy.float32)
+    out = np.full(ndir, np.nan, dtype=np.float32)
     for i in trange(ndir) if verbose else range(ndir):
         dir_loop[:, 0] = dist
         dir_loop[:, 1] = angpos[i, 0]
         dir_loop[:, 2] = angpos[i, 1]
 
-        out[i] = numpy.sum(
+        out[i] = np.sum(
             dist**2 * evaluate_sky(field, pos=dir_loop, mpc2box=1 / boxsize))
 
     # Assuming the field is in h^2 Msun / kpc**3, we need to convert Mpc / h
     # to kpc / h and multiply by the pixel area.
-    out *= dx * 1e9 * 4 * numpy.pi / len(angpos)
+    out *= dx * 1e9 * 4 * np.pi / len(angpos)
     return out
 
 
@@ -432,8 +430,7 @@ def field_at_distance(field, distance, boxsize, smooth_scales=None, nside=128,
     # box Cartesian coordinates. We take HEALPix pixels because they are
     # uniformly distributed on the sky.
     angpos = nside2radec(nside)
-    X = numpy.hstack([numpy.ones(len(angpos)).reshape(-1, 1) * distance,
-                      angpos])
+    X = np.hstack([np.ones(len(angpos)).reshape(-1, 1) * distance, angpos])
     X = radec_to_cartesian(X) / boxsize + 0.5
 
     return evaluate_cartesian_cic(field, pos=X, smooth_scales=smooth_scales,
@@ -448,8 +445,8 @@ def field_at_distance(field, distance, boxsize, smooth_scales=None, nside=128,
 @jit(nopython=True)
 def make_gridpos(grid_size):
     """Make a regular grid of positions and distances from the center."""
-    grid_pos = numpy.full((grid_size**3, 3), numpy.nan, dtype=numpy.float32)
-    grid_dist = numpy.full(grid_size**3, numpy.nan, dtype=numpy.float32)
+    grid_pos = np.full((grid_size**3, 3), np.nan, dtype=np.float32)
+    grid_dist = np.full(grid_size**3, np.nan, dtype=np.float32)
 
     n = 0
     for i in range(grid_size):
@@ -507,8 +504,8 @@ def field2rsp(field, radvel_field, box, MAS, init_value=0.):
     grid_pos += 0.5
     grid_pos = periodic_wrap_grid(grid_pos)
 
-    rsp_field = numpy.full(field.shape, init_value, dtype=numpy.float32)
-    cell_counts = numpy.zeros(rsp_field.shape, dtype=numpy.float32)
+    rsp_field = np.full(field.shape, init_value, dtype=np.float32)
+    cell_counts = np.zeros(rsp_field.shape, dtype=np.float32)
 
     # Interpolate the field to the grid positions.
     MASL.MA(grid_pos, rsp_field, 1., MAS, W=field.reshape(-1,))
@@ -554,6 +551,6 @@ def smoothen_field(field, smooth_scale, boxsize, threads=1, make_copy=False):
                        threads)
 
     if make_copy:
-        field = numpy.copy(field)
+        field = np.copy(field)
 
     return SL.field_smoothing(field, W_k, threads)
