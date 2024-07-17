@@ -82,7 +82,7 @@ class DataLoader:
         self._cat = self._read_catalogue(catalogue, catalogue_fpath)
         self._catname = catalogue
 
-        fprint("reading the interpolated field,", verbose)
+        fprint("reading the interpolated field.", verbose)
         self._field_rdist, self._los_density, self._los_velocity, self._rmax = self._read_field(  # noqa
             simname, ksim, catalogue, ksmooth, paths)
 
@@ -467,7 +467,6 @@ def predict_zobs(dist, beta, Vext_radial, vpec_radial, Omega_m):
     velocity field.
     """
     zcosmo = dist2redshift(dist, Omega_m)
-
     vrad = beta * vpec_radial + Vext_radial
     return (1 + zcosmo) * (1 + vrad / SPEED_OF_LIGHT) - 1
 
@@ -841,8 +840,7 @@ def get_model(loader, zcmb_max=None, verbose=True):
     else:
         raise ValueError(f"Catalogue `{kind}` not recognized.")
 
-    if verbose:
-        print(f"Selected {np.sum(mask)}/{len(mask)} galaxies.", flush=True)
+    fprint(f"selected {np.sum(mask)}/{len(mask)} galaxies.")
 
     return model
 
@@ -855,13 +853,19 @@ def get_model(loader, zcmb_max=None, verbose=True):
 def _posterior_element(r, beta, Vext_radial, los_velocity, Omega_m, zobs,
                        sigma_v, alpha, dVdOmega, los_density):
     """
-    Helper function function to compute the unnormalized posterior in
+    Helper function function to compute the normalized posterior in
     `Observed2CosmologicalRedshift`.
     """
     zobs_pred = predict_zobs(r, beta, Vext_radial, los_velocity, Omega_m)
-    likelihood = calculate_likelihood_zobs(zobs, zobs_pred, sigma_v)
-    prior = dVdOmega * los_density**alpha
-    return likelihood * prior
+    # likelihood term
+    dcz = SPEED_OF_LIGHT * (zobs - zobs_pred)
+    posterior = jnp.exp(-0.5 * dcz**2 / sigma_v**2) / jnp.sqrt(2 * jnp.pi * sigma_v**2)  # noqa
+    # prior term
+    posterior *= dVdOmega * los_density**alpha
+    # normalize the posterior
+    posterior /= simpson(posterior, x=r)
+
+    return posterior
 
 
 class BaseObserved2CosmologicalRedshift(ABC):
@@ -871,10 +875,10 @@ class BaseObserved2CosmologicalRedshift(ABC):
         for i, key in enumerate(calibration_samples.keys()):
             x = calibration_samples[key]
             if not isinstance(x, (np.ndarray, jnp.ndarray)):
-                raise ValueError(f"Calibration sample {x} must be an array.")
+                raise ValueError(f"Calibration sample `{key}` must be an array.")  # noqa
 
-            if x.ndim != 1:
-                raise ValueError(f"Calibration samples {x} must be 1D.")
+            if x.ndim != 1 and key != "Vext":
+                raise ValueError(f"Calibration samples `{key}` must be 1D.")
 
             if i == 0:
                 ncalibratrion = len(x)
@@ -900,12 +904,7 @@ class BaseObserved2CosmologicalRedshift(ABC):
         self._ncalibration_samples = ncalibratrion
 
         # It is best to JIT compile the functions right here.
-        self._vmap_simps = jit(vmap(lambda y: simpson(y, dx=dr)))
-        axs = (0, None, None, 0, None, None, None, None, 0, 0)
-        self._vmap_posterior_element = vmap(_posterior_element, in_axes=axs)
-        self._vmap_posterior_element = jit(self._vmap_posterior_element)
-
-        self._simps = jit(lambda y: simpson(y, dx=dr))
+        self._jit_posterior_element = jit(_posterior_element)
 
     def get_calibration_samples(self, key):
         """Get calibration samples for a given key."""
@@ -933,8 +932,8 @@ class Observed2CosmologicalRedshift(BaseObserved2CosmologicalRedshift):
     Parameters
     ----------
     calibration_samples : dict
-        Dictionary of flow calibration samples (`alpha`, `beta`, `Vext_x`,
-        `Vext_y`, `Vext_z`, `sigma_v`, ...).
+        Dictionary of flow calibration samples (`alpha`, `beta`, `Vext`,
+        `sigma_v`, ...).
     r_xrange : 1-dimensional array
         Radial comoving distances where the fields are interpolated for each
         object.
@@ -956,11 +955,9 @@ class Observed2CosmologicalRedshift(BaseObserved2CosmologicalRedshift):
     def posterior_mean_std(self, x, px):
         """
         Calculate the mean and standard deviation of a 1-dimensional PDF.
-        Assumes that the PDF is already normalized and that the spacing is that
-        of `r_xrange` which is inferred when initializing this class.
         """
-        mu = self._simps(x * px)
-        std = (self._simps(x**2 * px) - mu**2)**0.5
+        mu = simpson(x * px, x=x)
+        std = (simpson(x**2 * px, x=x) - mu**2)**0.5
         return mu, std
 
     def posterior_zcosmo(self, zobs, RA, dec, los_density, los_velocity,
@@ -990,11 +987,8 @@ class Observed2CosmologicalRedshift(BaseObserved2CosmologicalRedshift):
         posterior : 1-dimensional array
             Posterior PDF.
         """
-        Vext_radial = project_Vext(
-            self.get_calibration_samples("Vext_x"),
-            self.get_calibration_samples("Vext_y"),
-            self.get_calibration_samples("Vext_z"),
-            RA, dec)
+        Vext = self.get_calibration_samples("Vext")
+        Vext_radial = project_Vext(*[Vext[:, i] for i in range(3)], RA, dec)
 
         alpha = self.get_calibration_samples("alpha")
         beta = self.get_calibration_samples("beta")
@@ -1007,13 +1001,12 @@ class Observed2CosmologicalRedshift(BaseObserved2CosmologicalRedshift):
                              dtype=np.float32)
         for i in trange(self.ncalibration_samples, desc="Marginalizing",
                         disable=not verbose):
-            posterior[i] = self._vmap_posterior_element(
+            posterior[i] = self._jit_posterior_element(
                 self._r_xrange, beta[i], Vext_radial[i], los_velocity,
                 self._Omega_m, zobs, sigma_v[i], alpha[i], self._dVdOmega,
                 los_density)
 
         # Normalize the posterior for each flow sample and then stack them.
-        posterior /= self._vmap_simps(posterior).reshape(-1, 1)
         posterior = jnp.nanmean(posterior, axis=0)
 
         return self._zcos_xrange, posterior
