@@ -352,7 +352,8 @@ def binned_statistic(x, y, left_edges, bin_width, statistic):
 def fprint(msg, verbose=True):
     """Print and flush a message with a timestamp."""
     if verbose:
-        print(f"{datetime.now()}:   {msg}", flush=True)
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        print(f"{timestamp}   {msg}", flush=True)
 
 
 ###############################################################################
