@@ -83,7 +83,7 @@ class DataLoader:
         self._catname = catalogue
 
         fprint("reading the interpolated field,", verbose)
-        self._field_rdist, self._los_density, self._los_velocity = self._read_field(  # noqa
+        self._field_rdist, self._los_density, self._los_velocity, self._rmax = self._read_field(  # noqa
             simname, ksim, catalogue, ksmooth, paths)
 
         if len(self._field_rdist) % 2 == 0:
@@ -184,6 +184,14 @@ class DataLoader:
         return self._los_velocity[:, :, self._mask, ...]
 
     @property
+    def rmax(self):
+        """
+        Radial distance above which the underlying reconstruction is
+        extrapolated `(n_sims, n_objects)`.
+        """
+        return self._rmax[:, self._mask]
+
+    @property
     def los_radial_velocity(self):
         """
         Radial velocity along the line of sight `(n_sims, n_objects, n_steps)`.
@@ -205,6 +213,7 @@ class DataLoader:
 
         los_density = [None] * len(ksims)
         los_velocity = [None] * len(ksims)
+        rmax = [None] * len(ksims)
 
         for n, ksim in enumerate(ksims):
             nsim = nsims[ksim]
@@ -219,11 +228,13 @@ class DataLoader:
                 los_density[n] = f[f"density_{nsim}"][indx]
                 los_velocity[n] = f[f"velocity_{nsim}"][indx]
                 rdist = f[f"rdist_{nsim}"][...]
+                rmax[n] = f[f"rmax_{nsim}"][indx]
 
         los_density = np.stack(los_density)
         los_velocity = np.stack(los_velocity)
+        rmax = np.stack(rmax)
 
-        return rdist, los_density, los_velocity
+        return rdist, los_density, los_velocity, rmax
 
     def _read_catalogue(self, catalogue, catalogue_fpath):
         if catalogue == "A2":
@@ -473,14 +484,13 @@ def calculate_ptilde_wo_bias(xrange, mu, err_squared, r_squared_xrange):
     return ptilde
 
 
-def calculate_likelihood_zobs(zobs, zobs_pred, sigma_v):
+def calculate_likelihood_zobs(zobs, zobs_pred, e2_cz):
     """
     Calculate the likelihood of the observed redshift given the predicted
     redshift.
     """
     dcz = SPEED_OF_LIGHT * (zobs[:, None] - zobs_pred)
-    sigma_v = sigma_v[:, None]
-    return jnp.exp(-0.5 * (dcz / sigma_v)**2) / jnp.sqrt(2 * np.pi) / sigma_v
+    return jnp.exp(-0.5 * dcz**2 / e2_cz) / jnp.sqrt(2 * np.pi * e2_cz)
 
 ###############################################################################
 #                          Base flow validation                               #
@@ -598,32 +608,41 @@ def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std):
 
 def sample_calibration(Vext_min, Vext_max, Vmono_min, Vmono_max,
                        alpha_min, alpha_max, beta_min, beta_max, sigma_v_min,
-                       sigma_v_max, sample_Vmono, sample_alpha, sample_beta):
+                       sigma_v_max, sample_Vmono, sample_alpha, sample_beta,
+                       sample_sigma_v_ext):
     """Sample the flow calibration."""
     Vext = sample("Vext", Uniform(Vext_min, Vext_max).expand([3]))
     sigma_v = sample("sigma_v", Uniform(sigma_v_min, sigma_v_max))
 
-    if sample_Vmono:
-        Vmono = sample("Vmono", Uniform(Vmono_min, Vmono_max))
-    else:
-        Vmono = 0.0
 
-    if sample_alpha:
-        alpha = sample("alpha", Uniform(alpha_min, alpha_max))
-    else:
-        alpha = 1.0
+    alpha = sample("alpha", Uniform(alpha_min, alpha_max)) if sample_alpha else 1.0                            # noqa
+    beta = sample("beta", Uniform(beta_min, beta_max)) if sample_beta else 1.0                                 # noqa
+    Vmono = sample("Vmono", Uniform(Vmono_min, Vmono_max)) if sample_Vmono else 0.0                            # noqa
+    sigma_v_ext = sample("sigma_v_ext", Uniform(sigma_v_min, sigma_v_max)) if sample_sigma_v_ext else sigma_v  # noqa
 
-    if sample_beta:
-        beta = sample("beta", Uniform(beta_min, beta_max))
-    else:
-        beta = 1.0
-
-    return Vext, Vmono, sigma_v, alpha, beta
+    return Vext, Vmono, sigma_v, sigma_v_ext, alpha, beta
 
 
 ###############################################################################
 #                            PV calibration model                             #
 ###############################################################################
+
+
+def find_extrap_mask(rmax, rdist):
+    """
+    Make a mask of shape `(nsim, ngal, nrdist)` of which velocity field values
+    are extrapolated. above which the
+    """
+    nsim, ngal = rmax.shape
+    extrap_mask = np.zeros((nsim, ngal, len(rdist)), dtype=bool)
+    extrap_weights = np.ones((nsim, ngal, len(rdist)))
+    for i in range(nsim):
+        for j in range(ngal):
+            k = np.searchsorted(rdist, rmax[i, j])
+            extrap_mask[i, j, k:] = True
+            extrap_weights[i, j, k:] = rmax[i, j] / rdist[k:]
+
+    return extrap_mask, extrap_weights
 
 
 class PV_validation_model(BaseFlowValidationModel):
@@ -636,6 +655,9 @@ class PV_validation_model(BaseFlowValidationModel):
         LOS density field.
     los_velocity : 3-dimensional array of shape (n_sims, n_objects, n_steps)
         LOS radial velocity field.
+    rmax : 1-dimensional array of shape (n_sims, n_objects)
+        Radial distance above which the underlying reconstruction is
+        extrapolated.
     RA, dec : 1-dimensional arrays of shape (n_objects)
         Right ascension and declination in degrees.
     z_obs : 1-dimensional array of shape (n_objects)
@@ -650,7 +672,7 @@ class PV_validation_model(BaseFlowValidationModel):
         Matter density parameter.
     """
 
-    def __init__(self, los_density, los_velocity, RA, dec, z_obs,
+    def __init__(self, los_density, los_velocity, rmax, RA, dec, z_obs,
                  e_zobs, calibration_params, r_xrange, Omega_m, kind):
         if e_zobs is not None:
             e2_cz_obs = jnp.asarray((SPEED_OF_LIGHT * e_zobs)**2)
@@ -661,9 +683,9 @@ class PV_validation_model(BaseFlowValidationModel):
         RA = np.deg2rad(RA)
         dec = np.deg2rad(dec)
 
-        names = ["los_density", "los_velocity", "RA", "dec", "z_obs",
+        names = ["los_density", "los_velocity", "rmax", "RA", "dec", "z_obs",
                  "e2_cz_obs"]
-        values = [los_density, los_velocity, RA, dec, z_obs, e2_cz_obs]
+        values = [los_density, los_velocity, rmax, RA, dec, z_obs, e2_cz_obs]
         self._setattr_as_jax(names, values)
         self._set_calibration_params(calibration_params)
         self._set_radial_spacing(r_xrange, Omega_m)
@@ -672,11 +694,23 @@ class PV_validation_model(BaseFlowValidationModel):
         self.Omega_m = Omega_m
         self.norm = - self.ndata * jnp.log(self.num_sims)
 
+        extrap_mask, extrap_weights = find_extrap_mask(rmax, r_xrange)
+        self.extrap_mask = jnp.asarray(extrap_mask)
+        self.extrap_weights = jnp.asarray(extrap_weights)
+
     def __call__(self, calibration_hyperparams, distmod_hyperparams,
                  store_ll_all=False):
         """NumPyro PV validation model."""
-        Vext, Vmono, sigma_v, alpha, beta = sample_calibration(**calibration_hyperparams)  # noqa
-        cz_err = jnp.sqrt(sigma_v**2 + self.e2_cz_obs)
+        Vext, Vmono, sigma_v, sigma_v_ext, alpha, beta = sample_calibration(**calibration_hyperparams)  # noqa
+        # Turn e2_cz to be of shape (nsims, ndata, nxrange) and apply
+        # sigma_v_ext where applicable
+        e2_cz = jnp.full_like(self.extrap_mask, sigma_v**2, dtype=jnp.float32)
+        if calibration_hyperparams["sample_sigma_v_ext"]:
+            e2_cz = e2_cz.at[self.extrap_mask].set(sigma_v_ext**2)
+
+        # Now add the observational errors
+        e2_cz += self.e2_cz_obs[None, :, None]
+
         Vext_rad = project_Vext(Vext[0], Vext[1], Vext[2], self.RA, self.dec)
 
         if self.kind == "SN":
@@ -700,10 +734,13 @@ class PV_validation_model(BaseFlowValidationModel):
         pnorm = simpson(ptilde, dx=self.dr, axis=-1)
 
         # Calculate z_obs at each distance. Shape is (n_sims, ndata, nxrange)
-        vrad = beta * self.los_velocity + Vext_rad[None, :, None] + Vmono
+        # The weights are related to the extrapolation of the velocity field.
+        vrad = beta * self.los_velocity
+        vrad += (Vext_rad[None, :, None] + Vmono) * self.extrap_weights
         zobs = (1 + self.z_xrange[None, None, :]) * (1 + vrad / SPEED_OF_LIGHT) - 1  # noqa
 
-        ptilde *= calculate_likelihood_zobs(self.z_obs, zobs, cz_err)
+        ptilde *= calculate_likelihood_zobs(self.z_obs, zobs, e2_cz)
+        # ptilde *= calculate_likelihood_zobs(self.z_obs, zobs, sigma_v)
         ll = jnp.log(simpson(ptilde, dx=self.dr, axis=-1)) - jnp.log(pnorm)
 
         if store_ll_all:
@@ -740,6 +777,7 @@ def get_model(loader, zcmb_max=None, verbose=True):
 
     los_overdensity = loader.los_density
     los_velocity = loader.los_radial_velocity
+    rmax = loader.rmax
     kind = loader._catname
 
     if kind in ["LOSS", "Foundation"]:
@@ -753,10 +791,9 @@ def get_model(loader, zcmb_max=None, verbose=True):
                               "e_c": e_c[mask]}
 
         model = PV_validation_model(
-            los_overdensity[:, mask], los_velocity[:, mask], RA[mask],
-            dec[mask], zCMB[mask], e_zCMB, calibration_params,
+            los_overdensity[:, mask], los_velocity[:, mask], rmax[:, mask],
+            RA[mask], dec[mask], zCMB[mask], e_zCMB, calibration_params,
             loader.rdist, loader._Omega_m, "SN")
-        # return model_old, model
     elif "Pantheon+" in kind:
         keys = ["RA", "DEC", "zCMB", "mB", "x1", "c", "biasCor_m_b", "mBERR",
                 "x1ERR", "cERR", "biasCorErr_m_b", "zCMB_SN", "zCMB_Group",
@@ -766,7 +803,7 @@ def get_model(loader, zcmb_max=None, verbose=True):
         mB -= bias_corr_mB
         e_mB = np.sqrt(e_mB**2 + e_bias_corr_mB**2)
 
-        mask = (zCMB < zcmb_max)
+        mask = zCMB < zcmb_max
 
         if kind == "Pantheon+_groups":
             mask &= np.isfinite(zCMB_Group)
@@ -782,8 +819,8 @@ def get_model(loader, zcmb_max=None, verbose=True):
                               "e_mB": e_mB[mask], "e_x1": e_x1[mask],
                               "e_c": e_c[mask]}
         model = PV_validation_model(
-            los_overdensity[:, mask], los_velocity[:, mask], RA[mask],
-            dec[mask], zCMB[mask], e_zCMB[mask], calibration_params,
+            los_overdensity[:, mask], los_velocity[:, mask], rmax[:, mask],
+            RA[mask], dec[mask], zCMB[mask], e_zCMB[mask], calibration_params,
             loader.rdist, loader._Omega_m, "SN")
     elif kind in ["SFI_gals", "2MTF", "SFI_gals_masked"]:
         keys = ["RA", "DEC", "z_CMB", "mag", "eta", "e_mag", "e_eta"]
@@ -798,9 +835,9 @@ def get_model(loader, zcmb_max=None, verbose=True):
         calibration_params = {"mag": mag[mask], "eta": eta[mask],
                               "e_mag": e_mag[mask], "e_eta": e_eta[mask]}
         model = PV_validation_model(
-            los_overdensity[:, mask], los_velocity[:, mask], RA[mask],
-            dec[mask], zCMB[mask], None, calibration_params, loader.rdist,
-            loader._Omega_m, "TFR")
+            los_overdensity[:, mask], los_velocity[:, mask], rmax[:, mask],
+            RA[mask], dec[mask], zCMB[mask], None, calibration_params,
+            loader.rdist, loader._Omega_m, "TFR")
     else:
         raise ValueError(f"Catalogue `{kind}` not recognized.")
 
