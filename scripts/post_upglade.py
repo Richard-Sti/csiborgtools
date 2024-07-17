@@ -23,6 +23,7 @@ from os.path import join
 
 import csiborgtools
 import numpy as np
+from csiborgtools import fprint
 from h5py import File
 from mpi4py import MPI
 from taskmaster import work_delegation  # noqa
@@ -35,27 +36,35 @@ def t():
     return datetime.now().strftime("%H:%M:%S")
 
 
-def load_calibration(catalogue, simname, nsim, ksmooth, verbose=False):
+def load_calibration(catalogue, simname, ksmooth, sample_beta,
+                     verbose=False):
     """Load the pre-computed calibration samples."""
-    fname = f"/mnt/extraspace/rstiskalek/csiborg_postprocessing/peculiar_velocity/flow_samples_{catalogue}_{simname}_smooth_{ksmooth}.hdf5"  # noqa
-    keys = ["Vext_x", "Vext_y", "Vext_z", "alpha", "beta", "sigma_v"]
+    fname = f"/mnt/extraspace/rstiskalek/csiborg_postprocessing/peculiar_velocity/samples_{simname}_{catalogue}_ksmooth{ksmooth}.hdf5"  # noqa
+    if sample_beta:
+        fname = fname.replace(".hdf5", "_sample_beta.hdf5")
 
+    keys = ["Vext", "sigma_v", "alpha", "beta"]
     calibration_samples = {}
     with File(fname, 'r') as f:
-        for key in keys:
+        for n, key in enumerate(keys):
+            # In case alpha wasn't sampled just set to 1
+            if key == "alpha" and "alpha" not in f["samples"].keys():
+                calibration_samples[key] = np.full_like(
+                    calibration_samples["sigma_v"], 1.0)
+                continue
+
             # NOTE: here the posterior samples are down-sampled
-            calibration_samples[key] = f[f"sim_{nsim}/{key}"][:][::10]
+            calibration_samples[key] = f[f"samples/{key}"][:][::10]
 
-    if verbose:
-        k = list(calibration_samples.keys())[0]
-        nsamples = len(calibration_samples[k])
-        print(f"{t()}: found {nsamples} calibration posterior samples.",
-              flush=True)
+            if n == 0:
+                num_samples_original = len(f[f"samples/{key}"])
+                num_samples_final = len(calibration_samples[key])
 
+    fprint(f"downsampling calibration samples from {num_samples_original} to {num_samples_final}.", verbose=verbose) # noqa
     return calibration_samples
 
 
-def main(loader, model, indxs, fdir, fname, num_split, verbose):
+def main(loader, nsim, model, indxs, fdir, fname, num_split, verbose):
     out = np.full(
         len(indxs), np.nan,
         dtype=[("mean_zcosmo", float), ("std_zcosmo", float)])
@@ -65,7 +74,7 @@ def main(loader, model, indxs, fdir, fname, num_split, verbose):
                                disable=not verbose)):
         x, y = model.posterior_zcosmo(
             loader.cat["zcmb"][n], loader.cat["RA"][n], loader.cat["DEC"][n],
-            loader.los_density[n], loader.los_radial_velocity[n],
+            loader.los_density[nsim, n], loader.los_radial_velocity[nsim, n],
             extra_sigma_v=loader.cat["e_zcmb"][n] * SPEED_OF_LIGHT,
             verbose=False)
 
@@ -98,7 +107,7 @@ if __name__ == "__main__":
 
     # Galaxy sample parameters
     catalogue = "UPGLADE"
-    fpath_data = "/mnt/users/rstiskalek/csiborgtools/data/upglade_z_0p05_all_PROCESSED.h5"  # noqa
+    fpath_data = "/mnt/users/rstiskalek/csiborgtools/data/upglade_all_z0p05_new_PROCESSED.h5"  # noqa
 
     # Number of splits for MPI
     nsplits = 1000
@@ -112,12 +121,14 @@ if __name__ == "__main__":
         simname, nsim, catalogue, fpath_data, paths, ksmooth=ksmooth,
         verbose=rank == 0)
     calibration_samples = load_calibration(
-        catalogue_calibration, simname, nsim, ksmooth, verbose=rank == 0)
+        catalogue_calibration, simname, ksmooth, sample_beta=True,
+        verbose=rank == 0)
+
     model = csiborgtools.flow.Observed2CosmologicalRedshift(
         calibration_samples, loader.rdist, loader._Omega_m)
-    if rank == 0:
-        print(f"{t()}: the catalogue size is {loader.cat['zcmb'].size}.")
-        print(f"{t()}: loaded calibration samples and model.", flush=True)
+
+    fprint(f"catalogue size is {loader.cat['zcmb'].size}.", verbose=rank == 0)
+    fprint("loaded calibration samples and model.", verbose=rank == 0)
 
     # Decide how to split up the job
     if rank == 0:
@@ -131,7 +142,8 @@ if __name__ == "__main__":
 
     # Process all splits with MPI, the rank 0 delegates the jobs.
     def main_wrapper(n):
-        main(loader, model, split_indxs[n], fdir, fname, n, verbose=size == 1)
+        main(loader, nsim, model, split_indxs[n], fdir, fname, n,
+             verbose=size == 1)
 
     comm.Barrier()
     work_delegation(
