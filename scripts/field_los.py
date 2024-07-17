@@ -80,7 +80,7 @@ def get_los(catalogue_name, simname, comm):
                 RA = f["RA"][:]
                 dec = f["DEC"][:]
         elif catalogue_name == "UPGLADE":
-            fname = "/mnt/users/rstiskalek/csiborgtools/data/upglade_z_0p05_all_PROCESSED.h5"  # noqa
+            fname = "/mnt/users/rstiskalek/csiborgtools/data/upglade_all_z0p05_new_PROCESSED.h5"  # noqa
             with File(fname, 'r') as f:
                 RA = f["RA"][:]
                 dec = f["DEC"][:]
