@@ -26,10 +26,11 @@ import csiborgtools
 import numpy as np
 from astropy import units as u
 from astropy.coordinates import SkyCoord
+from astropy.io import fits
 from h5py import File
 from mpi4py import MPI
+from numba import jit
 from taskmaster import work_delegation  # noqa
-from astropy.io import fits
 
 from utils import get_nsims
 
@@ -242,6 +243,7 @@ def combine_from_simulations(catalogue_name, simname, nsims, outfolder,
             f_out.create_dataset(f"rdist_{nsim}", data=f["rdist"][:])
             f_out.create_dataset(f"density_{nsim}", data=f["density"][:])
             f_out.create_dataset(f"velocity_{nsim}", data=f["velocity"][:])
+            f_out.create_dataset(f"rmax_{nsim}", data=f["rmax"][:])
 
         # Remove the temporary file.
         remove(fname)
@@ -255,6 +257,30 @@ def combine_from_simulations(catalogue_name, simname, nsims, outfolder,
 ###############################################################################
 #                       Main interpolating function                           #
 ###############################################################################
+
+@jit(nopython=True)
+def find_index_of_first_nan(y):
+    for n in range(1, len(y)):
+        if np.isnan(y[n]):
+            return n
+
+    return None
+
+
+def replace_nan_with_last_finite(x, y, apply_decay):
+    n = find_index_of_first_nan(y)
+
+    if n is None:
+        return y, x[-1]
+
+    y[n:] = y[n-1]
+    rmax = x[n-1]
+
+    if apply_decay:
+        # Optionally aply 1 / r decay
+        y[n:] *= rmax / x[n:]
+
+    return y, rmax
 
 
 def interpolate_field(pos, simname, nsim, MAS, grid, dump_folder, rmax,
@@ -300,6 +326,14 @@ def interpolate_field(pos, simname, nsim, MAS, grid, dump_folder, rmax,
         smooth_scales=smooth_scales, verbose=verbose,
         interpolation_method="linear")
 
+    rmax_density = np.full((len(pos), len(smooth_scales)), np.nan)
+    for i in range(len(pos)):
+        for j in range(len(smooth_scales)):
+            y, current_rmax = replace_nan_with_last_finite(rdist, finterp[i, :, j], False)  # noqa
+            finterp[i, :, j] = y
+            if current_rmax is not None:
+                rmax_density[i, j] = current_rmax
+
     print(f"Writing temporary file `{fname_out}`.")
     with File(fname_out, 'w') as f:
         f.create_dataset("rdist", data=rdist)
@@ -318,8 +352,20 @@ def interpolate_field(pos, simname, nsim, MAS, grid, dump_folder, rmax,
         smooth_scales=smooth_scales, verbose=verbose,
         interpolation_method="linear")
 
+    rmax_velocity = np.full((3, len(pos), len(smooth_scales)), np.nan)
+    for k in range(3):
+        for i in range(len(pos)):
+            for j in range(len(smooth_scales)):
+                y, current_rmax = replace_nan_with_last_finite(rdist, finterp[k][i, :, j], True)  # noqa
+                finterp[k][i, :, j] = y
+                if current_rmax is not None:
+                    rmax_velocity[k, i, j] = current_rmax
+    rmax_velocity = np.min(rmax_velocity, axis=0)
+
+    rmax = np.minimum(rmax_density, rmax_velocity)
     with File(fname_out, 'a') as f:
         f.create_dataset("velocity", data=finterp)
+        f.create_dataset("rmax", data=rmax)
 
 
 ###############################################################################
@@ -339,8 +385,8 @@ if __name__ == "__main__":
     parser.add_argument("--grid", type=int, help="Grid resolution.")
     args = parser.parse_args()
 
-    rmax = 200
-    dr = 0.25
+    rmax = 300
+    dr = 0.5
     smooth_scales = [0]
 
     comm = MPI.COMM_WORLD
