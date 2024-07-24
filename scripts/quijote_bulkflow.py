@@ -15,6 +15,9 @@
 """
 A script to calculate the bulk flow in Quijote simulations from either
 particles or FoF haloes and to also save the resulting smaller halo catalogues.
+
+If `Rmin > 0` the bulk flows computed from projected radial velocities are
+wrong, but the 3D volume average bulk flows are still correct.
 """
 from datetime import datetime
 from os.path import join
@@ -70,7 +73,7 @@ def volume_bulk_flow(rdist, mass, vel, distances):
 ###############################################################################
 
 
-def main(nsim, folder, fname_basis, Rmax, subtract_observer_velocity,
+def main(nsim, folder, fname_basis, Rmin, Rmax, subtract_observer_velocity,
          verbose=True):
     boxsize = csiborgtools.simname2boxsize("quijote")
     observers = csiborgtools.read.fiducial_observers(boxsize, Rmax)
@@ -100,6 +103,11 @@ def main(nsim, folder, fname_basis, Rmax, subtract_observer_velocity,
             return_distance=True, sort_results=True)
         rdist_part, indxs = rdist_part[0], indxs[0]
 
+        # And only the ones that are above Rmin
+        mask = rdist_part > Rmin
+        rdist_part = rdist_part[mask]
+        indxs = indxs[mask]
+
         part_pos_current = part_pos[indxs] - observers[i]
         part_vel_current = part_vel[indxs]
         # Quijote particle masses are all equal
@@ -110,13 +118,16 @@ def main(nsim, folder, fname_basis, Rmax, subtract_observer_velocity,
             np.asarray(observers[i]).reshape(1, -1), Rmax,
             return_distance=True, sort_results=True)
         rdist_halo, indxs = rdist_halo[0], indxs[0]
+        mask = rdist_halo > Rmin
+        rdist_halo = rdist_halo[mask]
+        indxs = indxs[mask]
 
         halo_pos_current = halo_pos[indxs] - observers[i]
         halo_vel_current = halo_vel[indxs]
         halo_mass_current = halo_mass[indxs]
 
         # Subtract the observer velocity
-        rscale = 0.5  # Mpc / h
+        rscale = 2.0  # Mpc / h
         weights = np.exp(-0.5 * (rdist_part / rscale)**2)
         obs_vel_x = np.average(part_vel_current[:, 0], weights=weights)
         obs_vel_y = np.average(part_vel_current[:, 1], weights=weights)
@@ -162,7 +173,7 @@ def main(nsim, folder, fname_basis, Rmax, subtract_observer_velocity,
             "halo_mass": halo_mass_current}
 
     # Finally save the output
-    fname = join(folder, f"{fname_basis}_{nsim}.hdf5")
+    fname = join(folder, f"{fname_basis}_{nsim}_from_{Rmin}_to_{Rmax}.hdf5")
     if verbose:
         print(f"Saving to `{fname}`.")
     with File(fname, 'w') as f:
@@ -183,7 +194,8 @@ def main(nsim, folder, fname_basis, Rmax, subtract_observer_velocity,
 
 
 if __name__ == "__main__":
-    Rmax = 150
+    Rmin = 20
+    Rmax = 250
     subtract_observer_velocity = True
     folder = "/mnt/extraspace/rstiskalek/quijote/BulkFlow_fiducial"
     fname_basis = "sBF_nsim" if subtract_observer_velocity else "BF_nsim"
@@ -195,7 +207,7 @@ if __name__ == "__main__":
     nsims = list(paths.get_ics("quijote"))
 
     def main_wrapper(nsim):
-        main(nsim, folder, fname_basis, Rmax, subtract_observer_velocity,
+        main(nsim, folder, fname_basis, Rmin, Rmax, subtract_observer_velocity,
              verbose=rank == 0)
 
     if rank == 0:
