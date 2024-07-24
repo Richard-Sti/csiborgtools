@@ -1,4 +1,4 @@
-nthreads=20
+nthreads=12
 memory=24
 on_login=0
 queue="berg"
