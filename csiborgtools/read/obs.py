@@ -19,15 +19,14 @@ from abc import ABC, abstractmethod
 from os.path import join
 from warnings import warn
 
-import numpy
+import numpy as np
 from astropy import units
 from astropy.coordinates import SkyCoord
-from astropy.io import fits
 from astropy.cosmology import FlatLambdaCDM
+from astropy.io import fits
 from scipy import constants
 
-from ..utils import radec_to_cartesian
-
+from ..utils import fprint, radec_to_cartesian
 
 ###############################################################################
 #                           Text survey base class                            #
@@ -107,11 +106,11 @@ class TwoMPPGalaxies(TextSurvey):
         from scipy.constants import c
 
         # Read the catalogue and select non-fake galaxies
-        cat = numpy.genfromtxt(fpath, delimiter="|", )
+        cat = np.genfromtxt(fpath, delimiter="|", )
         cat = cat[cat[:, 12] == 0, :]
         # Pre=allocate array and fillt it
-        cols = [("RA", numpy.float64), ("DEC", numpy.float64),
-                ("Ksmag", numpy.float64), ("ZCMB", numpy.float64)]
+        cols = [("RA", np.float64), ("DEC", np.float64),
+                ("Ksmag", np.float64), ("ZCMB", np.float64)]
         data = cols_to_structured(cat.shape[0], cols)
         data["RA"] = cat[:, 1]
         data["DEC"] = cat[:, 2]
@@ -151,11 +150,11 @@ class TwoMPPGroups(TextSurvey):
         self._set_data(fpath)
 
     def _set_data(self, fpath):
-        cat = numpy.genfromtxt(fpath, delimiter="|", )
+        cat = np.genfromtxt(fpath, delimiter="|", )
         # Pre-allocate and fill the array
-        cols = [("RA", numpy.float64), ("DEC", numpy.float64),
-                ("K2mag", numpy.float64), ("Rich", numpy.int64),
-                ("sigma", numpy.float64)]
+        cols = [("RA", np.float64), ("DEC", np.float64),
+                ("K2mag", np.float64), ("Rich", np.int64),
+                ("sigma", np.float64)]
         data = cols_to_structured(cat.shape[0], cols)
         data["K2mag"] = cat[:, 3]
         data["Rich"] = cat[:, 4]
@@ -238,7 +237,7 @@ class FitsSurvey(ABC):
     def masked_size(self):
         if self.selection_mask is None:
             return self.size
-        return numpy.sum(self.selection_mask)
+        return np.sum(self.selection_mask)
 
     @property
     def selection_mask(self):
@@ -247,7 +246,7 @@ class FitsSurvey(ABC):
 
     @selection_mask.setter
     def selection_mask(self, mask):
-        if not (isinstance(mask, numpy.ndarray)
+        if not (isinstance(mask, np.ndarray)
                 and mask.ndim == 1
                 and mask.dtype == bool):
             raise TypeError("`selection_mask` must be a 1-dimensional boolean "
@@ -307,9 +306,9 @@ class FitsSurvey(ABC):
         if key == "INDEX":
             mask = self.selection_mask
             if mask is None:
-                return numpy.arange(self.size)
+                return np.arange(self.size)
             else:
-                return numpy.arange(mask.size)[mask]
+                return np.arange(mask.size)[mask]
 
         # Check duplicates
         if key in self.routine_keys and key in self.fits_keys:
@@ -407,7 +406,7 @@ class PlanckClusters(FitsSurvey):
         -------
         indxs : list of int
             Array of MCXC indices to match the Planck array. If no counterpart
-            is found returns `numpy.nan`.
+            is found returns `np.nan`.
         """
         if not isinstance(mcxc, MCXCClusters):
             raise TypeError("`mcxc` must be `MCXCClusters` type.")
@@ -416,7 +415,7 @@ class PlanckClusters(FitsSurvey):
         planck_names = [name.decode() for name in self["MCXC"]]
         mcxc_names = [name for name in mcxc["MCXC"]]
 
-        indxs = [numpy.nan] * len(planck_names)
+        indxs = [np.nan] * len(planck_names)
         for i, name in enumerate(planck_names):
             if name == "":
                 continue
@@ -585,7 +584,7 @@ class SDSS(FitsSurvey):
     def size(self):
         mask = self.selection_mask
         if mask is not None:
-            return numpy.sum(mask)
+            return np.sum(mask)
         else:
             return self.get_fitsitem("ZDIST").size
 
@@ -598,7 +597,7 @@ class SDSS(FitsSurvey):
         self._check_in_list(band, self._bands, "band")
         k = self._bands.index(band)
         mag = self.get_fitsitem("{}_ABSMAG".format(photo))[:, k]
-        return mag + 5 * numpy.log10(self.h)
+        return mag + 5 * np.log10(self.h)
 
     def _kcorr(self, photo, band):
         """
@@ -616,7 +615,7 @@ class SDSS(FitsSurvey):
         lumdist = (1 + self.get_fitsitem("ZDIST")) * self._dist()
         absmag = self._absmag(photo, band)
         kcorr = self._kcorr(photo, band)
-        return absmag + 25 + 5 * numpy.log10(lumdist) + kcorr
+        return absmag + 25 + 5 * np.log10(lumdist) + kcorr
 
     def _colour(self, photo, band1, band2):
         """
@@ -698,7 +697,7 @@ class BaseSingleObservation(ABC):
     @spherical_pos.setter
     def spherical_pos(self, pos):
         if isinstance(pos, (list, tuple)):
-            pos = numpy.array(pos)
+            pos = np.array(pos)
 
         if not pos.shape == (3,):
             raise ValueError("`spherical_pos` must be a of shape (3,).")
@@ -765,6 +764,57 @@ class ObservedCluster(BaseSingleObservation):
 
 
 ###############################################################################
+#                           Pantheon+ data                                    #
+###############################################################################
+
+
+def read_pantheonplus_covariance(fname, ww, ):
+    """Read in a Pantheon+ covariance matrix."""
+    origlen = len(ww)
+    # Pantheon+SH0ES routine to read in the covariance matrix
+    with open(fname) as f:
+        # Keep this line, otherwise will fail
+        line = f.readline()  # noqa
+        n = int(np.sum(ww))
+        C = np.zeros((n, n))
+        ii = -1
+        jj = -1
+        for i in range(origlen):
+            jj = -1
+            if ww[i]:
+                ii += 1
+            for j in range(origlen):
+                if ww[j]:
+                    jj += 1
+                val = float(f.readline())
+                if ww[i]:
+                    if ww[j]:
+                        C[ii, jj] = val
+
+    return C
+
+
+def read_pantheonplus_data(fname_data, fname_covmat_statsys, fname_covmat_vpec,
+                           subtract_vpec, verbose=True):
+    """Read in the Pantheon+ covariance matrix."""
+    fprint("reading the Pantheon+ data.", verbose)
+    data = np.genfromtxt(fname_data, names=True, dtype=None, encoding=None)
+    ww = np.ones(len(data), dtype=bool)
+
+    fprint("reading the Pantheon+ STAT+SYS covariance matrix.", verbose)
+    C = read_pantheonplus_covariance(fname_covmat_statsys, ww)
+
+    if subtract_vpec:
+        fprint("reading the Pantheon+ VPEC covariance matrix.", verbose)
+        C_vpec = read_pantheonplus_covariance(fname_covmat_vpec, ww)
+
+    # Subtracting the VPEC covariance matrix from the STAT+SYS covariance
+    # matrix produces negative eigenvalues. Emailed Maria to ask about this.
+
+    return data, C, C_vpec
+
+
+###############################################################################
 #                           Utility functions                                 #
 ###############################################################################
 
@@ -786,10 +836,10 @@ def match_array_to_no_masking(arr, surv):
     dtype = arr.dtype
     if arr.ndim > 1:
         shape = arr.shape
-        out = numpy.full((surv.selection_mask.size, *shape[1:]), numpy.nan,
-                         dtype=dtype)
+        out = np.full((surv.selection_mask.size, *shape[1:]), np.nan,
+                      dtype=dtype)
     else:
-        out = numpy.full(surv.selection_mask.size, numpy.nan, dtype=dtype)
+        out = np.full(surv.selection_mask.size, np.nan, dtype=dtype)
 
     for i, indx in enumerate(surv["INDEX"]):
         out[indx] = arr[i]
@@ -808,4 +858,4 @@ def cols_to_structured(N, cols):
     names, formats = zip(*cols)
     dtype = {"names": names, "formats": formats}
 
-    return numpy.full(N, numpy.nan, dtype=dtype)
+    return np.full(N, np.nan, dtype=dtype)
