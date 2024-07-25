@@ -160,18 +160,17 @@ def get_field(simname, nsim, kind, MAS, grid):
             return field
         else:
             raise ValueError(f"Unknown field kind: `{kind}`.")
-    elif "CF4" in simname:
-        folder = "/mnt/extraspace/rstiskalek/catalogs"
+    elif simname == "CF4":
+        folder = "/mnt/extraspace/rstiskalek/catalogs/CF4"
         warn(f"Using local paths from `{folder}`.", RuntimeWarning)
 
         if kind == "density":
-            fpath = join(folder, "CF4_new_64-z008_delta.fits")
+            fpath = join(folder, f"CF4_new_128-z008_realization{nsim}_delta.fits")     # noqa
         elif kind == "velocity":
-            fpath = join(folder, "CF4_new_64-z008_velocity.fits")
+            fpath = join(folder, f"CF4_new_128-z008_realization{nsim}_velocity.fits")  # noqa
         else:
             raise ValueError(f"Unknown field kind: `{kind}`.")
 
-        fpath = fpath.replace("CF4", "CF4gp") if "CF4gp" in simname else fpath
         field = fits.open(fpath)[0].data
 
         # https://projets.ip2i.in2p3.fr//cosmicflows/ says to multiply by 52
