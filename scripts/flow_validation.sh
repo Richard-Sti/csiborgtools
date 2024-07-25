@@ -19,7 +19,7 @@ fi
 
 # Submit a job for each combination of simname, catalogue, ksim
 # for simname in "Lilow2024" "CF4" "CF4gp" "csiborg1" "csiborg2_main" "csiborg2X"; do
-for simname in "CF4"; do
+for simname in "Carrick2015"; do
 # for simname in "csiborg1" "csiborg2_main" "csiborg2X"; do
     for catalogue in "Foundation"; do
     # for catalogue in "2MTF"; do
