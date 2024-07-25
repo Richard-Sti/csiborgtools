@@ -853,17 +853,15 @@ def get_model(loader, zcmb_max=None, verbose=True):
 def _posterior_element(r, beta, Vext_radial, los_velocity, Omega_m, zobs,
                        sigma_v, alpha, dVdOmega, los_density):
     """
-    Helper function function to compute the normalized posterior in
+    Helper function function to compute the unnormalized posterior in
     `Observed2CosmologicalRedshift`.
     """
     zobs_pred = predict_zobs(r, beta, Vext_radial, los_velocity, Omega_m)
-    # likelihood term
+    # Likelihood term
     dcz = SPEED_OF_LIGHT * (zobs - zobs_pred)
     posterior = jnp.exp(-0.5 * dcz**2 / sigma_v**2) / jnp.sqrt(2 * jnp.pi * sigma_v**2)  # noqa
-    # prior term
+    # Prior term
     posterior *= dVdOmega * los_density**alpha
-    # normalize the posterior
-    posterior /= simpson(posterior, x=r)
 
     return posterior
 
@@ -1006,7 +1004,8 @@ class Observed2CosmologicalRedshift(BaseObserved2CosmologicalRedshift):
                 self._Omega_m, zobs, sigma_v[i], alpha[i], self._dVdOmega,
                 los_density)
 
-        # Normalize the posterior for each flow sample and then stack them.
+        # # Normalize the posterior for each flow sample and then stack them.
+        posterior /= simpson(posterior, x=self._zcos_xrange, axis=-1)[:, None]
         posterior = jnp.nanmean(posterior, axis=0)
 
         return self._zcos_xrange, posterior
