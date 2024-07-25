@@ -248,7 +248,7 @@ if __name__ == "__main__":
                                "beta_min": -1.0, "beta_max": 3.0,
                                "sigma_v_min": 1.0, "sigma_v_max": 750.,
                                "sample_Vmono": False,
-                               "sample_alpha": False,
+                               "sample_alpha": True,
                                "sample_beta": True,
                                "sample_sigma_v_ext": False,
                                }
