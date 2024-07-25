@@ -61,6 +61,8 @@ class Paths:
         Path to the TNG300-1 simulation directory.
     aux_cat_dir : str
         Path to the directory containing auxiliary catalogues.
+    CF4_dir : str
+        Path to the CosmicFlows4 directory with density & velocity fields.
     """
     def __init__(self,
                  csiborg1_srcdir,
@@ -72,7 +74,8 @@ class Paths:
                  borg1_dir,
                  borg2_dir,
                  tng300_1_dir,
-                 aux_cat_dir
+                 aux_cat_dir,
+                 CF4_dir,
                  ):
         self.csiborg1_srcdir = csiborg1_srcdir
         self.csiborg2_main_srcdir = csiborg2_main_srcdir
@@ -84,6 +87,7 @@ class Paths:
         self.tng300_1_dir = tng300_1_dir
         self.postdir = postdir
         self.aux_cat_dir = aux_cat_dir
+        self.CF4_dir = CF4_dir
 
     def get_ics(self, simname):
         """Get available IC realisation IDs for a given simulation."""
@@ -115,8 +119,11 @@ class Paths:
             files = [int(search(r'chain_(\d+)', f).group(1)) for f in files]
         elif simname == "Carrick2015":
             return [0]
-        elif simname in ["CF4", "CF4gp"]:
-            return [0]
+        elif simname == "CF4":
+            files = glob(join(self.CF4_dir, "CF4_new_128-z008_realization*_delta.fits"))  # noqa
+            files = [search(r'realization(\d+)_delta\.fits', file).group(1)
+                     for file in files if search(r'realization(\d+)_delta\.fits', file)]  # noqa
+            files = [int(file) for file in files]
         elif simname == "Lilow2024":
             return [0]
         else:
