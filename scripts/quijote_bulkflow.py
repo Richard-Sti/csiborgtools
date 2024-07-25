@@ -173,7 +173,7 @@ def main(nsim, folder, fname_basis, Rmin, Rmax, subtract_observer_velocity,
             "halo_mass": halo_mass_current}
 
     # Finally save the output
-    fname = join(folder, f"{fname_basis}_{nsim}_from_{Rmin}_to_{Rmax}.hdf5")
+    fname = join(folder, f"{fname_basis}_{nsim}.hdf5")
     if verbose:
         print(f"Saving to `{fname}`.")
     with File(fname, 'w') as f:
@@ -194,8 +194,8 @@ def main(nsim, folder, fname_basis, Rmin, Rmax, subtract_observer_velocity,
 
 
 if __name__ == "__main__":
-    Rmin = 20
-    Rmax = 250
+    Rmin = 0
+    Rmax = 150
     subtract_observer_velocity = True
     folder = "/mnt/extraspace/rstiskalek/quijote/BulkFlow_fiducial"
     fname_basis = "sBF_nsim" if subtract_observer_velocity else "BF_nsim"
