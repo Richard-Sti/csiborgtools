@@ -22,7 +22,6 @@ References
 [1] https://arxiv.org/abs/1912.09383.
 """
 from abc import ABC, abstractmethod
-from warnings import warn
 
 import numpy as np
 import numpyro
@@ -86,15 +85,6 @@ class DataLoader:
         self._field_rdist, self._los_density, self._los_velocity, self._rmax = self._read_field(  # noqa
             simname, ksim, catalogue, ksmooth, paths)
 
-        if len(self._field_rdist) % 2 == 0:
-            if verbose:
-                warn(f"The number of radial steps is even. Skipping the first "
-                     f"step at {self._field_rdist[0]} because Simpson's rule "
-                     "requires an odd number of steps.")
-            self._field_rdist = self._field_rdist[1:]
-            self._los_density = self._los_density[..., 1:]
-            self._los_velocity = self._los_velocity[..., 1:]
-
         if len(self._cat) != self._los_density.shape[1]:
             raise ValueError("The number of objects in the catalogue does not "
                              "match the number of objects in the field.")
@@ -139,7 +129,7 @@ class DataLoader:
         # But some CF4 delta values are < -1. Check that CF4 really reports
         # this.
         if simname in ["CF4", "CF4gp"]:
-            self._los_density = np.clip(self._los_density, 1e-5, None,)
+            self._los_density = np.clip(self._los_density, 1e-2, None,)
 
         # Lilow+2024 outside of the range data is NaN. Replace it with some
         # finite values. This is OK because the PV tracers are not so far.
@@ -523,7 +513,9 @@ class BaseFlowValidationModel(ABC):
         self.r_xrange = r_xrange
         self.r2_xrange = r2_xrange
 
-        z_xrange = z_at_value(cosmo.comoving_distance, r_xrange * u.Mpc)
+        # Require `zmin` < 0 because the first radial step is likely at 0.
+        z_xrange = z_at_value(
+            cosmo.comoving_distance, r_xrange * u.Mpc, zmin=-0.01)
         mu_xrange = cosmo.distmod(z_xrange).value
         self.z_xrange = jnp.asarray(z_xrange)
         self.mu_xrange = jnp.asarray(mu_xrange)
