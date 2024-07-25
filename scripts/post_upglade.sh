@@ -1,7 +1,7 @@
 nthreads=${1}
 on_login=${2}
 memory=12
-queue="berg"
+queue="redwood"
 env="/mnt/zfsusers/rstiskalek/csiborgtools/venv_csiborg/bin/python"
 file="post_upglade.py"
 
