@@ -60,7 +60,7 @@ def load_calibration(catalogue, simname, ksmooth, sample_beta,
                 num_samples_original = len(f[f"samples/{key}"])
                 num_samples_final = len(calibration_samples[key])
 
-    fprint(f"downsampling calibration samples from {num_samples_original} to {num_samples_final}.", verbose=verbose) # noqa
+    fprint(f"downsampling calibration samples from {num_samples_original} to {num_samples_final}.", verbose=verbose)  # noqa
     return calibration_samples
 
 

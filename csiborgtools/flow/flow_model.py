@@ -613,7 +613,6 @@ def sample_calibration(Vext_min, Vext_max, Vmono_min, Vmono_max,
     Vext = sample("Vext", Uniform(Vext_min, Vext_max).expand([3]))
     sigma_v = sample("sigma_v", Uniform(sigma_v_min, sigma_v_max))
 
-
     alpha = sample("alpha", Uniform(alpha_min, alpha_max)) if sample_alpha else 1.0                            # noqa
     beta = sample("beta", Uniform(beta_min, beta_max)) if sample_beta else 1.0                                 # noqa
     Vmono = sample("Vmono", Uniform(Vmono_min, Vmono_max)) if sample_Vmono else 0.0                            # noqa
