@@ -12,8 +12,8 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-from .flow_model import (DataLoader, radial_velocity_los, dist2redshift,        # noqa
-                         dist2distmodulus, predict_zobs, project_Vext,          # noqa
-                         PV_validation_model, get_model, distmodulus2dist,      # noqa
-                         Observed2CosmologicalRedshift,                         # noqa
-                         stack_pzosmo_over_realizations)                        # noqa
+from .flow_model import (DataLoader, PV_LogLikelihood, PV_validation_model,     # noqa
+                         dist2distmodulus, dist2redshift, distmodulus2dist,     # noqa
+                         get_model, Observed2CosmologicalRedshift,              # noqa
+                         predict_zobs, project_Vext,                            # noqa
+                         radial_velocity_los, stack_pzosmo_over_realizations)   # noqa
