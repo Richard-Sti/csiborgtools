@@ -24,15 +24,14 @@ References
 from abc import ABC, abstractmethod
 
 import numpy as np
-import numpyro
-from astropy.cosmology import FlatLambdaCDM, z_at_value
 from astropy import units as u
+from astropy.cosmology import FlatLambdaCDM, z_at_value
 from h5py import File
 from jax import jit
 from jax import numpy as jnp
 from jax import vmap
 from jax.scipy.special import logsumexp
-from numpyro import sample
+from numpyro import deterministic, factor, sample
 from numpyro.distributions import Normal, Uniform
 from quadax import simpson
 from scipy.interpolate import interp1d
@@ -558,15 +557,23 @@ def e2_distmod_SN(e2_mB, e2_x1, e2_c, alpha_cal, beta_cal, e_mu_intrinsic):
 
 
 def sample_SN(e_mu_min, e_mu_max, mag_cal_mean, mag_cal_std, alpha_cal_mean,
-              alpha_cal_std, beta_cal_mean, beta_cal_std):
+              alpha_cal_std, beta_cal_mean, beta_cal_std, alpha_min, alpha_max,
+              sample_alpha, name):
     """Sample SNIe Tripp parameters."""
-    e_mu = sample("e_mu", Uniform(e_mu_min, e_mu_max))
-    mag_cal = sample("mag_cal", Normal(mag_cal_mean, mag_cal_std))
-    alpha_cal = sample("alpha_cal", Normal(alpha_cal_mean, alpha_cal_std))
+    e_mu = sample(f"e_mu_{name}", Uniform(e_mu_min, e_mu_max))
+    mag_cal = sample(f"mag_cal_{name}", Normal(mag_cal_mean, mag_cal_std))
+    alpha_cal = sample(
+        f"alpha_cal_{name}", Normal(alpha_cal_mean, alpha_cal_std))
+    beta_cal = sample(f"beta_cal_{name}", Normal(beta_cal_mean, beta_cal_std))
+    alpha = sample(f"alpha_{name}",
+                   Uniform(alpha_min, alpha_max)) if sample_alpha else 1.0
 
-    beta_cal = sample("beta_cal", Normal(beta_cal_mean, beta_cal_std))
-
-    return e_mu, mag_cal, alpha_cal, beta_cal
+    return {"e_mu": e_mu,
+            "mag_cal": mag_cal,
+            "alpha_cal": alpha_cal,
+            "beta_cal": beta_cal,
+            "alpha": alpha
+            }
 
 
 ###############################################################################
@@ -583,34 +590,42 @@ def e2_distmod_TFR(e2_mag, e2_eta, b, e_mu_intrinsic):
     return e2_mag + b**2 * e2_eta + e_mu_intrinsic**2
 
 
-def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std):
+def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std, alpha_min,
+               alpha_max, sample_alpha, name):
     """Sample Tully-Fisher calibration parameters."""
-    e_mu = sample("e_mu", Uniform(e_mu_min, e_mu_max))
-    a = sample("a", Normal(a_mean, a_std))
-    b = sample("b", Normal(b_mean, b_std))
+    e_mu = sample(f"e_mu_{name}", Uniform(e_mu_min, e_mu_max))
+    a = sample(f"a_{name}", Normal(a_mean, a_std))
+    b = sample(f"b_{name}", Normal(b_mean, b_std))
+    alpha = sample(f"alpha_{name}",
+                   Uniform(alpha_min, alpha_max)) if sample_alpha else 1.0
 
-    return e_mu, a, b
-
+    return {"e_mu": e_mu,
+            "a": a,
+            "b": b,
+            "alpha": alpha
+            }
 
 ###############################################################################
 #                    Calibration parameters sampling                          #
 ###############################################################################
 
 
-def sample_calibration(Vext_min, Vext_max, Vmono_min, Vmono_max,
-                       alpha_min, alpha_max, beta_min, beta_max, sigma_v_min,
-                       sigma_v_max, sample_Vmono, sample_alpha, sample_beta,
-                       sample_sigma_v_ext):
+def sample_calibration(Vext_min, Vext_max, Vmono_min, Vmono_max, beta_min,
+                       beta_max, sigma_v_min, sigma_v_max, sample_Vmono,
+                       sample_beta, sample_sigma_v_ext):
     """Sample the flow calibration."""
     Vext = sample("Vext", Uniform(Vext_min, Vext_max).expand([3]))
     sigma_v = sample("sigma_v", Uniform(sigma_v_min, sigma_v_max))
 
-    alpha = sample("alpha", Uniform(alpha_min, alpha_max)) if sample_alpha else 1.0                            # noqa
     beta = sample("beta", Uniform(beta_min, beta_max)) if sample_beta else 1.0                                 # noqa
     Vmono = sample("Vmono", Uniform(Vmono_min, Vmono_max)) if sample_Vmono else 0.0                            # noqa
     sigma_v_ext = sample("sigma_v_ext", Uniform(sigma_v_min, sigma_v_max)) if sample_sigma_v_ext else sigma_v  # noqa
 
-    return Vext, Vmono, sigma_v, sigma_v_ext, alpha, beta
+    return {"Vext": Vext,
+            "Vmono": Vmono,
+            "sigma_v": sigma_v,
+            "sigma_v_ext": sigma_v_ext,
+            "beta": beta}
 
 
 ###############################################################################
@@ -635,9 +650,9 @@ def find_extrap_mask(rmax, rdist):
     return extrap_mask, extrap_weights
 
 
-class PV_validation_model(BaseFlowValidationModel):
+class PV_LogLikelihood(BaseFlowValidationModel):
     """
-    Peculiar velocity validation model.
+    Peculiar velocity validation model log-likelihood.
 
     Parameters
     ----------
@@ -663,7 +678,7 @@ class PV_validation_model(BaseFlowValidationModel):
     """
 
     def __init__(self, los_density, los_velocity, rmax, RA, dec, z_obs,
-                 e_zobs, calibration_params, r_xrange, Omega_m, kind):
+                 e_zobs, calibration_params, r_xrange, Omega_m, kind, name):
         if e_zobs is not None:
             e2_cz_obs = jnp.asarray((SPEED_OF_LIGHT * e_zobs)**2)
         else:
@@ -681,6 +696,7 @@ class PV_validation_model(BaseFlowValidationModel):
         self._set_radial_spacing(r_xrange, Omega_m)
 
         self.kind = kind
+        self.name = name
         self.Omega_m = Omega_m
         self.norm = - self.ndata * jnp.log(self.num_sims)
 
@@ -688,29 +704,37 @@ class PV_validation_model(BaseFlowValidationModel):
         self.extrap_mask = jnp.asarray(extrap_mask)
         self.extrap_weights = jnp.asarray(extrap_weights)
 
-    def __call__(self, calibration_hyperparams, distmod_hyperparams,
-                 store_ll_all=False):
-        """NumPyro PV validation model."""
-        Vext, Vmono, sigma_v, sigma_v_ext, alpha, beta = sample_calibration(**calibration_hyperparams)  # noqa
+    def __call__(self, field_calibration_params, distmod_params,
+                 sample_sigma_v_ext):
+        """PV validation model log-likelihood."""
         # Turn e2_cz to be of shape (nsims, ndata, nxrange) and apply
         # sigma_v_ext where applicable
+        sigma_v = field_calibration_params["sigma_v"]
+        sigma_v_ext = field_calibration_params["sigma_v_ext"]
         e2_cz = jnp.full_like(self.extrap_mask, sigma_v**2, dtype=jnp.float32)
-        if calibration_hyperparams["sample_sigma_v_ext"]:
+        if sample_sigma_v_ext:
             e2_cz = e2_cz.at[self.extrap_mask].set(sigma_v_ext**2)
 
         # Now add the observational errors
         e2_cz += self.e2_cz_obs[None, :, None]
 
+        Vext = field_calibration_params["Vext"]
+        Vmono = field_calibration_params["Vmono"]
         Vext_rad = project_Vext(Vext[0], Vext[1], Vext[2], self.RA, self.dec)
 
+        e_mu = distmod_params["e_mu"]
+        alpha = distmod_params["alpha"]
         if self.kind == "SN":
-            e_mu, mag_cal, alpha_cal, beta_cal = sample_SN(**distmod_hyperparams)  # noqa
+            mag_cal = distmod_params["mag_cal"]
+            alpha_cal = distmod_params["alpha_cal"]
+            beta_cal = distmod_params["beta_cal"]
             mu = distmod_SN(
                 self.mB, self.x1, self.c, mag_cal, alpha_cal, beta_cal)
             squared_e_mu = e2_distmod_SN(
                 self.e2_mB, self.e2_x1, self.e2_c, alpha_cal, beta_cal, e_mu)
         elif self.kind == "TFR":
-            e_mu, a, b = sample_TFR(**distmod_hyperparams)
+            a = distmod_params["a"]
+            b = distmod_params["b"]
             mu = distmod_TFR(self.mag, self.eta, a, b)
             squared_e_mu = e2_distmod_TFR(self.e2_mag, self.e2_eta, b, e_mu)
         else:
@@ -725,20 +749,51 @@ class PV_validation_model(BaseFlowValidationModel):
 
         # Calculate z_obs at each distance. Shape is (n_sims, ndata, nxrange)
         # The weights are related to the extrapolation of the velocity field.
-        vrad = beta * self.los_velocity
+        vrad = field_calibration_params["beta"] * self.los_velocity
         vrad += (Vext_rad[None, :, None] + Vmono) * self.extrap_weights
         zobs = (1 + self.z_xrange[None, None, :]) * (1 + vrad / SPEED_OF_LIGHT) - 1  # noqa
 
         ptilde *= calculate_likelihood_zobs(self.z_obs, zobs, e2_cz)
-        # ptilde *= calculate_likelihood_zobs(self.z_obs, zobs, sigma_v)
         ll = jnp.log(simpson(ptilde, dx=self.dr, axis=-1)) - jnp.log(pnorm)
 
-        if store_ll_all:
-            numpyro.deterministic("ll_all", ll)
+        return jnp.sum(logsumexp(ll, axis=0)) + self.norm
 
-        ll = jnp.sum(logsumexp(ll, axis=0)) + self.norm
-        numpyro.deterministic("ll_values", ll)
-        numpyro.factor("ll", ll)
+
+def PV_validation_model(models, distmod_hyperparams_per_model,
+                        field_calibration_hyperparams):
+    """
+    Peculiar velocity validation NumPyro model.
+
+    Parameters
+    ----------
+    models : list of `PV_LogLikelihood`
+        List of PV validation log-likelihoods for each catalogue.
+    distmod_hyperparams_per_model : list of dict
+        Distance modulus hyperparameters for each model/catalogue.
+    field_calibration_hyperparams : dict
+        Field calibration hyperparameters.
+    """
+    field_calibration_params = sample_calibration(
+        **field_calibration_hyperparams)
+    sample_sigma_v_ext = field_calibration_hyperparams["sample_sigma_v_ext"]
+
+    ll = 0.0
+    for n in range(len(models)):
+        model = models[n]
+        distmod_hyperparams = distmod_hyperparams_per_model[n]
+
+        if model.kind == "TFR":
+            distmod_params = sample_TFR(**distmod_hyperparams, name=model.name)
+        elif model.kind == "SN":
+            distmod_params = sample_SN(**distmod_hyperparams, name=model.name)
+        else:
+            raise ValueError(f"Unknown kind: `{model.kind}`.")
+
+        ll += model(
+            field_calibration_params, distmod_params, sample_sigma_v_ext)
+
+    deterministic("ll_values", ll)
+    factor("ll", ll)
 
 
 ###############################################################################
@@ -780,10 +835,10 @@ def get_model(loader, zcmb_max=None, verbose=True):
                               "e_mB": e_mB[mask], "e_x1": e_x1[mask],
                               "e_c": e_c[mask]}
 
-        model = PV_validation_model(
+        model = PV_LogLikelihood(
             los_overdensity[:, mask], los_velocity[:, mask], rmax[:, mask],
             RA[mask], dec[mask], zCMB[mask], e_zCMB, calibration_params,
-            loader.rdist, loader._Omega_m, "SN")
+            loader.rdist, loader._Omega_m, "SN", name=kind)
     elif "Pantheon+" in kind:
         keys = ["RA", "DEC", "zCMB", "mB", "x1", "c", "biasCor_m_b", "mBERR",
                 "x1ERR", "cERR", "biasCorErr_m_b", "zCMB_SN", "zCMB_Group",
@@ -808,10 +863,10 @@ def get_model(loader, zcmb_max=None, verbose=True):
         calibration_params = {"mB": mB[mask], "x1": x1[mask], "c": c[mask],
                               "e_mB": e_mB[mask], "e_x1": e_x1[mask],
                               "e_c": e_c[mask]}
-        model = PV_validation_model(
+        model = PV_LogLikelihood(
             los_overdensity[:, mask], los_velocity[:, mask], rmax[:, mask],
             RA[mask], dec[mask], zCMB[mask], e_zCMB[mask], calibration_params,
-            loader.rdist, loader._Omega_m, "SN")
+            loader.rdist, loader._Omega_m, "SN", name=kind)
     elif kind in ["SFI_gals", "2MTF", "SFI_gals_masked"]:
         keys = ["RA", "DEC", "z_CMB", "mag", "eta", "e_mag", "e_eta"]
         RA, dec, zCMB, mag, eta, e_mag, e_eta = (loader.cat[k] for k in keys)
@@ -824,14 +879,14 @@ def get_model(loader, zcmb_max=None, verbose=True):
 
         calibration_params = {"mag": mag[mask], "eta": eta[mask],
                               "e_mag": e_mag[mask], "e_eta": e_eta[mask]}
-        model = PV_validation_model(
+        model = PV_LogLikelihood(
             los_overdensity[:, mask], los_velocity[:, mask], rmax[:, mask],
             RA[mask], dec[mask], zCMB[mask], None, calibration_params,
-            loader.rdist, loader._Omega_m, "TFR")
+            loader.rdist, loader._Omega_m, "TFR", name=kind)
     else:
         raise ValueError(f"Catalogue `{kind}` not recognized.")
 
-    fprint(f"selected {np.sum(mask)}/{len(mask)} galaxies.")
+    fprint(f"selected {np.sum(mask)}/{len(mask)} galaxies in catalogue `{kind}`")  # noqa
 
     return model
 
@@ -848,9 +903,12 @@ def _posterior_element(r, beta, Vext_radial, los_velocity, Omega_m, zobs,
     `Observed2CosmologicalRedshift`.
     """
     zobs_pred = predict_zobs(r, beta, Vext_radial, los_velocity, Omega_m)
+
     # Likelihood term
     dcz = SPEED_OF_LIGHT * (zobs - zobs_pred)
-    posterior = jnp.exp(-0.5 * dcz**2 / sigma_v**2) / jnp.sqrt(2 * jnp.pi * sigma_v**2)  # noqa
+    posterior = jnp.exp(-0.5 * dcz**2 / sigma_v**2)
+    posterior /= jnp.sqrt(2 * jnp.pi * sigma_v**2)
+
     # Prior term
     posterior *= dVdOmega * los_density**alpha
 
@@ -864,7 +922,8 @@ class BaseObserved2CosmologicalRedshift(ABC):
         for i, key in enumerate(calibration_samples.keys()):
             x = calibration_samples[key]
             if not isinstance(x, (np.ndarray, jnp.ndarray)):
-                raise ValueError(f"Calibration sample `{key}` must be an array.")  # noqa
+                raise ValueError(
+                    f"Calibration sample `{key}` must be an array.")
 
             if x.ndim != 1 and key != "Vext":
                 raise ValueError(f"Calibration samples `{key}` must be 1D.")
@@ -873,14 +932,19 @@ class BaseObserved2CosmologicalRedshift(ABC):
                 ncalibratrion = len(x)
 
             if len(x) != ncalibratrion:
-                raise ValueError("Calibration samples do not have the same length.")  # noqa
+                raise ValueError(
+                    "Calibration samples do not have the same length.")
 
             calibration_samples[key] = jnp.asarray(x)
 
         if "alpha" not in calibration_samples:
+            print("No `alpha` calibration sample found. Setting it to 1.",
+                  flush=True)
             calibration_samples["alpha"] = jnp.ones(ncalibratrion)
 
         if "beta" not in calibration_samples:
+            print("No `beta` calibration sample found. Setting it to 1.",
+                  flush=True)
             calibration_samples["beta"] = jnp.ones(ncalibratrion)
 
         # Get the stepsize, we need it to be constant for Simpson's rule.
@@ -898,7 +962,8 @@ class BaseObserved2CosmologicalRedshift(ABC):
     def get_calibration_samples(self, key):
         """Get calibration samples for a given key."""
         if key not in self._calibration_samples:
-            raise ValueError(f"Key `{key}` not found in calibration samples. Available keys are: `{self.calibration_keys}`.")  # noqa
+            raise ValueError(f"Key `{key}` not found in calibration samples. "
+                             f"Available keys are: `{self.calibration_keys}`.")
 
         return self._calibration_samples[key]
 
