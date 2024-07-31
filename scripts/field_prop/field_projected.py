@@ -14,9 +14,8 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 A script to calculate the projected density field for a given simulation as a
-sky map. The script is not parallelized in any way.
-
-The generated fields are converted to galactic coordinates.
+sky map. The script is not parallelized in any way. The generated fields are
+converted to galactic coordinates to match the CMB maps.
 """
 from argparse import ArgumentParser
 from os import remove
