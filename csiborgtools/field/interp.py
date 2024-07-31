@@ -20,7 +20,7 @@ import numpy as np
 import smoothing_library as SL
 from numba import jit
 from scipy.interpolate import RegularGridInterpolator
-from tqdm import tqdm, trange
+from tqdm import tqdm
 
 from ..utils import periodic_wrap_grid, radec_to_cartesian
 from .utils import divide_nonzero, force_single_precision, nside2radec
@@ -303,56 +303,13 @@ def evaluate_los(*fields, sky_pos, boxsize, rmax, dr, smooth_scales=None,
 ###############################################################################
 
 
-def evaluate_sky(*fields, pos, mpc2box, smooth_scales=None, verbose=False):
-    """
-    Evaluate a scalar field(s) at radial distance `Mpc / h`, right ascensions
-    [0, 360) deg and declinations [-90, 90] deg. Uses CIC interpolation.
-
-    Parameters
-    ----------
-    fields : (list of) 3-dimensional array of shape `(grid, grid, grid)`
-        Field to be interpolated.
-    pos : 2-dimensional array of shape `(n_samples, 3)`
-        Query spherical coordinates.
-    mpc2box : float
-        Conversion factor to multiply the radial distance by to get box units.
-    smooth_scales : (list of) float, optional
-        Smoothing scales in `Mpc / h`. If `None`, no smoothing is performed.
-    verbose : bool, optional
-        Smoothing verbosity flag.
-
-    Returns
-    -------
-    (list of) 1-dimensional array of shape `(n_samples, len(smooth_scales))`
-    """
-    # Make a copy of the positions to avoid modifying the input.
-    pos = np.copy(pos)
-
-    pos = force_single_precision(pos)
-    pos[:, 0] *= mpc2box
-
-    cart_pos = radec_to_cartesian(pos) + 0.5
-
-    if smooth_scales is not None:
-        if isinstance(smooth_scales, (int, float)):
-            smooth_scales = [smooth_scales]
-
-        if isinstance(smooth_scales, list):
-            smooth_scales = np.array(smooth_scales, dtype=np.float32)
-
-        smooth_scales *= mpc2box
-
-    return evaluate_cartesian_cic(*fields, pos=cart_pos,
-                                  smooth_scales=smooth_scales,
-                                  verbose=verbose)
-
-
-def make_sky(field, angpos, dist, boxsize, verbose=True):
+def make_sky(field, angpos, rmax, dr, boxsize, interpolation_method="cic",
+             return_full=False, verbose=True):
     r"""
     Make a sky map of a scalar field. The observer is in the centre of the
     box the field is evaluated along directions `angpos` (RA [0, 360) deg,
-    dec [-90, 90] deg). Along each direction, the field is evaluated distances
-    `dist` (`Mpc / h`) and summed. Uses CIC interpolation.
+    dec [-90, 90] deg). The field is evaluated up to `rmax` with a linear
+    spacing of `dr` in `Mpc / h`.
 
     Parameters
     ----------
@@ -360,39 +317,38 @@ def make_sky(field, angpos, dist, boxsize, verbose=True):
         Field to be interpolated
     angpos : 2-dimensional arrays of shape `(ndir, 2)`
         Directions to evaluate the field.
-    dist : 1-dimensional array
-        Uniformly spaced radial distances to evaluate the field in `Mpc / h`.
+    rmax : float
+        Maximum radial distance in `Mpc / h`.
+    dr : float
+        Radial distance step in `Mpc / h`.
     boxsize : float
         Box size in `Mpc / h`.
+    interpolation_method : str, optional
+        Interpolation method. Must be one of `cic` or one of the methods of
+        `scipy.interpolate.RegularGridInterpolator`.
+    return_full : bool, optional
+        If `True`, return the full interpolated field instead of the average
+        field at each radial distance.
     verbose : bool, optional
         Verbosity flag.
 
     Returns
     -------
-    interp_field : 1-dimensional array of shape `(n_pos, )`.
+    interp_field : 1-dimensional array of shape `(n_pos, )`
     """
-    dx = dist[1] - dist[0]
-    assert np.allclose(dist[1:] - dist[:-1], dx)
-    assert angpos.ndim == 2 and dist.ndim == 1
+    rdist, finterp = evaluate_los(
+        field, sky_pos=angpos, boxsize=boxsize, rmax=rmax, dr=dr,
+        smooth_scales=None, verbose=verbose,
+        interpolation_method=interpolation_method)
 
-    # We loop over the angular directions, at each step evaluating a vector
-    # of distances. We pre-allocate arrays for speed.
-    dir_loop = np.full((dist.size, 3), np.nan, dtype=np.float32)
+    if return_full:
+        return rdist, finterp
 
-    ndir = angpos.shape[0]
-    out = np.full(ndir, np.nan, dtype=np.float32)
-    for i in trange(ndir) if verbose else range(ndir):
-        dir_loop[:, 0] = dist
-        dir_loop[:, 1] = angpos[i, 0]
-        dir_loop[:, 2] = angpos[i, 1]
+    finterp *= rdist**2
+    finterp = np.trapz(finterp, x=rdist, axis=1)
+    finterp /= np.trapz(rdist**2, x=rdist)
 
-        out[i] = np.sum(
-            dist**2 * evaluate_sky(field, pos=dir_loop, mpc2box=1 / boxsize))
-
-    # Assuming the field is in h^2 Msun / kpc**3, we need to convert Mpc / h
-    # to kpc / h and multiply by the pixel area.
-    out *= dx * 1e9 * 4 * np.pi / len(angpos)
-    return out
+    return finterp
 
 
 ###############################################################################
