@@ -25,7 +25,6 @@ from os.path import exists, join
 import csiborgtools
 import numpy as np
 from h5py import File
-from tqdm import trange
 
 
 def get_field(simname, nsim, field_kind, MAS, grid):
@@ -89,7 +88,7 @@ def main(simname, nsims, field_kind, nside, dist_ranges, MAS, grid,
         with File(fname, "a") as f:
             grp = f.create_group(f"nsim_{nsim}")
 
-            for n in trange(len(dist_ranges), desc="Distance ranges"):
+            for n in range(len(dist_ranges)):
                 dmin, dmax = dist_ranges[n]
                 k_start = np.searchsorted(rdist, dmin)
                 k_end = np.searchsorted(rdist, dmax)
