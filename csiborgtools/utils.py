@@ -163,6 +163,12 @@ def radec_to_galactic(ra, dec):
     return c.galactic.l.degree, c.galactic.b.degree
 
 
+def galactic_to_radec(l, b):  # noqa
+    """Convert galactic coordinates to right ascension and declination."""
+    c = SkyCoord(l=l*u.degree, b=b*u.degree, frame='galactic')
+    return c.icrs.ra.degree, c.icrs.dec.degree
+
+
 def radec_to_supergalactic(ra, dec):
     """Convert right ascension and declination to supergalactic coordinates."""
     c = SkyCoord(ra=ra*u.degree, dec=dec*u.degree, frame='icrs')

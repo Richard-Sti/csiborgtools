@@ -19,8 +19,8 @@ try:
     from .density import (DensityField, PotentialField, TidalTensorField,       # noqa
                           VelocityField, radial_velocity, power_spectrum,       # noqa
                           overdensity_field)                                    # noqa
-    from .interp import (evaluate_cartesian_cic, evaluate_sky, evaluate_los,    # noqa
-                         field2rsp, fill_outside, make_sky,                     # noqa
+    from .interp import (evaluate_cartesian_cic, evaluate_los, field2rsp,       # noqa
+                         fill_outside, make_sky,                                # noqa
                          observer_peculiar_velocity, smoothen_field,            # noqa
                          field_at_distance)                                     # noqa
 except ImportError:

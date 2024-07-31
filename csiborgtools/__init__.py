@@ -22,7 +22,7 @@ from .utils import (center_of_mass, delta2ncells, number_counts,                
                     radec_to_cartesian, cartesian_to_radec,                     # noqa
                     thin_samples_by_acl, BIC_AIC, radec_to_galactic,            # noqa
                     heliocentric_to_cmb, calculate_acl, harmonic_evidence,      # noqa
-                    dict_samples_to_array)                                      # noqa
+                    dict_samples_to_array, galactic_to_radec)                   # noqa
 from .params import (paths_glamdring, simname2boxsize, simname2Omega_m,         # noqa
                      snap2redshift)                                             # noqa
 
