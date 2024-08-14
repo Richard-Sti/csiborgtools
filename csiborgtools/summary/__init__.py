@@ -13,6 +13,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
+from .cmb_correlation import read_projected_matter                              # noqa
 from .knn_summary import kNNCDFReader                                           # noqa
 from .nearest_neighbour_summary import NearestNeighbourReader                   # noqa
 from .overlap_summary import weighted_stats                                     # noqa
