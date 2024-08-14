@@ -634,3 +634,24 @@ class Paths:
         fdir = join(self.postdir, "field_los")
         try_create_directory(fdir)
         return join(fdir, f"los_{catalogue}_{simnname}.hdf5")
+
+    def field_projected(self, simname, kind):
+        """
+        Path to the files containing the projected fields on the sky.
+
+        Parameters
+        ----------
+        simname : str
+            Simulation name.
+        kind : str
+            Field type.
+
+        Returns
+        -------
+        str
+        """
+        fdir = join(self.postdir, "field_projected")
+        try_create_directory(fdir)
+        return join(fdir, f"{simname}_{kind}_volume_weighted.hdf5")
+
+
