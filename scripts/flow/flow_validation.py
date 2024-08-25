@@ -253,7 +253,8 @@ if __name__ == "__main__":
     calculate_evidence = False
     nchains_harmonic = 10
     num_epochs = 30
-    inference_method = "mike"
+    inference_method = "bayes"
+    maxmag_selection = None
     sample_alpha = True
     sample_beta = True
     sample_Vmono = False
@@ -265,6 +266,7 @@ if __name__ == "__main__":
     main_params = {"nsteps": nsteps, "nburn": nburn,
                    "zcmb_min": zcmb_min,
                    "zcmb_max": zcmb_max,
+                   "maxmag_selection": maxmag_selection,
                    "calculate_evidence": calculate_evidence,
                    "nchains_harmonic": nchains_harmonic,
                    "num_epochs": num_epochs,
@@ -292,7 +294,8 @@ if __name__ == "__main__":
                     *distmod_hyperparams_per_catalogue)
     ###########################################################################
 
-    get_model_kwargs = {"zcmb_min": zcmb_min, "zcmb_max": zcmb_max}
+    get_model_kwargs = {"zcmb_min": zcmb_min, "zcmb_max": zcmb_max,
+                        "maxmag_selection": maxmag_selection}
     models = get_models(get_model_kwargs, )
     model_kwargs = {
         "models": models,

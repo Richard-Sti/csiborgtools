@@ -29,7 +29,7 @@ from astropy.cosmology import FlatLambdaCDM, z_at_value
 from h5py import File
 from jax import jit
 from jax import numpy as jnp
-from jax.scipy.special import logsumexp
+from jax.scipy.special import logsumexp, erf
 from numpyro import factor, sample, plate
 from numpyro.distributions import Normal, Uniform, MultivariateNormal
 from quadax import simpson
@@ -375,9 +375,18 @@ def likelihood_zobs(zobs, zobs_pred, e2_cz):
 
 
 def normal_logpdf(x, loc, scale):
-    """The log of the normal probability density function."""
+    """Log of the normal probability density function."""
     return (-0.5 * ((x - loc) / scale)**2
             - jnp.log(scale) - 0.5 * jnp.log(2 * jnp.pi))
+
+
+def upper_truncated_normal_logpdf(x, loc, scale, xmax):
+    """Log of the normal probability density function truncated at `xmax`."""
+    # Need the absolute value just to avoid sometimes things going wrong,
+    # but it should never occur that loc > xmax.
+    norm = 0.5 * (1 + erf((jnp.abs(xmax - loc)) / (jnp.sqrt(2) * scale)))
+    return normal_logpdf(x, loc, scale) - jnp.log(norm)
+
 
 ###############################################################################
 #                          Base flow validation                               #
@@ -600,6 +609,8 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         Errors on the observed redshifts.
     calibration_params: dict
         Calibration parameters of each object.
+    magmax_selection : float
+        Maximum magnitude selection if strict threshold.
     r_xrange : 1-dimensional array
         Radial distances where the field was interpolated for each object.
     Omega_m : float
@@ -611,7 +622,8 @@ class PV_LogLikelihood(BaseFlowValidationModel):
     """
 
     def __init__(self, los_density, los_velocity, rmax, RA, dec, z_obs,
-                 e_zobs, calibration_params, r_xrange, Omega_m, kind, name):
+                 e_zobs, calibration_params, maxmag_selection, r_xrange,
+                 Omega_m, kind, name):
         if e_zobs is not None:
             e2_cz_obs = jnp.asarray((SPEED_OF_LIGHT * e_zobs)**2)
         else:
@@ -632,6 +644,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         self.name = name
         self.Omega_m = Omega_m
         self.norm = - self.ndata * jnp.log(self.num_sims)
+        self.maxmag_selection = maxmag_selection
 
         if kind == "TFR":
             self.mag_min, self.mag_max = jnp.min(self.mag), jnp.max(self.mag)
@@ -647,6 +660,9 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             self.mu_min, self.mu_max = jnp.min(self.mu), jnp.max(self.mu)
         else:
             raise RuntimeError("Support most be added for other kinds.")
+
+        if maxmag_selection is not None and self.maxmag_selection > self.mag_max:                     # noqa
+            raise ValueError("The maximum magnitude cannot be larger than the selection threshold.")  # noqa
 
     def __call__(self, field_calibration_params, distmod_params,
                  inference_method):
@@ -684,7 +700,14 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                     c_true = sample(
                         f"c_true_{self.name}", Normal(c_mean, c_std))
 
-                ll0 += jnp.sum(normal_logpdf(mag_true, self.mag, self.e_mag))
+                # Log-likelihood of the observed magnitudes.
+                if self.maxmag_selection is None:
+                    ll0 += jnp.sum(normal_logpdf(
+                        mag_true, self.mag, self.e_mag))
+                else:
+                    raise NotImplementedError("Maxmag selection not implemented.")  # noqa
+
+                # Log-likelihood of the observed x1 and c.
                 ll0 += jnp.sum(normal_logpdf(x1_true, self.x1, self.e_x1))
                 ll0 += jnp.sum(normal_logpdf(c_true, self.c, self.e_c))
                 e2_mu = jnp.ones_like(mag_true) * e_mu**2
@@ -720,8 +743,17 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                     x_true = sample("x_TFR", MultivariateNormal(loc, cov))
 
                 mag_true, eta_true = x_true[..., 0], x_true[..., 1]
+                # Log-likelihood of the observed magnitudes.
+                if self.maxmag_selection is None:
+                    ll0 += jnp.sum(normal_logpdf(
+                        self.mag, mag_true, self.e_mag))
+                else:
+                    ll0 += jnp.sum(upper_truncated_normal_logpdf(
+                        self.mag, mag_true, self.e_mag, self.maxmag_selection))
+
+                # Log-likelihood of the observed linewidths.
                 ll0 += jnp.sum(normal_logpdf(eta_true, self.eta, self.e_eta))
-                ll0 += jnp.sum(normal_logpdf(mag_true, self.mag, self.e_mag))
+
                 e2_mu = jnp.ones_like(mag_true) * e_mu**2
             else:
                 eta_true = self.eta
@@ -811,7 +843,7 @@ def PV_validation_model(models, distmod_hyperparams_per_model,
 ###############################################################################
 
 
-def get_model(loader, zcmb_min=0.001, zcmb_max=None):
+def get_model(loader, zcmb_min=0.0, zcmb_max=None, maxmag_selection=None):
     """
     Get a model and extract the relevant data from the loader.
 
@@ -823,6 +855,8 @@ def get_model(loader, zcmb_min=0.001, zcmb_max=None):
         Minimum observed redshift in the CMB frame to include.
     zcmb_max : float, optional
         Maximum observed redshift in the CMB frame to include.
+    maxmag_selection : float, optional
+        Maximum magnitude selection threshold.
 
     Returns
     -------
@@ -834,6 +868,9 @@ def get_model(loader, zcmb_min=0.001, zcmb_max=None):
     los_velocity = loader.los_radial_velocity
     rmax = loader.rmax
     kind = loader._catname
+
+    if maxmag_selection is not None and kind != "2MTF":
+        raise ValueError("Threshold magnitude selection implemented only for 2MTF.")  # noqa
 
     if kind in ["LOSS", "Foundation"]:
         keys = ["RA", "DEC", "z_CMB", "mB", "x1", "c", "e_mB", "e_x1", "e_c"]
@@ -849,7 +886,7 @@ def get_model(loader, zcmb_min=0.001, zcmb_max=None):
         model = PV_LogLikelihood(
             los_overdensity[:, mask], los_velocity[:, mask], rmax[:, mask],
             RA[mask], dec[mask], zCMB[mask], e_zCMB, calibration_params,
-            loader.rdist, loader._Omega_m, "SN", name=kind)
+            maxmag_selection, loader.rdist, loader._Omega_m, "SN", name=kind)
     elif "Pantheon+" in kind:
         keys = ["RA", "DEC", "zCMB", "mB", "x1", "c", "biasCor_m_b", "mBERR",
                 "x1ERR", "cERR", "biasCorErr_m_b", "zCMB_SN", "zCMB_Group",
@@ -877,7 +914,7 @@ def get_model(loader, zcmb_min=0.001, zcmb_max=None):
         model = PV_LogLikelihood(
             los_overdensity[:, mask], los_velocity[:, mask], rmax[:, mask],
             RA[mask], dec[mask], zCMB[mask], e_zCMB[mask], calibration_params,
-            loader.rdist, loader._Omega_m, "SN", name=kind)
+            maxmag_selection, loader.rdist, loader._Omega_m, "SN", name=kind)
     elif kind in ["SFI_gals", "2MTF", "SFI_gals_masked"]:
         keys = ["RA", "DEC", "z_CMB", "mag", "eta", "e_mag", "e_eta"]
         RA, dec, zCMB, mag, eta, e_mag, e_eta = (loader.cat[k] for k in keys)
@@ -888,7 +925,7 @@ def get_model(loader, zcmb_min=0.001, zcmb_max=None):
         model = PV_LogLikelihood(
             los_overdensity[:, mask], los_velocity[:, mask], rmax[:, mask],
             RA[mask], dec[mask], zCMB[mask], None, calibration_params,
-            loader.rdist, loader._Omega_m, "TFR", name=kind)
+            maxmag_selection, loader.rdist, loader._Omega_m, "TFR", name=kind)
     elif "CF4_TFR_" in kind:
         # The full name can be e.g. "CF4_TFR_not2MTForSFI_i" or "CF4_TFR_i".
         band = kind.split("_")[-1]
@@ -927,7 +964,7 @@ def get_model(loader, zcmb_min=0.001, zcmb_max=None):
         model = PV_LogLikelihood(
             los_overdensity[:, mask], los_velocity[:, mask], rmax[:, mask],
             RA[mask], dec[mask], z_obs[mask], None, calibration_params,
-            loader.rdist, loader._Omega_m, "TFR", name=kind)
+            maxmag_selection, loader.rdist, loader._Omega_m, "TFR", name=kind)
     elif kind in ["CF4_GroupAll"]:
         # Note, this for some reason works terribly.
         keys = ["RA", "DE", "Vcmb", "DMzp", "eDM"]
@@ -943,7 +980,8 @@ def get_model(loader, zcmb_min=0.001, zcmb_max=None):
         model = PV_LogLikelihood(
             los_overdensity[:, mask], los_velocity[:, mask], rmax[:, mask],
             RA[mask], dec[mask], zCMB[mask], None, calibration_params,
-            loader.rdist, loader._Omega_m, "simple", name=kind)
+            maxmag_selection,  loader.rdist, loader._Omega_m, "simple",
+            name=kind)
     else:
         raise ValueError(f"Catalogue `{kind}` not recognized.")
 
