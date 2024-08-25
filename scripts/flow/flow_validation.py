@@ -223,12 +223,17 @@ def get_distmod_hyperparams(catalogue, sample_alpha):
                 "a_mean": -21., "a_std": 5.0,
                 "b_mean": -5.95, "b_std": 4.0,
                 "c_mean": 0., "c_std": 20.0,
+                "sample_curvature": False,
+                "a_dipole_mean": 0., "a_dipole_std": 1.0,
+                "sample_a_dipole": True,
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
                 "sample_alpha": sample_alpha,
                 }
     elif catalogue in ["CF4_GroupAll"]:
         return {"e_mu_min": 0.001, "e_mu_max": 1.0,
                 "dmu_min": -3.0, "dmu_max": 3.0,
+                "dmu_dipole_mean": 0., "dmu_dipole_std": 1.0,
+                "sample_dmu_dipole": True,
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
                 "sample_alpha": sample_alpha,
                 }
@@ -253,7 +258,7 @@ if __name__ == "__main__":
     calculate_evidence = False
     nchains_harmonic = 10
     num_epochs = 30
-    inference_method = "bayes"
+    inference_method = "mike"
     maxmag_selection = None
     sample_alpha = True
     sample_beta = True

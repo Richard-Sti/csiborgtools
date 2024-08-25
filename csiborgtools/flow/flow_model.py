@@ -516,19 +516,33 @@ def e2_distmod_TFR(e2_mag, e2_eta, eta, b, c, e_mu_intrinsic):
 
 
 def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
-               c_mean, c_std, alpha_min, alpha_max, sample_alpha, name):
+               c_mean, c_std, alpha_min, alpha_max, sample_alpha,
+               sample_curvature, a_dipole_mean, a_dipole_std, sample_a_dipole,
+               name):
     """Sample Tully-Fisher calibration parameters."""
     e_mu = sample(f"e_mu_{name}", Uniform(e_mu_min, e_mu_max))
     a = sample(f"a_{name}", Normal(a_mean, a_std))
+
+    if sample_a_dipole:
+        ax, ay, az = sample(f"a_dipole_{name}", Normal(0, 5).expand([3]))
+    else:
+        ax, ay, az = 0.0, 0.0, 0.0
+
     b = sample(f"b_{name}", Normal(b_mean, b_std))
-    c = sample(f"c_{name}", Normal(c_mean, c_std))
+    if sample_curvature:
+        c = sample(f"c_{name}", Normal(c_mean, c_std))
+    else:
+        c = 0.0
+
     alpha = sample_alpha_bias(name, alpha_min, alpha_max, sample_alpha)
 
     return {"e_mu": e_mu,
             "a": a,
+            "ax": ax, "ay": ay, "az": az,
             "b": b,
             "c": c,
-            "alpha": alpha
+            "alpha": alpha,
+            "sample_a_dipole": sample_a_dipole,
             }
 
 
@@ -537,15 +551,25 @@ def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
 ###############################################################################
 
 def sample_simple(e_mu_min, e_mu_max, dmu_min, dmu_max, alpha_min, alpha_max,
-                  sample_alpha, name):
+                  dmu_dipole_mean, dmu_dipole_std, sample_alpha,
+                  sample_dmu_dipole, name):
     """Sample simple calibration parameters."""
     e_mu = sample(f"e_mu_{name}", Uniform(e_mu_min, e_mu_max))
     dmu = sample(f"dmu_{name}", Uniform(dmu_min, dmu_max))
     alpha = sample_alpha_bias(name, alpha_min, alpha_max, sample_alpha)
 
+    if sample_dmu_dipole:
+        dmux, dmuy, dmuz = sample(
+            f"dmu_dipole_{name}",
+            Normal(dmu_dipole_mean, dmu_dipole_std).expand([3]))
+    else:
+        dmux, dmuy, dmuz = 0.0, 0.0, 0.0
+
     return {"e_mu": e_mu,
             "dmu": dmu,
-            "alpha": alpha
+            "dmux": dmux, "dmuy": dmuy, "dmuz": dmuz,
+            "alpha": alpha,
+            "sample_dmu_dipole": sample_dmu_dipole,
             }
 
 ###############################################################################
@@ -726,6 +750,10 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             b = distmod_params["b"]
             c = distmod_params["c"]
 
+            if distmod_params["sample_a_dipole"]:
+                ax, ay, az = (distmod_params[k] for k in ["ax", "ay", "az"])
+                a = a + project_Vext(ax, ay, az, self.RA, self.dec)
+
             if inference_method == "bayes":
                 # Sample the true TFR parameters.
                 mag_mean, mag_std = sample_gaussian_hyperprior(
@@ -764,6 +792,11 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             mu = distmod_TFR(mag_true, eta_true, a, b, c)
         elif self.kind == "simple":
             dmu = distmod_params["dmu"]
+
+            if distmod_params["sample_dmu_dipole"]:
+                dmux, dmuy, dmuz = (
+                    distmod_params[k] for k in ["dmux", "dmuy", "dmuz"])
+                dmu = dmu + project_Vext(dmux, dmuy, dmuz, self.RA, self.dec)
 
             if inference_method == "bayes":
                 raise NotImplementedError("Bayes for simple not implemented.")
