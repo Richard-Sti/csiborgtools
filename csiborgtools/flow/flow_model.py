@@ -897,8 +897,8 @@ def get_model(loader, zcmb_min=0.001, zcmb_max=None):
             raise ValueError(f"Band `{band}` not recognized.")
 
         keys = ["RA", "DEC", "Vcmb", f"{band}", "lgWmxi", "elgWi",
-                "not_matched_to_2MTF_or_SFI"]
-        RA, dec, z_obs, mag, eta, e_eta, not_matched_to_2MTF_or_SFI = (
+                "not_matched_to_2MTF_or_SFI", "Qs", "Qw"]
+        RA, dec, z_obs, mag, eta, e_eta, not_matched_to_2MTF_or_SFI, Qs, Qw = (
             loader.cat[k] for k in keys)
 
         not_matched_to_2MTF_or_SFI = not_matched_to_2MTF_or_SFI.astype(bool)
@@ -914,6 +914,14 @@ def get_model(loader, zcmb_min=0.001, zcmb_max=None):
 
         if "not2MTForSFI" in kind:
             mask &= not_matched_to_2MTF_or_SFI
+        elif "2MTForSFI" in kind:
+            mask &= ~not_matched_to_2MTF_or_SFI
+
+        fprint("employing a quality cut on the galaxies.")
+        if "w" in band:
+            mask &= Qw == 5
+        else:
+            mask &= Qs == 5
 
         calibration_params = {"mag": mag[mask], "eta": eta[mask],
                               "e_mag": e_mag[mask], "e_eta": e_eta[mask]}
