@@ -100,6 +100,8 @@ def get_models(get_model_kwargs, verbose=True):
                      "Pantheon+_groups", "Pantheon+_groups_zSN",
                      "Pantheon+_zSN"]:
             fpath = join(folder, "PV_compilation.hdf5")
+        elif cat in ["CF4_GroupAll"]:
+            fpath = join(folder, "PV/CF4/CF4_GroupAll.hdf5")
         else:
             raise ValueError(f"Unsupported catalogue: `{ARGS.catalogue}`.")
 
@@ -139,11 +141,7 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder, sample_beta,
     samples = mcmc.get_samples()
 
     log_posterior = -mcmc.get_extra_fields()["potential_energy"]
-    log_likelihood = samples.pop("ll_values")
-    if log_likelihood is None:
-        raise ValueError("The samples must contain the log likelihood values under the key `ll_values`.")  # noqa
-
-    BIC, AIC = csiborgtools.BIC_AIC(samples, log_likelihood, ndata)
+    BIC, AIC = csiborgtools.BIC_AIC(samples, log_posterior, ndata)
     print(f"{'BIC':<20} {BIC}")
     print(f"{'AIC':<20} {AIC}")
     mcmc.print_summary()
@@ -174,7 +172,6 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder, sample_beta,
             grp.create_dataset(key, data=value)
 
         # Write log likelihood and posterior
-        f.create_dataset("log_likelihood", data=log_likelihood)
         f.create_dataset("log_posterior", data=log_posterior)
 
         # Write goodness of fit
@@ -207,10 +204,9 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder, sample_beta,
 #                        Command line interface                               #
 ###############################################################################
 
-def get_distmod_hyperparams(catalogue):
+def get_distmod_hyperparams(catalogue, sample_alpha):
     alpha_min = -1.0
     alpha_max = 3.0
-    sample_alpha = True
 
     if catalogue in ["LOSS", "Foundation", "Pantheon+", "Pantheon+_groups", "Pantheon+_zSN"]:  # noqa
         return {"e_mu_min": 0.001, "e_mu_max": 1.0,
@@ -223,9 +219,16 @@ def get_distmod_hyperparams(catalogue):
     elif catalogue in ["SFI_gals", "2MTF"]:
         return {"e_mu_min": 0.001, "e_mu_max": 1.0,
                 "a_mean": -21., "a_std": 5.0,
-                "b_mean": -5.95, "b_std": 3.0,
+                "b_mean": -5.95, "b_std": 4.0,
+                "c_mean": 0., "c_std": 20.0,
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
-                "sample_alpha": sample_alpha
+                "sample_alpha": sample_alpha,
+                }
+    elif catalogue in ["CF4_GroupAll"]:
+        return {"e_mu_min": 0.001, "e_mu_max": 1.0,
+                "dmu_min": -3.0, "dmu_max": 3.0,
+                "alpha_min": alpha_min, "alpha_max": alpha_max,
+                "sample_alpha": sample_alpha,
                 }
     else:
         raise ValueError(f"Unsupported catalogue: `{ARGS.catalogue}`.")
@@ -241,37 +244,44 @@ if __name__ == "__main__":
     #                        Fixed user parameters                            #
     ###########################################################################
 
-    nsteps = 5000
-    nburn = 1500
+    nsteps = 1500
+    nburn = 1000
+    zcmb_min = 0
     zcmb_max = 0.05
     calculate_evidence = False
     nchains_harmonic = 10
     num_epochs = 30
+    inference_method = "mike"
+    sample_alpha = False
+    sample_beta = True
+    sample_Vmono = False
 
     if nsteps % nchains_harmonic != 0:
         raise ValueError(
             "The number of steps must be divisible by the number of chains.")
 
-    main_params = {"nsteps": nsteps, "nburn": nburn, "zcmb_max": zcmb_max,
+    main_params = {"nsteps": nsteps, "nburn": nburn,
+                   "zcmb_min": zcmb_min,
+                   "zcmb_max": zcmb_max,
                    "calculate_evidence": calculate_evidence,
                    "nchains_harmonic": nchains_harmonic,
-                   "num_epochs": num_epochs}
+                   "num_epochs": num_epochs,
+                   "inference_method": inference_method}
     print_variables(main_params.keys(), main_params.values())
 
     calibration_hyperparams = {"Vext_min": -1000, "Vext_max": 1000,
                                "Vmono_min": -1000, "Vmono_max": 1000,
                                "beta_min": -1.0, "beta_max": 3.0,
                                "sigma_v_min": 1.0, "sigma_v_max": 750.,
-                               "sample_Vmono": False,
-                               "sample_beta": True,
-                               "sample_sigma_v_ext": False,
+                               "sample_Vmono": sample_Vmono,
+                               "sample_beta": sample_beta,
                                }
     print_variables(
         calibration_hyperparams.keys(), calibration_hyperparams.values())
 
     distmod_hyperparams_per_catalogue = []
     for cat in ARGS.catalogue:
-        x = get_distmod_hyperparams(cat)
+        x = get_distmod_hyperparams(cat, sample_alpha)
         print(f"\n{cat} hyperparameters:")
         print_variables(x.keys(), x.values())
         distmod_hyperparams_per_catalogue.append(x)
@@ -280,12 +290,13 @@ if __name__ == "__main__":
                     *distmod_hyperparams_per_catalogue)
     ###########################################################################
 
-    get_model_kwargs = {"zcmb_max": zcmb_max}
+    get_model_kwargs = {"zcmb_min": zcmb_min, "zcmb_max": zcmb_max}
     models = get_models(get_model_kwargs, )
     model_kwargs = {
         "models": models,
         "field_calibration_hyperparams": calibration_hyperparams,
         "distmod_hyperparams_per_model": distmod_hyperparams_per_catalogue,
+        "inference_method": inference_method,
         }
 
     model = csiborgtools.flow.PV_validation_model
