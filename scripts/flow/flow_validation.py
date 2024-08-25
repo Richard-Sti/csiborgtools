@@ -100,6 +100,8 @@ def get_models(get_model_kwargs, verbose=True):
                      "Pantheon+_groups", "Pantheon+_groups_zSN",
                      "Pantheon+_zSN"]:
             fpath = join(folder, "PV_compilation.hdf5")
+        elif "CF4_TFR" in cat:
+            fpath = join(folder, "PV/CF4/CF4_TF-distances.hdf5")
         elif cat in ["CF4_GroupAll"]:
             fpath = join(folder, "PV/CF4/CF4_GroupAll.hdf5")
         else:
@@ -216,7 +218,7 @@ def get_distmod_hyperparams(catalogue, sample_alpha):
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
                 "sample_alpha": sample_alpha
                 }
-    elif catalogue in ["SFI_gals", "2MTF"]:
+    elif catalogue in ["SFI_gals", "2MTF"] or "CF4_TFR" in catalogue:
         return {"e_mu_min": 0.001, "e_mu_max": 1.0,
                 "a_mean": -21., "a_std": 5.0,
                 "b_mean": -5.95, "b_std": 4.0,
