@@ -674,8 +674,8 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                     "x1", self.name, self.x1_min, self.x1_max)
                 c_mean, c_std = sample_gaussian_hyperprior(
                     "c", self.name, self.c_min, self.c_max)
-                # Note that the true variables are currently uncorrelated.
 
+                # NOTE: that the true variables are currently uncorrelated.
                 with plate("true_SN", self.ndata):
                     mag_true = sample(
                         f"mag_true_{self.name}", Normal(mag_mean, mag_std))
@@ -755,7 +755,6 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         pnorm = simpson(ptilde, dx=self.dr, axis=-1)
 
         # Calculate z_obs at each distance. Shape is (n_sims, ndata, nxrange)
-        # The weights are related to the extrapolation of the velocity field.
         vrad = field_calibration_params["beta"] * self.los_velocity
         vrad += (Vext_rad[None, :, None] + Vmono)
         zobs = (1 + self.z_xrange[None, None, :]) * (1 + vrad / SPEED_OF_LIGHT)
