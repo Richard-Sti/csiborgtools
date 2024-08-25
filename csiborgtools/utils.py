@@ -469,10 +469,9 @@ def BIC_AIC(samples, log_likelihood, ndata):
     for val in samples.values():
         if val.ndim == 1:
             nparam += 1
-        elif val.ndim == 2:
-            nparam += val.shape[-1]
         else:
-            raise ValueError("Invalid dimensionality of samples to count the number of parameters.")  # noqa
+            # The first dimension is the number of steps.
+            nparam += np.prod(val.shape[1:])
 
     BIC = nparam * np.log(ndata) - 2 * log_likelihood[kmax]
     AIC = 2 * nparam - 2 * log_likelihood[kmax]
