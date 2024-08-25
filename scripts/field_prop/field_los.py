@@ -91,8 +91,13 @@ def get_los(catalogue_name, simname, comm):
             with File(fname, 'r') as f:
                 RA = f["RA"][:]
                 dec = f["DE"][:]
+        elif catalogue_name == "CF4_TFR":
+            fname = "/mnt/extraspace/rstiskalek/catalogs/PV/CF4/CF4_TF-distances.hdf5"  # noqa
+            with File(fname, 'r') as f:
+                RA = f["RA"][:] * 360 / 24  # Convert to degrees from hours.
+                dec = f["DE"][:]
         else:
-            raise ValueError(f"Unknown field name: `{catalogue_name}`.")
+            raise ValueError(f"Unknown catalogue name: `{catalogue_name}`.")
 
         if comm.Get_rank() == 0:
             print(f"The dataset contains {len(RA)} objects.")
