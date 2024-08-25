@@ -194,6 +194,8 @@ class DataLoader:
 
         if "Pantheon+" in catalogue:
             fpath = paths.field_los(simname, "Pantheon+")
+        elif "CF4_TFR" in catalogue:
+            fpath = paths.field_los(simname, "CF4_TFR")
         else:
             fpath = paths.field_los(simname, catalogue)
 
@@ -258,7 +260,7 @@ class DataLoader:
                         continue
 
                     arr[key] = f[key][:]
-        elif catalogue in ["CF4_GroupAll"]:
+        elif catalogue in ["CF4_GroupAll"] or "CF4_TFR" in catalogue:
             with File(catalogue_fpath, 'r') as f:
                 dtype = [(key, np.float32) for key in f.keys()]
                 dtype += [("DEC", np.float32)]
@@ -267,6 +269,9 @@ class DataLoader:
                 for key in f.keys():
                     arr[key] = f[key][:]
                 arr["DEC"] = arr["DE"]
+
+                if "CF4_TFR" in catalogue:
+                    arr["RA"] *= 360 / 24
         else:
             raise ValueError(f"Unknown catalogue: `{catalogue}`.")
 
@@ -744,10 +749,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             self.r2_xrange[None, :])
         # Inhomogeneous Malmquist bias. Shape is (n_sims, ndata, nxrange)
         alpha = distmod_params["alpha"]
-        if alpha != 1.0:
-            ptilde = ptilde[None, ...] * self.los_density**alpha
-        else:
-            ptilde = ptilde[None, ...] * self.los_density
+        ptilde = ptilde[None, ...] * self.los_density**alpha
 
         # Normalization of p(r). Shape is (n_sims, ndata)
         pnorm = simpson(ptilde, dx=self.dr, axis=-1)
@@ -887,6 +889,37 @@ def get_model(loader, zcmb_min=0.001, zcmb_max=None):
         model = PV_LogLikelihood(
             los_overdensity[:, mask], los_velocity[:, mask], rmax[:, mask],
             RA[mask], dec[mask], zCMB[mask], None, calibration_params,
+            loader.rdist, loader._Omega_m, "TFR", name=kind)
+    elif "CF4_TFR_" in kind:
+        # The full name can be e.g. "CF4_TFR_not2MTForSFI_i" or "CF4_TFR_i".
+        band = kind.split("_")[-1]
+        if band not in ['g', 'r', 'i', 'z', 'w1', 'w2']:
+            raise ValueError(f"Band `{band}` not recognized.")
+
+        keys = ["RA", "DEC", "Vcmb", f"{band}", "lgWmxi", "elgWi",
+                "not_matched_to_2MTF_or_SFI"]
+        RA, dec, z_obs, mag, eta, e_eta, not_matched_to_2MTF_or_SFI = (
+            loader.cat[k] for k in keys)
+
+        not_matched_to_2MTF_or_SFI = not_matched_to_2MTF_or_SFI.astype(bool)
+        # NOTE: fiducial uncertainty until we can get the actual values.
+        e_mag = 0.001 * np.ones_like(mag)
+
+        z_obs /= SPEED_OF_LIGHT
+        eta -= 2.5
+
+        fprint("selecting only galaxies with mag > 5 and eta > -0.3.")
+        mask = (mag > 5) & (eta > -0.3)
+        mask &= (z_obs < zcmb_max) & (z_obs > zcmb_min)
+
+        if "not2MTForSFI" in kind:
+            mask &= not_matched_to_2MTF_or_SFI
+
+        calibration_params = {"mag": mag[mask], "eta": eta[mask],
+                              "e_mag": e_mag[mask], "e_eta": e_eta[mask]}
+        model = PV_LogLikelihood(
+            los_overdensity[:, mask], los_velocity[:, mask], rmax[:, mask],
+            RA[mask], dec[mask], z_obs[mask], None, calibration_params,
             loader.rdist, loader._Omega_m, "TFR", name=kind)
     elif kind in ["CF4_GroupAll"]:
         # Note, this for some reason works terribly.
