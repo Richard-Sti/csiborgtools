@@ -15,6 +15,7 @@
 MPI script to interpolate the density and velocity fields along the line of
 sight.
 """
+import sys
 from argparse import ArgumentParser
 from datetime import datetime
 from gc import collect
@@ -32,7 +33,8 @@ from mpi4py import MPI
 from numba import jit
 from taskmaster import work_delegation  # noqa
 
-from utils import get_nsims
+sys.path.append("../")
+from utils import get_nsims  # noqa
 
 ###############################################################################
 #                             I/O functions                                   #
@@ -84,6 +86,11 @@ def get_los(catalogue_name, simname, comm):
             with File(fname, 'r') as f:
                 RA = f["RA"][:]
                 dec = f["DEC"][:]
+        elif catalogue_name == "CF4_GroupAll":
+            fname = "/mnt/extraspace/rstiskalek/catalogs/PV/CF4/CF4_GroupAll.hdf5"  # noqa
+            with File(fname, 'r') as f:
+                RA = f["RA"][:]
+                dec = f["DE"][:]
         else:
             raise ValueError(f"Unknown field name: `{catalogue_name}`.")
 
