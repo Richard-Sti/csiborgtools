@@ -13,7 +13,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 from .flow_model import (DataLoader, PV_LogLikelihood, PV_validation_model,     # noqa
-                         dist2distmodulus, dist2redshift, distmodulus2dist,     # noqa
-                         get_model, Observed2CosmologicalRedshift,              # noqa
-                         predict_zobs, project_Vext,                            # noqa
-                         radial_velocity_los, stack_pzosmo_over_realizations)   # noqa
+                         dist2redshift, get_model,                              # noqa
+                         Observed2CosmologicalRedshift, predict_zobs,           # noqa
+                         project_Vext, radial_velocity_los,                     # noqa
+                         stack_pzosmo_over_realizations)                        # noqa
