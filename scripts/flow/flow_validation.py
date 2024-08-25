@@ -254,7 +254,7 @@ if __name__ == "__main__":
     nchains_harmonic = 10
     num_epochs = 30
     inference_method = "mike"
-    sample_alpha = False
+    sample_alpha = True
     sample_beta = True
     sample_Vmono = False
 
