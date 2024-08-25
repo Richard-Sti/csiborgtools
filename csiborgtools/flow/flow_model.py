@@ -29,13 +29,10 @@ from astropy.cosmology import FlatLambdaCDM, z_at_value
 from h5py import File
 from jax import jit
 from jax import numpy as jnp
-from jax import vmap
 from jax.scipy.special import logsumexp
-from numpyro import deterministic, factor, sample
-from numpyro.distributions import Normal, Uniform
+from numpyro import factor, sample, plate
+from numpyro.distributions import Normal, Uniform, MultivariateNormal
 from quadax import simpson
-from scipy.interpolate import interp1d
-from sklearn.model_selection import KFold
 from tqdm import trange
 
 from ..params import SPEED_OF_LIGHT, simname2Omega_m
@@ -261,33 +258,19 @@ class DataLoader:
                         continue
 
                     arr[key] = f[key][:]
+        elif catalogue in ["CF4_GroupAll"]:
+            with File(catalogue_fpath, 'r') as f:
+                dtype = [(key, np.float32) for key in f.keys()]
+                dtype += [("DEC", np.float32)]
+                arr = np.empty(len(f["RA"]), dtype=dtype)
+
+                for key in f.keys():
+                    arr[key] = f[key][:]
+                arr["DEC"] = arr["DE"]
         else:
             raise ValueError(f"Unknown catalogue: `{catalogue}`.")
 
         return arr
-
-    def make_jackknife_mask(self, i, n_splits, seed=42):
-        """
-        Set the internal jackknife mask to exclude the `i`-th split out of
-        `n_splits`.
-        """
-        cv = KFold(n_splits=n_splits, shuffle=True, random_state=seed)
-        n = len(self._cat)
-        indxs = np.arange(n)
-
-        gen = np.random.default_rng(seed)
-        gen.shuffle(indxs)
-
-        for j, (train_index, __) in enumerate(cv.split(np.arange(n))):
-            if i == j:
-                self._mask = indxs[train_index]
-                return
-
-        raise ValueError("The index `i` must be in the range of `n_splits`.")
-
-    def reset_mask(self):
-        """Reset the jackknife mask."""
-        self._mask = np.ones(len(self._cat), dtype=bool)
 
 
 ###############################################################################
@@ -319,17 +302,6 @@ def radial_velocity_los(los_velocity, ra, dec):
 #                           JAX Flow model                                    #
 ###############################################################################
 
-
-def lognorm_mean_std_to_loc_scale(mu, std):
-    """
-    Calculate the location and scale parameters for the log-normal distribution
-    from the mean and standard deviation.
-    """
-    loc = np.log(mu) - 0.5 * np.log(1 + (std / mu) ** 2)
-    scale = np.sqrt(np.log(1 + (std / mu) ** 2))
-    return loc, scale
-
-
 def dist2redshift(dist, Omega_m):
     """
     Convert comoving distance to cosmological redshift if the Universe is
@@ -357,91 +329,6 @@ def gradient_redshift2dist(z, Omega_m):
     return SPEED_OF_LIGHT / H0 * (1 - z * (1 + q0))
 
 
-def dist2distmodulus(dist, Omega_m):
-    """Convert comoving distance to distance modulus, assuming z << 1."""
-    zcosmo = dist2redshift(dist, Omega_m)
-    luminosity_distance = dist * (1 + zcosmo)
-    return 5 * jnp.log10(luminosity_distance) + 25
-
-
-def distmodulus2dist(mu, Omega_m, ninterp=10000, zmax=0.1, mu2comoving=None,
-                     return_interpolator=False):
-    """
-    Convert distance modulus to comoving distance. This is costly as it builds
-    up the interpolator every time it is called, unless it is provided.
-
-    Parameters
-    ----------
-    mu : float or 1-dimensional array
-        Distance modulus.
-    Omega_m : float
-        Matter density parameter.
-    ninterp : int, optional
-        Number of points to interpolate the mapping from distance modulus to
-        comoving distance.
-    zmax : float, optional
-        Maximum redshift for the interpolation.
-    mu2comoving : callable, optional
-        Interpolator from distance modulus to comoving distance. If not
-        provided, it is built up every time the function is called.
-    return_interpolator : bool, optional
-        Whether to return the interpolator as well.
-
-    Returns
-    -------
-    float (or 1-dimensional array) and callable (optional)
-    """
-    if mu2comoving is None:
-        zrange = np.linspace(1e-15, zmax, ninterp)
-        cosmo = FlatLambdaCDM(H0=H0, Om0=Omega_m)
-        mu2comoving = interp1d(
-            cosmo.distmod(zrange).value, cosmo.comoving_distance(zrange).value,
-            kind="cubic")
-
-    if return_interpolator:
-        return mu2comoving(mu), mu2comoving
-
-    return mu2comoving(mu)
-
-
-def distmodulus2redsfhit(mu, Omega_m, ninterp=10000, zmax=0.1, mu2z=None,
-                         return_interpolator=False):
-    """
-    Convert distance modulus to cosmological redshift. This is costly as it
-    builts up the interpolator every time it is called, unless it is provided.
-
-    Parameters
-    ----------
-    mu : float or 1-dimensional array
-        Distance modulus.
-    Omega_m : float
-        Matter density parameter.
-    ninterp : int, optional
-        Number of points to interpolate the mapping from distance modulus to
-        comoving distance.
-    zmax : float, optional
-        Maximum redshift for the interpolation.
-    mu2z : callable, optional
-        Interpolator from distance modulus to cosmological redsfhit. If not
-        provided, it is built up every time the function is called.
-    return_interpolator : bool, optional
-        Whether to return the interpolator as well.
-
-    Returns
-    -------
-    float (or 1-dimensional array) and callable (optional)
-    """
-    if mu2z is None:
-        zrange = np.linspace(1e-15, zmax, ninterp)
-        cosmo = FlatLambdaCDM(H0=H0, Om0=Omega_m)
-        mu2z = interp1d(cosmo.distmod(zrange).value, zrange, kind="cubic")
-
-    if return_interpolator:
-        return mu2z(mu), mu2z
-
-    return mu2z(mu)
-
-
 def project_Vext(Vext_x, Vext_y, Vext_z, RA_radians, dec_radians):
     """Project the external velocity vector onto the line of sight."""
     cos_dec = jnp.cos(dec_radians)
@@ -465,20 +352,27 @@ def predict_zobs(dist, beta, Vext_radial, vpec_radial, Omega_m):
 ###############################################################################
 
 
-def calculate_ptilde_wo_bias(xrange, mu, err_squared, r_squared_xrange):
+def ptilde_wo_bias(xrange, mu, err_squared, r_squared_xrange):
     """Calculate `ptilde(r)` without imhomogeneous Malmquist bias."""
     ptilde = jnp.exp(-0.5 * (xrange - mu)**2 / err_squared)
+    ptilde /= jnp.sqrt(2 * np.pi * err_squared)
     ptilde *= r_squared_xrange
     return ptilde
 
 
-def calculate_likelihood_zobs(zobs, zobs_pred, e2_cz):
+def likelihood_zobs(zobs, zobs_pred, e2_cz):
     """
     Calculate the likelihood of the observed redshift given the predicted
-    redshift.
+    redshift. Multiplies the redshifts by the speed of light.
     """
-    dcz = SPEED_OF_LIGHT * (zobs[:, None] - zobs_pred)
+    dcz = SPEED_OF_LIGHT * (zobs - zobs_pred)
     return jnp.exp(-0.5 * dcz**2 / e2_cz) / jnp.sqrt(2 * np.pi * e2_cz)
+
+
+def normal_logpdf(x, loc, scale):
+    """The log of the normal probability density function."""
+    return (-0.5 * ((x - loc) / scale)**2
+            - jnp.log(scale) - 0.5 * jnp.log(2 * jnp.pi))
 
 ###############################################################################
 #                          Base flow validation                               #
@@ -495,18 +389,22 @@ class BaseFlowValidationModel(ABC):
         names = []
         values = []
         for key, value in calibration_params.items():
+            names.append(key)
+            values.append(value)
+
+            # Store also the squared uncertainty
             if "e_" in key:
                 key = key.replace("e_", "e2_")
                 value = value**2
-
-            names.append(key)
-            values.append(value)
+                names.append(key)
+                values.append(value)
 
         self._setattr_as_jax(names, values)
 
     def _set_radial_spacing(self, r_xrange, Omega_m):
         cosmo = FlatLambdaCDM(H0=H0, Om0=Omega_m)
 
+        r_xrange = jnp.asarray(r_xrange)
         r2_xrange = r_xrange**2
         r2_xrange /= r2_xrange.mean()
         self.r_xrange = r_xrange
@@ -541,18 +439,29 @@ class BaseFlowValidationModel(ABC):
 
 
 ###############################################################################
+#                         Sampling shortcuts                                  #
+###############################################################################
+
+def sample_alpha_bias(name, xmin, xmax, to_sample):
+    if to_sample:
+        return sample(f"alpha_{name}", Uniform(xmin, xmax))
+    else:
+        return 1.0
+
+
+###############################################################################
 #                          SNIa parameters sampling                           #
 ###############################################################################
 
 
-def distmod_SN(mB, x1, c, mag_cal, alpha_cal, beta_cal):
+def distmod_SN(mag, x1, c, mag_cal, alpha_cal, beta_cal):
     """Distance modulus of a SALT2 SN Ia."""
-    return mB - mag_cal + alpha_cal * x1 - beta_cal * c
+    return mag - mag_cal + alpha_cal * x1 - beta_cal * c
 
 
-def e2_distmod_SN(e2_mB, e2_x1, e2_c, alpha_cal, beta_cal, e_mu_intrinsic):
+def e2_distmod_SN(e2_mag, e2_x1, e2_c, alpha_cal, beta_cal, e_mu_intrinsic):
     """Squared error on the distance modulus of a SALT2 SN Ia."""
-    return (e2_mB + alpha_cal**2 * e2_x1 + beta_cal**2 * e2_c
+    return (e2_mag + alpha_cal**2 * e2_x1 + beta_cal**2 * e2_c
             + e_mu_intrinsic**2)
 
 
@@ -565,8 +474,7 @@ def sample_SN(e_mu_min, e_mu_max, mag_cal_mean, mag_cal_std, alpha_cal_mean,
     alpha_cal = sample(
         f"alpha_cal_{name}", Normal(alpha_cal_mean, alpha_cal_std))
     beta_cal = sample(f"beta_cal_{name}", Normal(beta_cal_mean, beta_cal_std))
-    alpha = sample(f"alpha_{name}",
-                   Uniform(alpha_min, alpha_max)) if sample_alpha else 1.0
+    alpha = sample_alpha_bias(name, alpha_min, alpha_max, sample_alpha)
 
     return {"e_mu": e_mu,
             "mag_cal": mag_cal,
@@ -580,28 +488,49 @@ def sample_SN(e_mu_min, e_mu_max, mag_cal_mean, mag_cal_std, alpha_cal_mean,
 #                          Tully-Fisher parameters sampling                   #
 ###############################################################################
 
-def distmod_TFR(mag, eta, a, b):
+def distmod_TFR(mag, eta, a, b, c):
     """Distance modulus of a TFR calibration."""
-    return mag - (a + b * eta)
+    return mag - (a + b * eta + c * eta**2)
 
 
-def e2_distmod_TFR(e2_mag, e2_eta, b, e_mu_intrinsic):
-    """Squared error on the TFR distance modulus."""
-    return e2_mag + b**2 * e2_eta + e_mu_intrinsic**2
+def e2_distmod_TFR(e2_mag, e2_eta, eta, b, c, e_mu_intrinsic):
+    """
+    Squared error on the TFR distance modulus with linearly propagated
+    magnitude and linewidth uncertainties.
+    """
+    return e2_mag + (b + 2 * c * eta)**2 * e2_eta + e_mu_intrinsic**2
 
 
-def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std, alpha_min,
-               alpha_max, sample_alpha, name):
+def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
+               c_mean, c_std, alpha_min, alpha_max, sample_alpha, name):
     """Sample Tully-Fisher calibration parameters."""
     e_mu = sample(f"e_mu_{name}", Uniform(e_mu_min, e_mu_max))
     a = sample(f"a_{name}", Normal(a_mean, a_std))
     b = sample(f"b_{name}", Normal(b_mean, b_std))
-    alpha = sample(f"alpha_{name}",
-                   Uniform(alpha_min, alpha_max)) if sample_alpha else 1.0
+    c = sample(f"c_{name}", Normal(c_mean, c_std))
+    alpha = sample_alpha_bias(name, alpha_min, alpha_max, sample_alpha)
 
     return {"e_mu": e_mu,
             "a": a,
             "b": b,
+            "c": c,
+            "alpha": alpha
+            }
+
+
+###############################################################################
+#                    Simple calibration parameters sampling                   #
+###############################################################################
+
+def sample_simple(e_mu_min, e_mu_max, dmu_min, dmu_max, alpha_min, alpha_max,
+                  sample_alpha, name):
+    """Sample simple calibration parameters."""
+    e_mu = sample(f"e_mu_{name}", Uniform(e_mu_min, e_mu_max))
+    dmu = sample(f"dmu_{name}", Uniform(dmu_min, dmu_max))
+    alpha = sample_alpha_bias(name, alpha_min, alpha_max, sample_alpha)
+
+    return {"e_mu": e_mu,
+            "dmu": dmu,
             "alpha": alpha
             }
 
@@ -612,19 +541,24 @@ def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std, alpha_min,
 
 def sample_calibration(Vext_min, Vext_max, Vmono_min, Vmono_max, beta_min,
                        beta_max, sigma_v_min, sigma_v_max, sample_Vmono,
-                       sample_beta, sample_sigma_v_ext):
+                       sample_beta):
     """Sample the flow calibration."""
     Vext = sample("Vext", Uniform(Vext_min, Vext_max).expand([3]))
     sigma_v = sample("sigma_v", Uniform(sigma_v_min, sigma_v_max))
 
-    beta = sample("beta", Uniform(beta_min, beta_max)) if sample_beta else 1.0                                 # noqa
-    Vmono = sample("Vmono", Uniform(Vmono_min, Vmono_max)) if sample_Vmono else 0.0                            # noqa
-    sigma_v_ext = sample("sigma_v_ext", Uniform(sigma_v_min, sigma_v_max)) if sample_sigma_v_ext else sigma_v  # noqa
+    if sample_beta:
+        beta = sample("beta", Uniform(beta_min, beta_max))
+    else:
+        beta = 1.0
+
+    if sample_Vmono:
+        Vmono = sample("Vmono", Uniform(Vmono_min, Vmono_max))
+    else:
+        Vmono = 0.0
 
     return {"Vext": Vext,
             "Vmono": Vmono,
             "sigma_v": sigma_v,
-            "sigma_v_ext": sigma_v_ext,
             "beta": beta}
 
 
@@ -633,21 +567,11 @@ def sample_calibration(Vext_min, Vext_max, Vmono_min, Vmono_max, beta_min,
 ###############################################################################
 
 
-def find_extrap_mask(rmax, rdist):
-    """
-    Make a mask of shape `(nsim, ngal, nrdist)` of which velocity field values
-    are extrapolated. above which the
-    """
-    nsim, ngal = rmax.shape
-    extrap_mask = np.zeros((nsim, ngal, len(rdist)), dtype=bool)
-    extrap_weights = np.ones((nsim, ngal, len(rdist)))
-    for i in range(nsim):
-        for j in range(ngal):
-            k = np.searchsorted(rdist, rmax[i, j])
-            extrap_mask[i, j, k:] = True
-            extrap_weights[i, j, k:] = rmax[i, j] / rdist[k:]
-
-    return extrap_mask, extrap_weights
+def sample_gaussian_hyperprior(param, name, xmin, xmax):
+    """Sample MNR Gaussian hyperprior mean and standard deviation."""
+    mean = sample(f"{param}_mean_{name}", Uniform(xmin, xmax))
+    std = sample(f"{param}_std_{name}", Uniform(0.0, xmax - xmin))
+    return mean, std
 
 
 class PV_LogLikelihood(BaseFlowValidationModel):
@@ -675,6 +599,10 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         Radial distances where the field was interpolated for each object.
     Omega_m : float
         Matter density parameter.
+    kind : str
+        Catalogue kind, either "TFR", "SN", or "simple".
+    name : str
+        Name of the catalogue.
     """
 
     def __init__(self, los_density, los_velocity, rmax, RA, dec, z_obs,
@@ -700,67 +628,146 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         self.Omega_m = Omega_m
         self.norm = - self.ndata * jnp.log(self.num_sims)
 
-        extrap_mask, extrap_weights = find_extrap_mask(rmax, r_xrange)
-        self.extrap_mask = jnp.asarray(extrap_mask)
-        self.extrap_weights = jnp.asarray(extrap_weights)
+        if kind == "TFR":
+            self.mag_min, self.mag_max = jnp.min(self.mag), jnp.max(self.mag)
+            eta_mu = jnp.mean(self.eta)
+            fprint(f"setting the linewith mean to 0 instead of {eta_mu:.3f}.")
+            self.eta -= eta_mu
+            self.eta_min, self.eta_max = jnp.min(self.eta), jnp.max(self.eta)
+        elif kind == "SN":
+            self.mag_min, self.mag_max = jnp.min(self.mag), jnp.max(self.mag)
+            self.x1_min, self.x1_max = jnp.min(self.x1), jnp.max(self.x1)
+            self.c_min, self.c_max = jnp.min(self.c), jnp.max(self.c)
+        elif kind == "simple":
+            self.mu_min, self.mu_max = jnp.min(self.mu), jnp.max(self.mu)
+        else:
+            raise RuntimeError("Support most be added for other kinds.")
 
     def __call__(self, field_calibration_params, distmod_params,
-                 sample_sigma_v_ext):
-        """PV validation model log-likelihood."""
-        # Turn e2_cz to be of shape (nsims, ndata, nxrange) and apply
-        # sigma_v_ext where applicable
-        sigma_v = field_calibration_params["sigma_v"]
-        sigma_v_ext = field_calibration_params["sigma_v_ext"]
-        e2_cz = jnp.full_like(self.extrap_mask, sigma_v**2, dtype=jnp.float32)
-        if sample_sigma_v_ext:
-            e2_cz = e2_cz.at[self.extrap_mask].set(sigma_v_ext**2)
+                 inference_method):
+        if inference_method not in ["mike", "bayes"]:
+            raise ValueError(f"Unknown method: `{inference_method}`.")
 
-        # Now add the observational errors
-        e2_cz += self.e2_cz_obs[None, :, None]
+        ll0 = 0.0
+        sigma_v = field_calibration_params["sigma_v"]
+        e2_cz = self.e2_cz_obs + sigma_v**2
 
         Vext = field_calibration_params["Vext"]
         Vmono = field_calibration_params["Vmono"]
         Vext_rad = project_Vext(Vext[0], Vext[1], Vext[2], self.RA, self.dec)
 
         e_mu = distmod_params["e_mu"]
-        alpha = distmod_params["alpha"]
         if self.kind == "SN":
             mag_cal = distmod_params["mag_cal"]
             alpha_cal = distmod_params["alpha_cal"]
             beta_cal = distmod_params["beta_cal"]
+
+            if inference_method == "bayes":
+                mag_mean, mag_std = sample_gaussian_hyperprior(
+                    "mag", self.name, self.mag_min, self.mag_max)
+                x1_mean, x1_std = sample_gaussian_hyperprior(
+                    "x1", self.name, self.x1_min, self.x1_max)
+                c_mean, c_std = sample_gaussian_hyperprior(
+                    "c", self.name, self.c_min, self.c_max)
+                # Note that the true variables are currently uncorrelated.
+
+                with plate("true_SN", self.ndata):
+                    mag_true = sample(
+                        f"mag_true_{self.name}", Normal(mag_mean, mag_std))
+                    x1_true = sample(
+                        f"x1_true_{self.name}", Normal(x1_mean, x1_std))
+                    c_true = sample(
+                        f"c_true_{self.name}", Normal(c_mean, c_std))
+
+                ll0 += jnp.sum(normal_logpdf(mag_true, self.mag, self.e_mag))
+                ll0 += jnp.sum(normal_logpdf(x1_true, self.x1, self.e_x1))
+                ll0 += jnp.sum(normal_logpdf(c_true, self.c, self.e_c))
+                e2_mu = jnp.ones_like(mag_true) * e_mu**2
+            else:
+                mag_true = self.mag
+                x1_true = self.x1
+                c_true = self.c
+                e2_mu = e2_distmod_SN(
+                    self.e2_mag, self.e2_x1, self.e2_c, alpha_cal, beta_cal,
+                    e_mu)
+
             mu = distmod_SN(
-                self.mB, self.x1, self.c, mag_cal, alpha_cal, beta_cal)
-            squared_e_mu = e2_distmod_SN(
-                self.e2_mB, self.e2_x1, self.e2_c, alpha_cal, beta_cal, e_mu)
+                mag_true, x1_true, c_true, mag_cal, alpha_cal, beta_cal)
         elif self.kind == "TFR":
             a = distmod_params["a"]
             b = distmod_params["b"]
-            mu = distmod_TFR(self.mag, self.eta, a, b)
-            squared_e_mu = e2_distmod_TFR(self.e2_mag, self.e2_eta, b, e_mu)
+            c = distmod_params["c"]
+
+            if inference_method == "bayes":
+                # Sample the true TFR parameters.
+                mag_mean, mag_std = sample_gaussian_hyperprior(
+                    "mag", self.name, self.mag_min, self.mag_max)
+                eta_mean, eta_std = sample_gaussian_hyperprior(
+                    "eta", self.name, self.eta_min, self.eta_max)
+                corr_mag_eta = sample("corr_mag_eta", Uniform(-1, 1))
+
+                loc = jnp.array([mag_mean, eta_mean])
+                cov = jnp.array(
+                    [[mag_std**2, corr_mag_eta * mag_std * eta_std],
+                     [corr_mag_eta * mag_std * eta_std, eta_std**2]])
+
+                with plate("true_TFR", self.ndata):
+                    x_true = sample("x_TFR", MultivariateNormal(loc, cov))
+
+                mag_true, eta_true = x_true[..., 0], x_true[..., 1]
+                ll0 += jnp.sum(normal_logpdf(eta_true, self.eta, self.e_eta))
+                ll0 += jnp.sum(normal_logpdf(mag_true, self.mag, self.e_mag))
+                e2_mu = jnp.ones_like(mag_true) * e_mu**2
+            else:
+                eta_true = self.eta
+                mag_true = self.mag
+                e2_mu = e2_distmod_TFR(
+                    self.e2_mag, self.e2_eta, eta_true, b, c, e_mu)
+
+            mu = distmod_TFR(mag_true, eta_true, a, b, c)
+        elif self.kind == "simple":
+            dmu = distmod_params["dmu"]
+
+            if inference_method == "bayes":
+                raise NotImplementedError("Bayes for simple not implemented.")
+            else:
+                mu_true = self.mu
+                e2_mu = e_mu**2 + self.e2_mu
+
+            mu = mu_true + dmu
         else:
             raise ValueError(f"Unknown kind: `{self.kind}`.")
 
         # Calculate p(r) (Malmquist bias). Shape is (ndata, nxrange)
-        ptilde = jnp.transpose(vmap(calculate_ptilde_wo_bias, in_axes=(0, None, None, 0))(self.mu_xrange, mu, squared_e_mu, self.r2_xrange))  # noqa
+        ptilde = ptilde_wo_bias(
+            self.mu_xrange[None, :], mu[:, None], e2_mu[:, None],
+            self.r2_xrange[None, :])
         # Inhomogeneous Malmquist bias. Shape is (n_sims, ndata, nxrange)
-        ptilde = self.los_density**alpha * ptilde
+        alpha = distmod_params["alpha"]
+        if alpha != 1.0:
+            ptilde = ptilde[None, ...] * self.los_density**alpha
+        else:
+            ptilde = ptilde[None, ...] * self.los_density
+
         # Normalization of p(r). Shape is (n_sims, ndata)
         pnorm = simpson(ptilde, dx=self.dr, axis=-1)
 
         # Calculate z_obs at each distance. Shape is (n_sims, ndata, nxrange)
         # The weights are related to the extrapolation of the velocity field.
         vrad = field_calibration_params["beta"] * self.los_velocity
-        vrad += (Vext_rad[None, :, None] + Vmono) * self.extrap_weights
-        zobs = (1 + self.z_xrange[None, None, :]) * (1 + vrad / SPEED_OF_LIGHT) - 1  # noqa
+        vrad += (Vext_rad[None, :, None] + Vmono)
+        zobs = (1 + self.z_xrange[None, None, :]) * (1 + vrad / SPEED_OF_LIGHT)
+        zobs -= 1.
 
-        ptilde *= calculate_likelihood_zobs(self.z_obs, zobs, e2_cz)
+        ptilde *= likelihood_zobs(
+            self.z_obs[None, :, None], zobs, e2_cz[None, :, None])
+
         ll = jnp.log(simpson(ptilde, dx=self.dr, axis=-1)) - jnp.log(pnorm)
-
-        return jnp.sum(logsumexp(ll, axis=0)) + self.norm
+        return ll0 + jnp.sum(logsumexp(ll, axis=0)) + self.norm
 
 
 def PV_validation_model(models, distmod_hyperparams_per_model,
-                        field_calibration_hyperparams):
+                        field_calibration_hyperparams, inference_method):
     """
     Peculiar velocity validation NumPyro model.
 
@@ -772,27 +779,29 @@ def PV_validation_model(models, distmod_hyperparams_per_model,
         Distance modulus hyperparameters for each model/catalogue.
     field_calibration_hyperparams : dict
         Field calibration hyperparameters.
+    inference_method : str
+        Either `mike` or `bayes`.
     """
     field_calibration_params = sample_calibration(
         **field_calibration_hyperparams)
-    sample_sigma_v_ext = field_calibration_hyperparams["sample_sigma_v_ext"]
 
     ll = 0.0
     for n in range(len(models)):
         model = models[n]
+        name = model.name
         distmod_hyperparams = distmod_hyperparams_per_model[n]
 
         if model.kind == "TFR":
-            distmod_params = sample_TFR(**distmod_hyperparams, name=model.name)
+            distmod_params = sample_TFR(**distmod_hyperparams, name=name)
         elif model.kind == "SN":
-            distmod_params = sample_SN(**distmod_hyperparams, name=model.name)
+            distmod_params = sample_SN(**distmod_hyperparams, name=name)
+        elif model.kind == "simple":
+            distmod_params = sample_simple(**distmod_hyperparams, name=name)
         else:
             raise ValueError(f"Unknown kind: `{model.kind}`.")
 
-        ll += model(
-            field_calibration_params, distmod_params, sample_sigma_v_ext)
+        ll += model(field_calibration_params, distmod_params, inference_method)
 
-    deterministic("ll_values", ll)
     factor("ll", ll)
 
 
@@ -801,7 +810,7 @@ def PV_validation_model(models, distmod_hyperparams_per_model,
 ###############################################################################
 
 
-def get_model(loader, zcmb_max=None, verbose=True):
+def get_model(loader, zcmb_min=0.001, zcmb_max=None):
     """
     Get a model and extract the relevant data from the loader.
 
@@ -809,10 +818,10 @@ def get_model(loader, zcmb_max=None, verbose=True):
     ----------
     loader : DataLoader
         DataLoader instance.
+    zcmb_min : float, optional
+        Minimum observed redshift in the CMB frame to include.
     zcmb_max : float, optional
         Maximum observed redshift in the CMB frame to include.
-    verbose : bool, optional
-        Verbosity flag.
 
     Returns
     -------
@@ -827,12 +836,13 @@ def get_model(loader, zcmb_max=None, verbose=True):
 
     if kind in ["LOSS", "Foundation"]:
         keys = ["RA", "DEC", "z_CMB", "mB", "x1", "c", "e_mB", "e_x1", "e_c"]
-        RA, dec, zCMB, mB, x1, c, e_mB, e_x1, e_c = (loader.cat[k] for k in keys)  # noqa
+        RA, dec, zCMB, mag, x1, c, e_mag, e_x1, e_c = (
+            loader.cat[k] for k in keys)
         e_zCMB = None
 
-        mask = (zCMB < zcmb_max)
-        calibration_params = {"mB": mB[mask], "x1": x1[mask], "c": c[mask],
-                              "e_mB": e_mB[mask], "e_x1": e_x1[mask],
+        mask = (zCMB < zcmb_max) & (zCMB > zcmb_min)
+        calibration_params = {"mag": mag[mask], "x1": x1[mask], "c": c[mask],
+                              "e_mag": e_mag[mask], "e_x1": e_x1[mask],
                               "e_c": e_c[mask]}
 
         model = PV_LogLikelihood(
@@ -848,7 +858,7 @@ def get_model(loader, zcmb_max=None, verbose=True):
         mB -= bias_corr_mB
         e_mB = np.sqrt(e_mB**2 + e_bias_corr_mB**2)
 
-        mask = zCMB < zcmb_max
+        mask = (zCMB < zcmb_max) & (zCMB > zcmb_min)
 
         if kind == "Pantheon+_groups":
             mask &= np.isfinite(zCMB_Group)
@@ -860,8 +870,8 @@ def get_model(loader, zcmb_max=None, verbose=True):
         if kind == "Pantheon+_zSN":
             zCMB = zCMB_SN
 
-        calibration_params = {"mB": mB[mask], "x1": x1[mask], "c": c[mask],
-                              "e_mB": e_mB[mask], "e_x1": e_x1[mask],
+        calibration_params = {"mag": mB[mask], "x1": x1[mask], "c": c[mask],
+                              "e_mag": e_mB[mask], "e_x1": e_x1[mask],
                               "e_c": e_c[mask]}
         model = PV_LogLikelihood(
             los_overdensity[:, mask], los_velocity[:, mask], rmax[:, mask],
@@ -871,18 +881,29 @@ def get_model(loader, zcmb_max=None, verbose=True):
         keys = ["RA", "DEC", "z_CMB", "mag", "eta", "e_mag", "e_eta"]
         RA, dec, zCMB, mag, eta, e_mag, e_eta = (loader.cat[k] for k in keys)
 
-        mask = (zCMB < zcmb_max)
-        if kind == "SFI_gals":
-            mask &= (eta > -0.15) & (eta < 0.2)
-            if verbose:
-                print("Emplyed eta cut for SFI galaxies.", flush=True)
-
+        mask = (zCMB < zcmb_max) & (zCMB > zcmb_min)
         calibration_params = {"mag": mag[mask], "eta": eta[mask],
                               "e_mag": e_mag[mask], "e_eta": e_eta[mask]}
         model = PV_LogLikelihood(
             los_overdensity[:, mask], los_velocity[:, mask], rmax[:, mask],
             RA[mask], dec[mask], zCMB[mask], None, calibration_params,
             loader.rdist, loader._Omega_m, "TFR", name=kind)
+    elif kind in ["CF4_GroupAll"]:
+        # Note, this for some reason works terribly.
+        keys = ["RA", "DE", "Vcmb", "DMzp", "eDM"]
+        RA, dec, zCMB, mu, e_mu = (loader.cat[k] for k in keys)
+
+        zCMB /= SPEED_OF_LIGHT
+        mask = (zCMB < zcmb_max) & (zCMB > zcmb_min) & np.isfinite(mu)
+
+        # The distance moduli in CF4 are most likely given assuming h = 0.75
+        mu += 5 * np.log10(0.75)
+
+        calibration_params = {"mu": mu[mask], "e_mu": e_mu[mask]}
+        model = PV_LogLikelihood(
+            los_overdensity[:, mask], los_velocity[:, mask], rmax[:, mask],
+            RA[mask], dec[mask], zCMB[mask], None, calibration_params,
+            loader.rdist, loader._Omega_m, "simple", name=kind)
     else:
         raise ValueError(f"Catalogue `{kind}` not recognized.")
 
