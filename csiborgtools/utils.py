@@ -23,6 +23,7 @@ from copy import deepcopy
 from datetime import datetime
 
 import numpy as np
+from scipy.stats import multivariate_normal
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from numba import jit
@@ -498,7 +499,7 @@ def dict_samples_to_array(samples):
     return np.vstack(data).T, names
 
 
-def laplace_evidence(samples, log_posterior, nrepeat=5000):
+def laplace_evidence(samples, log_posterior, nrepeat=5):
     """
     Calculate the log(evidence) using the Laplace approximation but assuming
     that the covariance is that of the samples and the maximum posterior point
@@ -522,20 +523,28 @@ def laplace_evidence(samples, log_posterior, nrepeat=5000):
 
     logZ = np.full(nrepeat, np.nan)
     for n in range(nrepeat):
+        print("Resampling only unique...")
+
         indxs = np.random.choice(np.arange(ndata), size=ndata, replace=True)
+        log_posterior_resampled = log_posterior[indxs]
         data_resampled = data[indxs]
 
-        mu = np.mean(data_resampled, axis=0)
-        cov = np.cov(data_resampled.T)
+        mu, cov = multivariate_normal.fit(data_resampled)
         D = len(mu)
 
         # Approximate the maximum of the log posterior.
-        dx = np.linalg.norm(data - mu[None, :], axis=1)
+        dx = np.linalg.norm(data_resampled - mu[None, :], axis=1)
         k = np.argmin(dx)
-        max_logpost = log_posterior[k]
+        max_logpost = log_posterior_resampled[k]
+
+        eigval = np.linalg.eigvals(cov)
+        if np.any(eigval <= 0):
+            print("Found negative eigenvalues in the covariance matrix.")
+
+        log_det = np.sum(np.log(eigval))
 
         logZ[n] = (max_logpost
-                   + 0.5 * np.log(np.abs(np.linalg.det(cov)))
+                   + 0.5 * log_det
                    + D / 2 * np.log(2 * np.pi))
 
     return np.mean(logZ), np.std(logZ)
