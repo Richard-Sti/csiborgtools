@@ -10,7 +10,7 @@ MAS="SPH"
 grid=1024
 
 
-for simname in "Carrick2015"; do
+for simname in "Lilow2024"; do
     for catalogue in "CF4_TFR"; do
         pythoncm="$env $file --catalogue $catalogue --nsims $nsims --simname $simname --MAS $MAS --grid $grid"
         if [ $on_login -eq 1 ]; then

@@ -26,7 +26,6 @@ import numpy as np
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from numba import jit
-from scipy.stats import multivariate_normal
 
 ###############################################################################
 #                           Positions                                         #
@@ -493,60 +492,15 @@ def dict_samples_to_array(samples):
             for i in range(value.shape[-1]):
                 data.append(value[:, i])
                 names.append(f"{key}_{i}")
+        elif value.ndim == 3:
+            for i in range(value.shape[-1]):
+                for j in range(value.shape[-2]):
+                    data.append(value[:, j, i])
+                    names.append(f"{key}_{j}_{i}")
         else:
             raise ValueError("Invalid dimensionality of samples to stack.")
 
     return np.vstack(data).T, names
-
-
-def laplace_evidence(samples, log_posterior, nchains_split):
-    """
-    Calculate the log(evidence) using the Laplace approximation but assuming
-    that the covariance is that of the samples and the maximum posterior point
-    is approximately the mean.
-
-    Parameters
-    ----------
-    samples: dict
-        Dictionary of samples from the Numpyro MCMC object.
-    log_posterior: numpy array
-        Log posterior values of the samples.
-    nrepeat: int, optional
-        Number of MC repeats to estimate the log(evidence) error.
-
-    Returns
-    -------
-    float
-    """
-    data, names = dict_samples_to_array(samples)
-
-    data = data.reshape(nchains_split, -1, len(names))
-    log_posterior = log_posterior.reshape(nchains_split, -1)
-
-    logZ = np.full(nchains_split, np.nan)
-    for n in range(nchains_split):
-        data_chain = data[n]
-        log_posterior_chain = log_posterior[n]
-
-        mu, cov = multivariate_normal.fit(data_chain)
-        D = len(mu)
-
-        # Approximate the maximum of the log posterior.
-        dx = np.linalg.norm(data_chain - mu[None, :], axis=1)
-        k = np.argmin(dx)
-        max_logpost = log_posterior_chain[k]
-
-        eigval = np.linalg.eigvals(cov)
-        if np.any(eigval <= 0):
-            print("Found negative eigenvalues in the covariance matrix.")
-
-        log_det = np.sum(np.log(eigval))
-
-        logZ[n] = (max_logpost
-                   + 0.5 * log_det
-                   + D / 2 * np.log(2 * np.pi))
-
-    return np.mean(logZ), np.std(logZ)
 
 
 def harmonic_evidence(samples, log_posterior, temperature=0.8, epochs_num=20,
