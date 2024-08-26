@@ -78,7 +78,7 @@ class DataLoader:
         self._catname = catalogue
 
         fprint("reading the interpolated field.", verbose)
-        self._field_rdist, self._los_density, self._los_velocity, self._rmax = self._read_field(  # noqa
+        self._field_rdist, self._los_density, self._los_velocity = self._read_field(  # noqa
             simname, ksim, catalogue, ksmooth, paths)
 
         if len(self._cat) != self._los_density.shape[1]:
@@ -170,14 +170,6 @@ class DataLoader:
         return self._los_velocity[:, :, self._mask, ...]
 
     @property
-    def rmax(self):
-        """
-        Radial distance above which the underlying reconstruction is
-        extrapolated `(n_sims, n_objects)`.
-        """
-        return self._rmax[:, self._mask]
-
-    @property
     def los_radial_velocity(self):
         """
         Radial velocity along the line of sight `(n_sims, n_objects, n_steps)`.
@@ -201,7 +193,6 @@ class DataLoader:
 
         los_density = [None] * len(ksims)
         los_velocity = [None] * len(ksims)
-        rmax = [None] * len(ksims)
 
         for n, ksim in enumerate(ksims):
             nsim = nsims[ksim]
@@ -216,13 +207,11 @@ class DataLoader:
                 los_density[n] = f[f"density_{nsim}"][indx]
                 los_velocity[n] = f[f"velocity_{nsim}"][indx]
                 rdist = f[f"rdist_{nsim}"][...]
-                rmax[n] = f[f"rmax_{nsim}"][indx]
 
         los_density = np.stack(los_density)
         los_velocity = np.stack(los_velocity)
-        rmax = np.stack(rmax)
 
-        return rdist, los_density, los_velocity, rmax
+        return rdist, los_density, los_velocity
 
     def _read_catalogue(self, catalogue, catalogue_fpath):
         if catalogue == "A2":
@@ -622,9 +611,6 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         LOS density field.
     los_velocity : 3-dimensional array of shape (n_sims, n_objects, n_steps)
         LOS radial velocity field.
-    rmax : 1-dimensional array of shape (n_sims, n_objects)
-        Radial distance above which the underlying reconstruction is
-        extrapolated.
     RA, dec : 1-dimensional arrays of shape (n_objects)
         Right ascension and declination in degrees.
     z_obs : 1-dimensional array of shape (n_objects)
@@ -645,9 +631,9 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         Name of the catalogue.
     """
 
-    def __init__(self, los_density, los_velocity, rmax, RA, dec, z_obs,
-                 e_zobs, calibration_params, maxmag_selection, r_xrange,
-                 Omega_m, kind, name):
+    def __init__(self, los_density, los_velocity, RA, dec, z_obs, e_zobs,
+                 calibration_params, maxmag_selection, r_xrange, Omega_m,
+                 kind, name):
         if e_zobs is not None:
             e2_cz_obs = jnp.asarray((SPEED_OF_LIGHT * e_zobs)**2)
         else:
@@ -657,9 +643,9 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         RA = np.deg2rad(RA)
         dec = np.deg2rad(dec)
 
-        names = ["los_density", "los_velocity", "rmax", "RA", "dec", "z_obs",
+        names = ["los_density", "los_velocity", "RA", "dec", "z_obs",
                  "e2_cz_obs"]
-        values = [los_density, los_velocity, rmax, RA, dec, z_obs, e2_cz_obs]
+        values = [los_density, los_velocity, RA, dec, z_obs, e2_cz_obs]
         self._setattr_as_jax(names, values)
         self._set_calibration_params(calibration_params)
         self._set_radial_spacing(r_xrange, Omega_m)
@@ -899,7 +885,6 @@ def get_model(loader, zcmb_min=0.0, zcmb_max=None, maxmag_selection=None):
 
     los_overdensity = loader.los_density
     los_velocity = loader.los_radial_velocity
-    rmax = loader.rmax
     kind = loader._catname
 
     if maxmag_selection is not None and kind != "2MTF":
@@ -917,7 +902,7 @@ def get_model(loader, zcmb_min=0.0, zcmb_max=None, maxmag_selection=None):
                               "e_c": e_c[mask]}
 
         model = PV_LogLikelihood(
-            los_overdensity[:, mask], los_velocity[:, mask], rmax[:, mask],
+            los_overdensity[:, mask], los_velocity[:, mask],
             RA[mask], dec[mask], zCMB[mask], e_zCMB, calibration_params,
             maxmag_selection, loader.rdist, loader._Omega_m, "SN", name=kind)
     elif "Pantheon+" in kind:
@@ -945,7 +930,7 @@ def get_model(loader, zcmb_min=0.0, zcmb_max=None, maxmag_selection=None):
                               "e_mag": e_mB[mask], "e_x1": e_x1[mask],
                               "e_c": e_c[mask]}
         model = PV_LogLikelihood(
-            los_overdensity[:, mask], los_velocity[:, mask], rmax[:, mask],
+            los_overdensity[:, mask], los_velocity[:, mask],
             RA[mask], dec[mask], zCMB[mask], e_zCMB[mask], calibration_params,
             maxmag_selection, loader.rdist, loader._Omega_m, "SN", name=kind)
     elif kind in ["SFI_gals", "2MTF", "SFI_gals_masked"]:
@@ -956,7 +941,7 @@ def get_model(loader, zcmb_min=0.0, zcmb_max=None, maxmag_selection=None):
         calibration_params = {"mag": mag[mask], "eta": eta[mask],
                               "e_mag": e_mag[mask], "e_eta": e_eta[mask]}
         model = PV_LogLikelihood(
-            los_overdensity[:, mask], los_velocity[:, mask], rmax[:, mask],
+            los_overdensity[:, mask], los_velocity[:, mask],
             RA[mask], dec[mask], zCMB[mask], None, calibration_params,
             maxmag_selection, loader.rdist, loader._Omega_m, "TFR", name=kind)
     elif "CF4_TFR_" in kind:
@@ -995,7 +980,7 @@ def get_model(loader, zcmb_min=0.0, zcmb_max=None, maxmag_selection=None):
         calibration_params = {"mag": mag[mask], "eta": eta[mask],
                               "e_mag": e_mag[mask], "e_eta": e_eta[mask]}
         model = PV_LogLikelihood(
-            los_overdensity[:, mask], los_velocity[:, mask], rmax[:, mask],
+            los_overdensity[:, mask], los_velocity[:, mask],
             RA[mask], dec[mask], z_obs[mask], None, calibration_params,
             maxmag_selection, loader.rdist, loader._Omega_m, "TFR", name=kind)
     elif kind in ["CF4_GroupAll"]:
@@ -1011,7 +996,7 @@ def get_model(loader, zcmb_min=0.0, zcmb_max=None, maxmag_selection=None):
 
         calibration_params = {"mu": mu[mask], "e_mu": e_mu[mask]}
         model = PV_LogLikelihood(
-            los_overdensity[:, mask], los_velocity[:, mask], rmax[:, mask],
+            los_overdensity[:, mask], los_velocity[:, mask],
             RA[mask], dec[mask], zCMB[mask], None, calibration_params,
             maxmag_selection,  loader.rdist, loader._Omega_m, "simple",
             name=kind)
