@@ -72,7 +72,7 @@ def print_variables(names, variables):
     print(flush=True)
 
 
-def get_models(get_model_kwargs, verbose=True):
+def get_models(get_model_kwargs, toy_selection, verbose=True):
     """Load the data and create the NumPyro models."""
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     folder = "/mnt/extraspace/rstiskalek/catalogs/"
@@ -110,7 +110,8 @@ def get_models(get_model_kwargs, verbose=True):
         loader = csiborgtools.flow.DataLoader(ARGS.simname, nsim_iterator,
                                               cat, fpath, paths,
                                               ksmooth=ARGS.ksmooth)
-        models[i] = csiborgtools.flow.get_model(loader, **get_model_kwargs)
+        models[i] = csiborgtools.flow.get_model(
+            loader, toy_selection=toy_selection[i], **get_model_kwargs)
 
     print(f"\n{'Num. radial steps':<20} {len(loader.rdist)}\n", flush=True)
     return models
@@ -241,6 +242,16 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole):
         raise ValueError(f"Unsupported catalogue: `{ARGS.catalogue}`.")
 
 
+def get_toy_selection(toy_selection, catalogue):
+    if not toy_selection:
+        return None
+
+    if catalogue == "SFI_gals":
+        return [1.221e+01, 1.297e+01, -2.708e-01]
+    else:
+        raise ValueError(f"Unsupported catalogue: `{ARGS.catalogue}`.")
+
+
 if __name__ == "__main__":
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     out_folder = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/peculiar_velocity"  # noqa
@@ -257,13 +268,17 @@ if __name__ == "__main__":
     zcmb_max = 0.05
     nchains_harmonic = 10
     num_epochs = 50
-    inference_method = "mike"
+    inference_method = "bayes"
     calculate_harmonic = True if inference_method == "mike" else False
     maxmag_selection = None
-    sample_alpha = True
+    sample_alpha = False
     sample_beta = True
     sample_Vmono = False
     sample_mag_dipole = False
+    toy_selection = True
+
+    if toy_selection and inference_method == "mike":
+        raise ValueError("Toy selection is not supported with `mike` inference.")  # noqa
 
     if nsteps % nchains_harmonic != 0:
         raise ValueError(
@@ -277,7 +292,8 @@ if __name__ == "__main__":
                    "nchains_harmonic": nchains_harmonic,
                    "num_epochs": num_epochs,
                    "inference_method": inference_method,
-                   "sample_mag_dipole": sample_mag_dipole}
+                   "sample_mag_dipole": sample_mag_dipole,
+                   "toy_selection": toy_selection}
     print_variables(main_params.keys(), main_params.values())
 
     calibration_hyperparams = {"Vext_min": -1000, "Vext_max": 1000,
@@ -303,7 +319,11 @@ if __name__ == "__main__":
 
     get_model_kwargs = {"zcmb_min": zcmb_min, "zcmb_max": zcmb_max,
                         "maxmag_selection": maxmag_selection}
-    models = get_models(get_model_kwargs, )
+
+    toy_selection = [get_toy_selection(toy_selection, cat)
+                     for cat in ARGS.catalogue]
+
+    models = get_models(get_model_kwargs, toy_selection)
     model_kwargs = {
         "models": models,
         "field_calibration_hyperparams": calibration_hyperparams,
