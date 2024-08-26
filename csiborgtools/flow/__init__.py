@@ -17,3 +17,4 @@ from .flow_model import (DataLoader, PV_LogLikelihood, PV_validation_model,     
                          Observed2CosmologicalRedshift, predict_zobs,           # noqa
                          project_Vext, radial_velocity_los,                     # noqa
                          stack_pzosmo_over_realizations)                        # noqa
+from .selection import ToyMagnitudeSelection                                    # noqa
