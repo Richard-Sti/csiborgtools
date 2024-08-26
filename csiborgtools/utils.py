@@ -498,6 +498,49 @@ def dict_samples_to_array(samples):
     return np.vstack(data).T, names
 
 
+def laplace_evidence(samples, log_posterior, nrepeat=5000):
+    """
+    Calculate the log(evidence) using the Laplace approximation but assuming
+    that the covariance is that of the samples and the maximum posterior point
+    is approximately the mean.
+
+    Parameters
+    ----------
+    samples: dict
+        Dictionary of samples from the Numpyro MCMC object.
+    log_posterior: numpy array
+        Log posterior values of the samples.
+    nrepeat: int, optional
+        Number of MC repeats to estimate the log(evidence) error.
+
+    Returns
+    -------
+    float
+    """
+    data, __ = dict_samples_to_array(samples)
+    ndata = len(data)
+
+    logZ = np.full(nrepeat, np.nan)
+    for n in range(nrepeat):
+        indxs = np.random.choice(np.arange(ndata), size=ndata, replace=True)
+        data_resampled = data[indxs]
+
+        mu = np.mean(data_resampled, axis=0)
+        cov = np.cov(data_resampled.T)
+        D = len(mu)
+
+        # Approximate the maximum of the log posterior.
+        dx = np.linalg.norm(data - mu[None, :], axis=1)
+        k = np.argmin(dx)
+        max_logpost = log_posterior[k]
+
+        logZ[n] = (max_logpost
+                   + 0.5 * np.log(np.abs(np.linalg.det(cov)))
+                   + D / 2 * np.log(2 * np.pi))
+
+    return np.mean(logZ), np.std(logZ)
+
+
 def harmonic_evidence(samples, log_posterior, temperature=0.8, epochs_num=20,
                       return_flow_samples=True, verbose=True):
     """
