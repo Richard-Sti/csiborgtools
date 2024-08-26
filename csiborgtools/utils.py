@@ -23,10 +23,10 @@ from copy import deepcopy
 from datetime import datetime
 
 import numpy as np
-from scipy.stats import multivariate_normal
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from numba import jit
+from scipy.stats import multivariate_normal
 
 ###############################################################################
 #                           Positions                                         #
@@ -499,7 +499,7 @@ def dict_samples_to_array(samples):
     return np.vstack(data).T, names
 
 
-def laplace_evidence(samples, log_posterior, nrepeat=5):
+def laplace_evidence(samples, log_posterior, nchains_split):
     """
     Calculate the log(evidence) using the Laplace approximation but assuming
     that the covariance is that of the samples and the maximum posterior point
@@ -518,24 +518,23 @@ def laplace_evidence(samples, log_posterior, nrepeat=5):
     -------
     float
     """
-    data, __ = dict_samples_to_array(samples)
-    ndata = len(data)
+    data, names = dict_samples_to_array(samples)
 
-    logZ = np.full(nrepeat, np.nan)
-    for n in range(nrepeat):
-        print("Resampling only unique...")
+    data = data.reshape(nchains_split, -1, len(names))
+    log_posterior = log_posterior.reshape(nchains_split, -1)
 
-        indxs = np.random.choice(np.arange(ndata), size=ndata, replace=True)
-        log_posterior_resampled = log_posterior[indxs]
-        data_resampled = data[indxs]
+    logZ = np.full(nchains_split, np.nan)
+    for n in range(nchains_split):
+        data_chain = data[n]
+        log_posterior_chain = log_posterior[n]
 
-        mu, cov = multivariate_normal.fit(data_resampled)
+        mu, cov = multivariate_normal.fit(data_chain)
         D = len(mu)
 
         # Approximate the maximum of the log posterior.
-        dx = np.linalg.norm(data_resampled - mu[None, :], axis=1)
+        dx = np.linalg.norm(data_chain - mu[None, :], axis=1)
         k = np.argmin(dx)
-        max_logpost = log_posterior_resampled[k]
+        max_logpost = log_posterior_chain[k]
 
         eigval = np.linalg.eigvals(cov)
         if np.any(eigval <= 0):
