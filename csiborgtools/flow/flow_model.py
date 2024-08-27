@@ -895,7 +895,7 @@ def PV_validation_model(models, distmod_hyperparams_per_model,
 ###############################################################################
 
 
-def get_model(loader, zcmb_min=0.0, zcmb_max=None, maxmag_selection=None,
+def get_model(loader, zcmb_min=None, zcmb_max=None, maxmag_selection=None,
               toy_selection=None):
     """
     Get a model and extract the relevant data from the loader.
@@ -918,6 +918,7 @@ def get_model(loader, zcmb_min=0.0, zcmb_max=None, maxmag_selection=None,
     -------
     model : NumPyro model
     """
+    zcmb_min = 0.0 if zcmb_min is None else zcmb_min
     zcmb_max = np.infty if zcmb_max is None else zcmb_max
 
     los_overdensity = loader.los_density
