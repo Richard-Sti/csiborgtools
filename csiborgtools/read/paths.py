@@ -640,7 +640,8 @@ class Paths:
                         smooth=None, nsim=None, zcmb_min=None, zcmb_max=None,
                         maxmag_selection=None, toy_selection=False,
                         sample_alpha=False, sample_beta=False,
-                        sample_Vmono=False, sample_mag_dipole=False):
+                        sample_Vmono=False, sample_mag_dipole=False,
+                        sample_curvature=False):
         """Flow validation file path."""
         if isinstance(catalogue, list) and len(catalogue) == 1:
             catalogue = catalogue[0]
@@ -648,23 +649,24 @@ class Paths:
         if smooth == 0:
             smooth = None
 
-        fname = f"samples_{simname}_{catalogue}_{inference_method}|"
+        fname = f"samples_{simname}_{catalogue}_{inference_method}_"
 
         keys = ["smooth", "nsim", "zcmb_min", "zcmb_max", "maxmag_selection",
                 "toy_selection", "sample_alpha", "sample_beta",
-                "sample_Vmono", "sample_mag_dipole", "smooth"]
+                "sample_Vmono", "sample_mag_dipole", "sample_curvature"]
         values = [smooth, nsim, zcmb_min, zcmb_max, maxmag_selection,
                   toy_selection, sample_alpha, sample_beta, sample_Vmono,
-                  sample_mag_dipole]
+                  sample_mag_dipole, sample_curvature]
 
         for key, value in zip(keys, values):
 
             if isinstance(value, bool):
                 if value:
-                    fname += f"{key}|"
+                    fname += f"{key}_"
             elif value is not None:
-                fname += f"{key}={value}|"
+                fname += f"{key}_{value}_"
 
+        fname = fname.strip("_")
         fname = join(fdir, f"{fname}.hdf5")
         # Print the last modified time of the file if it exists.
         if exists(fname):
