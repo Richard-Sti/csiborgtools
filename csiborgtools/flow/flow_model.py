@@ -761,7 +761,8 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                     "mag", self.name, self.mag_min, self.mag_max)
                 eta_mean, eta_std = sample_gaussian_hyperprior(
                     "eta", self.name, self.eta_min, self.eta_max)
-                corr_mag_eta = sample("corr_mag_eta", Uniform(-1, 1))
+                corr_mag_eta = sample(
+                    f"corr_mag_eta_{self.name}", Uniform(-1, 1))
 
                 loc = jnp.array([mag_mean, eta_mean])
                 cov = jnp.array(
@@ -769,7 +770,8 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                      [corr_mag_eta * mag_std * eta_std, eta_std**2]])
 
                 with plate("true_TFR", self.ndata):
-                    x_true = sample("x_TFR", MultivariateNormal(loc, cov))
+                    x_true = sample(
+                        f"x_TFR_{self.name}", MultivariateNormal(loc, cov))
 
                 mag_true, eta_true = x_true[..., 0], x_true[..., 1]
                 # Log-likelihood of the observed magnitudes.
