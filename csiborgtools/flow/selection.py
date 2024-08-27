@@ -21,22 +21,27 @@ from scipy.optimize import minimize
 
 class ToyMagnitudeSelection:
     """
-    Toy magnitude selection according to Boubel et al 2024.
+    Toy magnitude selection according to Boubel+2024 [1].
+
+    References
+    ----------
+    [1] https://www.arxiv.org/abs/2408.03660
     """
-
-    def __init__(self):
-        pass
-
     def log_true_pdf(self, m, m1):
         """Unnormalized `true' PDF."""
         return 0.6 * (m - m1)
 
     def log_selection_function(self, m, m1, m2, a):
+        """Logarithm of the Boubel+2024 selection function."""
         return np.where(m <= m1,
                         0,
                         a * (m - m2)**2 - a * (m1 - m2)**2 - 0.6 * (m - m1))
 
     def log_observed_pdf(self, m, m1, m2, a):
+        """
+        Logarithm of the unnormalized observed PDF, which is the product
+        of the true PDF and the selection function.
+        """
         # Calculate the normalization constant
         f = lambda m: 10**(self.log_true_pdf(m, m1)                             # noqa
                            + self.log_selection_function(m, m1, m2, a))
@@ -48,6 +53,7 @@ class ToyMagnitudeSelection:
                 - np.log10(norm))
 
     def fit(self, mag):
+        """Fit magnitude selection parameters to the observed magnitudes."""
 
         def loss(x):
             m1, m2, a = x
@@ -62,7 +68,10 @@ class ToyMagnitudeSelection:
 
 
 def toy_log_magnitude_selection(mag, m1, m2, a):
-    """JAX implementation of `ToyMagnitudeSelection` but natural logarithm."""
+    """
+    JAX implementation of `ToyMagnitudeSelection` but natural logarithm,
+    whereas the one in `ToyMagnitudeSelection` is base 10.
+    """
     return jnp.log(10) * jnp.where(
         mag <= m1,
         0,
