@@ -34,7 +34,7 @@ def parse_args():
                         help="Simulation name.")
     parser.add_argument("--catalogue", type=str, required=True,
                         help="PV catalogues.")
-    parser.add_argument("--ksmooth", type=int, default=1,
+    parser.add_argument("--ksmooth", type=int, default=0,
                         help="Smoothing index.")
     parser.add_argument("--ksim", type=none_or_int, default=None,
                         help="IC iteration number. If 'None', all IC realizations are used.")  # noqa
@@ -127,9 +127,15 @@ def get_harmonic_evidence(samples, log_posterior, nchains_harmonic, epoch_num):
         data, log_posterior, return_flow_samples=False, epochs_num=epoch_num)
 
 
-def run_model(model, nsteps, nburn,  model_kwargs, out_folder, sample_beta,
-              calculate_harmonic, nchains_harmonic, epoch_num, kwargs_print):
+def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
+              calculate_harmonic, nchains_harmonic, epoch_num, kwargs_print,
+              fname_kwargs):
     """Run the NumPyro model and save output to a file."""
+    paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
+
+    fname = paths.flow_validation(out_folder, ARGS.simname, ARGS.catalogue,
+                                  **fname_kwargs)
+
     try:
         ndata = sum(model.ndata for model in model_kwargs["models"])
     except AttributeError as e:
@@ -158,13 +164,6 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder, sample_beta,
     else:
         neg_ln_evidence = jax.numpy.nan
         neg_ln_evidence_err = (jax.numpy.nan, jax.numpy.nan)
-
-    fname = f"samples_{ARGS.simname}_{'+'.join(ARGS.catalogue)}_ksmooth{ARGS.ksmooth}.hdf5"  # noqa
-    if ARGS.ksim is not None:
-        fname = fname.replace(".hdf5", f"_nsim{ARGS.ksim}.hdf5")
-
-    if sample_beta:
-        fname = fname.replace(".hdf5", "_sample_beta.hdf5")
 
     fname = join(out_folder, fname)
     print(f"Saving results to `{fname}`.")
@@ -264,18 +263,18 @@ if __name__ == "__main__":
 
     nsteps = 1000
     nburn = 500
-    zcmb_min = 0
+    zcmb_min = None
     zcmb_max = 0.05
     nchains_harmonic = 10
     num_epochs = 50
-    inference_method = "bayes"
+    inference_method = "mike"
     calculate_harmonic = True if inference_method == "mike" else False
     maxmag_selection = None
     sample_alpha = False
     sample_beta = True
     sample_Vmono = False
     sample_mag_dipole = False
-    toy_selection = True
+    toy_selection = False
 
     if toy_selection and inference_method == "mike":
         raise ValueError("Toy selection is not supported with `mike` inference.")  # noqa
@@ -315,7 +314,21 @@ if __name__ == "__main__":
 
     kwargs_print = (main_params, calibration_hyperparams,
                     *distmod_hyperparams_per_catalogue)
+
     ###########################################################################
+
+    fname_kwargs = {"inference_method": inference_method,
+                    "smooth": ARGS.ksmooth,
+                    "nsim": ARGS.ksim,
+                    "zcmb_min": zcmb_min,
+                    "zcmb_max": zcmb_max,
+                    "maxmag_selection": maxmag_selection,
+                    "toy_selection": toy_selection,
+                    "sample_alpha": sample_alpha,
+                    "sample_beta": sample_beta,
+                    "sample_Vmono": sample_Vmono,
+                    "sample_mag_dipole": sample_mag_dipole,
+                    }
 
     get_model_kwargs = {"zcmb_min": zcmb_min, "zcmb_max": zcmb_max,
                         "maxmag_selection": maxmag_selection}
@@ -334,5 +347,5 @@ if __name__ == "__main__":
     model = csiborgtools.flow.PV_validation_model
 
     run_model(model, nsteps, nburn, model_kwargs, out_folder,
-              calibration_hyperparams["sample_beta"], calculate_harmonic,
-              nchains_harmonic, num_epochs, kwargs_print)
+              calculate_harmonic, nchains_harmonic, num_epochs, kwargs_print,
+              fname_kwargs)
