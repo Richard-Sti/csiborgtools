@@ -15,11 +15,12 @@
 """
 CSiBORG paths manager.
 """
+import datetime
 from glob import glob
-from os import makedirs, listdir
-from os.path import isdir, join
-from warnings import warn
+from os import listdir, makedirs
+from os.path import exists, getmtime, isdir, join
 from re import search
+from warnings import warn
 
 import numpy
 
@@ -635,6 +636,46 @@ class Paths:
         try_create_directory(fdir)
         return join(fdir, f"los_{catalogue}_{simnname}.hdf5")
 
+    def flow_validation(self, fdir, simname, catalogue, inference_method,
+                        smooth=None, nsim=None, zcmb_min=None, zcmb_max=None,
+                        maxmag_selection=None, toy_selection=False,
+                        sample_alpha=False, sample_beta=False,
+                        sample_Vmono=False, sample_mag_dipole=False):
+        """Flow validation file path."""
+        if isinstance(catalogue, list) and len(catalogue) == 1:
+            catalogue = catalogue[0]
+
+        if smooth == 0:
+            smooth = None
+
+        fname = f"samples_{simname}_{catalogue}_{inference_method}|"
+
+        keys = ["smooth", "nsim", "zcmb_min", "zcmb_max", "maxmag_selection",
+                "toy_selection", "sample_alpha", "sample_beta",
+                "sample_Vmono", "sample_mag_dipole", "smooth"]
+        values = [smooth, nsim, zcmb_min, zcmb_max, maxmag_selection,
+                  toy_selection, sample_alpha, sample_beta, sample_Vmono,
+                  sample_mag_dipole]
+
+        for key, value in zip(keys, values):
+
+            if isinstance(value, bool):
+                if value:
+                    fname += f"{key}|"
+            elif value is not None:
+                fname += f"{key}={value}|"
+
+        fname = join(fdir, f"{fname}.hdf5")
+        # Print the last modified time of the file if it exists.
+        if exists(fname):
+            mtime = getmtime(fname)
+            mtime = datetime.datetime.fromtimestamp(mtime)
+            mtime = mtime.strftime("%d/%m/%Y %H:%M:%S")
+            print(f"File:          {fname}")
+            print(f"Last modified: {mtime}")
+
+        return fname
+
     def field_projected(self, simname, kind):
         """
         Path to the files containing the projected fields on the sky.
@@ -653,5 +694,3 @@ class Paths:
         fdir = join(self.postdir, "field_projected")
         try_create_directory(fdir)
         return join(fdir, f"{simname}_{kind}_volume_weighted.hdf5")
-
-
