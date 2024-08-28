@@ -67,7 +67,12 @@ def names_to_latex(names, for_corner=False):
                   "mag_cal": r"$\mathcal{M}$",
                   }
 
-    for cat in ["2MTF", "SFI_gals"]:
+    names = copy(names)
+    for i, name in enumerate(names):
+        if "SFI_gals" in name:
+            names[i] = names[i].replace("SFI_gals", "SFI")
+
+    for cat in ["2MTF", "SFI"]:
         ltx[f"a_{cat}"] = f"a_{{\\rm TF}}^{{\\rm {cat}}}"
         ltx[f"b_{cat}"] = f"b_{{\\rm TF}}^{{\\rm {cat}}}"
         ltx[f"e_mu_{cat}"] = f"\\sigma_{{\\mu}}^{{\\rm {cat}}}"
@@ -82,7 +87,7 @@ def names_to_latex(names, for_corner=False):
         ltx_corner[f"e_mu_{cat}"] = rf"$\sigma_{{\mu}}^{{\rm {cat}}}$"
         ltx_corner[f"corr_mag_eta_{cat}"] = rf"$\rho_{{m,\eta}}^{{\rm {cat}}}$"
         ltx_corner[f"eta_mean_{cat}"] = rf"$\widehat{{\eta}}^{{\rm {cat}}}$"
-        ltx_corner[f"eta_std_{cat}"] = rf"$\widehat{{\sigma}}_\eta^{{\rm {cat}}}$"
+        ltx_corner[f"eta_std_{cat}"] = rf"$\widehat{{\sigma}}_\eta^{{\rm {cat}}}$"  # noqa
         ltx_corner[f"mag_mean_{cat}"] = rf"$\widehat{{m}}^{{\rm {cat}}}$"
         ltx_corner[f"mag_std_{cat}"] = rf"$\widehat{{\sigma}}_m^{{\rm {cat}}}$"
 
@@ -111,16 +116,24 @@ def simname_to_pretty(simname):
     return ltx[simname] if simname in ltx else simname
 
 
+def catalogue_to_pretty(catalogue):
+    ltx = {"SFI_gals": "SFI"}
+
+    if isinstance(catalogue, list):
+        return [ltx[s] if s in ltx else s for s in catalogue]
+
+    return ltx[catalogue] if catalogue in ltx else catalogue
+
+
 ###############################################################################
 #                       Read in goodness-of-fit                               #
 ###############################################################################
 
-def get_gof(kind, simname, catalogue, ksmooth=0, nsim=None, sample_beta=True):
+def get_gof(kind, fname):
     """Read in the goodness-of-fit statistics `kind`."""
     if kind not in ["BIC", "AIC", "lnZ"]:
         raise ValueError("`kind` must be one of 'BIC', 'AIC', 'lnZ'")
 
-    fname = get_fname(simname, catalogue, ksmooth, nsim, sample_beta)
     with File(fname, 'r') as f:
         return f[f"gof/{kind}"][()]
 
@@ -164,9 +177,8 @@ def get_bulkflow_simulation(simname, convert_to_galactic=True):
     return r, B
 
 
-def get_bulkflow(simname, catalogue, ksmooth=0, nsim=None, sample_beta=True,
-                 convert_to_galactic=True, weight_simulations=True,
-                 downsample=1, Rmax=125):
+def get_bulkflow(fname, simname, sample_beta=True, convert_to_galactic=True,
+                 weight_simulations=True, downsample=1, Rmax=125):
     # Read in the bulk flow
     f = np.load(f"/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_shells/enclosed_mass_{simname}.npz")  # noqa
     r = f["distances"]
@@ -182,8 +194,7 @@ def get_bulkflow(simname, catalogue, ksmooth=0, nsim=None, sample_beta=True,
     Bz = Bz[:, mask]
 
     # Read in the samples
-    fname_samples = get_fname(simname, catalogue, ksmooth, nsim, sample_beta)
-    with File(fname_samples, 'r') as f:
+    with File(fname, 'r') as f:
         # Shape of Vext_i is (nsamples,)
         Vext_x, Vext_y, Vext_z = (f["samples/Vext"][...][::downsample, i] for i in range(3))  # noqa
         nsamples = len(Vext_x)
@@ -234,7 +245,7 @@ def samples_for_corner(samples):
     # Remove the true parameters of each galaxy.
     keys = list(samples.keys())
     for key in keys:
-        if "x_TFR" in key:
+        if "x_TFR" in key or "_true_" in key:
             samples.pop(key)
 
         if "a_dipole_" in key:
