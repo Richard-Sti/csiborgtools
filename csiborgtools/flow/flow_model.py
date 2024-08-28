@@ -691,7 +691,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
 
     def __call__(self, field_calibration_params, distmod_params,
                  inference_method):
-        if inference_method not in ["mike", "bayes"]:
+        if inference_method not in ["mike", "bayes", "delta"]:
             raise ValueError(f"Unknown method: `{inference_method}`.")
 
         ll0 = 0.0
@@ -740,9 +740,12 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                 mag_true = self.mag
                 x1_true = self.x1
                 c_true = self.c
-                e2_mu = e2_distmod_SN(
-                    self.e2_mag, self.e2_x1, self.e2_c, alpha_cal, beta_cal,
-                    e_mu)
+                if inference_method == "mike":
+                    e2_mu = e2_distmod_SN(
+                        self.e2_mag, self.e2_x1, self.e2_c, alpha_cal,
+                        beta_cal, e_mu)
+                else:
+                    e2_mu = jnp.ones_like(mag_true) * e_mu**2
 
             mu = distmod_SN(
                 mag_true, x1_true, c_true, mag_cal, alpha_cal, beta_cal)
@@ -807,8 +810,11 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             else:
                 eta_true = self.eta
                 mag_true = self.mag
-                e2_mu = e2_distmod_TFR(
-                    self.e2_mag, self.e2_eta, eta_true, b, c, e_mu)
+                if inference_method == "mike":
+                    e2_mu = e2_distmod_TFR(
+                        self.e2_mag, self.e2_eta, eta_true, b, c, e_mu)
+                else:
+                    e2_mu = jnp.ones_like(mag_true) * e_mu**2
 
             mu = distmod_TFR(mag_true, eta_true, a, b, c)
         elif self.kind == "simple":
@@ -823,7 +829,10 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                 raise NotImplementedError("Bayes for simple not implemented.")
             else:
                 mu_true = self.mu
-                e2_mu = e_mu**2 + self.e2_mu
+                if inference_method == "mike":
+                    e2_mu = e_mu**2 + self.e2_mu
+                else:
+                    e2_mu = jnp.ones_like(mag_true) * e_mu**2
 
             mu = mu_true + dmu
         else:
