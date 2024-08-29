@@ -58,9 +58,11 @@ set_platform(ARGS.device)                                                       
 set_host_device_count(ARGS.ndevice)                                             # noqa
 
 import sys                                                                      # noqa
+from copy import copy                                                           # noqa
 from os.path import join                                                        # noqa
 
 import csiborgtools                                                             # noqa
+from csiborgtools import fprint                                                 # noqa
 import jax                                                                      # noqa
 from h5py import File                                                           # noqa
 from numpyro.infer import MCMC, NUTS, init_to_median                            # noqa
@@ -72,7 +74,7 @@ def print_variables(names, variables):
     print(flush=True)
 
 
-def get_models(get_model_kwargs, toy_selection, verbose=True):
+def get_models(get_model_kwargs, mag_selection, verbose=True):
     """Load the data and create the NumPyro models."""
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     folder = "/mnt/extraspace/rstiskalek/catalogs/"
@@ -111,7 +113,7 @@ def get_models(get_model_kwargs, toy_selection, verbose=True):
                                               cat, fpath, paths,
                                               ksmooth=ARGS.ksmooth)
         models[i] = csiborgtools.flow.get_model(
-            loader, toy_selection=toy_selection[i], **get_model_kwargs)
+            loader, mag_selection=mag_selection[i], **get_model_kwargs)
 
     print(f"\n{'Num. radial steps':<20} {len(loader.rdist)}\n", flush=True)
     return models
@@ -223,7 +225,6 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole):
                 "a_mean": -21., "a_std": 5.0,
                 "b_mean": -5.95, "b_std": 4.0,
                 "c_mean": 0., "c_std": 20.0,
-                "sample_curvature": False,
                 "a_dipole_mean": 0., "a_dipole_std": 1.0,
                 "sample_a_dipole": sample_mag_dipole,
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
@@ -241,14 +242,20 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole):
         raise ValueError(f"Unsupported catalogue: `{ARGS.catalogue}`.")
 
 
-def get_toy_selection(toy_selection, catalogue):
-    if not toy_selection:
+def get_toy_selection(catalogue):
+    """Toy magnitude selection coefficients."""
+    if catalogue == "SFI_gals":
+        kind = "soft"
+        coeffs = [1.221e+01, 1.297e+01, -2.708e-01]
+    elif catalogue == "2MTF":
+        kind = "hard"
+        coeffs = 11.25
+    else:
+        fprint(f"Found no selection coefficients for {catalogue}.")
         return None
 
-    if catalogue == "SFI_gals":
-        return [1.221e+01, 1.297e+01, -2.708e-01]
-    else:
-        raise ValueError(f"Unsupported catalogue: `{ARGS.catalogue}`.")
+    return {"kind": kind,
+            "coeffs": coeffs}
 
 
 if __name__ == "__main__":
@@ -261,39 +268,59 @@ if __name__ == "__main__":
     #                        Fixed user parameters                            #
     ###########################################################################
 
-    nsteps = 1000
-    nburn = 500
+    # `None` means default behaviour
+    nsteps = 5000
+    nburn = 1000
     zcmb_min = None
     zcmb_max = 0.05
     nchains_harmonic = 10
     num_epochs = 50
     inference_method = "mike"
-    calculate_harmonic = True if inference_method == "mike" else False
-    maxmag_selection = None
-    sample_alpha = False
-    sample_beta = True
+    mag_selection = None
+    sample_alpha = True
+    sample_beta = None
     sample_Vmono = False
     sample_mag_dipole = False
-    toy_selection = False
+    calculate_harmonic = False if inference_method == "bayes" else True
 
-    if toy_selection and inference_method == "mike":
-        raise ValueError("Toy selection is not supported with `mike` inference.")  # noqa
-
-    if nsteps % nchains_harmonic != 0:
-        raise ValueError(
-            "The number of steps must be divisible by the number of chains.")
+    fname_kwargs = {"inference_method": inference_method,
+                    "smooth": ARGS.ksmooth,
+                    "nsim": ARGS.ksim,
+                    "zcmb_min": zcmb_min,
+                    "zcmb_max": zcmb_max,
+                    "mag_selection": mag_selection,
+                    "sample_alpha": sample_alpha,
+                    "sample_beta": sample_beta,
+                    "sample_Vmono": sample_Vmono,
+                    "sample_mag_dipole": sample_mag_dipole,
+                    }
 
     main_params = {"nsteps": nsteps, "nburn": nburn,
                    "zcmb_min": zcmb_min,
                    "zcmb_max": zcmb_max,
-                   "maxmag_selection": maxmag_selection,
+                   "mag_selection": mag_selection,
                    "calculate_harmonic": calculate_harmonic,
                    "nchains_harmonic": nchains_harmonic,
                    "num_epochs": num_epochs,
                    "inference_method": inference_method,
                    "sample_mag_dipole": sample_mag_dipole,
-                   "toy_selection": toy_selection}
+                   }
     print_variables(main_params.keys(), main_params.values())
+
+    if sample_beta is None:
+        sample_beta = ARGS.simname == "Carrick2015"
+
+    if mag_selection and inference_method != "bayes":
+        raise ValueError("Magnitude selection is only supported with `bayes` inference.")   # noqa
+
+    if inference_method != "bayes":
+        mag_selection = [None] * len(ARGS.catalogue)
+    elif mag_selection is None or mag_selection:
+        mag_selection = [get_toy_selection(cat) for cat in ARGS.catalogue]
+
+    if nsteps % nchains_harmonic != 0:
+        raise ValueError(
+            "The number of steps must be divisible by the number of chains.")
 
     calibration_hyperparams = {"Vext_min": -1000, "Vext_max": 1000,
                                "Vmono_min": -1000, "Vmono_max": 1000,
@@ -317,26 +344,8 @@ if __name__ == "__main__":
 
     ###########################################################################
 
-    fname_kwargs = {"inference_method": inference_method,
-                    "smooth": ARGS.ksmooth,
-                    "nsim": ARGS.ksim,
-                    "zcmb_min": zcmb_min,
-                    "zcmb_max": zcmb_max,
-                    "maxmag_selection": maxmag_selection,
-                    "toy_selection": toy_selection,
-                    "sample_alpha": sample_alpha,
-                    "sample_beta": sample_beta,
-                    "sample_Vmono": sample_Vmono,
-                    "sample_mag_dipole": sample_mag_dipole,
-                    }
-
-    get_model_kwargs = {"zcmb_min": zcmb_min, "zcmb_max": zcmb_max,
-                        "maxmag_selection": maxmag_selection}
-
-    toy_selection = [get_toy_selection(toy_selection, cat)
-                     for cat in ARGS.catalogue]
-
-    models = get_models(get_model_kwargs, toy_selection)
+    get_model_kwargs = {"zcmb_min": zcmb_min, "zcmb_max": zcmb_max}
+    models = get_models(get_model_kwargs, mag_selection)
     model_kwargs = {
         "models": models,
         "field_calibration_hyperparams": calibration_hyperparams,
