@@ -1,17 +1,28 @@
 nthreads=1
 memory=64
-on_login=1
+on_login=${1}
 queue="berg"
 env="/mnt/users/rstiskalek/csiborgtools/venv_csiborg/bin/python"
 file="field_los.py"
 
 nsims="-1"
+# These are only for CB
 MAS="SPH"
 grid=1024
 
 
-for simname in "Lilow2024"; do
-    for catalogue in "CF4_TFR"; do
+if [ "$on_login" != "1" ] && [ "$on_login" != "0" ]
+then
+    echo "'on_login' (1) must be either 0 or 1."
+    exit 1
+fi
+
+
+# csiborg1, csiborg2_main, csiborg2X
+
+#for simname in "Lilow2024" "CF4" ; do
+for simname in "csiborg2X" "csiborg2_main"; do
+    for catalogue in "LOSS" "Foundation" "2MTF" "SFI_gals" "CF4_GroupAll" "CF4_TFR"; do
         pythoncm="$env $file --catalogue $catalogue --nsims $nsims --simname $simname --MAS $MAS --grid $grid"
         if [ $on_login -eq 1 ]; then
             echo $pythoncm
