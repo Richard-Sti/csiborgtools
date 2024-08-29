@@ -638,10 +638,9 @@ class Paths:
 
     def flow_validation(self, fdir, simname, catalogue, inference_method,
                         smooth=None, nsim=None, zcmb_min=None, zcmb_max=None,
-                        maxmag_selection=None, toy_selection=False,
-                        sample_alpha=False, sample_beta=False,
-                        sample_Vmono=False, sample_mag_dipole=False,
-                        sample_curvature=False):
+                        mag_selection=None,  sample_alpha=False,
+                        sample_beta=False, sample_Vmono=False,
+                        sample_mag_dipole=False, sample_curvature=False):
         """Flow validation file path."""
         if isinstance(catalogue, list) and len(catalogue) == 1:
             catalogue = catalogue[0]
@@ -651,12 +650,12 @@ class Paths:
 
         fname = f"samples_{simname}_{catalogue}_{inference_method}_"
 
-        keys = ["smooth", "nsim", "zcmb_min", "zcmb_max", "maxmag_selection",
-                "toy_selection", "sample_alpha", "sample_beta",
-                "sample_Vmono", "sample_mag_dipole", "sample_curvature"]
-        values = [smooth, nsim, zcmb_min, zcmb_max, maxmag_selection,
-                  toy_selection, sample_alpha, sample_beta, sample_Vmono,
-                  sample_mag_dipole, sample_curvature]
+        keys = ["smooth", "nsim", "zcmb_min", "zcmb_max", "mag_selection",
+                "sample_alpha", "sample_beta", "sample_Vmono",
+                "sample_mag_dipole", "sample_curvature"]
+        values = [smooth, nsim, zcmb_min, zcmb_max, mag_selection,
+                  sample_alpha, sample_beta, sample_Vmono, sample_mag_dipole,
+                  sample_curvature]
 
         for key, value in zip(keys, values):
 
