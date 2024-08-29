@@ -125,6 +125,8 @@ class Paths:
             files = [search(r'realization(\d+)_delta\.fits', file).group(1)
                      for file in files if search(r'realization(\d+)_delta\.fits', file)]  # noqa
             files = [int(file) for file in files]
+            # Downsample to only 20 realisations
+            files = files[::5]
         elif simname == "Lilow2024":
             return [0]
         else:
