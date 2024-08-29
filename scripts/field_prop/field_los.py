@@ -396,9 +396,11 @@ if __name__ == "__main__":
     parser.add_argument("--grid", type=int, help="Grid resolution.")
     args = parser.parse_args()
 
-    rmax = 300
+    rmax = 200
     dr = 0.5
     smooth_scales = [0]
+
+    print(f"Running catalogue {args.catalogue} for simulation {args.simname}.")
 
     comm = MPI.COMM_WORLD
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
