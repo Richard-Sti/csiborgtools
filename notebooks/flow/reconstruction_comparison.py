@@ -75,23 +75,35 @@ def names_to_latex(names, for_corner=False):
     for cat in ["2MTF", "SFI"]:
         ltx[f"a_{cat}"] = f"a_{{\\rm TF}}^{{\\rm {cat}}}"
         ltx[f"b_{cat}"] = f"b_{{\\rm TF}}^{{\\rm {cat}}}"
-        ltx[f"e_mu_{cat}"] = f"\\sigma_{{\\mu}}^{{\\rm {cat}}}"
         ltx[f"corr_mag_eta_{cat}"] = f"\\rho_{{m,\\eta}}^{{\\rm {cat}}}"
         ltx[f"eta_mean_{cat}"] = f"\\widehat{{\\eta}}^{{\\rm {cat}}}"
         ltx[f"eta_std_{cat}"] = f"\\widehat{{\\sigma}}_\\eta^{{\\rm {cat}}}"
         ltx[f"mag_mean_{cat}"] = f"\\widehat{{m}}^{{\\rm {cat}}}"
         ltx[f"mag_std_{cat}"] = f"\\widehat{{\\sigma}}_m^{{\\rm {cat}}}"
-        ltx[f"alpha_{cat}"] = f"\\alpha^{{\\rm {cat}}}"
 
         ltx_corner[f"a_{cat}"] = rf"$a_{{\rm TF}}^{{\rm {cat}}}$"
         ltx_corner[f"b_{cat}"] = rf"$b_{{\rm TF}}^{{\rm {cat}}}$"
-        ltx_corner[f"e_mu_{cat}"] = rf"$\sigma_{{\mu}}^{{\rm {cat}}}$"
         ltx_corner[f"corr_mag_eta_{cat}"] = rf"$\rho_{{m,\eta}}^{{\rm {cat}}}$"
         ltx_corner[f"eta_mean_{cat}"] = rf"$\widehat{{\eta}}^{{\rm {cat}}}$"
         ltx_corner[f"eta_std_{cat}"] = rf"$\widehat{{\sigma}}_\eta^{{\rm {cat}}}$"  # noqa
         ltx_corner[f"mag_mean_{cat}"] = rf"$\widehat{{m}}^{{\rm {cat}}}$"
         ltx_corner[f"mag_std_{cat}"] = rf"$\widehat{{\sigma}}_m^{{\rm {cat}}}$"
+
+    for cat in ["2MTF", "SFI", "Foundation", "LOSS"]:
+        ltx[f"alpha_{cat}"] = f"\\alpha^{{\\rm {cat}}}"
+        ltx[f"e_mu_{cat}"] = f"\\sigma_{{\\mu}}^{{\\rm {cat}}}"
+
         ltx_corner[f"alpha_{cat}"] = rf"$\alpha^{{\rm {cat}}}$"
+        ltx_corner[f"e_mu_{cat}"] = rf"$\sigma_{{\mu}}^{{\rm {cat}}}$"
+
+    for cat in ["Foundation", "LOSS"]:
+        ltx[f"alpha_cal_{cat}"] = f"\\mathcal{{A}}^{{\\rm {cat}}}"
+        ltx[f"beta_cal_{cat}"] = f"\\mathcal{{B}}^{{\\rm {cat}}}"
+        ltx[f"mag_cal_{cat}"] = f"\\mathcal{{M}}^{{\\rm {cat}}}"
+
+        ltx_corner[f"alpha_cal_{cat}"] = rf"$\mathcal{{A}}^{{\rm {cat}}}$"
+        ltx_corner[f"beta_cal_{cat}"] = rf"$\mathcal{{B}}^{{\rm {cat}}}$"
+        ltx_corner[f"mag_cal_{cat}"] = rf"$\mathcal{{M}}^{{\rm {cat}}}$"
 
     labels = copy(names)
     for i, label in enumerate(names):
@@ -119,7 +131,9 @@ def simname_to_pretty(simname):
 
 
 def catalogue_to_pretty(catalogue):
-    ltx = {"SFI_gals": "SFI"}
+    ltx = {"SFI_gals": "SFI",
+           "CF4_TFR_not2MTForSFI_i": r"CF4 $i$-band",
+           }
 
     if isinstance(catalogue, list):
         return [ltx[s] if s in ltx else s for s in catalogue]
@@ -133,8 +147,8 @@ def catalogue_to_pretty(catalogue):
 
 def get_gof(kind, fname):
     """Read in the goodness-of-fit statistics `kind`."""
-    if kind not in ["BIC", "AIC", "lnZ"]:
-        raise ValueError("`kind` must be one of 'BIC', 'AIC', 'lnZ'")
+    if kind not in ["BIC", "AIC", "neg_lnZ_harmonic"]:
+        raise ValueError("`kind` must be one of 'BIC', 'AIC', 'neg_lnZ_harmonic'.")  # noqa
 
     with File(fname, 'r') as f:
         return f[f"gof/{kind}"][()]
