@@ -58,7 +58,6 @@ set_platform(ARGS.device)                                                       
 set_host_device_count(ARGS.ndevice)                                             # noqa
 
 import sys                                                                      # noqa
-from copy import copy                                                           # noqa
 from os.path import join                                                        # noqa
 
 import csiborgtools                                                             # noqa
@@ -276,7 +275,7 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 10_000
+    nsteps = 3_000
     nburn = 2000
     zcmb_min = None
     zcmb_max = 0.05
