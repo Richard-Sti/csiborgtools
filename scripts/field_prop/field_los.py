@@ -398,6 +398,7 @@ if __name__ == "__main__":
 
     rmax = 200
     dr = 0.5
+    # smooth_scales = [0, 2, 4, 6, 8]
     smooth_scales = [0]
 
     print(f"Running catalogue {args.catalogue} for simulation {args.simname}.")
