@@ -258,7 +258,7 @@ def get_toy_selection(catalogue):
         kind = "hard"
         coeffs = 11.25
     else:
-        fprint(f"Found no selection coefficients for {catalogue}.")
+        fprint(f"found no selection coefficients for {catalogue}.")
         return None
 
     return {"kind": kind,
@@ -276,8 +276,8 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 5000
-    nburn = 1000
+    nsteps = 10_000
+    nburn = 2000
     zcmb_min = None
     zcmb_max = 0.05
     nchains_harmonic = 10
