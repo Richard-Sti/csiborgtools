@@ -75,6 +75,7 @@ def names_to_latex(names, for_corner=False):
     for cat in ["2MTF", "SFI"]:
         ltx[f"a_{cat}"] = f"a_{{\\rm TF}}^{{\\rm {cat}}}"
         ltx[f"b_{cat}"] = f"b_{{\\rm TF}}^{{\\rm {cat}}}"
+        ltx[f"c_{cat}"] = f"c_{{\\rm TF}}^{{\\rm {cat}}}"
         ltx[f"corr_mag_eta_{cat}"] = f"\\rho_{{m,\\eta}}^{{\\rm {cat}}}"
         ltx[f"eta_mean_{cat}"] = f"\\widehat{{\\eta}}^{{\\rm {cat}}}"
         ltx[f"eta_std_{cat}"] = f"\\widehat{{\\sigma}}_\\eta^{{\\rm {cat}}}"
@@ -83,6 +84,7 @@ def names_to_latex(names, for_corner=False):
 
         ltx_corner[f"a_{cat}"] = rf"$a_{{\rm TF}}^{{\rm {cat}}}$"
         ltx_corner[f"b_{cat}"] = rf"$b_{{\rm TF}}^{{\rm {cat}}}$"
+        ltx_corner[f"c_{cat}"] = rf"$c_{{\rm TF}}^{{\rm {cat}}}$"
         ltx_corner[f"corr_mag_eta_{cat}"] = rf"$\rho_{{m,\eta}}^{{\rm {cat}}}$"
         ltx_corner[f"eta_mean_{cat}"] = rf"$\widehat{{\eta}}^{{\rm {cat}}}$"
         ltx_corner[f"eta_std_{cat}"] = rf"$\widehat{{\sigma}}_\eta^{{\rm {cat}}}$"  # noqa
@@ -278,13 +280,8 @@ def samples_for_corner(samples):
     return data, labels, keys
 
 
-def samples_to_getdist(samples, simname, catalogue=None):
+def samples_to_getdist(samples, label):
     data, __, keys = samples_for_corner(samples)
-
-    if catalogue is None:
-        label = simname_to_pretty(simname)
-    else:
-        label = catalogue
 
     return MCSamples(
         samples=data, names=keys,
