@@ -647,6 +647,9 @@ class Paths:
         if isinstance(catalogue, list) and len(catalogue) == 1:
             catalogue = catalogue[0]
 
+        if isinstance(catalogue, list):
+            catalogue = "_".join(catalogue)
+
         if smooth == 0:
             smooth = None
 
