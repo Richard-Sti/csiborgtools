@@ -246,7 +246,14 @@ def get_toy_selection(catalogue):
     """Toy magnitude selection coefficients."""
     if catalogue == "SFI_gals":
         kind = "soft"
-        coeffs = [1.221e+01, 1.297e+01, -2.708e-01]
+        # m1, m2, a
+        coeffs = [11.467, 12.906, -0.231]
+    elif "CF4_TFR" in catalogue and "_i" in catalogue:
+        kind = "soft"
+        coeffs = [13.043, 14.423, -0.129]
+    elif "CF4_TFR" in catalogue and "w1" in catalogue:
+        kind = "soft"
+        coeffs = [11.731, 14.189, -0.118]
     elif catalogue == "2MTF":
         kind = "hard"
         coeffs = 11.25
