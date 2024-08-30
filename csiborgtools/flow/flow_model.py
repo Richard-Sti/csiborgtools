@@ -717,7 +717,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                     "c", self.name, self.c_min, self.c_max)
 
                 # NOTE: that the true variables are currently uncorrelated.
-                with plate("true_SN", self.ndata):
+                with plate(f"true_SN_{self.name}", self.ndata):
                     mag_true = sample(
                         f"mag_true_{self.name}", Normal(mag_mean, mag_std))
                     x1_true = sample(
@@ -772,7 +772,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                     [[mag_std**2, corr_mag_eta * mag_std * eta_std],
                      [corr_mag_eta * mag_std * eta_std, eta_std**2]])
 
-                with plate("true_TFR", self.ndata):
+                with plate(f"true_TFR_{self.name}", self.ndata):
                     x_true = sample(
                         f"x_TFR_{self.name}", MultivariateNormal(loc, cov))
 
