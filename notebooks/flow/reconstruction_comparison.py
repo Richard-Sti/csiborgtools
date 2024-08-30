@@ -81,6 +81,7 @@ def names_to_latex(names, for_corner=False):
         ltx[f"eta_std_{cat}"] = f"\\widehat{{\\sigma}}_\\eta^{{\\rm {cat}}}"
         ltx[f"mag_mean_{cat}"] = f"\\widehat{{m}}^{{\\rm {cat}}}"
         ltx[f"mag_std_{cat}"] = f"\\widehat{{\\sigma}}_m^{{\\rm {cat}}}"
+        ltx[f"alpha_{cat}"] = f"\\alpha^{{\\rm {cat}}}"
 
         ltx_corner[f"a_{cat}"] = rf"$a_{{\rm TF}}^{{\rm {cat}}}$"
         ltx_corner[f"b_{cat}"] = rf"$b_{{\rm TF}}^{{\rm {cat}}}$"
@@ -90,6 +91,7 @@ def names_to_latex(names, for_corner=False):
         ltx_corner[f"eta_std_{cat}"] = rf"$\widehat{{\sigma}}_\eta^{{\rm {cat}}}$"  # noqa
         ltx_corner[f"mag_mean_{cat}"] = rf"$\widehat{{m}}^{{\rm {cat}}}$"
         ltx_corner[f"mag_std_{cat}"] = rf"$\widehat{{\sigma}}_m^{{\rm {cat}}}$"
+        ltx_corner[f"alpha_{cat}"] = rf"$\alpha^{{\rm {cat}}}$"
 
     labels = copy(names)
     for i, label in enumerate(names):
