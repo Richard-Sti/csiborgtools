@@ -400,7 +400,7 @@ if __name__ == "__main__":
     if args.catalogue == "CF4_GroupAll":
         dr = 1
     else:
-        dr = 0.5
+        dr = 0.75
 
     # smooth_scales = [0, 2, 4, 6, 8]
     smooth_scales = [0]
