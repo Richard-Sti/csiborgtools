@@ -49,11 +49,13 @@ def names_to_latex(names, for_corner=False):
     """Convert the names of the parameters to LaTeX."""
     ltx = {"alpha": "\\alpha",
            "beta": "\\beta",
-           "Vmag": "V_{\\rm ext}",
-           "sigma_v": "\\sigma_v",
+           "Vmag": "V_{\\rm ext} ~ [\\mathrm{km} / \\mathrm{s}]",
+           "sigma_v": "\\sigma_v ~ [\\mathrm{km} / \\mathrm{s}]",
            "alpha_cal": "\\mathcal{A}",
            "beta_cal": "\\mathcal{B}",
            "mag_cal": "\\mathcal{M}",
+           "l": "\\ell ~ [\\mathrm{deg}]",
+           "b": "b ~ [\\mathrm{deg}]",
            }
 
     ltx_corner = {"alpha": r"$\alpha$",
@@ -71,6 +73,9 @@ def names_to_latex(names, for_corner=False):
     for i, name in enumerate(names):
         if "SFI_gals" in name:
             names[i] = names[i].replace("SFI_gals", "SFI")
+
+        if "CF4_GroupAll" in name:
+            names[i] = names[i].replace("CF4_GroupAll", "CF4Group")
 
     for cat in ["2MTF", "SFI"]:
         ltx[f"a_{cat}"] = f"a_{{\\rm TF}}^{{\\rm {cat}}}"
@@ -91,7 +96,7 @@ def names_to_latex(names, for_corner=False):
         ltx_corner[f"mag_mean_{cat}"] = rf"$\widehat{{m}}^{{\rm {cat}}}$"
         ltx_corner[f"mag_std_{cat}"] = rf"$\widehat{{\sigma}}_m^{{\rm {cat}}}$"
 
-    for cat in ["2MTF", "SFI", "Foundation", "LOSS"]:
+    for cat in ["2MTF", "SFI", "Foundation", "LOSS", "CF4Group"]:
         ltx[f"alpha_{cat}"] = f"\\alpha^{{\\rm {cat}}}"
         ltx[f"e_mu_{cat}"] = f"\\sigma_{{\\mu}}^{{\\rm {cat}}}"
 
@@ -106,6 +111,17 @@ def names_to_latex(names, for_corner=False):
         ltx_corner[f"alpha_cal_{cat}"] = rf"$\mathcal{{A}}^{{\rm {cat}}}$"
         ltx_corner[f"beta_cal_{cat}"] = rf"$\mathcal{{B}}^{{\rm {cat}}}$"
         ltx_corner[f"mag_cal_{cat}"] = rf"$\mathcal{{M}}^{{\rm {cat}}}$"
+
+    for cat in ["CF4Group"]:
+        ltx[f"dmu_{cat}"] = f"\\Delta\\mu^{{\\rm {cat}}}"
+        ltx[f"dmu_dipole_mag_{cat}"] = f"\\Delta\\mu_{{\\rm mag}}^{{\\rm {cat}}}"        # noqa
+        ltx[f"dmu_dipole_l_{cat}"] = f"\\Delta\\mu_{{\\ell}}^{{\\rm {cat}}}"
+        ltx[f"dmu_dipole_b_{cat}"] = f"\\Delta\\mu_{{b}}^{{\\rm {cat}}}"
+
+        ltx_corner[f"dmu_{cat}"] = rf"$\Delta\mu_{{0}}^{{\rm {cat}}}$"
+        ltx_corner[f"dmu_dipole_mag_{cat}"] = rf"$\Delta\mu_{{\rm mag}}^{{\rm {cat}}}$"  # noqa
+        ltx_corner[f"dmu_dipole_l_{cat}"] = rf"$\Delta\mu_{{\ell}}^{{\rm {cat}}}$"       # noqa
+        ltx_corner[f"dmu_dipole_b_{cat}"] = rf"$\Delta\mu_{{b}}^{{\rm {cat}}}$"
 
     labels = copy(names)
     for i, label in enumerate(names):
@@ -127,7 +143,8 @@ def simname_to_pretty(simname):
            }
 
     if isinstance(simname, list):
-        return [ltx[s] if s in ltx else s for s in simname]
+        names = [ltx[s] if s in ltx else s for s in simname]
+        return "".join([f"{n}, " for n in names]).rstrip(", ")
 
     return ltx[simname] if simname in ltx else simname
 
@@ -138,7 +155,8 @@ def catalogue_to_pretty(catalogue):
            }
 
     if isinstance(catalogue, list):
-        return [ltx[s] if s in ltx else s for s in catalogue]
+        names = [ltx[s] if s in ltx else s for s in catalogue]
+        return "".join([f"{n}, " for n in names]).rstrip(", ")
 
     return ltx[catalogue] if catalogue in ltx else catalogue
 
@@ -174,6 +192,20 @@ def get_samples(fname, convert_Vext_to_galactic=True):
         Vext = csiborgtools.cartesian_to_radec(Vext)
         samples["l"], samples["b"] = csiborgtools.radec_to_galactic(
             Vext[:, 1], Vext[:, 2])
+
+    keys = list(samples.keys())
+    for key in keys:
+
+        if "dmu_dipole_" in key:
+            dmu = samples.pop(key)
+
+            dmu = csiborgtools.cartesian_to_radec(dmu)
+            dmu_mag = dmu[:, 0]
+            l, b = csiborgtools.radec_to_galactic(dmu[:, 1], dmu[:, 2])
+
+            samples[key.replace("dmu_dipole_", "dmu_dipole_mag_")] = dmu_mag
+            samples[key.replace("dmu_dipole_", "dmu_dipole_l_")] = l
+            samples[key.replace("dmu_dipole_", "dmu_dipole_b_")] = b
 
     return samples
 
@@ -263,6 +295,7 @@ def samples_for_corner(samples):
     # Remove the true parameters of each galaxy.
     keys = list(samples.keys())
     for key in keys:
+        # Generally don't want to plot the true latent parameters..
         if "x_TFR" in key or "_true_" in key:
             samples.pop(key)
 
