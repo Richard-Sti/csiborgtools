@@ -10,7 +10,7 @@ def parse_args():
 
 ARGS = parse_args()
 # This must be done before we import JAX etc.
-from numpyro import set_host_device_count, set_platform                         # noqa
+from numpyro import set_platform                                                # noqa
 
 set_platform(ARGS.device)                                                       # noqa
 
