@@ -275,8 +275,8 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 3_000
-    nburn = 2000
+    nsteps = 10_000
+    nburn = 2_000
     zcmb_min = None
     zcmb_max = 0.05
     nchains_harmonic = 10
