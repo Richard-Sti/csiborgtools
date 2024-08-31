@@ -1,4 +1,4 @@
-from argparse import ArgumentParser, ArgumentTypeError
+from argparse import ArgumentParser
 
 
 def parse_args():
@@ -30,8 +30,8 @@ def get_harmonic_evidence(samples, log_posterior, nchains_harmonic, epoch_num):
         data, log_posterior, return_flow_samples=False, epochs_num=epoch_num)
 
 
-ndim = 250
-nsamples = 100_000
+ndim = 150
+nsamples = 50_000
 nchains_split = 10
 loc = jnp.zeros(ndim)
 cov = jnp.eye(ndim)
@@ -41,10 +41,6 @@ gen = np.random.default_rng()
 X = gen.multivariate_normal(loc, cov, size=nsamples)
 samples = {f"x_{i}": X[:, i] for i in range(ndim)}
 logprob = multivariate_normal(loc, cov).logpdf(X)
-
-neg_lnZ_laplace, neg_lnZ_laplace_error = csiborgtools.laplace_evidence(
-    samples, logprob, nchains_split)
-print(f"neg_lnZ_laplace:  {neg_lnZ_laplace} +/- {neg_lnZ_laplace_error}")
 
 
 neg_lnZ_harmonic, neg_lnZ_harmonic_error = get_harmonic_evidence(
