@@ -21,7 +21,7 @@ fi
 # csiborg1, csiborg2_main, csiborg2X
 
 #for simname in "Lilow2024" "CF4" ; do
-for simname in "csiborg2X"; do
+for simname in "Lilow2024"; do
     # for catalogue in "LOSS" "Foundation" "2MTF" "SFI_gals" "CF4_GroupAll" "CF4_TFR"; do
     for catalogue in "CF4_GroupAll"; do
         pythoncm="$env $file --catalogue $catalogue --nsims $nsims --simname $simname --MAS $MAS --grid $grid"

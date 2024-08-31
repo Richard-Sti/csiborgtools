@@ -39,7 +39,7 @@ fi
 
 # for simname in "Lilow2024" "CF4" "CF4gp" "csiborg1" "csiborg2_main" "csiborg2X"; do
 # for simname in "Carrick2015" "Lilow2024" "csiborg2_main" "csiborg2X" "CF4"; do
-for simname in "csiborg2X"; do
+for simname in "Lilow2024"; do
     # for catalogue in "LOSS" "Foundation" "2MTF" "SFI_gals" "CF4_TFR_not2MTForSFI_i"; do
     for catalogue in "CF4_GroupAll"; do
         for ksim in "none"; do
