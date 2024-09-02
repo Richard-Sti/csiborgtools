@@ -44,7 +44,7 @@ def interpolate_indranil_void(kind, RA, dec, rmax, dr, dump_folder, catalogue):
     phi_grid = np.arange(0, 181)
     r_eval = np.arange(0, rmax, dr).astype(float)
 
-    model_axis = SkyCoord(l=117, b=-4, frame='galactic', unit='deg').icrs
+    model_axis = SkyCoord(l=117, b=4, frame='galactic', unit='deg').icrs
     coords = SkyCoord(ra=RA, dec=dec, unit='deg').icrs
 
     # Get angular separation in degrees
@@ -87,8 +87,7 @@ if __name__ == "__main__":
 
     out_folder = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_los"
 
-    # for catalogue in ["LOSS", "Foundation", "2MTF", "SFI_gals", "CF4_TFR"]:
-    for catalogue in ["CF4_GroupAll"]:
+    for catalogue in ["LOSS", "Foundation", "2MTF", "SFI_gals", "CF4_TFR", "CF4_GroupAll"]:  # noqa
         print(f"Running kind `{kind}` for catalogue `{catalogue}`.")
 
         RA, dec = get_los(catalogue, "", comm).T
