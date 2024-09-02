@@ -99,9 +99,15 @@ def names_to_latex(names, for_corner=False):
     for cat in ["2MTF", "SFI", "Foundation", "LOSS", "CF4Group"]:
         ltx[f"alpha_{cat}"] = f"\\alpha^{{\\rm {cat}}}"
         ltx[f"e_mu_{cat}"] = f"\\sigma_{{\\mu}}^{{\\rm {cat}}}"
+        ltx[f"a_dipole_mag_{cat}"] = f"a_{{\\rm mag}}^{{\\rm {cat}}}"
+        ltx[f"a_dipole_l_{cat}"] = f"a_{{\\ell}}^{{\\rm {cat}}}"
+        ltx[f"a_dipole_b_{cat}"] = f"a_{{b}}^{{\\rm {cat}}}"
 
         ltx_corner[f"alpha_{cat}"] = rf"$\alpha^{{\rm {cat}}}$"
         ltx_corner[f"e_mu_{cat}"] = rf"$\sigma_{{\mu}}^{{\rm {cat}}}$"
+        ltx_corner[f"a_dipole_mag_{cat}"] = rf"$a_{{\rm mag}}^{{\rm {cat}}}$"
+        ltx_corner[f"a_dipole_l_{cat}"] = rf"$a_{{\ell}}^{{\rm {cat}}}$"
+        ltx_corner[f"a_dipole_b_{cat}"] = rf"$a_{{b}}^{{\rm {cat}}}$"
 
     for cat in ["Foundation", "LOSS"]:
         ltx[f"alpha_cal_{cat}"] = f"\\mathcal{{A}}^{{\\rm {cat}}}"
@@ -207,6 +213,15 @@ def get_samples(fname, convert_Vext_to_galactic=True):
             samples[key.replace("dmu_dipole_", "dmu_dipole_l_")] = l
             samples[key.replace("dmu_dipole_", "dmu_dipole_b_")] = b
 
+        if "a_dipole" in key:
+            adipole = samples.pop(key)
+            adipole = csiborgtools.cartesian_to_radec(adipole)
+            adipole_mag = adipole[:, 0]
+            l, b = csiborgtools.radec_to_galactic(adipole[:, 1], adipole[:, 2])
+            samples[key.replace("a_dipole", "a_dipole_mag")] = adipole_mag
+            samples[key.replace("a_dipole", "a_dipole_l")] = l
+            samples[key.replace("a_dipole", "a_dipole_b")] = b
+
     return samples
 
 
@@ -297,9 +312,6 @@ def samples_for_corner(samples):
     for key in keys:
         # Generally don't want to plot the true latent parameters..
         if "x_TFR" in key or "_true_" in key:
-            samples.pop(key)
-
-        if "a_dipole_" in key:
             samples.pop(key)
 
     keys = list(samples.keys())
