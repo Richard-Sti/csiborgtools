@@ -330,7 +330,7 @@ if __name__ == "__main__":
 
     calibration_hyperparams = {"Vext_min": -1000, "Vext_max": 1000,
                                "Vmono_min": -1000, "Vmono_max": 1000,
-                               "beta_min": -1.0, "beta_max": 3.0,
+                               "beta_min": -10.0, "beta_max": 10.0,
                                "sigma_v_min": 1.0, "sigma_v_max": 750.,
                                "sample_Vmono": sample_Vmono,
                                "sample_beta": sample_beta,
