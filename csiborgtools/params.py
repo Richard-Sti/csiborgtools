@@ -103,6 +103,8 @@ def simname2Omega_m(simname):
          "CF4": 0.3,
          "CF4gp": 0.3,
          "Lilow2024": 0.3175,
+         "IndranilVoid_exp": 0.3,
+         "IndranilVoid_gauss": 0.3,
          }
 
     omega_m = d.get(simname, None)
