@@ -50,6 +50,9 @@ def names_to_latex(names, for_corner=False):
     ltx = {"alpha": "\\alpha",
            "beta": "\\beta",
            "Vmag": "V_{\\rm ext} ~ [\\mathrm{km} / \\mathrm{s}]",
+           "Vx": "V_x ~ [\\mathrm{km} / \\mathrm{s}]",
+           "Vy": "V_y ~ [\\mathrm{km} / \\mathrm{s}]",
+           "Vz": "V_z ~ [\\mathrm{km} / \\mathrm{s}]",
            "sigma_v": "\\sigma_v ~ [\\mathrm{km} / \\mathrm{s}]",
            "alpha_cal": "\\mathcal{A}",
            "beta_cal": "\\mathcal{B}",
@@ -77,7 +80,10 @@ def names_to_latex(names, for_corner=False):
         if "CF4_GroupAll" in name:
             names[i] = names[i].replace("CF4_GroupAll", "CF4Group")
 
-    for cat in ["2MTF", "SFI"]:
+        if "CF4_TFR_i" in name:
+            names[i] = names[i].replace("CF4_TFR_i", "CF4,TFR")
+
+    for cat in ["2MTF", "SFI", "CF4,TFR"]:
         ltx[f"a_{cat}"] = f"a_{{\\rm TF}}^{{\\rm {cat}}}"
         ltx[f"b_{cat}"] = f"b_{{\\rm TF}}^{{\\rm {cat}}}"
         ltx[f"c_{cat}"] = f"c_{{\\rm TF}}^{{\\rm {cat}}}"
@@ -96,18 +102,22 @@ def names_to_latex(names, for_corner=False):
         ltx_corner[f"mag_mean_{cat}"] = rf"$\widehat{{m}}^{{\rm {cat}}}$"
         ltx_corner[f"mag_std_{cat}"] = rf"$\widehat{{\sigma}}_m^{{\rm {cat}}}$"
 
-    for cat in ["2MTF", "SFI", "Foundation", "LOSS", "CF4Group"]:
+    for cat in ["2MTF", "SFI", "Foundation", "LOSS", "CF4Group", "CF4,TFR"]:
         ltx[f"alpha_{cat}"] = f"\\alpha^{{\\rm {cat}}}"
         ltx[f"e_mu_{cat}"] = f"\\sigma_{{\\mu}}^{{\\rm {cat}}}"
-        ltx[f"a_dipole_mag_{cat}"] = f"a_{{\\rm mag}}^{{\\rm {cat}}}"
-        ltx[f"a_dipole_l_{cat}"] = f"a_{{\\ell}}^{{\\rm {cat}}}"
-        ltx[f"a_dipole_b_{cat}"] = f"a_{{b}}^{{\\rm {cat}}}"
+        ltx[f"a_dipole_mag_{cat}"] = f"\\epsilon_{{\\rm mag}}^{{\\rm {cat}}}"
+        ltx[f"a_dipole_l_{cat}"] = f"\\epsilon_{{\\ell}}^{{\\rm {cat}}} ~ [\\mathrm{{deg}}]"  # noqa
+        ltx[f"a_dipole_b_{cat}"] = f"\\epsilon_{{b}}^{{\\rm {cat}}} ~ [\\mathrm{{deg}}]"      # noqa
+
+        ltx["a_dipole_mag"] = "\\epsilon_{{\\rm mag}}"
+        ltx["a_dipole_l"] = "\\epsilon_{{\\ell}} ~ [\\mathrm{{deg}}]"
+        ltx["a_dipole_b"] = "\\epsilon_{{b}} ~ [\\mathrm{{deg}}]"
 
         ltx_corner[f"alpha_{cat}"] = rf"$\alpha^{{\rm {cat}}}$"
         ltx_corner[f"e_mu_{cat}"] = rf"$\sigma_{{\mu}}^{{\rm {cat}}}$"
-        ltx_corner[f"a_dipole_mag_{cat}"] = rf"$a_{{\rm mag}}^{{\rm {cat}}}$"
-        ltx_corner[f"a_dipole_l_{cat}"] = rf"$a_{{\ell}}^{{\rm {cat}}}$"
-        ltx_corner[f"a_dipole_b_{cat}"] = rf"$a_{{b}}^{{\rm {cat}}}$"
+        ltx_corner[f"a_dipole_mag_{cat}"] = rf"$\epsilon_{{\rm mag}}^{{\rm {cat}}}$"  # noqa
+        ltx_corner[f"a_dipole_l_{cat}"] = rf"$\epsilon_{{\ell}}^{{\rm {cat}}}$"
+        ltx_corner[f"a_dipole_b_{cat}"] = rf"$\epsilon_{{b}}^{{\rm {cat}}}$"
 
     for cat in ["Foundation", "LOSS"]:
         ltx[f"alpha_cal_{cat}"] = f"\\mathcal{{A}}^{{\\rm {cat}}}"
@@ -120,14 +130,14 @@ def names_to_latex(names, for_corner=False):
 
     for cat in ["CF4Group"]:
         ltx[f"dmu_{cat}"] = f"\\Delta\\mu^{{\\rm {cat}}}"
-        ltx[f"dmu_dipole_mag_{cat}"] = f"\\Delta\\mu_{{\\rm mag}}^{{\\rm {cat}}}"        # noqa
-        ltx[f"dmu_dipole_l_{cat}"] = f"\\Delta\\mu_{{\\ell}}^{{\\rm {cat}}}"
-        ltx[f"dmu_dipole_b_{cat}"] = f"\\Delta\\mu_{{b}}^{{\\rm {cat}}}"
+        ltx[f"dmu_dipole_mag_{cat}"] = f"\\epsilon_\\mu_{{\\rm mag}}^{{\\rm {cat}}}"                  # noqa
+        ltx[f"dmu_dipole_l_{cat}"] = f"\\epsilon_\\mu_{{\\ell}}^{{\\rm {cat}}} ~ [\\mathrm{{deg}}]"   # noqa
+        ltx[f"dmu_dipole_b_{cat}"] = f"\\epsilon_\\mu_{{b}}^{{\\rm {cat}}} ~ [\\mathrm{{deg}}]"       # noqa
 
         ltx_corner[f"dmu_{cat}"] = rf"$\Delta\mu_{{0}}^{{\rm {cat}}}$"
-        ltx_corner[f"dmu_dipole_mag_{cat}"] = rf"$\Delta\mu_{{\rm mag}}^{{\rm {cat}}}$"  # noqa
-        ltx_corner[f"dmu_dipole_l_{cat}"] = rf"$\Delta\mu_{{\ell}}^{{\rm {cat}}}$"       # noqa
-        ltx_corner[f"dmu_dipole_b_{cat}"] = rf"$\Delta\mu_{{b}}^{{\rm {cat}}}$"
+        ltx_corner[f"dmu_dipole_mag_{cat}"] = rf"$\epsilon_{{\rm mag}}^{{\rm {cat}}}$"  # noqa
+        ltx_corner[f"dmu_dipole_l_{cat}"] = rf"$\epsilon_{{\ell}}^{{\rm {cat}}}$"       # noqa
+        ltx_corner[f"dmu_dipole_b_{cat}"] = rf"$\epsilon_{{b}}^{{\rm {cat}}}$"          # noqa
 
     labels = copy(names)
     for i, label in enumerate(names):
@@ -198,6 +208,11 @@ def get_samples(fname, convert_Vext_to_galactic=True):
         Vext = csiborgtools.cartesian_to_radec(Vext)
         samples["l"], samples["b"] = csiborgtools.radec_to_galactic(
             Vext[:, 1], Vext[:, 2])
+    else:
+        Vext = samples.pop("Vext")
+        samples["Vx"] = Vext[:, 0]
+        samples["Vy"] = Vext[:, 1]
+        samples["Vz"] = Vext[:, 2]
 
     keys = list(samples.keys())
     for key in keys:
