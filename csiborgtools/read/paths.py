@@ -118,8 +118,6 @@ class Paths:
             files = glob(join(self.quijote_dir, "fiducial_processed",
                               "chain_*"))
             files = [int(search(r'chain_(\d+)', f).group(1)) for f in files]
-        elif simname == "Carrick2015":
-            return [0]
         elif simname == "CF4":
             files = glob(join(self.CF4_dir, "CF4_new_128-z008_realization*_delta.fits"))  # noqa
             files = [search(r'realization(\d+)_delta\.fits', file).group(1)
@@ -127,8 +125,8 @@ class Paths:
             files = [int(file) for file in files]
             # Downsample to only 20 realisations
             files = files[::5]
-        elif simname == "Lilow2024":
-            return [0]
+        elif simname == "Lilow2024" or simname == "Carrick2015" or "IndranilVoid" in simname:  # noqa
+            files = [0]
         else:
             raise ValueError(f"Unknown simulation name `{simname}`.")
 
