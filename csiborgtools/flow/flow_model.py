@@ -22,6 +22,7 @@ References
 [1] https://arxiv.org/abs/1912.09383.
 """
 from abc import ABC, abstractmethod
+from os.path import join
 
 import numpy as np
 from astropy import units as u
@@ -100,12 +101,17 @@ class DataLoader:
             d1, d2 = self._cat["RA"], self._cat["DEC"]
 
         num_sims = len(self._los_density)
-        radvel = np.empty((num_sims, nobject, len(self._field_rdist)), dtype)
-        for k in range(num_sims):
-            for i in range(nobject):
-                radvel[k, i, :] = radial_velocity_los(
-                    self._los_velocity[k, :, i, ...], d1[i], d2[i])
-        self._los_radial_velocity = radvel
+        if "IndranilVoid" in simname:
+            self._los_radial_velocity = self._los_velocity
+            self._los_velocity = None
+        else:
+            radvel = np.empty(
+                (num_sims, nobject, len(self._field_rdist)), dtype)
+            for k in range(num_sims):
+                for i in range(nobject):
+                    radvel[k, i, :] = radial_velocity_los(
+                        self._los_velocity[k, :, i, ...], d1[i], d2[i])
+            self._los_radial_velocity = radvel
 
         if not store_full_velocity:
             self._los_velocity = None
@@ -189,6 +195,14 @@ class DataLoader:
             fpath = paths.field_los(simname, "Pantheon+")
         elif "CF4_TFR" in catalogue:
             fpath = paths.field_los(simname, "CF4_TFR")
+        elif "IndranilVoid" in catalogue:
+            fdir = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_los"  # noqa
+            if "exp" in catalogue:
+                fpath = join(fdir, "v_pec_EXP_IndranilVoid.dat")
+            elif "gauss" in catalogue:
+                fpath = join(fdir, "v_pec_GAUSS_IndranilVoid.dat")
+            else:
+                raise ValueError("Unknown `IndranilVoid` catalogue.")
         else:
             fpath = paths.field_los(simname, catalogue)
 
