@@ -42,7 +42,7 @@ def interpolate_indranil_void(kind, RA, dec, rmax, dr, dump_folder, catalogue):
 
     r_grid = np.arange(0, 251)
     phi_grid = np.arange(0, 181)
-    r_eval = np.arange(0, rmax, dr).astype(float)
+    r_eval = np.arange(0, rmax, dr).astype(float) / 0.674
 
     model_axis = SkyCoord(l=117, b=4, frame='galactic', unit='deg').icrs
     coords = SkyCoord(ra=RA, dec=dec, unit='deg').icrs
@@ -67,7 +67,7 @@ def interpolate_indranil_void(kind, RA, dec, rmax, dr, dump_folder, catalogue):
     density = np.ones_like(result)
     print(f"Writing to `{fname_out}`.")
     with File(fname_out, 'w') as f_out:
-        f_out.create_dataset("rdist_0", data=r_eval)
+        f_out.create_dataset("rdist_0", data=r_eval * 0.674)
         f_out.create_dataset("density_0", data=density)
         f_out.create_dataset("velocity_0", data=result)
 
@@ -79,7 +79,7 @@ def interpolate_indranil_void(kind, RA, dec, rmax, dr, dump_folder, catalogue):
 
 if __name__ == "__main__":
     kind = "exp"
-    rmax = 200
+    rmax = 165
     dr = 1
 
     comm = MPI.COMM_WORLD
