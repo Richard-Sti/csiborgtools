@@ -125,7 +125,7 @@ class Paths:
             files = [int(file) for file in files]
             # Downsample to only 20 realisations
             files = files[::5]
-        elif simname == "Lilow2024" or simname == "Carrick2015" or "IndranilVoid" in simname:  # noqa
+        elif simname in ["Carrick2015", "Lilow2024", "no_field"] or "IndranilVoid" in simname:  # noqa
             files = [0]
         else:
             raise ValueError(f"Unknown simulation name `{simname}`.")

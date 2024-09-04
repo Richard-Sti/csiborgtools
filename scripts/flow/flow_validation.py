@@ -275,7 +275,7 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 2_000
+    nsteps = 5_000
     nburn = 2_000
     zcmb_min = None
     zcmb_max = 0.05
@@ -284,7 +284,7 @@ if __name__ == "__main__":
     inference_method = "mike"
     mag_selection = None
     sample_alpha = False
-    sample_beta = None
+    sample_beta = False
     sample_Vmono = False
     sample_mag_dipole = False
     calculate_harmonic = False if inference_method == "bayes" else True

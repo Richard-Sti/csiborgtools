@@ -105,6 +105,7 @@ def simname2Omega_m(simname):
          "Lilow2024": 0.3175,
          "IndranilVoid_exp": 0.3,
          "IndranilVoid_gauss": 0.3,
+         "no_field": 0.3,
          }
 
     omega_m = d.get(simname, None)
