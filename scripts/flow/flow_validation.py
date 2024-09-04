@@ -275,7 +275,7 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 10_000
+    nsteps = 2_000
     nburn = 2_000
     zcmb_min = None
     zcmb_max = 0.05
@@ -283,7 +283,7 @@ if __name__ == "__main__":
     num_epochs = 50
     inference_method = "mike"
     mag_selection = None
-    sample_alpha = True
+    sample_alpha = False
     sample_beta = None
     sample_Vmono = False
     sample_mag_dipole = False
@@ -328,7 +328,7 @@ if __name__ == "__main__":
         raise ValueError(
             "The number of steps must be divisible by the number of chains.")
 
-    calibration_hyperparams = {"Vext_min": -1000, "Vext_max": 1000,
+    calibration_hyperparams = {"Vext_min": -3000, "Vext_max": 3000,
                                "Vmono_min": -1000, "Vmono_max": 1000,
                                "beta_min": -10.0, "beta_max": 10.0,
                                "sigma_v_min": 1.0, "sigma_v_max": 750.,
