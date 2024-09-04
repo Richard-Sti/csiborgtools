@@ -579,13 +579,10 @@ def sample_simple(e_mu_min, e_mu_max, dmu_min, dmu_max, alpha_min, alpha_max,
 
 def sample_calibration(Vext_min, Vext_max, Vmono_min, Vmono_max, beta_min,
                        beta_max, sigma_v_min, sigma_v_max, sample_Vmono,
-                       sample_beta, fixed_in_LG_frame):
+                       sample_beta):
     """Sample the flow calibration."""
     sigma_v = sample("sigma_v", Uniform(sigma_v_min, sigma_v_max))
-    if fixed_in_LG_frame:
-        Vext = jnp.asarray([338.947812, -11.4505608, 768.4941516])
-    else:
-        Vext = sample("Vext", Uniform(Vext_min, Vext_max).expand([3]))
+    Vext = sample("Vext", Uniform(Vext_min, Vext_max).expand([3]))
 
     if sample_beta:
         beta = sample("beta", Uniform(beta_min, beta_max))
