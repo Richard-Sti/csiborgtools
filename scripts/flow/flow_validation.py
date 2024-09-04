@@ -283,8 +283,8 @@ if __name__ == "__main__":
     num_epochs = 50
     inference_method = "mike"
     mag_selection = None
-    sample_alpha = False
-    sample_beta = False
+    sample_alpha = True
+    sample_beta = None
     sample_Vmono = False
     sample_mag_dipole = False
     calculate_harmonic = False if inference_method == "bayes" else True
