@@ -257,11 +257,20 @@ def get_bulkflow_simulation(simname, convert_to_galactic=True):
     return r, B
 
 
-def get_bulkflow(fname, simname, sample_beta=True, convert_to_galactic=True,
-                 weight_simulations=True, downsample=1, Rmax=125):
+def get_bulkflow(fname, simname, convert_to_galactic=True, downsample=1,
+                 Rmax=125):
+    # Read in the samples
+    with File(fname, "r") as f:
+        Vext = f["samples/Vext"][...]
+        try:
+            beta = f["samples/beta"][...]
+        except KeyError:
+            beta = jnp.ones(len(Vext))
+
     # Read in the bulk flow
     f = np.load(f"/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_shells/enclosed_mass_{simname}.npz")  # noqa
     r = f["distances"]
+
     # Shape of B_i is (nsims, nradial)
     Bx, By, Bz = (f["cumulative_velocity"][..., i] for i in range(3))
 
@@ -273,37 +282,18 @@ def get_bulkflow(fname, simname, sample_beta=True, convert_to_galactic=True,
     By = By[:, mask]
     Bz = Bz[:, mask]
 
-    # Read in the samples
-    with File(fname, 'r') as f:
-        # Shape of Vext_i is (nsamples,)
-        Vext_x, Vext_y, Vext_z = (f["samples/Vext"][...][::downsample, i] for i in range(3))  # noqa
-        nsamples = len(Vext_x)
+    Vext = Vext[::downsample]
+    beta = beta[::downsample]
 
-        if weight_simulations:
-            simulation_weights = jnp.exp(f["simulation_weights"][...])[::downsample]  # noqa
-        else:
-            nsims = len(Bx)
-            simulation_weights = jnp.ones((nsamples, nsims)) / nsims
-
-        if sample_beta:
-            beta = f["samples/beta"][...][::downsample]
-        else:
-            beta = jnp.ones(nsamples)
-
-    # Multiply the simulation velocities by beta
+    # Multiply the simulation velocities by beta.
     Bx = Bx[..., None] * beta
     By = By[..., None] * beta
     Bz = Bz[..., None] * beta
 
-    # Shape of B_i is (nsims, nradial, nsamples)
-    Bx = Bx + Vext_x
-    By = By + Vext_y
-    Bz = Bz + Vext_z
-
-    simulation_weights = simulation_weights.T[:, None, :]
-    Bx = jnp.sum(Bx * simulation_weights, axis=0)
-    By = jnp.sum(By * simulation_weights, axis=0)
-    Bz = jnp.sum(Bz * simulation_weights, axis=0)
+    # Add V_ext, shape of B_i is `(nsims, nradial, nsamples)``
+    Bx = Bx + Vext[:, 0]
+    By = By + Vext[:, 1]
+    Bz = Bz + Vext[:, 2]
 
     if convert_to_galactic:
         Bmag, Bl, Bb = cartesian_to_radec(Bx, By, Bz)
@@ -312,6 +302,8 @@ def get_bulkflow(fname, simname, sample_beta=True, convert_to_galactic=True,
     else:
         B = np.stack([Bx, By, Bz], axis=-1)
 
+    # Stack over the simulations
+    B = np.hstack([B[i] for i in range(len(B))])
     return r, B
 
 ###############################################################################
