@@ -37,13 +37,19 @@ else
 fi
 
 
-# for simname in "Lilow2024" "CF4" "CF4gp" "csiborg1" "csiborg2_main" "csiborg2X"; do
+# for simname in "Carrick2015" "Lilow2024" "CF4" "csiborg2_main" "csiborg2X"; do
+for simname in "no_field" "IndranilVoid_exp"; do
 # for simname in "Carrick2015" "Lilow2024" "csiborg2_main" "csiborg2X" "CF4"; do
-for simname in "IndranilVoid_exp"; do
+# for simname in "Carrick2015" "csiborg2X" "csiborg2_main"; do
 # for simname in "Carrick2015"; do
-    # for catalogue in "LOSS" "Foundation" "2MTF" "SFI_gals" "CF4_TFR_not2MTForSFI_i"; do
-    for catalogue in "CF4_GroupAll"; do
+    # for catalogue in "LOSS" "Foundation" "2MTF" "SFI_gals" "CF4_TFR_i" "CF4_TFR_w1"; do
+    for catalogue in "LOSS" "Foundation" "2MTF" "SFI_gals" "CF4_TFR_i" "CF4_TFR_w1"; do
+    # for catalogue in "2MTF" "SFI" "CF4_TFR_not2MTForSFI_i"; do
+    # for catalogue in "2MTF" "SFI_gals" "CF4_TFR_i"; do
+    # for catalogue in "CF4_TFR_w1"; do
+    # for catalogue in "CF4_GroupAll"; do
         for ksim in "none"; do
+        # for ksmooth in 1 2 3 4; do
             pythoncm="$env $file --catalogue $catalogue --simname $simname --ksim $ksim --ksmooth $ksmooth --ndevice $ndevice --device $device"
 
             if [ "$on_login" == "1" ]; then
@@ -66,3 +72,5 @@ for simname in "IndranilVoid_exp"; do
         done
     done
 done
+
+# done
