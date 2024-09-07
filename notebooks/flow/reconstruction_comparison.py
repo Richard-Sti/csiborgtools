@@ -168,6 +168,8 @@ def simname_to_pretty(simname):
 def catalogue_to_pretty(catalogue):
     ltx = {"SFI_gals": "SFI",
            "CF4_TFR_not2MTForSFI_i": r"CF4 $i$-band",
+           "CF4_TFR_i": r"CF4 TFR $i$-band",
+           "CF4_TFR_w1": r"CF4 TFR W1-band",
            }
 
     if isinstance(catalogue, list):
