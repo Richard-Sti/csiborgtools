@@ -20,6 +20,8 @@ import numpy as np
 import smoothing_library as SL
 from numba import jit
 from scipy.interpolate import RegularGridInterpolator
+from astropy.coordinates import SkyCoord, Supergalactic, Galactic, ICRS
+from astropy.coordinates import CartesianRepresentation
 from tqdm import tqdm
 
 from ..utils import periodic_wrap_grid, radec_to_cartesian
@@ -349,6 +351,72 @@ def make_sky(field, angpos, rmax, dr, boxsize, interpolation_method="cic",
     finterp /= np.trapz(rdist**2, x=rdist)
 
     return finterp
+
+
+###############################################################################
+#                       Supergalactic plane slice                             #
+###############################################################################
+
+
+def xy_supergalactic_slice(field, boxsize, xmin, xmax, ngrid, field_frame,
+                           z_value=0):
+    """
+    Create a 2D slice of a scalar field in the x-y supergalactic plane.
+
+    Parameters
+    ----------
+    field : 3-dimensional array of shape `(grid, grid, grid)`
+        Field to be interpolated.
+    boxsize : float
+        Box size in `Mpc / h`.
+    xmin, xmax : float
+        Minimum and maximum x and y values in supergalactic coordinates.
+    ngrid : int
+        Number of grid points along each axis.
+    field_frame : str
+        Frame of the field. Must be one of `galactic`, `supergalactic` or
+        `icrs`.
+    z_value : float, optional
+        Value of the z-coordinate in supergalactic coordinates.
+
+    Returns
+    -------
+    2-dimensional array of shape `(ngrid, ngrid)`
+    """
+    # Coordinates of the 2D slice in supergalactic coordinates
+    xgrid = np.linspace(xmin, xmax, ngrid)
+    ygrid = np.copy(xgrid)
+    grid = np.stack(np.meshgrid(xgrid, ygrid))
+
+    grid = grid.reshape(2, -1).T
+    grid = np.hstack([grid, np.ones(ngrid**2).reshape(-1, 1) * z_value])
+
+    supergalactic_coord = SkyCoord(CartesianRepresentation(
+        grid[:, 0], grid[:, 1], grid[:, 2]), frame=Supergalactic)
+
+    # Create a Supergalactic SkyCoord object from Cartesian coordinates
+    if field_frame == "galactic":
+        original_frame = Galactic
+    elif field_frame == "supergalactic":
+        original_frame = Supergalactic
+    elif field_frame == "icrs":
+        original_frame = ICRS
+    else:
+        raise ValueError(f"Unknown field frame: {field_frame}")
+
+    # Convert to field frame
+    coords = supergalactic_coord.transform_to(original_frame).cartesian
+    pos = np.stack([coords.x, coords.y, coords.z]).value
+    pos = pos.T
+
+    # Convert to appropriate box units
+    pos /= boxsize
+    pos += 0.5
+
+    if np.any(pos <= 0) or np.any(pos >= 1):
+        raise ValueError("Some positions are outside the box.")
+
+    return evaluate_cartesian_cic(field, pos=pos).reshape(ngrid, ngrid)
 
 
 ###############################################################################
