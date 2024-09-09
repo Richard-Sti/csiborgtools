@@ -17,14 +17,14 @@ Utility functions used in the rest of the `field` module to avoid circular
 imports.
 """
 from numba import jit
-import numpy
+import numpy as np
 import healpy
 
 
 def force_single_precision(x):
     """Attempt to convert an array `x` to float32."""
-    if x.dtype != numpy.float32:
-        x = x.astype(numpy.float32)
+    if x.dtype != np.float32:
+        x = x.astype(np.float32)
     return x
 
 
@@ -46,10 +46,10 @@ def nside2radec(nside):
     Generate RA [0, 360] deg and declination [-90, 90] deg for HEALPix pixel
     centres at a given nside.
     """
-    pixs = numpy.arange(healpy.nside2npix(nside))
+    pixs = np.arange(healpy.nside2npix(nside))
     theta, phi = healpy.pix2ang(nside, pixs)
 
-    ra = 180 / numpy.pi * phi
-    dec = 90 - 180 / numpy.pi * theta
+    ra = 180 / np.pi * phi
+    dec = 90 - 180 / np.pi * theta
 
-    return numpy.vstack([ra, dec]).T
+    return np.vstack([ra, dec]).T
