@@ -22,6 +22,9 @@ if [ -z "$on_login" ] || ! [[ "$on_login" =~ ^[0-1]$ ]]; then
     exit 1
 fi
 
+export OMP_NUM_THREADS={nthreads}
+export OMP_NESTED=true
+
 pythoncm="$env $file --snapshot_path $snapshot_path --output_path $output_path --resolution $resolution --scratch_space $scratch_space --SPH_executable $SPH_executable --snapshot_kind $snapshot_kind"
 if [ $on_login -eq 1 ]; then
     echo $pythoncm
