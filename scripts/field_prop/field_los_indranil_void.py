@@ -11,10 +11,7 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-"""
-MPI script to interpolate the density and velocity fields along the line of
-sight.
-"""
+"""Script to interpolate the Indranil void profiles for lines of sight."""
 from os.path import join
 
 import csiborgtools
