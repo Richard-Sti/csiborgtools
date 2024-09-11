@@ -319,6 +319,9 @@ if __name__ == "__main__":
     if mag_selection and inference_method != "bayes":
         raise ValueError("Magnitude selection is only supported with `bayes` inference.")   # noqa
 
+    if "IndranilVoid" in ARGS.simname and ARGS.ksim is None:
+        raise ValueError("`IndranilVoid` must be run only per specific realization.")       # noqa
+
     if inference_method != "bayes":
         mag_selection = [None] * len(ARGS.catalogue)
     elif mag_selection is None or mag_selection:
