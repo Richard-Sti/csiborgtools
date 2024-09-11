@@ -23,6 +23,7 @@ from os import remove
 from os.path import exists, join
 
 import hdf5plugin  # noqa
+import readgadget
 import numpy as np
 from h5py import File
 
@@ -80,6 +81,28 @@ def prepare_gadget(snapshot_path, temporary_output_path):
         dset[nhighres:, :3] = source["PartType5/Coordinates"][:]
         dset[nhighres:, 3:6] = source["PartType5/Velocities"][:]
         dset[nhighres:, 6] = source["PartType5/Masses"][:]
+
+    return boxsize
+
+
+def prepara_gadget2(snapshot_path, temporary_output_path):
+    ptype = [1]
+    header = readgadget.header(snapshot_path)
+
+    boxsize = header.boxsize / 1000
+    npart = header.nall[1]
+    mpart = header.massarr[1] * 1e10
+
+    print(f"{'Boxsize':<20}: {boxsize}")
+    print(f"{'Npart':<20}: {npart}")
+    print(f"{'Mpart':<20}: {mpart}")
+
+    with File(temporary_output_path, 'w') as target:
+        dset = target.create_dataset("particles", (npart, 7), dtype=np.float32)
+
+        dset[:, :3] = readgadget.read_block(snapshot_path, "POS ", ptype) / 1000  # noqa
+        dset[:, 3:6] = readgadget.read_block(snapshot_path, "VEL ", ptype)
+        dset[:, 6] = np.ones(npart, dtype=np.float32) * mpart
 
     return boxsize
 
@@ -148,7 +171,7 @@ def main(snapshot_path, output_path, resolution, scratch_space, SPH_executable,
     [1] https://bitbucket.org/glavaux/cosmotool/src/master/sample/simple3DFilter.cpp  # noqa
     """
     # First get the temporary file path.
-    if snapshot_kind == "gadget4":
+    if snapshot_kind in ["gadget2", "gadget4"]:
         temporary_output_path = join(
             scratch_space, generate_unique_id(snapshot_path))
     elif snapshot_kind == "ramses":
@@ -158,9 +181,10 @@ def main(snapshot_path, output_path, resolution, scratch_space, SPH_executable,
                                   "snapshots are supported.")
 
     if not temporary_output_path.endswith(".hdf5"):
-        raise RuntimeError("Temporary output path must end with `.hdf5`.")
+        temporary_output_path += ".hdf5"
 
     # Print the job information.
+    print()
     print("---------- SPH Density & Velocity Field Job Information ----------")
     print(f"Snapshot path:     {snapshot_path}")
     print(f"Output path:       {output_path}")
@@ -178,6 +202,10 @@ def main(snapshot_path, output_path, resolution, scratch_space, SPH_executable,
         boxsize = prepare_gadget(snapshot_path, temporary_output_path)
         print(f"{now()}: wrote temporary data to {temporary_output_path}.",
               flush=True)
+    elif snapshot_kind == "gadget2":
+        print(f"{now()}: preparing snapshot...", flush=True)
+        boxsize = prepara_gadget2(snapshot_path, temporary_output_path)
+        print(f"{now()}: wrote temporary data to {temporary_output_path}.")
     else:
         boxsize = 677.7  # Mpc/h
         print(f"{now()}: CAREFUL, forcefully setting the boxsize to {boxsize} Mpc / h.",  # noqa
@@ -209,9 +237,12 @@ if __name__ == "__main__":
     parser.add_argument("--SPH_executable", type=str, required=True,
                         help="Path to the `simple3DFilter` executable.")
     parser.add_argument("--snapshot_kind", type=str, required=True,
-                        choices=["gadget4", "ramses"],
+                        choices=["gadget4", "gadget2", "ramses"],
                         help="Kind of the simulation snapshot.")
     args = parser.parse_args()
+
+    if not args.output_path.endswith(".hdf5"):
+        raise RuntimeError("Output path must end with `.hdf5`.")
 
     main(args.snapshot_path, args.output_path, args.resolution,
          args.scratch_space, args.SPH_executable, args.snapshot_kind)
