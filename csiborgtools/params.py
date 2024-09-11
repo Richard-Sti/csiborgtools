@@ -80,6 +80,7 @@ def simname2boxsize(simname):
          "CF4": 1000.,  # These need to be checked with Helene Courtois.
          "CF4gp": 1000.,
          "Lilow2024": 400.,
+         "CLONES": 500.,
          }
     boxsize = d.get(simname, None)
 
@@ -106,6 +107,7 @@ def simname2Omega_m(simname):
          "IndranilVoid_exp": 0.3,
          "IndranilVoid_gauss": 0.3,
          "no_field": 0.3,
+         "CLONES": 0.307115,
          }
 
     omega_m = d.get(simname, None)
