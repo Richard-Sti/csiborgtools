@@ -6,7 +6,7 @@ queue="berg"
 env="/mnt/zfsusers/rstiskalek/csiborgtools/venv_csiborg/bin/python"
 file="field_sph_gadget.py"
 
-resolution=1024
+resolution=256
 SPH_executable="/mnt/users/rstiskalek/cosmotool/bld/sample/simple3DFilter"
 scratch_space="/mnt/extraspace/rstiskalek/dump/"
 
