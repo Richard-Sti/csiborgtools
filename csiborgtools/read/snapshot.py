@@ -814,6 +814,55 @@ class CSiBORG2XField(BaseField):
 
 
 ###############################################################################
+#                             CLONES field                                    #
+###############################################################################
+
+class CLONESField(BaseField):
+    """
+    CLONES `z = 0` field class in supergalactic Cartesian coordinates.
+
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+    paths : Paths, optional
+        Paths object. By default, the paths are set to the `glamdring` paths.
+    """
+    def __init__(self, nsim, paths=None):
+        super().__init__(nsim, paths, flip_xz=False)
+
+    def density_field(self, MAS, grid):
+        fpath = self.paths.field("density", MAS, grid, self.nsim, "CLONES")
+
+        if MAS == "SPH":
+            with File(fpath, "r") as f:
+                field = f["density"][:]
+            field /= (500 * 1e3 / grid)**3  # Convert to h^2 Msun / kpc^3
+        else:
+            field = np.load(fpath)
+
+        return field
+
+    def velocity_field(self, MAS, grid):
+        fpath = self.paths.field("velocity", MAS, grid, self.nsim, "CLONES")
+
+        if MAS == "SPH":
+            with File(fpath, "r") as f:
+                density = f["density"][:]
+                v0 = f["p0"][:] / density
+                v1 = f["p1"][:] / density
+                v2 = f["p2"][:] / density
+            field = np.array([v0, v1, v2])
+        else:
+            field = np.load(fpath)
+
+        return field
+
+    def radial_velocity_field(self, MAS, grid):
+        raise RuntimeError("The radial velocity field is not available.")
+
+
+###############################################################################
 #                           BORG1 field class                                 #
 ###############################################################################
 
