@@ -6,7 +6,8 @@ queue="berg"
 env="/mnt/zfsusers/rstiskalek/csiborgtools/venv_csiborg/bin/python"
 file="field_sph_gadget.py"
 
-resolution=256
+# Guilhem says higher resolution is better
+resolution=1024
 SPH_executable="/mnt/users/rstiskalek/cosmotool/bld/sample/simple3DFilter"
 scratch_space="/mnt/extraspace/rstiskalek/dump/"
 
