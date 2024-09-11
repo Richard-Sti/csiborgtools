@@ -22,7 +22,6 @@ References
 [1] https://arxiv.org/abs/1912.09383.
 """
 from abc import ABC, abstractmethod
-from os.path import join
 
 import numpy as np
 from astropy import units as u
@@ -202,14 +201,6 @@ class DataLoader:
             fpath = paths.field_los(simname, "Pantheon+")
         elif "CF4_TFR" in catalogue:
             fpath = paths.field_los(simname, "CF4_TFR")
-        elif "IndranilVoid" in catalogue:
-            fdir = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_los"  # noqa
-            if "exp" in catalogue:
-                fpath = join(fdir, "v_pec_EXP_IndranilVoid.dat")
-            elif "gauss" in catalogue:
-                fpath = join(fdir, "v_pec_GAUSS_IndranilVoid.dat")
-            else:
-                raise ValueError("Unknown `IndranilVoid` catalogue.")
         else:
             fpath = paths.field_los(simname, catalogue)
 
