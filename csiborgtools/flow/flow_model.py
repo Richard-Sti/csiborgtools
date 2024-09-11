@@ -1013,6 +1013,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None):
                 "not_matched_to_2MTF_or_SFI", "Qs", "Qw"]
         RA, dec, z_obs, mag, eta, e_eta, not_matched_to_2MTF_or_SFI, Qs, Qw = (
             loader.cat[k] for k in keys)
+        l, b = radec_to_galactic(RA, dec)
 
         not_matched_to_2MTF_or_SFI = not_matched_to_2MTF_or_SFI.astype(bool)
         # NOTE: fiducial uncertainty until we can get the actual values.
@@ -1023,6 +1024,8 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None):
 
         fprint("selecting only galaxies with mag > 5 and eta > -0.3.")
         mask = (mag > 5) & (eta > -0.3)
+        fprint("selecting only galaxies with |b| > 7.5.")
+        mask &= np.abs(b) > 7.5
         mask &= (z_obs < zcmb_max) & (z_obs > zcmb_min)
 
         if "not2MTForSFI" in kind:
