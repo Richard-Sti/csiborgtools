@@ -44,9 +44,7 @@ def interpolate_indranil_void(kind, nsims, RA, dec, rmax, dr, dump_folder,
 
         # The grid is in Mpc
         r_grid = np.arange(0, 251)
-        # NOTE: The shape of the files is no longer (181, 251). It is now
-        # (180, 251), asked Sergij about this. He will produce new files.
-        phi_grid = np.arange(0, len(data))
+        phi_grid = np.arange(0, 181)
         # The input is in Mpc/h, so we need to convert to Mpc
         r_eval = np.arange(0, rmax, dr).astype(float) / 0.674
 
