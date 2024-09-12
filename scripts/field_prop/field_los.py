@@ -107,8 +107,8 @@ def get_los(catalogue_name, simname, comm):
             # we need to convert the RA/dec to galactic coordinates.
             c = SkyCoord(ra=RA*u.degree, dec=dec*u.degree, frame='icrs')
             pos = np.vstack((c.galactic.l, c.galactic.b)).T
-        elif "CF4" in simname:
-            # CF4 fields are in supergalactic coordinates.
+        elif simname in ["CF4", "CLONES"]:
+            # CF4 and CLONES fields are in supergalactic coordinates.
             c = SkyCoord(ra=RA*u.degree, dec=dec*u.degree, frame='icrs')
             pos = np.vstack((c.supergalactic.sgl, c.supergalactic.sgb)).T
         else:
@@ -148,6 +148,8 @@ def get_field(simname, nsim, kind, MAS, grid):
         field_reader = csiborgtools.read.CSiBORG2Field(nsim, simkind)
     elif simname == "csiborg2X":
         field_reader = csiborgtools.read.CSiBORG2XField(nsim)
+    elif simname == "CLONES":
+        field_reader = csiborgtools.read.CLONESField(nsim)
     elif simname == "Carrick2015":
         folder = "/mnt/extraspace/rstiskalek/catalogs"
         warn(f"Using local paths from `{folder}`.", RuntimeWarning)
