@@ -81,7 +81,7 @@ def interpolate_indranil_void(kind, nsims, RA, dec, rmax, dr, dump_folder,
 
 
 if __name__ == "__main__":
-    kind = "exp"
+    kind = "gauss"
     rmax = 165
     dr = 1
 
@@ -91,7 +91,7 @@ if __name__ == "__main__":
 
     out_folder = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_los"
 
-    for catalogue in ["LOSS", "Foundation", "2MTF", "SFI_gals", "CF4_TFR", "CF4_GroupAll"]:  # noqa
+    for catalogue in ["LOSS", "Foundation", "2MTF", "SFI_gals", "CF4_TFR"]:
         print(f"Running kind `{kind}` for catalogue `{catalogue}`.")
 
         RA, dec = get_los(catalogue, "", comm).T
