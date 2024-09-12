@@ -411,6 +411,18 @@ class Paths:
             else:
                 raise ValueError(f"Unsupported Lilow2024 field: `{kind}`.")
 
+        if simname == "CF4":
+            basedir = "/mnt/extraspace/rstiskalek/catalogs/CF4"
+            if kind == "overdensity":
+                return join(
+                    basedir, f"CF4_new_128-z008_realization{nsim}_delta.fits")
+            elif kind == "velocity":
+                return join(
+                    basedir,
+                    f"CF4_new_128-z008_realization{nsim}_velocity.fits")
+            else:
+                raise ValueError(f"Unsupported CF4 field: `{kind}`.")
+
         if MAS == "SPH" and kind in ["density", "velocity"]:
             if simname == "csiborg1":
                 return join(self.csiborg1_srcdir, "field",

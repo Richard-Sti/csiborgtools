@@ -21,6 +21,7 @@ from abc import ABC, abstractmethod
 from os.path import join
 
 import numpy as np
+from astropy.io import fits
 from h5py import File
 
 from ..params import paths_glamdring, simname2boxsize, simname2Omega_m
@@ -1057,7 +1058,7 @@ class Lilow2024Field(BaseField):
 
     def overdensity_field(self, **kwargs):
         fpath = self.paths.field(
-            "overdensity", None, None, self.nsim, "Lilow2024")
+            "overdensity", None, None, self.nsim, "CF4")
         return np.load(fpath) - 1
 
     def density_field(self, **kwargs):
@@ -1077,6 +1078,47 @@ class Lilow2024Field(BaseField):
         vz = np.load(fpath.replace("xVelocity", "zVelocity"))
 
         return np.stack([vx, vy, vz])
+
+    def radial_velocity_field(self, **kwargs):
+        raise RuntimeError("The radial velocity field is not available.")
+
+
+class CF4Field(BaseField):
+    """
+    CF4 Courtois+2023 `z = 0` field class. The field is in supergalactic
+    coordinates.
+
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+    paths : Paths, optional
+        Paths object. By default, the paths are set to the `glamdring` paths.
+    """
+    def __init__(self, nsim, paths=None):
+        super().__init__(nsim, paths, False)
+
+    def overdensity_field(self, **kwargs):
+        fpath = self.paths.field(
+            "overdensity", None, None, self.nsim, "CF4")
+        return fits.open(fpath)[0].data.astype(np.float32)
+
+    def density_field(self, **kwargs):
+        field = self.overdensity_field()
+        omega0 = simname2Omega_m("CF4")
+        rho_mean = omega0 * 277.53662724583074  # Msun / kpc^3
+        field += 1
+        field *= rho_mean
+        return field
+
+    def velocity_field(self, **kwargs):
+        fpath = self.paths.field(
+            "velocity", None, None, self.nsim, "CF4")
+
+        field = fits.open(fpath)[0].data
+        # https://projets.ip2i.in2p3.fr//cosmicflows/ says to multiply by 52
+        field *= 52
+        return field.astype(np.float32)
 
     def radial_velocity_field(self, **kwargs):
         raise RuntimeError("The radial velocity field is not available.")
