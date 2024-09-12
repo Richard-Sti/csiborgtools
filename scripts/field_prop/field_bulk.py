@@ -189,20 +189,29 @@ def main_from_field(args, folder):
     for i, nsim in enumerate(tqdm(nsims, desc="Simulations")):
         if args.simname == "csiborg2X":
             reader = csiborgtools.read.CSiBORG2XField(nsim, paths)
+            kwargs = {}
+        elif args.simname == "CF4":
+            reader = csiborgtools.read.CF4Field(nsim, paths)
+            kwargs = {}
+        elif args.simname == "CLONES":
+            reader = csiborgtools.read.CLONESField(nsim, paths)
+            kwargs = {"MAS": "SPH", "grid": 1024}
         elif args.simname == "Carrick2015":
             reader = csiborgtools.read.Carrick2015Field(paths)
+            kwargs = {}
         elif args.simname == "Lilow2024":
             reader = csiborgtools.read.Lilow2024Field(paths)
+            kwargs = {}
         else:
             raise ValueError(f"Unknown simname: `{args.simname}`.")
 
-        density_field = reader.density_field()
+        density_field = reader.density_field(**kwargs)
         cumulative_mass[i, :], cumulative_volume[i, :] = field_enclosed_mass(
             density_field, distances, boxsize, verbose=False)
         del density_field
         collect()
 
-        velocity_field = reader.velocity_field()
+        velocity_field = reader.velocity_field(**kwargs)
         radial_velocity_field = csiborgtools.field.radial_velocity(
             velocity_field, [0., 0., 0.])
 
@@ -235,6 +244,19 @@ def main_from_field(args, folder):
         cumulative_vel_y = icrs_cartesian.y.to(u.km/u.s).value
         cumulative_vel_z = icrs_cartesian.z.to(u.km/u.s).value
 
+    if args.simname in ["CLONES", "CF4"]:
+        # CLONES is in supergalactic coordinates.
+        supergalactic_cartesian = CartesianRepresentation(
+            cumulative_vel_x, cumulative_vel_y, cumulative_vel_z,
+            unit=u.km/u.s)
+        supergalactic_coord = SkyCoord(
+            supergalactic_cartesian, frame='supergalactic')
+        icrs_cartesian = supergalactic_coord.icrs.cartesian
+
+        cumulative_vel_x = icrs_cartesian.x.to(u.km/u.s).value
+        cumulative_vel_y = icrs_cartesian.y.to(u.km/u.s).value
+        cumulative_vel_z = icrs_cartesian.z.to(u.km/u.s).value
+
     cumulative_vel = np.stack(
         [cumulative_vel_x, cumulative_vel_y, cumulative_vel_z], axis=-1)
     cumulative_vel /= cumulative_volume[..., None]
@@ -260,11 +282,12 @@ if __name__ == "__main__":
     parser.add_argument("--simname", type=str, help="Simulation name.",
                         choices=["csiborg1", "csiborg2_main", "csiborg2_varysmall", "csiborg2_random",  # noqa
                                  "borg1", "borg2", "borg2_all", "csiborg2X", "Carrick2015",             # noqa
-                                 "Lilow2024"])                                                          # noqa
+                                 "Lilow2024", "CLONES", "CF4"])                                         # noqa
     args = parser.parse_args()
 
     folder = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_shells"
-    if args.simname in ["csiborg2X", "Carrick2015", "Lilow2024"]:
+    if args.simname in ["csiborg2X", "Carrick2015", "Lilow2024",
+                        "CLONES", "CF4"]:
         main_from_field(args, folder)
     elif "csiborg" in args.simname:
         main_csiborg(args, folder)
