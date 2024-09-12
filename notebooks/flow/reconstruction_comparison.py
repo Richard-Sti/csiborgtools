@@ -156,6 +156,7 @@ def simname_to_pretty(simname):
            "csiborg2X": "Manticore",
            "CF4": "Courtois+23",
            "CF4gp": "CF4group",
+           "CLONES": "Sorce+2018",
            }
 
     if isinstance(simname, list):
