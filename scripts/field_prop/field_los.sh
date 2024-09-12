@@ -1,5 +1,5 @@
 nthreads=1
-memory=64
+memory=48
 on_login=${1}
 queue="berg"
 env="/mnt/users/rstiskalek/csiborgtools/venv_csiborg/bin/python"
@@ -19,8 +19,9 @@ fi
 
 
 # for simname in "csiborg1" "csiborg2_main" "csiborg2X" "Lilow2024" "Carrick2015" "CF4"; do
-for simname in "csiborg2_main"; do
-    for catalogue in "2MTF" "SFI_gals" "CF4_TFR"; do
+for simname in "CLONES"; do
+    # for catalogue in "2MTF" "SFI_gals" "CF4_TFR"; do
+    for catalogue in "Foundation" "2MTF" "SFI_gals" "CF4_TFR"; do
         pythoncm="$env $file --catalogue $catalogue --nsims $nsims --simname $simname --MAS $MAS --grid $grid"
         if [ $on_login -eq 1 ]; then
             echo $pythoncm
