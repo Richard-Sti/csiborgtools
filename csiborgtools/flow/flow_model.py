@@ -93,7 +93,7 @@ class DataLoader:
         if simname in ["Carrick2015", "Lilow2024"]:
             # Carrick+2015 and Lilow+2024 are in galactic coordinates
             d1, d2 = radec_to_galactic(self._cat["RA"], self._cat["DEC"])
-        elif "CF4" in simname:
+        elif simname in ["CF4", "CLONES"]:
             # CF4 is in supergalactic coordinates
             d1, d2 = radec_to_supergalactic(self._cat["RA"], self._cat["DEC"])
         else:
@@ -117,8 +117,8 @@ class DataLoader:
 
         self._Omega_m = simname2Omega_m(simname)
 
-        # Normalize the CSiBORG density by the mean matter density
-        if "csiborg" in simname:
+        # Normalize the CSiBORG & CLONES density by the mean matter density
+        if "csiborg" in simname or simname == "CLONES":
             cosmo = FlatLambdaCDM(H0=H0, Om0=self._Omega_m)
             mean_rho_matter = cosmo.critical_density0.to("Msun/kpc^3").value
             mean_rho_matter *= self._Omega_m
