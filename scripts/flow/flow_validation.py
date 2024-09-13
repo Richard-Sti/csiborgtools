@@ -64,7 +64,7 @@ import csiborgtools                                                             
 from csiborgtools import fprint                                                 # noqa
 import jax                                                                      # noqa
 from h5py import File                                                           # noqa
-from numpyro.infer import MCMC, NUTS, init_to_median                            # noqa
+from numpyro.infer import MCMC, NUTS, init_to_median, init_to_feasible                            # noqa
 
 
 def print_variables(names, variables):
@@ -114,7 +114,7 @@ def get_models(get_model_kwargs, mag_selection, verbose=True):
         models[i] = csiborgtools.flow.get_model(
             loader, mag_selection=mag_selection[i], **get_model_kwargs)
 
-    print(f"\n{'Num. radial steps':<20} {len(loader.rdist)}\n", flush=True)
+    fprint(f"num. radial steps is {len(loader.rdist)}")
     return models
 
 
@@ -143,7 +143,7 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
         raise AttributeError("The models must have an attribute `ndata` "
                              "indicating the number of data points.") from e
 
-    nuts_kernel = NUTS(model, init_strategy=init_to_median(num_samples=1000))
+    nuts_kernel = NUTS(model, init_strategy=init_to_median(num_samples=10000))
     mcmc = MCMC(nuts_kernel, num_warmup=nburn, num_samples=nsteps)
     rng_key = jax.random.PRNGKey(42)
 
@@ -287,7 +287,9 @@ if __name__ == "__main__":
     sample_beta = None
     sample_Vmono = False
     sample_mag_dipole = False
+    absolute_calibration = None
     calculate_harmonic = False if inference_method == "bayes" else True
+    sample_h = True if absolute_calibration is not None else False
 
     fname_kwargs = {"inference_method": inference_method,
                     "smooth": ARGS.ksmooth,
@@ -299,6 +301,7 @@ if __name__ == "__main__":
                     "sample_beta": sample_beta,
                     "sample_Vmono": sample_Vmono,
                     "sample_mag_dipole": sample_mag_dipole,
+                    "absolute_calibration": absolute_calibration,
                     }
 
     main_params = {"nsteps": nsteps, "nburn": nburn,
@@ -310,6 +313,8 @@ if __name__ == "__main__":
                    "num_epochs": num_epochs,
                    "inference_method": inference_method,
                    "sample_mag_dipole": sample_mag_dipole,
+                   "absolute_calibration": absolute_calibration,
+                   "sample_h": sample_h,
                    }
     print_variables(main_params.keys(), main_params.values())
 
@@ -335,8 +340,10 @@ if __name__ == "__main__":
                                "Vmono_min": -1000, "Vmono_max": 1000,
                                "beta_min": -10.0, "beta_max": 10.0,
                                "sigma_v_min": 1.0, "sigma_v_max": 750.,
+                               "h_min": 0.01, "h_max": 5.0,
                                "sample_Vmono": sample_Vmono,
                                "sample_beta": sample_beta,
+                               "sample_h": sample_h,
                                }
     print_variables(
         calibration_hyperparams.keys(), calibration_hyperparams.values())
@@ -353,7 +360,12 @@ if __name__ == "__main__":
 
     ###########################################################################
 
-    get_model_kwargs = {"zcmb_min": zcmb_min, "zcmb_max": zcmb_max}
+    get_model_kwargs = {
+        "zcmb_min": zcmb_min,
+        "zcmb_max": zcmb_max,
+        "absolute_calibration": absolute_calibration,
+        "calibration_fpath": "/mnt/extraspace/rstiskalek/catalogs/PV/CF4/CF4_TF_calibration.hdf5",  # noqa
+        }
     models = get_models(get_model_kwargs, mag_selection)
     model_kwargs = {
         "models": models,
