@@ -34,6 +34,7 @@ from numpyro import factor, sample, plate
 from numpyro.distributions import Normal, Uniform, MultivariateNormal
 from quadax import simpson
 from tqdm import trange
+from jax.debug import print as jprint
 
 from .selection import toy_log_magnitude_selection
 from ..params import SPEED_OF_LIGHT, simname2Omega_m
@@ -363,12 +364,11 @@ def predict_zobs(dist, beta, Vext_radial, vpec_radial, Omega_m):
 ###############################################################################
 
 
-def ptilde_wo_bias(xrange, mu, err_squared, r_squared_xrange):
+def log_ptilde_wo_bias(xrange, mu, err_squared, log_r_squared_xrange):
     """Calculate `ptilde(r)` without imhomogeneous Malmquist bias."""
-    ptilde = jnp.exp(-0.5 * (xrange - mu)**2 / err_squared)
-    ptilde /= jnp.sqrt(2 * np.pi * err_squared)
-    ptilde *= r_squared_xrange
-    return ptilde
+    return (-0.5 * (xrange - mu)**2 / err_squared
+            - 0.5 * jnp.log(2 * np.pi * err_squared)
+            + log_r_squared_xrange)
 
 
 def likelihood_zobs(zobs, zobs_pred, e2_cz):
@@ -427,12 +427,20 @@ class BaseFlowValidationModel(ABC):
             self.with_absolute_calibration = False
             return
 
-        names, values = [], []
-        for key, value in abs_calibration_params.items():
-            names.append(key)
-            values.append(value)
+        self.calibration_distmod = jnp.asarray(
+            abs_calibration_params["calibration_distmod"][..., 0])
+        self.calibration_edistmod = jnp.asarray(
+            abs_calibration_params["calibration_distmod"][..., 1])
+        self.data_with_calibration = jnp.asarray(
+            abs_calibration_params["data_with_calibration"])
+        self.data_wo_calibration = ~self.data_with_calibration
 
-        self._setattr_as_jax(names, values)
+        # Calculate the log of the number of calibrators. Where there is no
+        # calibrator set the number of calibrators to 1 to avoid log(0) and
+        # this way only zeros are being added.
+        length_calibration = abs_calibration_params["length_calibration"]
+        length_calibration[length_calibration == 0] = 1
+        self.log_length_calibration = jnp.log(length_calibration)
 
     def _set_radial_spacing(self, r_xrange, Omega_m):
         cosmo = FlatLambdaCDM(H0=H0, Om0=Omega_m)
@@ -441,20 +449,18 @@ class BaseFlowValidationModel(ABC):
         r2_xrange = r_xrange**2
         r2_xrange /= r2_xrange.mean()
         self.r_xrange = r_xrange
-        self.r2_xrange = r2_xrange
+        self.log_r2_xrange = jnp.log(r2_xrange)
 
         # Require `zmin` < 0 because the first radial step is likely at 0.
         z_xrange = z_at_value(
             cosmo.comoving_distance, r_xrange * u.Mpc, zmin=-0.01)
         mu_xrange = cosmo.distmod(z_xrange).value
+        # In case the first distance is 0 and its distance modulus is infinite.
+        if not np.isfinite(mu_xrange[0]):
+            mu_xrange[0] = mu_xrange[1] - 1
+
         self.z_xrange = jnp.asarray(z_xrange)
         self.mu_xrange = jnp.asarray(mu_xrange)
-
-        # Get the stepsize, we need it to be constant for Simpson's rule.
-        dr = np.diff(r_xrange)
-        if not np.all(np.isclose(dr, dr[0], atol=1e-5)):
-            raise ValueError("The radial step size must be constant.")
-        self.dr = dr[0]
 
     @property
     def ndata(self):
@@ -464,7 +470,7 @@ class BaseFlowValidationModel(ABC):
     @property
     def num_sims(self):
         """Number of simulations."""
-        return len(self.los_density)
+        return len(self.log_los_density)
 
     @abstractmethod
     def __call__(self, **kwargs):
@@ -610,7 +616,9 @@ def sample_calibration(Vext_min, Vext_max, Vmono_min, Vmono_max, beta_min,
         Vmono = 0.0
 
     if sample_h:
-        h = sample("h", Uniform(h_min, h_max))
+        # TODO: switch this eventually back to uniform
+        # h = sample("h", Uniform(h_min, h_max))
+        h = sample("h", Normal(0.7, 0.1))
     else:
         h = 1.0
 
@@ -635,8 +643,6 @@ def sample_gaussian_hyperprior(param, name, xmin, xmax):
     return mean, std
 
 
-from jax.debug import print as jprint
-
 class PV_LogLikelihood(BaseFlowValidationModel):
     """
     Peculiar velocity validation model log-likelihood.
@@ -656,9 +662,9 @@ class PV_LogLikelihood(BaseFlowValidationModel):
     calibration_params : dict
         Calibration parameters of each object.
     abs_calibration_params : dict
-
+        Absolute calibration parameters.
     mag_selection : dict
-        Magnitude selection parameters.
+        Magnitude selection parameters, optional.
     r_xrange : 1-dimensional array
         Radial distances where the field was interpolated for each object.
     Omega_m : float
@@ -678,12 +684,12 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             e2_cz_obs = jnp.zeros_like(z_obs)
 
         # Convert RA/dec to radians.
-        RA = np.deg2rad(RA)
-        dec = np.deg2rad(dec)
+        RA, dec = np.deg2rad(RA), np.deg2rad(dec)
 
-        names = ["los_density", "los_velocity", "RA", "dec", "z_obs",
+        names = ["log_los_density", "los_velocity", "RA", "dec", "z_obs",
                  "e2_cz_obs"]
-        values = [los_density, los_velocity, RA, dec, z_obs, e2_cz_obs]
+        values = [jnp.log(los_density), los_velocity, RA, dec, z_obs,
+                  e2_cz_obs]
         self._setattr_as_jax(names, values)
         self._set_calibration_params(calibration_params)
         self._set_abs_calibration_params(abs_calibration_params)
@@ -893,15 +899,60 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             raise ValueError(f"Unknown kind: `{self.kind}`.")
 
         # Calculate p(r) (Malmquist bias). Shape is (ndata, nxrange)
-        ptilde = ptilde_wo_bias(
+        log_ptilde = log_ptilde_wo_bias(
             self.mu_xrange[None, :], mu[:, None], e2_mu[:, None],
-            self.r2_xrange[None, :])
+            self.log_r2_xrange[None, :])
+
+        # NOTE: Absolute calibration should be added here?
+        if self.with_absolute_calibration:
+            pass
+            # jprint("mu_xrange = {x}", x=self.mu_xrange)
+
+            # x = jnp.abs(self.mu_xrange[None, None, :] - self.calibration_distmod[..., None])
+            # # x = jnp.nanmean(x, axis=1)
+            # x = x[:, 0, :]
+            # x = jnp.min(x, axis=1)
+            # x = x[self.data_with_calibration]
+            # jprint("x = {x}", x=x)
+
+            # Absolute calibration likelihood, the shape is now
+            # (ndata, ncalib, nxrange)
+            # ll_calibration = normal_logpdf(
+            #     self.mu_xrange[None, None, :],
+            #     self.calibration_distmod[..., None],
+            #     100 * self.calibration_edistmod[..., None])
+
+            # # jprint("A ll_calibration = {x}", x=ll_calibration)
+
+            # # Average the likelihood over the calibration points. The shape is
+            # # now (ndata, nxrange)
+            # ll_calibration = logsumexp(
+            #     jnp.nan_to_num(ll_calibration, nan=-jnp.inf), axis=1)
+            # # This is the normalisation because we want the *average*.
+            # ll_calibration -= self.log_length_calibration[:, None]
+
+            # ll_calibration = normal_logpdf(
+            #     self.mu_xrange[None, :],
+            #     self.calibration_distmod[:, 0, None],
+            #     self.calibration_edistmod[:, 0, None])
+
+            # jprint("{x}", x=ll_calibration)
+            # ll_calibration = jnp.nan_to_num(ll_calibration, nan=0)
+
+            # jprint("A ll_calibration = {x}", x=ll_calibration)
+
+            # jprint("B ll_calibration = {x}", x=ll_calibration[self.data_with_calibration])
+
+            # x = jnp.nanmax(ll_calibration,
+
         # Inhomogeneous Malmquist bias. Shape is (n_sims, ndata, nxrange)
         alpha = distmod_params["alpha"]
-        ptilde = ptilde[None, ...] * self.los_density**alpha
+        log_ptilde = log_ptilde[None, ...] + alpha * self.log_los_density
+
+        ptilde = jnp.exp(log_ptilde)
 
         # Normalization of p(r). Shape is (n_sims, ndata)
-        pnorm = simpson(ptilde, dx=self.dr, axis=-1)
+        pnorm = simpson(ptilde, x=self.r_xrange, axis=-1)
 
         # Calculate z_obs at each distance. Shape is (n_sims, ndata, nxrange)
         vrad = field_calibration_params["beta"] * self.los_velocity
@@ -913,44 +964,8 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             self.z_obs[None, :, None], zobs, e2_cz[None, :, None])
 
         # Integrate over the radial distance. Shape is (n_sims, ndata)
-        ll = jnp.log(simpson(ptilde, dx=self.dr, axis=-1)) - jnp.log(pnorm)
-
-        # if self.with_absolute_calibration:
-        #     raise NotImplementedError("Absolute calibration not implemented.")
-
-
-        #     # NOTE: This is wrong at the moment.
-        #     # jprint("A = {x}", x=mu[self.data_with_calibration][:, None].shape)
-        #     # jprint("B = {x}", x=self.calibration_distmod[..., 0].shape)
-        #     # jprint("C = {x}", x=self.calibration_distmod[..., 1].shape)
-
-        #     # dx = mu[self.data_with_calibration][:, None] - self.calibration_distmod[..., 0]
-
-        #     # jprint("dx = {x}", x=dx)
-
-        #     jprint("calibration = {x}", x=jnp.nanmean(self.calibration_distmod[..., 0], axis=-1))
-
-        #     # The shape now should be (ndata, ncalib)
-        #     ll_calibration = normal_logpdf(
-        #         mu[self.data_with_calibration][:, None],
-        #         self.calibration_distmod[..., 0],
-        #         self.calibration_distmod[..., 1])
-        #     # jprint("A ll_calibration.shape = {x}", x=ll_calibration.shape)
-
-        #     # Average the likelihood over the calibration points. The shape is
-        #     # now (ndata,)
-        #     ll_calibration = logsumexp(
-        #         jnp.nan_to_num(ll_calibration, nan=-jnp.inf), axis=1)
-        #     ll_calibration -= jnp.log(self.length_calibration)
-        #     # jprint("B ll_calibration.shape = {x}", x=ll_calibration.shape)
-
-        #     # Now product of likelihoods over the data points
-        #     jprint("ll_calibration = {x}", x=ll_calibration)
-        #     ll_calibration = jnp.sum(ll_calibration[1:])
-        #     # jprint("C ll_calibration.shape = {x}", x=ll_calibration.shape)
-        #     jprint("ll_calibration = {x}", x=ll_calibration)
-        # else:
-        #     ll_calibration = 0.0
+        ll = jnp.log(simpson(ptilde, x=self.r_xrange, axis=-1))
+        ll -= jnp.log(pnorm)
 
         return ll0 + jnp.sum(logsumexp(ll, axis=0)) + self.norm
 
@@ -1181,8 +1196,8 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             length_calibration = length_calibration[mask]
             fprint(f"found {np.sum(with_calibration)} galaxies with absolute calibration.")  # noqa
 
-            distmod = distmod[with_calibration]
-            length_calibration = length_calibration[with_calibration]
+            # distmod = distmod[with_calibration]
+            # length_calibration = length_calibration[with_calibration]
 
             abs_calibration_params = {
                 "calibration_distmod": distmod,
