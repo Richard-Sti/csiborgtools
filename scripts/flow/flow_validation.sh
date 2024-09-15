@@ -37,9 +37,10 @@ else
 fi
 
 
-for simname in "Carrick2015"; do
+for simname in "IndranilVoid_exp"; do
     for catalogue in "CF4_TFR_i"; do
-        for ksim in "none"; do
+        # for ksim in "none"; do
+        for ksim in 0; do
             # for ksim in {0..500}; do
             for ksmooth in 0; do
                 pythoncm="$env $file --catalogue $catalogue --simname $simname --ksim $ksim --ksmooth $ksmooth --ndevice $ndevice --device $device"
