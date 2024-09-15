@@ -198,7 +198,7 @@ def observer_peculiar_velocity(velocity_field, smooth_scales=None,
 ###############################################################################
 
 
-def evaluate_los(*fields, sky_pos, boxsize, rmax, dr, smooth_scales=None,
+def evaluate_los(*fields, sky_pos, boxsize, rdist, smooth_scales=None,
                  interpolation_method="cic", verbose=False):
     """
     Interpolate the fields for a set of lines of sights from the observer
@@ -212,10 +212,8 @@ def evaluate_los(*fields, sky_pos, boxsize, rmax, dr, smooth_scales=None,
         Query positions in spherical coordinates (RA, dec) in degrees.
     boxsize : float
         Box size in `Mpc / h`.
-    rmax : float
-        Maximum radial distance in `Mpc / h`.
-    dr : float
-        Radial distance step in `Mpc / h`.
+    rdist : 1-dimensional array
+        Radial positions in `Mpc / h` where the fields are evaluated.
     smooth_scales : (list of) float, optional
         Smoothing scales in `Mpc / h`.
     interpolation_method : str, optional
@@ -238,11 +236,9 @@ def evaluate_los(*fields, sky_pos, boxsize, rmax, dr, smooth_scales=None,
         raise ValueError("`sky_pos` must be a 2D array.")
     nsamples = len(sky_pos)
 
+    rmax = np.max(rdist)
     if interpolation_method == "cic" and rmax > 0.5 * boxsize:
         raise ValueError("The maximum radius must be within the box.")
-
-    # Radial positions to evaluate for each line of sight.
-    rdist = np.arange(0, rmax, dr, dtype=fields[0].dtype)
 
     # Create an array of radial positions and sky coordinates of each line of
     # sight.
