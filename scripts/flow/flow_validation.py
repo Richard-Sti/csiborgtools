@@ -288,7 +288,7 @@ if __name__ == "__main__":
     num_epochs = 50
     inference_method = "mike"
     mag_selection = None
-    sample_alpha = True
+    sample_alpha = False if "IndranilVoid_" in ARGS.simname else True
     sample_beta = None
     sample_Vmono = False
     sample_mag_dipole = False
