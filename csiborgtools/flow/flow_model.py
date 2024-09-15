@@ -34,7 +34,6 @@ from numpyro import factor, sample, plate
 from numpyro.distributions import Normal, Uniform, MultivariateNormal
 from quadax import simpson
 from tqdm import trange
-from jax.debug import print as jprint
 
 from .selection import toy_log_magnitude_selection
 from ..params import SPEED_OF_LIGHT, simname2Omega_m
@@ -616,9 +615,7 @@ def sample_calibration(Vext_min, Vext_max, Vmono_min, Vmono_max, beta_min,
         Vmono = 0.0
 
     if sample_h:
-        # TODO: switch this eventually back to uniform
-        # h = sample("h", Uniform(h_min, h_max))
-        h = sample("h", Normal(0.7, 0.1))
+        h = sample("h", Uniform(h_min, h_max))
     else:
         h = 1.0
 
@@ -872,7 +869,8 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             mu = distmod_TFR(mag_true, eta_true, a, b, c)
 
             if field_calibration_params["sample_h"]:
-                mu -= 5 * jnp.log10(field_calibration_params["h"])
+                raise NotImplementedError("H0 for TFR not implemented.")
+                # mu -= 5 * jnp.log10(field_calibration_params["h"])
 
         elif self.kind == "simple":
             dmu = distmod_params["dmu"]
@@ -903,48 +901,6 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             self.mu_xrange[None, :], mu[:, None], e2_mu[:, None],
             self.log_r2_xrange[None, :])
 
-        # NOTE: Absolute calibration should be added here?
-        if self.with_absolute_calibration:
-            pass
-            # jprint("mu_xrange = {x}", x=self.mu_xrange)
-
-            # x = jnp.abs(self.mu_xrange[None, None, :] - self.calibration_distmod[..., None])
-            # # x = jnp.nanmean(x, axis=1)
-            # x = x[:, 0, :]
-            # x = jnp.min(x, axis=1)
-            # x = x[self.data_with_calibration]
-            # jprint("x = {x}", x=x)
-
-            # Absolute calibration likelihood, the shape is now
-            # (ndata, ncalib, nxrange)
-            # ll_calibration = normal_logpdf(
-            #     self.mu_xrange[None, None, :],
-            #     self.calibration_distmod[..., None],
-            #     100 * self.calibration_edistmod[..., None])
-
-            # # jprint("A ll_calibration = {x}", x=ll_calibration)
-
-            # # Average the likelihood over the calibration points. The shape is
-            # # now (ndata, nxrange)
-            # ll_calibration = logsumexp(
-            #     jnp.nan_to_num(ll_calibration, nan=-jnp.inf), axis=1)
-            # # This is the normalisation because we want the *average*.
-            # ll_calibration -= self.log_length_calibration[:, None]
-
-            # ll_calibration = normal_logpdf(
-            #     self.mu_xrange[None, :],
-            #     self.calibration_distmod[:, 0, None],
-            #     self.calibration_edistmod[:, 0, None])
-
-            # jprint("{x}", x=ll_calibration)
-            # ll_calibration = jnp.nan_to_num(ll_calibration, nan=0)
-
-            # jprint("A ll_calibration = {x}", x=ll_calibration)
-
-            # jprint("B ll_calibration = {x}", x=ll_calibration[self.data_with_calibration])
-
-            # x = jnp.nanmax(ll_calibration,
-
         # Inhomogeneous Malmquist bias. Shape is (n_sims, ndata, nxrange)
         alpha = distmod_params["alpha"]
         log_ptilde = log_ptilde[None, ...] + alpha * self.log_los_density
@@ -960,8 +916,29 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         zobs = (1 + self.z_xrange[None, None, :]) * (1 + vrad / SPEED_OF_LIGHT)
         zobs -= 1.
 
+        # Shape remains (n_sims, ndata, nxrange)
         ptilde *= likelihood_zobs(
             self.z_obs[None, :, None], zobs, e2_cz[None, :, None])
+
+        if self.with_absolute_calibration:
+            raise NotImplementedError("Absolute calibration not implemented.")
+            # Absolute calibration likelihood, the shape is now
+            # (ndata_with_calibration, ncalib, nxrange)
+            # ll_calibration = normal_logpdf(
+            #     self.mu_xrange[None, None, :],
+            #     self.calibration_distmod[..., None],
+            #     self.calibration_edistmod[..., None])
+
+            # # Average the likelihood over the calibration points. The shape
+            # is
+            # # now (ndata, nxrange)
+            # ll_calibration = logsumexp(
+            #     jnp.nan_to_num(ll_calibration, nan=-jnp.inf), axis=1)
+            # # This is the normalisation because we want the *average*.
+            # ll_calibration -= self.log_length_calibration[:, None]
+
+            # ptilde = ptilde.at[:, self.data_with_calibration, :].
+            # multiply(jnp.exp(ll_calibration))
 
         # Integrate over the radial distance. Shape is (n_sims, ndata)
         ll = jnp.log(simpson(ptilde, x=self.r_xrange, axis=-1))
@@ -1196,8 +1173,8 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             length_calibration = length_calibration[mask]
             fprint(f"found {np.sum(with_calibration)} galaxies with absolute calibration.")  # noqa
 
-            # distmod = distmod[with_calibration]
-            # length_calibration = length_calibration[with_calibration]
+            distmod = distmod[with_calibration]
+            length_calibration = length_calibration[with_calibration]
 
             abs_calibration_params = {
                 "calibration_distmod": distmod,
