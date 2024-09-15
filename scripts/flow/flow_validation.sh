@@ -37,42 +37,31 @@ else
 fi
 
 
-# for simname in "CLONES"; do
-# for simname in "csiborg2_main" "csiborg2X" ; do
-# for simname in "carrick2015" "lilow2024" "csiborg2_main" "csiborg2x" "cf4" "clones"; do
-for simname in "Carrick2015" "csiborg2_main"; do
-# for simname in "Carrick2015" "csiborg2X" "csiborg2_main"; do
-# for simname in "Carrick2015"; do
-    # for catalogue in "LOSS" "Foundation" "2MTF" "SFI_gals" "CF4_TFR_i" "CF4_TFR_w1"; do
-    for catalogue in "SFI_gals" "2MTF" "CF4_TFR_i"; do
-    # for catalogue in "CF4_TFR_i" "CF4_TFR_w1"; do
-    # for catalogue in "2MTF" "SFI" "CF4_TFR_not2MTForSFI_i"; do
-    # for catalogue in "2MTF" "SFI_gals" "CF4_TFR_i"; do
-    # for catalogue in "CF4_TFR_w1"; do
-    # for catalogue in "CF4_GroupAll"; do
-    for ksmooth in 1 2 3 4; do
+for simname in "Carrick2015"; do
+    for catalogue in "CF4_TFR_i"; do
         for ksim in "none"; do
-        # for ksim in {0..500}; do
-            pythoncm="$env $file --catalogue $catalogue --simname $simname --ksim $ksim --ksmooth $ksmooth --ndevice $ndevice --device $device"
+            # for ksim in {0..500}; do
+            for ksmooth in 0; do
+                pythoncm="$env $file --catalogue $catalogue --simname $simname --ksim $ksim --ksmooth $ksmooth --ndevice $ndevice --device $device"
 
-            if [ "$on_login" == "1" ]; then
-                echo $pythoncm
-                eval $pythoncm
-            else
-                if [ "$device" == "gpu" ]; then
-                    cm="addqueue -q $queue -s -m $memory --gpus 1 --gputype $gputype $pythoncm"
+                if [ "$on_login" == "1" ]; then
+                    echo $pythoncm
+                    eval $pythoncm
                 else
-                    cm="addqueue -s -q $queue -n 1 -m $memory $pythoncm"
+                    if [ "$device" == "gpu" ]; then
+                        cm="addqueue -q $queue -s -m $memory --gpus 1 --gputype $gputype $pythoncm"
+                    else
+                        cm="addqueue -s -q $queue -n 1 -m $memory $pythoncm"
+                    fi
+                    echo "Submitting:"
+                    echo $cm
+                    eval $cm
                 fi
-                echo "Submitting:"
-                echo $cm
-                eval $cm
-            fi
 
-            echo
-            sleep 0.01
+                echo
+                sleep 0.01
 
+            done
         done
     done
-done
 done
