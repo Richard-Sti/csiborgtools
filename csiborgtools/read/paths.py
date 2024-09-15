@@ -129,7 +129,7 @@ class Paths:
             files = [0]
         elif "IndranilVoid" in simname:
             kind = simname.split("_")[-1]
-            if kind not in ["exp", "gauss"]:
+            if kind not in ["exp", "gauss", "mb"]:
                 raise ValueError(f"Unknown void kind `{simname}`.")
 
             kind = kind.upper()
