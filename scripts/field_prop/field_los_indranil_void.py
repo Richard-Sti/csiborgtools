@@ -27,7 +27,7 @@ from field_los import get_los
 
 def interpolate_indranil_void(kind, nsims, RA, dec, rmax, dr, dump_folder,
                               catalogue):
-    if kind not in ["exp", "gauss"]:
+    if kind not in ["exp", "gauss", "mb"]:
         raise ValueError(f"Unknown void kind: `{kind}`.")
 
     kind = kind.upper()
