@@ -22,6 +22,11 @@ from argparse import ArgumentParser, ArgumentTypeError
 def none_or_int(value):
     if value.lower() == "none":
         return None
+
+    if "_" in value:
+        k0, kf = value.split("_")
+        return [int(k) for k in range(int(k0), int(kf))]
+
     try:
         return int(value)
     except ValueError:
@@ -73,17 +78,17 @@ def print_variables(names, variables):
     print(flush=True)
 
 
-def get_models(get_model_kwargs, mag_selection, verbose=True):
+def get_models(ksim, get_model_kwargs, mag_selection, verbose=True):
     """Load the data and create the NumPyro models."""
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     folder = "/mnt/extraspace/rstiskalek/catalogs/"
 
     nsims = paths.get_ics(ARGS.simname)
-    if ARGS.ksim is None:
+    if ksim is None:
         nsim_iterator = [i for i in range(len(nsims))]
     else:
-        nsim_iterator = [ARGS.ksim]
-        nsims = [nsims[ARGS.ksim]]
+        nsim_iterator = [ksim]
+        nsims = [nsims[ksim]]
 
     if verbose:
         print(f"{'Simulation:':<20} {ARGS.simname}")
@@ -366,16 +371,28 @@ if __name__ == "__main__":
         "absolute_calibration": absolute_calibration,
         "calibration_fpath": "/mnt/extraspace/rstiskalek/catalogs/PV/CF4/CF4_TF_calibration.hdf5",  # noqa
         }
-    models = get_models(get_model_kwargs, mag_selection)
-    model_kwargs = {
-        "models": models,
-        "field_calibration_hyperparams": calibration_hyperparams,
-        "distmod_hyperparams_per_model": distmod_hyperparams_per_catalogue,
-        "inference_method": inference_method,
-        }
 
-    model = csiborgtools.flow.PV_validation_model
+    # In case we want to run multiple simulations independently.
+    if not isinstance(ARGS.ksim, list):
+        ksim_iterator = [ARGS.ksim]
+    else:
+        ksim_iterator = ARGS.ksim
 
-    run_model(model, nsteps, nburn, model_kwargs, out_folder,
-              calculate_harmonic, nchains_harmonic, num_epochs, kwargs_print,
-              fname_kwargs)
+    for ksim in ksim_iterator:
+        if len(ksim_iterator) > 1:
+            print(f"{'Current simulation:':<20} {ksim} out of {len(ksim_iterator)}.")  # noqa
+
+        fname_kwargs["nsim"] = ksim
+        models = get_models(ksim, get_model_kwargs, mag_selection)
+        model_kwargs = {
+            "models": models,
+            "field_calibration_hyperparams": calibration_hyperparams,
+            "distmod_hyperparams_per_model": distmod_hyperparams_per_catalogue,
+            "inference_method": inference_method,
+            }
+
+        model = csiborgtools.flow.PV_validation_model
+
+        run_model(model, nsteps, nburn, model_kwargs, out_folder,
+                  calculate_harmonic, nchains_harmonic, num_epochs,
+                  kwargs_print, fname_kwargs)
