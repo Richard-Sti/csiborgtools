@@ -23,15 +23,18 @@ from os import makedirs, remove, rmdir
 from os.path import exists, join
 from warnings import warn
 
-import csiborgtools
 import numpy as np
 from astropy import units as u
 from astropy.coordinates import SkyCoord
+from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from h5py import File
 from mpi4py import MPI
 from numba import jit
+from scipy.interpolate import interp1d
 from taskmaster import work_delegation  # noqa
+
+import csiborgtools
 
 sys.path.append("../")
 from utils import get_nsims  # noqa
@@ -39,6 +42,35 @@ from utils import get_nsims  # noqa
 ###############################################################################
 #                             I/O functions                                   #
 ###############################################################################
+
+
+def make_spacing(rmax, dr, dense_mu_min, dense_mu_max, dmu, Om0):
+    """
+    Make radial spacing that at low distance is with constant spacing in
+    distance modulus and at higher distances is with constant spacing in
+    comoving distance.
+    """
+    # Create interpolant to go from distance modulus to comoving distance.
+    cosmo = FlatLambdaCDM(H0=100, Om0=Om0)
+
+    z_range = np.linspace(0, 0.1, 1000000)[1:]
+    r_range = cosmo.comoving_distance(z_range).value
+    mu_range = cosmo.distmod(z_range).value
+
+    mu2r = interp1d(mu_range, r_range, kind='cubic')
+
+    # Create the spacing in distance modulus.
+    mu = np.arange(dense_mu_min, dense_mu_max, dmu)
+    rmin_dense = mu2r(np.min(mu))
+    rmax_dense = mu2r(np.max(mu))
+
+    # Create the spacing in comoving distance below and above.
+    rlow = np.arange(0, rmin_dense, dr)
+    rmed = mu2r(mu)
+    rhigh = np.arange(rmax_dense, rmax, dr)[1:]
+
+    # Combine the spacings.
+    return np.hstack([rlow, rmed, rhigh])
 
 
 def get_los(catalogue_name, simname, comm):
@@ -296,8 +328,8 @@ def replace_nan_with_last_finite(x, y, apply_decay):
     return y, rmax
 
 
-def interpolate_field(pos, simname, nsim, MAS, grid, dump_folder, rmax,
-                      dr, smooth_scales, verbose=False):
+def interpolate_field(pos, simname, nsim, MAS, grid, dump_folder, r,
+                      smooth_scales, verbose=False):
     """
     Interpolate the density and velocity fields along the line of sight.
 
@@ -315,10 +347,8 @@ def interpolate_field(pos, simname, nsim, MAS, grid, dump_folder, rmax,
         Grid resolution.
     dump_folder : str
         Folder where the temporary files are stored.
-    rmax : float
-        Maximum distance along the line of sight.
-    dr : float
-        Distance spacing along the line of sight.
+    r : 1-dimensional array
+        Radial spacing.
     smooth_scales : list
         Smoothing scales.
 
@@ -335,7 +365,7 @@ def interpolate_field(pos, simname, nsim, MAS, grid, dump_folder, rmax,
               flush=True)
     density = get_field(simname, nsim, "density", MAS, grid)
     rdist, finterp = csiborgtools.field.evaluate_los(
-        density, sky_pos=pos, boxsize=boxsize, rmax=rmax, dr=dr,
+        density, sky_pos=pos, boxsize=boxsize, rdist=r,
         smooth_scales=smooth_scales, verbose=verbose,
         interpolation_method="linear")
 
@@ -361,9 +391,8 @@ def interpolate_field(pos, simname, nsim, MAS, grid, dump_folder, rmax,
     velocity = get_field(simname, nsim, "velocity", MAS, grid)
     rdist, finterp = csiborgtools.field.evaluate_los(
         velocity[0], velocity[1], velocity[2],
-        sky_pos=pos, boxsize=boxsize, rmax=rmax, dr=dr,
-        smooth_scales=smooth_scales, verbose=verbose,
-        interpolation_method="linear")
+        sky_pos=pos, boxsize=boxsize, rdist=r, smooth_scales=smooth_scales,
+        verbose=verbose, interpolation_method="linear")
 
     rmax_velocity = np.full((3, len(pos), len(smooth_scales)), np.nan)
     for k in range(3):
@@ -398,16 +427,15 @@ if __name__ == "__main__":
     parser.add_argument("--grid", type=int, help="Grid resolution.")
     args = parser.parse_args()
 
-    rmax = 200
-    if args.catalogue == "CF4_GroupAll":
-        dr = 1
-    else:
-        dr = 0.75
+    Om0 = csiborgtools.simname2Omega_m(args.simname)
+    # r = make_spacing(200, 0.75, 23.25, 34, 0.01, Om0)
+    r = np.arange(0, 200, 0.75)
 
     # smooth_scales = [0, 2, 4, 6, 8]
     smooth_scales = [0]
 
-    print(f"Running catalogue {args.catalogue} for simulation {args.simname}.")
+    print(f"Running catalogue {args.catalogue} for simulation {args.simname} "
+          f"with {len(r)} radial points.")
 
     comm = MPI.COMM_WORLD
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
@@ -429,7 +457,7 @@ if __name__ == "__main__":
 
     def main(nsim):
         interpolate_field(pos, args.simname, nsim, args.MAS, args.grid,
-                          dump_folder, rmax, dr, smooth_scales,
+                          dump_folder, r, smooth_scales,
                           verbose=comm.Get_size() == 1)
 
     work_delegation(main, nsims, comm, master_verbose=True)
