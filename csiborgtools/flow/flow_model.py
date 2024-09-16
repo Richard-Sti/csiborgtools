@@ -204,6 +204,8 @@ class DataLoader:
         else:
             fpath = paths.field_los(simname, catalogue)
 
+        print("Reading from file: ", fpath)
+
         los_density = [None] * len(ksims)
         los_velocity = [None] * len(ksims)
 
@@ -599,15 +601,19 @@ def sample_simple(e_mu_min, e_mu_max, dmu_min, dmu_max, alpha_min, alpha_max,
 
 def sample_calibration(Vext_min, Vext_max, Vmono_min, Vmono_max, beta_min,
                        beta_max, sigma_v_min, sigma_v_max, h_min, h_max,
-                       sample_Vmono, sample_beta, sample_h):
+                       sample_Vext, sample_Vmono, sample_beta, sample_h):
     """Sample the flow calibration."""
     sigma_v = sample("sigma_v", Uniform(sigma_v_min, sigma_v_max))
-    Vext = sample("Vext", Uniform(Vext_min, Vext_max).expand([3]))
 
     if sample_beta:
         beta = sample("beta", Uniform(beta_min, beta_max))
     else:
         beta = 1.0
+
+    if sample_Vext:
+        Vext = sample("Vext", Uniform(Vext_min, Vext_max).expand([3]))
+    else:
+        Vext = jnp.zeros(3)
 
     if sample_Vmono:
         Vmono = sample("Vmono", Uniform(Vmono_min, Vmono_max))

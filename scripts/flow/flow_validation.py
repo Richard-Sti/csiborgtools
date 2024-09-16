@@ -298,6 +298,7 @@ if __name__ == "__main__":
     mag_selection = None
     sample_alpha = False if "IndranilVoid_" in ARGS.simname else True
     sample_beta = None
+    sample_Vext = None
     sample_Vmono = False
     sample_mag_dipole = False
     absolute_calibration = None
@@ -312,6 +313,7 @@ if __name__ == "__main__":
                     "mag_selection": mag_selection,
                     "sample_alpha": sample_alpha,
                     "sample_beta": sample_beta,
+                    "sample_Vext": sample_Vext,
                     "sample_Vmono": sample_Vmono,
                     "sample_mag_dipole": sample_mag_dipole,
                     "absolute_calibration": absolute_calibration,
@@ -354,6 +356,7 @@ if __name__ == "__main__":
                                "beta_min": -10.0, "beta_max": 10.0,
                                "sigma_v_min": 1.0, "sigma_v_max": 750.,
                                "h_min": 0.01, "h_max": 5.0,
+                               "sample_Vext": True if sample_Vext is None else sample_Vext,  # noqa
                                "sample_Vmono": sample_Vmono,
                                "sample_beta": sample_beta,
                                "sample_h": sample_h,
