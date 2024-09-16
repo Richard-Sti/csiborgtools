@@ -12,17 +12,18 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """Script to interpolate the Indranil void profiles for lines of sight."""
-from os.path import join
+from argparse import ArgumentParser
+from os.path import join, exists
+from os import remove
 
 import csiborgtools
 import numpy as np
 from astropy.coordinates import SkyCoord, angular_separation
+from field_los import get_los
 from h5py import File
 from mpi4py import MPI
 from scipy.interpolate import RegularGridInterpolator
 from tqdm import trange
-
-from field_los import get_los
 
 
 def interpolate_indranil_void(kind, nsims, RA, dec, rmax, dr, dump_folder,
@@ -35,6 +36,10 @@ def interpolate_indranil_void(kind, nsims, RA, dec, rmax, dr, dump_folder,
                 f"{kind}profile")
 
     fname_out = join(dump_folder, f"los_{catalogue}_IndranilVoid_{kind}.hdf5")
+    if exists(fname_out):
+        print(f"Fname `{fname_out}` already exists. Removing.")
+        remove(fname_out)
+
     print(f"Writing to `{fname_out}`.")
     for k in trange(len(nsims), desc="LG observers"):
         nsim = nsims[k]
@@ -69,7 +74,7 @@ def interpolate_indranil_void(kind, nsims, RA, dec, rmax, dr, dump_folder,
 
         # Write the output, homogenous density.
         density = np.ones_like(result)
-        with File(fname_out, 'w') as f_out:
+        with File(fname_out, 'a') as f_out:
             f_out.create_dataset(f"rdist_{k}", data=r_eval * 0.674)
             f_out.create_dataset(f"density_{k}", data=density)
             f_out.create_dataset(f"velocity_{k}", data=result)
@@ -81,20 +86,21 @@ def interpolate_indranil_void(kind, nsims, RA, dec, rmax, dr, dump_folder,
 
 
 if __name__ == "__main__":
-    kind = "gauss"
+    parser = ArgumentParser()
+    parser.add_argument("--kind", type=str, choices=["exp", "gauss", "mb"],
+                        help="Kind of void profile.")
+    parser.add_argument("--catalogue", type=str, help="Catalogue name.")
+    args = parser.parse_args()
+
     rmax = 165
     dr = 0.75
 
     comm = MPI.COMM_WORLD
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    nsims = paths.get_ics(f"IndranilVoid_{kind}")
-
+    nsims = paths.get_ics(f"IndranilVoid_{args.kind}")
     out_folder = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_los"
 
-    for kind in ["gauss", "exp", "mb"]:
-        for catalogue in ["LOSS", "Foundation", "2MTF", "SFI_gals", "CF4_TFR"]:
-            print(f"Running kind `{kind}` for catalogue `{catalogue}`.")
-
-            RA, dec = get_los(catalogue, "", comm).T
-            interpolate_indranil_void(
-                kind, nsims, RA, dec, rmax, dr, out_folder, catalogue)
+    print(f"Running kind `{args.kind}` for catalogue `{args.catalogue}`.")
+    RA, dec = get_los(args.catalogue, "", comm).T
+    interpolate_indranil_void(
+        args.kind, nsims, RA, dec, rmax, dr, out_folder, args.catalogue)
