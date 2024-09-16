@@ -389,9 +389,9 @@ if __name__ == "__main__":
     else:
         ksim_iterator = ARGS.ksim
 
-    for ksim in ksim_iterator:
+    for i, ksim in enumerate(ksim_iterator):
         if len(ksim_iterator) > 1:
-            print(f"{'Current simulation:':<20} {ksim} out of {len(ksim_iterator)}.")  # noqa
+            print(f"{'Current simulation:':<20} {i + 1} ({ksim}) out of {len(ksim_iterator)}.")  # noqa
 
         fname_kwargs["nsim"] = ksim
         models = get_models(ksim, get_model_kwargs, mag_selection)
