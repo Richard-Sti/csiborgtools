@@ -1,5 +1,5 @@
 nthreads=1
-memory=48
+memory=7
 on_login=${1}
 queue="berg"
 env="/mnt/users/rstiskalek/csiborgtools/venv_csiborg/bin/python"
@@ -13,14 +13,20 @@ then
 fi
 
 
-pythoncm="$env $file"
-if [ $on_login -eq 1 ]; then
-    echo $pythoncm
-    eval $pythoncm
-else
-    cm="addqueue -q $queue -n $nthreads -m $memory $pythoncm"
-    echo "Submitting:"
-    echo $cm
-    echo
-    eval $cm
-fi
+for kind in "exp" "gauss" "mb"; do
+    for catalogue in "2MTF" "SFI_gals" "CF4_TFR"; do
+        pythoncm="$env $file --kind $kind --catalogue $catalogue"
+
+        if [ $on_login -eq 1 ]; then
+            echo $pythoncm
+            eval $pythoncm
+        else
+            cm="addqueue -q $queue -n $nthreads -m $memory $pythoncm"
+            echo "Submitting:"
+            echo $cm
+            echo
+            eval $cm
+        fi
+    done
+done
+
