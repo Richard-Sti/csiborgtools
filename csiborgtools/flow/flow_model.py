@@ -204,8 +204,6 @@ class DataLoader:
         else:
             fpath = paths.field_los(simname, catalogue)
 
-        print("Reading from file: ", fpath)
-
         los_density = [None] * len(ksims)
         los_velocity = [None] * len(ksims)
 
