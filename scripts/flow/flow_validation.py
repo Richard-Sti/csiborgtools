@@ -24,8 +24,16 @@ def none_or_int(value):
         return None
 
     if "_" in value:
-        k0, kf = value.split("_")
-        return [int(k) for k in range(int(k0), int(kf))]
+        args = value.split("_")
+        if len(args) == 2:
+            k0, kf = args
+            dk = 1
+        elif len(args) == 3:
+            k0, kf, dk = args
+        else:
+            raise ArgumentTypeError(f"Invalid length of arguments: `{value}`.")
+
+        return [int(k) for k in range(int(k0), int(kf), int(dk))]
 
     try:
         return int(value)
@@ -69,7 +77,7 @@ import csiborgtools                                                             
 from csiborgtools import fprint                                                 # noqa
 import jax                                                                      # noqa
 from h5py import File                                                           # noqa
-from numpyro.infer import MCMC, NUTS, init_to_median, init_to_feasible                            # noqa
+from numpyro.infer import MCMC, NUTS, init_to_feasible                          # noqa
 
 
 def print_variables(names, variables):
@@ -148,7 +156,7 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
         raise AttributeError("The models must have an attribute `ndata` "
                              "indicating the number of data points.") from e
 
-    nuts_kernel = NUTS(model, init_strategy=init_to_median(num_samples=10000))
+    nuts_kernel = NUTS(model, init_strategy=init_to_feasible())
     mcmc = MCMC(nuts_kernel, num_warmup=nburn, num_samples=nsteps)
     rng_key = jax.random.PRNGKey(42)
 
