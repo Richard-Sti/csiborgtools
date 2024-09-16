@@ -35,7 +35,8 @@ def interpolate_indranil_void(kind, nsims, RA, dec, rmax, dr, dump_folder,
     fdir = join("/mnt/extraspace/rstiskalek/catalogs", "IndranilVoid",
                 f"{kind}profile")
 
-    fname_out = join(dump_folder, f"los_{catalogue}_IndranilVoid_{kind}.hdf5")
+    fname_out = join(
+        dump_folder, f"los_{catalogue}_IndranilVoid_{kind.lower()}.hdf5")
     if exists(fname_out):
         print(f"Fname `{fname_out}` already exists. Removing.")
         remove(fname_out)
