@@ -649,7 +649,7 @@ class Paths:
         """
         return self.tng300_1_dir
 
-    def field_los(self, simnname, catalogue):
+    def field_los(self, simname, catalogue):
         """
         Path to the files containing the line-of-sight fields.
 
@@ -666,14 +666,14 @@ class Paths:
         """
         fdir = join(self.postdir, "field_los")
         try_create_directory(fdir)
-        return join(fdir, f"los_{catalogue}_{simnname}.hdf5")
+        return join(fdir, f"los_{catalogue}_{simname}.hdf5")
 
     def flow_validation(self, fdir, simname, catalogue, inference_method,
                         smooth=None, nsim=None, zcmb_min=None, zcmb_max=None,
                         mag_selection=None,  sample_alpha=False,
-                        sample_beta=False, sample_Vmono=False,
-                        sample_mag_dipole=False, sample_curvature=False,
-                        absolute_calibration=None):
+                        sample_beta=False, sample_Vext=None,
+                        sample_Vmono=False, sample_mag_dipole=False,
+                        sample_curvature=False, absolute_calibration=None):
         """Flow validation file path."""
         if isinstance(catalogue, list) and len(catalogue) == 1:
             catalogue = catalogue[0]
@@ -687,12 +687,12 @@ class Paths:
         fname = f"samples_{simname}_{catalogue}_{inference_method}_"
 
         keys = ["smooth", "nsim", "zcmb_min", "zcmb_max", "mag_selection",
-                "sample_alpha", "sample_beta", "sample_Vmono",
+                "sample_alpha", "sample_beta", "sample_Vext", "sample_Vmono",
                 "sample_mag_dipole", "sample_curvature",
                 "absolute_calibration"]
         values = [smooth, nsim, zcmb_min, zcmb_max, mag_selection,
-                  sample_alpha, sample_beta, sample_Vmono, sample_mag_dipole,
-                  sample_curvature, absolute_calibration]
+                  sample_alpha, sample_beta, sample_Vext, sample_Vmono,
+                  sample_mag_dipole, sample_curvature, absolute_calibration]
 
         for key, value in zip(keys, values):
 
