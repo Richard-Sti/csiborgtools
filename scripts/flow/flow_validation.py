@@ -77,7 +77,7 @@ import csiborgtools                                                             
 from csiborgtools import fprint                                                 # noqa
 import jax                                                                      # noqa
 from h5py import File                                                           # noqa
-from numpyro.infer import MCMC, NUTS, init_to_feasible                          # noqa
+from numpyro.infer import MCMC, NUTS, init_to_median                            # noqa
 
 
 def print_variables(names, variables):
@@ -156,7 +156,7 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
         raise AttributeError("The models must have an attribute `ndata` "
                              "indicating the number of data points.") from e
 
-    nuts_kernel = NUTS(model, init_strategy=init_to_feasible())
+    nuts_kernel = NUTS(model, init_strategy=init_to_median(num_samples=10000))
     mcmc = MCMC(nuts_kernel, num_warmup=nburn, num_samples=nsteps)
     rng_key = jax.random.PRNGKey(42)
 
