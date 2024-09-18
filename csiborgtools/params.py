@@ -71,6 +71,7 @@ def simname2boxsize(simname):
          "csiborg2_varysmall": 676.6,
          "csiborg2_random": 676.6,
          "csiborg2X": 681.1,
+         "manticore_2MPP_N128_DES_V1": 681.1,
          "borg1": 677.7,
          "borg2": 676.6,
          "borg2_all": 676.6,
@@ -97,6 +98,7 @@ def simname2Omega_m(simname):
          "csiborg2_random": 0.3111,
          "csiborg2_varysmall": 0.3111,
          "csiborg2X": 0.306,
+         "manticore_2MPP_N128_DES_V1": 0.306,
          "borg1": 0.307,
          "borg2": 0.3111,
          "borg2_all": 0.3111,
@@ -131,4 +133,5 @@ paths_glamdring = {
     "tng300_1_dir": "/mnt/extraspace/rstiskalek/TNG300-1/",
     "aux_cat_dir": "/mnt/extraspace/rstiskalek/catalogs",
     "CF4_dir": "/mnt/extraspace/rstiskalek/catalogs/CF4",
+    "manticore_dir": "/mnt/extraspace/rstiskalek/MANTICORE",
     }
