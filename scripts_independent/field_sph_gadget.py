@@ -116,11 +116,10 @@ def prepare_swift(snapshot_path, temporary_output_path):
         h = src["Cosmology"].attrs["h"][0]
         npart = src["Header"].attrs["NumPart_Total"][1]
 
-        mpart = src["Header"].attrs["InitialMassTable"][1] * 1e10  # Msun
-        mpart *= h  # Msun / h
-
-        boxsize = src["Header"].attrs["BoxSize"][0]  # Mpc
-        boxsize *= h  # Mpc / h
+        # Convert to Msun / h
+        mpart = src["Header"].attrs["InitialMassTable"][1] * 1e10 * h
+        # Convert to Mpc / h
+        boxsize = src["Header"].attrs["BoxSize"][0] * h
 
         print(f"{'Boxsize':<20}: {boxsize}")
         print(f"{'Npart':<20}: {npart}")
