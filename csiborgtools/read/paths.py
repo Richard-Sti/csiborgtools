@@ -50,6 +50,8 @@ class Paths:
         Path to the CSiBORG2 random simulation directory.
     csiborg2_varysmall_srcdir : str
         Path to the CSiBORG2 varysmall simulation directory.
+    manticore_srcdir : str
+        Path to the MANTICORE simulation directory.
     postdir : str
         Path to the CSiBORG post-processing directory.
     quijote_dir : str
@@ -70,6 +72,7 @@ class Paths:
                  csiborg2_main_srcdir,
                  csiborg2_random_srcdir,
                  csiborg2_varysmall_srcdir,
+                 manticore_dir,
                  postdir,
                  quijote_dir,
                  borg1_dir,
@@ -82,6 +85,7 @@ class Paths:
         self.csiborg2_main_srcdir = csiborg2_main_srcdir
         self.csiborg2_random_srcdir = csiborg2_random_srcdir
         self.csiborg2_varysmall_srcdir = csiborg2_varysmall_srcdir
+        self.manticore_dir = manticore_dir
         self.quijote_dir = quijote_dir
         self.borg1_dir = borg1_dir
         self.borg2_dir = borg2_dir
@@ -108,6 +112,12 @@ class Paths:
             files = glob(join(self.csiborg2_varysmall_srcdir, "chain_*"))
             files = [int(search(r'chain_16417_(\d+)', f).group(1))
                      for f in files]
+        elif "manticore" in simname:
+            fdir = self.manticore_dir
+            if simname == "manticore_2MPP_N128_DES_V1":
+                fdir = join(fdir, "2MPP_N128_DES_V1", "resimulations", "R512")
+                files = glob(join(fdir, "mcmc_*"))
+                files = [int(search(r'mcmc_(\d+)', f).group(1)) for f in files]
         elif simname == "csiborg2X":
             # NOTE this too is preliminary
             fname = "/mnt/extraspace/rstiskalek/MANTICORE/resimulations/fields/2MPP_N128_DES_PROD/R512"  # noqa
@@ -173,6 +183,8 @@ class Paths:
             snaps = sorted(snaps)
         elif simname == "csiborg2X":
             raise ValueError("Snapshots not available for CSiBORG2X.")
+        elif "manticore" in simname:
+            raise ValueError("Snapshots not available for MANTICORE.")
         elif simname == "quijote":
             snaps = glob(join(self.quijote_dir, "fiducial_processed",
                               f"chain_{nsim}", "snapshot_*"))
@@ -203,6 +215,8 @@ class Paths:
                          f"snapshot_{str(nsnap).zfill(3)}.hdf5")
         elif simname == "csiborg2X":
             raise ValueError("Snapshots not available for CSiBORG2X.")
+        elif "manticore" in simname:
+            raise ValueError("Snapshots not available for MANTICORE.")
         elif simname == "quijote":
             fpath = join(self.quijote_dir, "fiducial_processed",
                          f"chain_{nsim}",
