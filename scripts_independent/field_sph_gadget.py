@@ -107,6 +107,34 @@ def prepara_gadget2(snapshot_path, temporary_output_path):
     return boxsize
 
 
+def prepare_swift(snapshot_path, temporary_output_path):
+    """
+    Read in SWIFT Manticore files from Stuart.
+    """
+    # Get some basic information about the snapshots.
+    with File(snapshot_path, 'r') as src, File(temporary_output_path, 'w') as target: # noqa
+        h = src["Cosmology"].attrs["h"][0]
+        npart = src["Header"].attrs["NumPart_Total"][1]
+
+        mpart = src["Header"].attrs["InitialMassTable"][1] * 1e10  # Msun
+        mpart *= h  # Msun / h
+
+        boxsize = src["Header"].attrs["BoxSize"][0]  # Mpc
+        boxsize *= h  # Mpc / h
+
+        print(f"{'Boxsize':<20}: {boxsize}")
+        print(f"{'Npart':<20}: {npart}")
+        print(f"{'Mpart':<20}: {mpart}")
+
+        dset = target.create_dataset("particles", (npart, 7), dtype=np.float32)
+
+        dset[:, :3] = src["DMParticles/Coordinates"][:] * h  # Mpc / h
+        dset[:, 3:6] = src["DMParticles/Velocities"][:]      # km/s
+        dset[:, 6] = np.ones(npart, dtype=np.float32) * mpart
+
+    return boxsize
+
+
 def run_sph_filter(particles_path, output_path, boxsize, resolution,
                    SPH_executable):
     """
@@ -171,7 +199,7 @@ def main(snapshot_path, output_path, resolution, scratch_space, SPH_executable,
     [1] https://bitbucket.org/glavaux/cosmotool/src/master/sample/simple3DFilter.cpp  # noqa
     """
     # First get the temporary file path.
-    if snapshot_kind in ["gadget2", "gadget4"]:
+    if snapshot_kind in ["gadget2", "gadget4", "swift"]:
         temporary_output_path = join(
             scratch_space, generate_unique_id(snapshot_path))
     elif snapshot_kind == "ramses":
@@ -206,10 +234,12 @@ def main(snapshot_path, output_path, resolution, scratch_space, SPH_executable,
         print(f"{now()}: preparing snapshot...", flush=True)
         boxsize = prepara_gadget2(snapshot_path, temporary_output_path)
         print(f"{now()}: wrote temporary data to {temporary_output_path}.")
+    elif snapshot_kind == "swift":
+        print(f"{now()}: preparing snapshot...", flush=True)
+        boxsize = prepare_swift(snapshot_path, temporary_output_path)
+        print(f"{now()}: wrote temporary data to {temporary_output_path}.")
     else:
-        boxsize = 677.7  # Mpc/h
-        print(f"{now()}: CAREFUL, forcefully setting the boxsize to {boxsize} Mpc / h.",  # noqa
-              flush=True)
+        raise RuntimeError(f"Snapshot kind `{snapshot_kind}` not implemented.")
 
     # Run the SPH filter.
     run_sph_filter(temporary_output_path, output_path, boxsize, resolution,
@@ -237,7 +267,7 @@ if __name__ == "__main__":
     parser.add_argument("--SPH_executable", type=str, required=True,
                         help="Path to the `simple3DFilter` executable.")
     parser.add_argument("--snapshot_kind", type=str, required=True,
-                        choices=["gadget4", "gadget2", "ramses"],
+                        choices=["gadget4", "gadget2", "ramses", "swift"],
                         help="Kind of the simulation snapshot.")
     args = parser.parse_args()
 
