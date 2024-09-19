@@ -634,16 +634,16 @@ def sample_calibration(Vext_min, Vext_max, Vmono_min, Vmono_max, beta_min,
             }
 
 
-###############################################################################
-#                            PV calibration model                             #
-###############################################################################
-
-
 def sample_gaussian_hyperprior(param, name, xmin, xmax):
     """Sample MNR Gaussian hyperprior mean and standard deviation."""
     mean = sample(f"{param}_mean_{name}", Uniform(xmin, xmax))
     std = sample(f"{param}_std_{name}", Uniform(0.0, xmax - xmin))
     return mean, std
+
+
+###############################################################################
+#            PV calibration model without absolute calibration                #
+###############################################################################
 
 
 class PV_LogLikelihood(BaseFlowValidationModel):
@@ -951,6 +951,18 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         ll -= jnp.log(pnorm)
 
         return ll0 + jnp.sum(logsumexp(ll, axis=0)) + self.norm
+
+
+###############################################################################
+#              PV calibration model with absolute calibration                 #
+###############################################################################
+
+
+
+
+###############################################################################
+#                      Combining several catalogues                           #
+###############################################################################
 
 
 def PV_validation_model(models, distmod_hyperparams_per_model,
