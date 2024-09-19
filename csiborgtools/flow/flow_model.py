@@ -610,6 +610,8 @@ def sample_calibration(Vext_min, Vext_max, Vmono_min, Vmono_max, beta_min,
 
     if no_Vext:
         Vext = jnp.zeros(3)
+        # 840 in the direction of (l, b) = (117, 4)
+        # Vext = jnp.asarray([338.9478154 , -11.45056064, 768.49415294])
     else:
         Vext = sample("Vext", Uniform(Vext_min, Vext_max).expand([3]))
 
