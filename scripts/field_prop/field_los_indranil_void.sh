@@ -1,7 +1,7 @@
 nthreads=1
-memory=7
+memory=4
 on_login=${1}
-queue="berg"
+queue="cmb"
 env="/mnt/users/rstiskalek/csiborgtools/venv_csiborg/bin/python"
 file="field_los_indranil_void.py"
 
