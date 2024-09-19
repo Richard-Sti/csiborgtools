@@ -28,7 +28,13 @@ from tqdm import trange
 
 def interpolate_indranil_void(kind, nsims, RA, dec, rmax, dr, dump_folder,
                               catalogue):
-    if kind not in ["exp", "gauss", "mb"]:
+    if kind == "mb":
+        h = 0.7615
+    elif kind == "gauss":
+        h = 0.7724
+    elif kind == "exp":
+        h = 0.7725
+    else:
         raise ValueError(f"Unknown void kind: `{kind}`.")
 
     kind = kind.upper()
@@ -48,11 +54,10 @@ def interpolate_indranil_void(kind, nsims, RA, dec, rmax, dr, dump_folder,
         fname = join(fdir, f"v_pec_{kind}profile_rLG_{nsim}.dat")
         data = np.loadtxt(fname)
 
-        # The grid is in Mpc
-        r_grid = np.arange(0, 251)
+        # The grid is in Mpc from 0 to 251 but we convert to Mpc / h
+        r_grid = np.arange(0, 251) * h
         phi_grid = np.arange(0, 181)
-        # The input is in Mpc/h, so we need to convert to Mpc
-        r_eval = np.arange(0, rmax, dr).astype(float) / 0.674
+        r_eval = np.arange(0, rmax, dr).astype(float)
 
         model_axis = SkyCoord(l=117, b=4, frame='galactic', unit='deg').icrs
         coords = SkyCoord(ra=RA, dec=dec, unit='deg').icrs
@@ -76,7 +81,7 @@ def interpolate_indranil_void(kind, nsims, RA, dec, rmax, dr, dump_folder,
         # Write the output, homogenous density.
         density = np.ones_like(result)
         with File(fname_out, 'a') as f_out:
-            f_out.create_dataset(f"rdist_{k}", data=r_eval * 0.674)
+            f_out.create_dataset(f"rdist_{k}", data=r_eval)
             f_out.create_dataset(f"density_{k}", data=density)
             f_out.create_dataset(f"velocity_{k}", data=result)
 
