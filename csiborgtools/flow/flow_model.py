@@ -313,13 +313,13 @@ def radial_velocity_los(los_velocity, ra, dec):
 #                           JAX Flow model                                    #
 ###############################################################################
 
-def dist2redshift(dist, Omega_m):
+def dist2redshift(dist, Omega_m, h=1.):
     """
     Convert comoving distance to cosmological redshift if the Universe is
     flat and z << 1.
     """
     eta = 3 * Omega_m / 2
-    return 1 / eta * (1 - (1 - 2 * H0 * dist / SPEED_OF_LIGHT * eta)**0.5)
+    return 1 / eta * (1 - (1 - 2 * 100 * h * dist / SPEED_OF_LIGHT * eta)**0.5)
 
 
 def redshift2dist(z, Omega_m):
@@ -902,14 +902,36 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         else:
             raise ValueError(f"Unknown kind: `{self.kind}`.")
 
+        h = field_calibration_params["h"]
         # ----------------------------------------------------------------
         # 2. Log-likelihood of the true distance and observed redshifts.
         # The marginalisation of the true distance can be done numerically.
         # ----------------------------------------------------------------
         if self.with_num_dist_marginalisation:
+
+            if field_calibration_params["sample_h"]:
+                # Rescale the grid to account for the sampled H0. For distance
+                # modulus going from Mpc / h to Mpc implies larger numerical
+                # values, so there has to be a minus sign since h < 1.
+                mu_xrange = self.mu_xrange - 5 * jnp.log(h)
+
+                # The redshift should also be boosted since now the object are
+                # further away?
+
+                # Actually, the redshift ought to remain the same?
+
+                # TODO: finish this
+
+                r_range = self.r_xrange * h
+                # Actually no need to do this.
+                z_range = dist2redshift(r_range, self.Omega_m, h)
+            else:
+                mu_xrange = self.mu_xrange
+                z_range = self.z_xrange
+
             # Calculate p(r) (Malmquist bias). Shape is (ndata, nxrange)
             log_ptilde = log_ptilde_wo_bias(
-                self.mu_xrange[None, :], mu[:, None], e2_mu[:, None],
+                mu_xrange[None, :], mu[:, None], e2_mu[:, None],
                 self.log_r2_xrange[None, :])
 
             # Inhomogeneous Malmquist bias. Shape: (nsims, ndata, nxrange)
