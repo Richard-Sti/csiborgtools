@@ -54,6 +54,8 @@ def get_reader(simname, paths, nsim):
         kind = simname.split("_")[-1]
         reader = csiborgtools.read.CSiBORG2Snapshot(nsim, 99, kind, paths,
                                                     flip_xz=True)
+    elif simname == "manticore_2MPP_N128_DES_V1":
+        reader = csiborgtools.read.CSiBORG2XSnapshot(nsim)
     else:
         raise ValueError(f"Unknown simname: `{simname}`.")
 
@@ -72,7 +74,7 @@ def get_particles(reader, boxsize, get_velocity=True, verbose=True):
     if get_velocity:
         fprint("reading velocities.", verbose)
         vel = reader.velocities().astype(dtype)
-        vrad = np.sum(pos, vel, axis=1) / dist
+        vrad = np.sum(pos * vel, axis=1) / dist
 
     del pos
     collect()
@@ -282,14 +284,14 @@ if __name__ == "__main__":
     parser.add_argument("--simname", type=str, help="Simulation name.",
                         choices=["csiborg1", "csiborg2_main", "csiborg2_varysmall", "csiborg2_random",  # noqa
                                  "borg1", "borg2", "borg2_all", "csiborg2X", "Carrick2015",             # noqa
-                                 "Lilow2024", "CLONES", "CF4"])                                         # noqa
+                                 "Lilow2024", "CLONES", "CF4", "manticore_2MPP_N128_DES_V1"])           # noqa
     args = parser.parse_args()
 
     folder = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_shells"
     if args.simname in ["csiborg2X", "Carrick2015", "Lilow2024",
                         "CLONES", "CF4"]:
         main_from_field(args, folder)
-    elif "csiborg" in args.simname:
+    elif "csiborg" in args.simname or args.simname == "manticore_2MPP_N128_DES_V1":  # noqa
         main_csiborg(args, folder)
     elif "borg" in args.simname:
         main_borg(args, folder)
