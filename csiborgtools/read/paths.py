@@ -407,6 +407,11 @@ class Paths:
             else:
                 raise ValueError(f"Unsupported CSiBORG2X field: `{kind}`.")
 
+        if simname == "manticore_2MPP_N128_DES_V1":
+            basedir = join(self.manticore_dir, "2MPP_N128_DES_V1",
+                           "fields", "R512")
+            return join(basedir, f"SPH_{nsim}.hdf5")
+
         if simname == "Carrick2015":
             basedir = "/mnt/extraspace/rstiskalek/catalogs"
             if kind == "overdensity":
