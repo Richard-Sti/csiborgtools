@@ -179,7 +179,9 @@ def get_field(simname, nsim, kind, MAS, grid):
         simkind = simname.split("_")[-1]
         field_reader = csiborgtools.read.CSiBORG2Field(nsim, simkind)
     elif simname == "csiborg2X":
-        field_reader = csiborgtools.read.CSiBORG2XField(nsim)
+        field_reader = csiborgtools.read.CSiBORG2XField(nsim, version=0)
+    elif simname == "manticore_2MPP_N128_DES_V1":
+        field_reader = csiborgtools.read.CSiBORG2XField(nsim, version=1)
     elif simname == "CLONES":
         field_reader = csiborgtools.read.CLONESField(nsim)
     elif simname == "Carrick2015":
