@@ -16,11 +16,11 @@ from .catalogue import (CSiBORG1Catalogue, CSiBORG2Catalogue,                   
                         CSiBORG2SUBFINDCatalogue,                               # noqa
                         CSiBORG2MergerTreeReader, QuijoteCatalogue,             # noqa
                         MDPL2Catalogue, fiducial_observers)                     # noqa
-from .snapshot import (CSiBORG1Snapshot, CSiBORG2Snapshot, QuijoteSnapshot,     # noqa
-                       CSiBORG1Field, CSiBORG2Field, CSiBORG2XField,            # noqa
-                       QuijoteField, BORG2Field, BORG1Field, TNG300_1Field,     # noqa
-                       Carrick2015Field, Lilow2024Field, CLONESField,           # noqa
-                       CF4Field)                                                # noqa
+from .snapshot import (CSiBORG1Snapshot, CSiBORG2Snapshot, CSiBORG2XSnapshot,   # noqa
+                       QuijoteSnapshot, CSiBORG1Field, CSiBORG2Field,           # noqa
+                       CSiBORG2XField, QuijoteField, BORG2Field, BORG1Field,    # noqa
+                       TNG300_1Field, Carrick2015Field, Lilow2024Field,         # noqa
+                       CLONESField, CF4Field)                                   # noqa
 from .obs import (SDSS, MCXCClusters, PlanckClusters, TwoMPPGalaxies,           # noqa
                   TwoMPPGroups, ObservedCluster, match_array_to_no_masking,     # noqa
                   cols_to_structured, read_pantheonplus_data)                   # noqa

@@ -518,6 +518,91 @@ class CSiBORG2Snapshot(BaseSnapshot):
 
 
 ###############################################################################
+#                         CSiBORG2x snapshot class                            #
+###############################################################################
+
+
+class CSiBORG2XSnapshot(BaseSnapshot):
+    """
+    CSiBORG2X snapshot from the SWIFT N-body simulations provided by Stuart
+    based on the Manticore ICs. The snapshots are at `z = 0` and correspond to
+    `manticore_2MPP_N128_DES_V1`.
+
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+    nsnap : int
+        Snapshot index.
+    kind : str
+        CSiBORG2 run kind. One of `main`, `random`, or `varysmall`.
+    paths : Paths, optional
+        Paths object.
+    keep_snapshot_open : bool, optional
+        Whether to keep the snapshot file open when reading halo particles.
+        This is useful for repeated access to the snapshot.
+    flip_xz : bool, optional
+        Whether to flip the x- and z-axes to undo the MUSIC bug so that the
+        coordinates are consistent with observations.
+    """
+    def __init__(self, nsim, paths=None, keep_snapshot_open=False):
+        nsnap = 1
+        flip_xz = False
+        super().__init__(nsim, nsnap, paths, keep_snapshot_open, flip_xz)
+
+        fpath = self.paths.snapshot(self.nsnap, self.nsim,
+                                    "manticore_2MPP_N128_DES_V1")
+
+        self._snapshot_path = fpath
+        self._simname = "manticore_2MPP_N128_DES_V1"
+
+    def _get_particles(self, kind):
+        with File(self._snapshot_path, "r") as f:
+            h = f["Cosmology"].attrs["h"][0]
+
+            if kind == "Masses":
+                npart = f["Header"].attrs["NumPart_Total"][1]
+                mpart = f["Header"].attrs["InitialMassTable"][1] * 1e10 * h
+                x = np.ones(npart, dtype=np.float32) * mpart
+            else:
+                x = f[f"DMParticles/{kind}"][...]
+
+            # Convert coordinates to Mpc / h
+            if kind == "Coordinates":
+                x *= h
+        return x
+
+    def coordinates(self):
+        return self._get_particles("Coordinates")
+
+    def velocities(self):
+        return self._get_particles("Velocities")
+
+    def masses(self):
+        return self._get_particles("Masses")
+
+    def particle_ids(self):
+        raise NotImplementedError("Recovering particle IDs is not implemented "
+                                  "for CSiBORG2X.")
+
+    def _get_halo_particles(self, halo_id, kind, is_group):
+        raise NotImplementedError("Recovering halo particles is not "
+                                  "implemented for CSiBORG2X.")
+
+    def halo_coordinates(self, halo_id, is_group=True):
+        return self._get_halo_particles(halo_id, "Coordinates", is_group)
+
+    def halo_velocities(self, halo_id, is_group=True):
+        return self._get_halo_particles(halo_id, "Velocities", is_group)
+
+    def halo_masses(self, halo_id, is_group=True):
+        return self._get_halo_particles(halo_id, "Masses", is_group) * 1e10
+
+    def _make_hid2offset(self):
+        raise NotImplementedError("Recovering halo offsets is not implemented"
+                                  "for CSiBORG2X.")
+
+###############################################################################
 #                          CSiBORG2 snapshot class                            #
 ###############################################################################
 
