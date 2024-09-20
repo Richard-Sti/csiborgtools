@@ -118,6 +118,8 @@ class Paths:
                 fdir = join(fdir, "2MPP_N128_DES_V1", "resimulations", "R512")
                 files = glob(join(fdir, "mcmc_*"))
                 files = [int(search(r'mcmc_(\d+)', f).group(1)) for f in files]
+                # Downsample at the moment to only 20, instead of 40
+                files = files[::2]
         elif simname == "csiborg2X":
             # NOTE this too is preliminary
             fname = "/mnt/extraspace/rstiskalek/MANTICORE/resimulations/fields/2MPP_N128_DES_PROD/R512"  # noqa
