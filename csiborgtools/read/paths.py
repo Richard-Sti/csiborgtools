@@ -118,8 +118,6 @@ class Paths:
                 fdir = join(fdir, "2MPP_N128_DES_V1", "resimulations", "R512")
                 files = glob(join(fdir, "mcmc_*"))
                 files = [int(search(r'mcmc_(\d+)', f).group(1)) for f in files]
-                # Downsample at the moment to only 20, instead of 40
-                files = files[::2]
             else:
                 raise ValueError(f"Unknown MANTICORE simulation `{simname}`.")
         elif simname == "csiborg2X":
