@@ -64,13 +64,16 @@ class DataLoader:
         self._field_rdist, self._los_density, self._los_velocity = self._read_field(  # noqa
             simname, ksim, catalogue, ksmooth, paths)
 
-        if len(self._cat) != self._los_density.shape[1]:
-            raise ValueError("The number of objects in the catalogue does not "
-                             "match the number of objects in the field.")
+        if "IndranilVoid" not in simname:
+            if len(self._cat) != self._los_density.shape[1]:
+                raise ValueError(
+                    "The number of objects in the catalogue does not match "
+                    "the number of objects in the field.")
 
-        fprint("calculating the radial velocity.", verbose)
-        nobject = self._los_density.shape[1]
-        dtype = self._los_density.dtype
+            fprint("calculating the radial velocity.", verbose)
+            nobject = self._los_density.shape[1]
+            dtype = self._los_density.dtype
+            num_sims = len(self._los_density)
 
         if simname in ["Carrick2015", "Lilow2024"]:
             # Carrick+2015 and Lilow+2024 are in galactic coordinates
@@ -81,9 +84,8 @@ class DataLoader:
         else:
             d1, d2 = self._cat["RA"], self._cat["DEC"]
 
-        num_sims = len(self._los_density)
         if "IndranilVoid" in simname:
-            self._los_radial_velocity = self._los_velocity
+            self._los_radial_velocity = None
             self._los_velocity = None
         else:
             radvel = np.empty(
@@ -165,6 +167,9 @@ class DataLoader:
         return self._los_radial_velocity[:, self._mask, ...]
 
     def _read_field(self, simname, ksims, catalogue, ksmooth, paths):
+        if "IndranilVoid" in simname:
+            return None, None, None
+
         nsims = paths.get_ics(simname)
         if isinstance(ksims, int):
             ksims = [ksims]
@@ -340,8 +345,17 @@ def read_absolute_calibration(kind, data_length, calibration_fpath):
     return out, with_calibration, length_calibration
 
 
+def mask_fields(density, velocity, mask, return_none):
+    """Shortcut to mask fields, unless they are `None`"""
+    if return_none:
+        return None, None
+
+    return density[:, mask], velocity[:, mask]
+
+
 def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
-              absolute_calibration=None, calibration_fpath=None):
+              absolute_calibration=None, calibration_fpath=None,
+              void_kwargs=None):
     """
     Get a model and extract the relevant data from the loader.
 
@@ -366,9 +380,22 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
     zcmb_min = 0.0 if zcmb_min is None else zcmb_min
     zcmb_max = np.infty if zcmb_max is None else zcmb_max
 
-    los_overdensity = loader.los_density
-    los_velocity = loader.los_radial_velocity
+    if void_kwargs is None:
+        los_overdensity = loader.los_density
+        los_velocity = loader.los_radial_velocity
+    else:
+        los_overdensity = None
+        los_velocity = None
+
     kind = loader._catname
+
+    if void_kwargs is not None:
+        rdist = void_kwargs.pop("rdist", None)
+        if rdist is None:
+            raise ValueError(
+                "The radial distances must be provided for the void.")
+
+        loader._field_rdist = rdist
 
     if absolute_calibration is not None and "CF4_TFR_" not in kind:
         raise ValueError("Absolute calibration supported only for the CF4 TFR sample.")  # noqa
@@ -384,11 +411,14 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
                               "e_mag": e_mag[mask], "e_x1": e_x1[mask],
                               "e_c": e_c[mask]}
 
+        los_overdensity, los_velocity = mask_fields(
+            los_overdensity, los_velocity, mask, void_kwargs is not None)
+
         model = PV_LogLikelihood(
-            los_overdensity[:, mask], los_velocity[:, mask],
+            los_overdensity, los_velocity,
             RA[mask], dec[mask], zCMB[mask], e_zCMB, calibration_params,
             None, mag_selection, loader.rdist, loader._Omega_m, "SN",
-            name=kind)
+            name=kind, void_kwargs=void_kwargs)
     elif "Pantheon+" in kind:
         keys = ["RA", "DEC", "zCMB", "mB", "x1", "c", "biasCor_m_b", "mBERR",
                 "x1ERR", "cERR", "biasCorErr_m_b", "zCMB_SN", "zCMB_Group",
@@ -413,11 +443,15 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         calibration_params = {"mag": mB[mask], "x1": x1[mask], "c": c[mask],
                               "e_mag": e_mB[mask], "e_x1": e_x1[mask],
                               "e_c": e_c[mask]}
+
+        los_overdensity, los_velocity = mask_fields(
+            los_overdensity, los_velocity, mask, void_kwargs is not None)
+
         model = PV_LogLikelihood(
-            los_overdensity[:, mask], los_velocity[:, mask],
+            los_overdensity, los_velocity,
             RA[mask], dec[mask], zCMB[mask], e_zCMB[mask], calibration_params,
             None, mag_selection, loader.rdist, loader._Omega_m, "SN",
-            name=kind)
+            name=kind, void_kwargs=void_kwargs)
     elif kind in ["SFI_gals", "2MTF", "SFI_gals_masked"]:
         keys = ["RA", "DEC", "z_CMB", "mag", "eta", "e_mag", "e_eta"]
         RA, dec, zCMB, mag, eta, e_mag, e_eta = (loader.cat[k] for k in keys)
@@ -425,10 +459,15 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         mask = (zCMB < zcmb_max) & (zCMB > zcmb_min)
         calibration_params = {"mag": mag[mask], "eta": eta[mask],
                               "e_mag": e_mag[mask], "e_eta": e_eta[mask]}
+
+        los_overdensity, los_velocity = mask_fields(
+            los_overdensity, los_velocity, mask, void_kwargs is not None)
+
         model = PV_LogLikelihood(
-            los_overdensity[:, mask], los_velocity[:, mask],
+            los_overdensity, los_velocity,
             RA[mask], dec[mask], zCMB[mask], None, calibration_params, None,
-            mag_selection, loader.rdist, loader._Omega_m, "TFR", name=kind)
+            mag_selection, loader.rdist, loader._Omega_m, "TFR", name=kind,
+            void_kwargs=void_kwargs)
     elif "CF4_TFR_" in kind:
         # The full name can be e.g. "CF4_TFR_not2MTForSFI_i" or "CF4_TFR_i".
         band = kind.split("_")[-1]
@@ -488,11 +527,15 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
 
         calibration_params = {"mag": mag[mask], "eta": eta[mask],
                               "e_mag": e_mag[mask], "e_eta": e_eta[mask]}
+
+        los_overdensity, los_velocity = mask_fields(
+            los_overdensity, los_velocity, mask, void_kwargs is not None)
+
         model = PV_LogLikelihood(
-            los_overdensity[:, mask], los_velocity[:, mask],
+            los_overdensity, los_velocity,
             RA[mask], dec[mask], z_obs[mask], None, calibration_params,
             abs_calibration_params, mag_selection, loader.rdist,
-            loader._Omega_m, "TFR", name=kind)
+            loader._Omega_m, "TFR", name=kind, void_kwargs=void_kwargs)
     elif kind in ["CF4_GroupAll"]:
         # Note, this for some reason works terribly.
         keys = ["RA", "DE", "Vcmb", "DMzp", "eDM"]
@@ -505,11 +548,15 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         mu += 5 * np.log10(0.75)
 
         calibration_params = {"mu": mu[mask], "e_mu": e_mu[mask]}
+
+        los_overdensity, los_velocity = mask_fields(
+            los_overdensity, los_velocity, mask, void_kwargs is not None)
+
         model = PV_LogLikelihood(
-            los_overdensity[:, mask], los_velocity[:, mask],
+            los_overdensity, los_velocity,
             RA[mask], dec[mask], zCMB[mask], None, calibration_params, None,
             mag_selection,  loader.rdist, loader._Omega_m, "simple",
-            name=kind)
+            name=kind, void_kwargs=void_kwargs)
     else:
         raise ValueError(f"Catalogue `{kind}` not recognized.")
 
