@@ -431,10 +431,10 @@ if __name__ == "__main__":
 
     Om0 = csiborgtools.simname2Omega_m(args.simname)
     # r = make_spacing(200, 0.75, 23.25, 34, 0.01, Om0)
-    r = np.arange(0, 200, 0.75)
+    r = np.arange(0, 200, 0.5)
 
     # smooth_scales = [0, 2, 4, 6, 8]
-    smooth_scales = [0]
+    smooth_scales = [0, 8]
 
     print(f"Running catalogue {args.catalogue} for simulation {args.simname} "
           f"with {len(r)} radial points.")
