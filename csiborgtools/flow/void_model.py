@@ -56,7 +56,7 @@ def load_void_data(kind):
            for f in files]
     rLG = np.sort(rLG)
 
-    for i, ri in enumerate(tqdm(rLG, desc="Loading observer data")):
+    for i, ri in enumerate(tqdm(rLG, desc="Loading void observer data")):
         f = join(fdir, f"v_pec_{kind}profile_rLG_{ri}.dat")
         data_i = np.genfromtxt(f).T
 
