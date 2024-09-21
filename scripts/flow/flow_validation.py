@@ -74,8 +74,9 @@ import sys                                                                      
 from os.path import join                                                        # noqa
 
 import csiborgtools                                                             # noqa
-from csiborgtools import fprint                                                 # noqa
 import jax                                                                      # noqa
+import numpy as np                                                              # noqa
+from csiborgtools import fprint                                                 # noqa
 from h5py import File                                                           # noqa
 from numpyro.infer import MCMC, NUTS, init_to_median                            # noqa
 
@@ -86,7 +87,8 @@ def print_variables(names, variables):
     print(flush=True)
 
 
-def get_models(ksim, get_model_kwargs, mag_selection, verbose=True):
+def get_models(ksim, get_model_kwargs, mag_selection, void_kwargs,
+               verbose=True):
     """Load the data and create the NumPyro models."""
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     folder = "/mnt/extraspace/rstiskalek/catalogs/"
@@ -125,10 +127,19 @@ def get_models(ksim, get_model_kwargs, mag_selection, verbose=True):
                                               cat, fpath, paths,
                                               ksmooth=ARGS.ksmooth)
         models[i] = csiborgtools.flow.get_model(
-            loader, mag_selection=mag_selection[i], **get_model_kwargs)
+            loader, mag_selection=mag_selection[i], void_kwargs=void_kwargs,
+            **get_model_kwargs)
 
     fprint(f"num. radial steps is {len(loader.rdist)}")
     return models
+
+
+def select_void_h(kind):
+    hs = {"mb": 0.7615, "gauss": 0.7724, "exp": 0.7725}
+    try:
+        return hs[kind]
+    except KeyError:
+        raise ValueError(f"Unknown void kind: `{kind}`.")
 
 
 def get_harmonic_evidence(samples, log_posterior, nchains_harmonic, epoch_num):
@@ -339,8 +350,18 @@ if __name__ == "__main__":
     if mag_selection and inference_method != "bayes":
         raise ValueError("Magnitude selection is only supported with `bayes` inference.")   # noqa
 
-    if "IndranilVoid" in ARGS.simname and ARGS.ksim is None:
-        raise ValueError("`IndranilVoid` must be run only per specific realization.")       # noqa
+    if "IndranilVoid" in ARGS.simname:
+        if ARGS.ksim is not None:
+            raise ValueError(
+                "`IndranilVoid` does not have multiple realisations.")
+
+        kind = ARGS.simname.split("_")[-1]
+        h = select_void_h(kind)
+        rdist = np.arange(0, 165, 0.5)
+        void_kwargs = {"kind": kind, "h": h, "order": 1, "rdist": rdist}
+    else:
+        void_kwargs = None
+        h = 1.
 
     if inference_method != "bayes":
         mag_selection = [None] * len(ARGS.catalogue)
@@ -360,6 +381,8 @@ if __name__ == "__main__":
                                "sample_Vmono": sample_Vmono,
                                "sample_beta": sample_beta,
                                "sample_h": sample_h,
+                               "sample_rLG": "IndranilVoid" in ARGS.simname,
+                               "rLG_min": 0.0, "rLG_max": 500 * h,
                                }
     print_variables(
         calibration_hyperparams.keys(), calibration_hyperparams.values())
@@ -394,7 +417,7 @@ if __name__ == "__main__":
             print(f"{'Current simulation:':<20} {i + 1} ({ksim}) out of {len(ksim_iterator)}.")  # noqa
 
         fname_kwargs["nsim"] = ksim
-        models = get_models(ksim, get_model_kwargs, mag_selection)
+        models = get_models(ksim, get_model_kwargs, mag_selection, void_kwargs)
         model_kwargs = {
             "models": models,
             "field_calibration_hyperparams": calibration_hyperparams,
