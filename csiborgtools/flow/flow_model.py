@@ -902,7 +902,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         else:
             raise ValueError(f"Unknown kind: `{self.kind}`.")
 
-        h = field_calibration_params["h"]
+        # h = field_calibration_params["h"]
         # ----------------------------------------------------------------
         # 2. Log-likelihood of the true distance and observed redshifts.
         # The marginalisation of the true distance can be done numerically.
@@ -910,24 +910,18 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         if self.with_num_dist_marginalisation:
 
             if field_calibration_params["sample_h"]:
+                raise NotImplementedError("Sampling of h not implemented.")
                 # Rescale the grid to account for the sampled H0. For distance
                 # modulus going from Mpc / h to Mpc implies larger numerical
                 # values, so there has to be a minus sign since h < 1.
-                mu_xrange = self.mu_xrange - 5 * jnp.log(h)
+                # mu_xrange = self.mu_xrange - 5 * jnp.log(h)
 
                 # The redshift should also be boosted since now the object are
                 # further away?
 
                 # Actually, the redshift ought to remain the same?
-
-                # TODO: finish this
-
-                r_range = self.r_xrange * h
-                # Actually no need to do this.
-                z_range = dist2redshift(r_range, self.Omega_m, h)
             else:
                 mu_xrange = self.mu_xrange
-                z_range = self.z_xrange
 
             # Calculate p(r) (Malmquist bias). Shape is (ndata, nxrange)
             log_ptilde = log_ptilde_wo_bias(
