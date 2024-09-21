@@ -37,11 +37,9 @@ else
 fi
 
 
-# for simname in "IndranilVoid_exp" "IndranilVoid_gauss" "IndranilVoid_mb"; do
-for simname in "Carrick2015"; do
+for simname in "IndranilVoid_exp" "IndranilVoid_gauss" "IndranilVoid_mb"; do
 # for simname in "no_field"; do
-    # for catalogue in "LOSS" "Foundation" "2MTF" "SFI_gals" "CF4_TFR_i" "CF4_TFR_w1"; do
-    for catalogue in "LOSS"; do
+    for catalogue in "LOSS" "Foundation" "2MTF" "SFI_gals" "CF4_TFR_i" "CF4_TFR_w1"; do
     # for catalogue in "CF4_TFR_i" "CF4_TFR_w1"; do
     # for catalogue in "2MTF" "SFI_gals" "CF4_TFR_i" "CF4_TFR_w1"; do
         for ksim in "none"; do
