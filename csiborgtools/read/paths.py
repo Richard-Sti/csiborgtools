@@ -135,23 +135,10 @@ class Paths:
             files = [search(r'realization(\d+)_delta\.fits', file).group(1)
                      for file in files if search(r'realization(\d+)_delta\.fits', file)]  # noqa
             files = [int(file) for file in files]
-            # Downsample to only 20 realisations
-            # files = files[::5]
         elif simname in ["Carrick2015", "Lilow2024", "no_field", "CLONES"]:
             files = [0]
         elif "IndranilVoid" in simname:
-            kind = simname.split("_")[-1]
-            if kind not in ["exp", "gauss", "mb"]:
-                raise ValueError(f"Unknown void kind `{simname}`.")
-
-            kind = kind.upper()
-            fdir = join(self.aux_cat_dir, "IndranilVoid", f"{kind}profile")
-            files = glob(join(fdir, "v_pec_*.dat"))
-
-            files = [
-                search(rf'v_pec_{kind}profile_rLG_(\d+)\.dat', file).group(1)
-                for file in files]
-            files = [int(file) for file in files]
+            files = [0]
         else:
             raise ValueError(f"Unknown simulation name `{simname}`.")
 
