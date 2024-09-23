@@ -37,9 +37,12 @@ else
 fi
 
 
-for simname in "IndranilVoid_exp" "IndranilVoid_gauss" "IndranilVoid_mb"; do
+# for simname in "IndranilVoid_exp" "IndranilVoid_gauss" "IndranilVoid_mb"; do
+
+for simname in "Carrick2015" "Lilow2024" "csiborg2_main" "csiborg2X" "manticore_2MPP_N128_DES_V1" "CF4" "CLONES"; do
 # for simname in "no_field"; do
     for catalogue in "LOSS" "Foundation" "2MTF" "SFI_gals" "CF4_TFR_i" "CF4_TFR_w1"; do
+    # for catalogue in "2MTF"; do
     # for catalogue in "CF4_TFR_i" "CF4_TFR_w1"; do
     # for catalogue in "2MTF" "SFI_gals" "CF4_TFR_i" "CF4_TFR_w1"; do
         for ksim in "none"; do
@@ -47,7 +50,7 @@ for simname in "IndranilVoid_exp" "IndranilVoid_gauss" "IndranilVoid_mb"; do
         # for ksim in $(seq 0 5 500); do
         # for ksim in "0_100_5" "100_200_5" "200_300_5" "300_400_5" "400_500_5"; do
         # for ksim in {0..500}; do
-            for ksmooth in 0; do
+            for ksmooth in 0 1; do
                 pythoncm="$env $file --catalogue $catalogue --simname $simname --ksim $ksim --ksmooth $ksmooth --ndevice $ndevice --device $device"
 
                 if [ "$on_login" == "1" ]; then
