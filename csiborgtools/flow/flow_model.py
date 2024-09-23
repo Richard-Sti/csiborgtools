@@ -378,7 +378,7 @@ def sample_simple(e_mu_min, e_mu_max, dmu_min, dmu_max, alpha_min, alpha_max,
 def sample_calibration(Vext_min, Vext_max, Vmono_min, Vmono_max, beta_min,
                        beta_max, sigma_v_min, sigma_v_max, h_min, h_max,
                        rLG_min, rLG_max, no_Vext, sample_Vmono, sample_beta,
-                       sample_h, sample_rLG):
+                       sample_h, sample_rLG, sample_Vmag_vax):
     """Sample the flow calibration."""
     sigma_v = sample("sigma_v", Uniform(sigma_v_min, sigma_v_max))
 
@@ -387,10 +387,18 @@ def sample_calibration(Vext_min, Vext_max, Vmono_min, Vmono_max, beta_min,
     else:
         beta = 1.0
 
+    if not no_Vext and sample_Vmag_vax:
+        raise RuntimeError("Cannot sample Vext and Vext magnitude along the "
+                           "void axis simultaneously.")
+
     if no_Vext:
         Vext = jnp.zeros(3)
-        # 840 in the direction of (l, b) = (117, 4)
-        # Vext = jnp.asarray([338.9478154 , -11.45056064, 768.49415294])
+
+        if sample_Vmag_vax:
+            Vext_mag = sample("Vext_axis_mag", Uniform(0.0, Vext_max))
+            # In the direction lf (l, b) = (117, 4)
+            Vext = Vext_mag * jnp.asarray([0.4035093, -0.01363162, 0.91487396])
+
     else:
         Vext = sample("Vext", Uniform(Vext_min, Vext_max).expand([3]))
 
