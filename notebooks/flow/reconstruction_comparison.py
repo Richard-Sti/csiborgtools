@@ -60,6 +60,7 @@ def names_to_latex(names, for_corner=False):
            "l": "\\ell ~ [\\mathrm{deg}]",
            "b": "b ~ [\\mathrm{deg}]",
            "rLG": "R_{\\rm offset} ~ [\\mathrm{Mpc} / h]",
+           "Vext_axis_mag": "V_{\\rm axis} ~ [\\mathrm{km} / \\mathrm{s}]",
            }
 
     ltx_corner = {"alpha": r"$\alpha$",
