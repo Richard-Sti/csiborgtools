@@ -309,8 +309,8 @@ if __name__ == "__main__":
     mag_selection = None
     sample_alpha = False if "IndranilVoid_" in ARGS.simname or ARGS.simname == "no_field" else True  # noqa
     sample_beta = None
-    no_Vext = True
-    sample_Vmag_vax = True
+    no_Vext = None
+    sample_Vmag_vax = False
     sample_Vmono = False
     sample_mag_dipole = False
     absolute_calibration = None
