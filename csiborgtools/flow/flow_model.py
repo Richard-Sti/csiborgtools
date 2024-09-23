@@ -396,7 +396,7 @@ def sample_calibration(Vext_min, Vext_max, Vmono_min, Vmono_max, beta_min,
 
         if sample_Vmag_vax:
             Vext_mag = sample("Vext_axis_mag", Uniform(0.0, Vext_max))
-            # In the direction lf (l, b) = (117, 4)
+            # In the direction if (l, b) = (117, 4)
             Vext = Vext_mag * jnp.asarray([0.4035093, -0.01363162, 0.91487396])
 
     else:
