@@ -813,6 +813,9 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             if field_calibration_params["sample_h"]:
                 raise NotImplementedError("Sampling of h not implemented.")
 
+            raise NotImplementedError(
+                "Sampling of distance is not implemented. Work in progress.")
+
             e_mu = jnp.sqrt(e2_mu)
             # True distance modulus, shape is `(n_data)``
             with plate("plate_mu", self.ndata):
