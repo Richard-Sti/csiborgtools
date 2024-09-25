@@ -305,7 +305,7 @@ if __name__ == "__main__":
     zcmb_max = 0.05
     nchains_harmonic = 10
     num_epochs = 50
-    inference_method = "bayes"
+    inference_method = "mike"
     mag_selection = None
     sample_alpha = False if "IndranilVoid_" in ARGS.simname or ARGS.simname == "no_field" else True  # noqa
     sample_beta = None
