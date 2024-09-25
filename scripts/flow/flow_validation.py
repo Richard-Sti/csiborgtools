@@ -190,6 +190,8 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
         neg_ln_evidence = jax.numpy.nan
         neg_ln_evidence_err = (jax.numpy.nan, jax.numpy.nan)
 
+    # Temporarily disable saving.
+    return
     fname = join(out_folder, fname)
     print(f"Saving results to `{fname}`.")
     with File(fname, "w") as f:
@@ -236,16 +238,14 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole):
     alpha_max = 10.0
 
     if catalogue in ["LOSS", "Foundation", "Pantheon+", "Pantheon+_groups", "Pantheon+_zSN"]:  # noqa
-        return {"e_mu_min": 0.001, "e_mu_max": 1.0,
-                "mag_cal_mean": -18.25, "mag_cal_std": 2.0,
+        return {"mag_cal_mean": -18.25, "mag_cal_std": 2.0,
                 "alpha_cal_mean": 0.148, "alpha_cal_std": 1.0,
                 "beta_cal_mean": 3.112, "beta_cal_std": 2.0,
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
                 "sample_alpha": sample_alpha
                 }
     elif catalogue in ["SFI_gals", "2MTF"] or "CF4_TFR" in catalogue:
-        return {"e_mu_min": 0.001, "e_mu_max": 1.0,
-                "a_mean": -21., "a_std": 5.0,
+        return {"a_mean": -21., "a_std": 5.0,
                 "b_mean": -5.95, "b_std": 4.0,
                 "c_mean": 0., "c_std": 20.0,
                 "a_dipole_mean": 0., "a_dipole_std": 1.0,
@@ -254,8 +254,7 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole):
                 "sample_alpha": sample_alpha,
                 }
     elif catalogue in ["CF4_GroupAll"]:
-        return {"e_mu_min": 0.001, "e_mu_max": 1.0,
-                "dmu_min": -3.0, "dmu_max": 3.0,
+        return {"dmu_min": -3.0, "dmu_max": 3.0,
                 "dmu_dipole_mean": 0., "dmu_dipole_std": 1.0,
                 "sample_dmu_dipole": sample_mag_dipole,
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
@@ -299,16 +298,16 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 10_000
+    nsteps = 2_000
     nburn = 2_000
     zcmb_min = None
     zcmb_max = 0.05
     nchains_harmonic = 10
     num_epochs = 50
-    inference_method = "mike"
+    inference_method = "bayes"
     mag_selection = None
     sample_alpha = False if "IndranilVoid_" in ARGS.simname or ARGS.simname == "no_field" else True  # noqa
-    sample_beta = None
+    sample_beta = True
     no_Vext = None
     sample_Vmag_vax = False
     sample_Vmono = False
@@ -377,7 +376,6 @@ if __name__ == "__main__":
     calibration_hyperparams = {"Vext_min": -3000, "Vext_max": 3000,
                                "Vmono_min": -1000, "Vmono_max": 1000,
                                "beta_min": -10.0, "beta_max": 10.0,
-                               "sigma_v_min": 1.0, "sigma_v_max": 5000 if "IndranilVoid_" in ARGS.simname else 750.,  # noqa
                                "h_min": 0.01, "h_max": 5.0,
                                "no_Vext": False if no_Vext is None else no_Vext,        # noqa
                                "sample_Vmag_vax": sample_Vmag_vax,
