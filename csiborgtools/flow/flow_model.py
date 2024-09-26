@@ -221,11 +221,11 @@ class BaseFlowValidationModel(ABC):
         self.z_xrange = jnp.asarray(z_xrange)
         self.mu_xrange = jnp.asarray(mu_xrange)
 
-    def _set_void_data(self, RA, dec, kind, h, order):
+    def _set_void_data(self, RA, dec, profile, kind, h, order):
         """Create the void interpolator."""
-        # h is the MOND model value of local H0 to convert the radial grid to
-        # Mpc / h
-        rLG_grid, void_grid = load_void_data(kind)
+        # h is the MOND model value of local H0 to convert the radial grid
+        # to Mpc / h
+        rLG_grid, void_grid = load_void_data(profile, kind)
         void_grid = jnp.asarray(void_grid, dtype=jnp.float32)
         rLG_grid = jnp.asarray(rLG_grid, dtype=jnp.float32)
 
@@ -244,9 +244,17 @@ class BaseFlowValidationModel(ABC):
                                  model_axis.ra.rad, model_axis.dec.rad)
         phi = jnp.asarray(phi * 180 / np.pi, dtype=jnp.float32)
 
-        self.void_interpolator = lambda rLG: interpolate_void(
-            rLG, self.r_xrange, phi, void_grid, rgrid_min, rgrid_max,
-            rLG_min, rLG_max, order)
+        if kind == "density":
+            void_grid = jnp.log(void_grid)
+            self.void_log_rho_interpolator = lambda rLG: interpolate_void(
+                rLG, self.r_xrange, phi, void_grid, rgrid_min, rgrid_max,
+                rLG_min, rLG_max, order)
+        elif kind == "vrad":
+            self.void_vrad_interpolator = lambda rLG: interpolate_void(
+                rLG, self.r_xrange, phi, void_grid, rgrid_min, rgrid_max,
+                rLG_min, rLG_max, order)
+        else:
+            raise ValueError(f"Unknown kind: `{kind}`.")
 
     @property
     def ndata(self):
@@ -264,21 +272,22 @@ class BaseFlowValidationModel(ABC):
     def los_density(self, **kwargs):
         if self.is_void_data:
             # Currently we have no densities for the void.
-            return jnp.ones((1, self.ndata, len(self.r_xrange)))
+            # return jnp.ones((1, self.ndata, len(self.r_xrange)))
+            raise NotImplementedError("Only log-density for the void.")
 
         return self._los_density
 
     def log_los_density(self, **kwargs):
         if self.is_void_data:
-            # Currently we have no densities for the void.
-            return jnp.zeros((1, self.ndata, len(self.r_xrange)))
+            # We want the shape to be `(1, n_objects, n_radial_steps)``.
+            return self.void_log_rho_interpolator(kwargs["rLG"])[None, ...]
 
         return self._log_los_density
 
     def los_velocity(self, **kwargs):
         if self.is_void_data:
             # We want the shape to be `(1, n_objects, n_radial_steps)``.
-            return self.void_interpolator(kwargs["rLG"])[None, ...]
+            return self.void_vrad_interpolator(kwargs["rLG"])[None, ...]
 
         return self._los_velocity
 
@@ -428,7 +437,7 @@ def sample_calibration(Vext_min, Vext_max, Vmono_min, Vmono_max, beta_min,
         Vext = jnp.zeros(3)
 
         if sample_Vmag_vax:
-            Vext_mag = sample("Vext_axis_mag", Uniform(0.0, Vext_max))
+            Vext_mag = sample("Vext_axis_mag", Uniform(Vext_min, Vext_max))
             # In the direction if (l, b) = (117, 4)
             Vext = Vext_mag * jnp.asarray([0.4035093, -0.01363162, 0.91487396])
 
@@ -524,7 +533,8 @@ class PV_LogLikelihood(BaseFlowValidationModel):
 
         # This must be done before we convert to radians.
         if void_kwargs is not None:
-            self._set_void_data(RA=RA, dec=dec, **void_kwargs)
+            self._set_void_data(RA=RA, dec=dec,  kind="density", **void_kwargs)
+            self._set_void_data(RA=RA, dec=dec,  kind="vrad", **void_kwargs)
 
         # Convert RA/dec to radians.
         RA, dec = np.deg2rad(RA), np.deg2rad(dec)

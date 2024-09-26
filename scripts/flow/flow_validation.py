@@ -232,7 +232,7 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
 ###############################################################################
 
 def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole):
-    alpha_min = -1.0
+    alpha_min = -10 if "IndraniVoid" in ARGS.simname else -1.0
     alpha_max = 10.0
 
     if catalogue in ["LOSS", "Foundation", "Pantheon+", "Pantheon+_groups", "Pantheon+_zSN"]:  # noqa
@@ -307,7 +307,7 @@ if __name__ == "__main__":
     num_epochs = 50
     inference_method = "mike"
     mag_selection = None
-    sample_alpha = False if "IndranilVoid_" in ARGS.simname or ARGS.simname == "no_field" else True  # noqa
+    sample_alpha = False if ARGS.simname == "no_field" else True
     sample_beta = None
     no_Vext = None
     sample_Vmag_vax = False
@@ -357,10 +357,10 @@ if __name__ == "__main__":
             raise ValueError(
                 "`IndranilVoid` does not have multiple realisations.")
 
-        kind = ARGS.simname.split("_")[-1]
-        h = select_void_h(kind)
+        profile = ARGS.simname.split("_")[-1]
+        h = select_void_h(profile)
         rdist = np.arange(0, 165, 0.5)
-        void_kwargs = {"kind": kind, "h": h, "order": 1, "rdist": rdist}
+        void_kwargs = {"profile": profile, "h": h, "order": 1, "rdist": rdist}
     else:
         void_kwargs = None
         h = 1.
