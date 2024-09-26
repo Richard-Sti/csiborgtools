@@ -29,35 +29,46 @@ from tqdm import tqdm
 ###############################################################################
 
 
-def load_void_data(kind):
+def load_void_data(profile, kind):
     """
     Load the void velocities from Sergij & Indranil's files for a given kind
     of void profile per observer.
 
     Parameters
     ----------
+    profile : str
+        Void profile to load. One of "exp", "gauss", "mb".
     kind : str
-        The kind of void profile to load. One of "exp", "gauss", "mb".
+        Data kind, either "density" or "vrad".
 
     Returns
     -------
     velocities : 3-dimensional array of shape (nLG, nrad, nphi)
     """
-    if kind not in ["exp", "gauss", "mb"]:
-        raise ValueError("kind must be one of 'exp', 'gauss', 'mb'")
+    if profile not in ["exp", "gauss", "mb"]:
+        raise ValueError("profile must be one of 'exp', 'gauss', 'mb'")
+
+    if kind not in ["density", "vrad"]:
+        raise ValueError("kind must be one of 'density', 'vrad'")
 
     fdir = "/mnt/extraspace/rstiskalek/catalogs/IndranilVoid"
 
-    kind = kind.upper()
-    fdir = join(fdir, f"{kind}profile")
+    if kind == "density":
+        fdir = join(fdir, "rho_data")
+        tag = "rho"
+    else:
+        tag = "v_pec"
+
+    profile = profile.upper()
+    fdir = join(fdir, f"{profile}profile")
 
     files = glob(join(fdir, "*.dat"))
-    rLG = [int(search(rf'v_pec_{kind}profile_rLG_(\d+)', f).group(1))
+    rLG = [int(search(rf'{tag}_{profile}profile_rLG_(\d+)', f).group(1))
            for f in files]
     rLG = np.sort(rLG)
 
-    for i, ri in enumerate(tqdm(rLG, desc="Loading void observer data")):
-        f = join(fdir, f"v_pec_{kind}profile_rLG_{ri}.dat")
+    for i, ri in enumerate(tqdm(rLG, desc=f"Loading void `{kind}`observer data")):  # noqa
+        f = join(fdir, f"{tag}_{profile}profile_rLG_{ri}.dat")
         data_i = np.genfromtxt(f).T
 
         if i == 0:
