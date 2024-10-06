@@ -88,7 +88,7 @@ def print_variables(names, variables):
 
 
 def get_models(ksim, get_model_kwargs, mag_selection, void_kwargs,
-               verbose=True):
+               wo_num_dist_marginalisation, verbose=True):
     """Load the data and create the NumPyro models."""
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     folder = "/mnt/extraspace/rstiskalek/catalogs/"
@@ -128,6 +128,7 @@ def get_models(ksim, get_model_kwargs, mag_selection, void_kwargs,
                                               ksmooth=ARGS.ksmooth)
         models[i] = csiborgtools.flow.get_model(
             loader, mag_selection=mag_selection[i], void_kwargs=void_kwargs,
+            wo_num_dist_marginalisation=wo_num_dist_marginalisation,
             **get_model_kwargs)
 
     fprint(f"num. radial steps is {len(loader.rdist)}")
@@ -299,10 +300,10 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 10_000
-    nburn = 2_000
+    nsteps = 1_000
+    nburn = 1_000
     zcmb_min = None
-    zcmb_max = 0.05
+    zcmb_max = 0.04
     nchains_harmonic = 10
     num_epochs = 50
     inference_method = "mike"
@@ -313,8 +314,9 @@ if __name__ == "__main__":
     sample_Vmag_vax = False
     sample_Vmono = False
     sample_mag_dipole = False
+    wo_num_dist_marginalisation = True
     absolute_calibration = None
-    calculate_harmonic = False if inference_method == "bayes" else True
+    calculate_harmonic = (False if inference_method == "bayes" else True) and (not wo_num_dist_marginalisation)  # noqa
     sample_h = True if absolute_calibration is not None else False
 
     fname_kwargs = {"inference_method": inference_method,
@@ -341,6 +343,7 @@ if __name__ == "__main__":
                    "num_epochs": num_epochs,
                    "inference_method": inference_method,
                    "sample_mag_dipole": sample_mag_dipole,
+                   "wo_dist_marg": wo_num_dist_marginalisation,
                    "absolute_calibration": absolute_calibration,
                    "sample_h": sample_h,
                    }
@@ -420,7 +423,8 @@ if __name__ == "__main__":
             print(f"{'Current simulation:':<20} {i + 1} ({ksim}) out of {len(ksim_iterator)}.")  # noqa
 
         fname_kwargs["nsim"] = ksim
-        models = get_models(ksim, get_model_kwargs, mag_selection, void_kwargs)
+        models = get_models(ksim, get_model_kwargs, mag_selection, void_kwargs,
+                            wo_num_dist_marginalisation)
         model_kwargs = {
             "models": models,
             "field_calibration_hyperparams": calibration_hyperparams,
