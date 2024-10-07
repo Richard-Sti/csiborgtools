@@ -187,6 +187,8 @@ class DataLoader:
             fpath = paths.field_los(simname, "Pantheon+")
         elif "CF4_TFR" in catalogue:
             fpath = paths.field_los(simname, "CF4_TFR")
+        elif "Carrick2MTFmock" in catalogue:
+            fpath = paths.field_los(simname, "2MTF")
         else:
             fpath = paths.field_los(simname, catalogue)
 
@@ -213,6 +215,11 @@ class DataLoader:
         if to_wipe:
             los_density = np.ones_like(los_density)
             los_velocity = np.zeros_like(los_velocity)
+
+        # These mocks have no inhomogeneous Malmquist when being generated,
+        # so just set to 0.
+        if "Carrick2MTFmock" in catalogue:
+            los_density[...] = 0.
 
         return rdist, los_density, los_velocity
 
@@ -262,6 +269,12 @@ class DataLoader:
             arr = np.empty(len(mock_data["RA"]), dtype=dtype)
             for key in mock_data.keys():
                 arr[key] = mock_data[key]
+        elif "Carrick2MTFmock" in catalogue:
+            with File(catalogue_fpath, 'r') as f:
+                dtype = [(key, np.float32) for key in f.keys()]
+                arr = np.empty(len(f["RA"]), dtype=dtype)
+                for key in f.keys():
+                    arr[key] = f[key][:]
         elif "UPGLADE" in catalogue:
             with File(catalogue_fpath, 'r') as f:
                 dtype = [(key, np.float32) for key in f.keys()]
@@ -479,11 +492,17 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             None, mag_selection, loader.rdist, loader._Omega_m, "SN",
             name=kind, void_kwargs=void_kwargs,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation)
-    elif kind in ["SFI_gals", "2MTF", "SFI_gals_masked"] or "IndranilVoidTFRMock" in kind:  # noqa
+    elif kind in ["SFI_gals", "2MTF", "SFI_gals_masked"] or "IndranilVoidTFRMock" in kind or "Carrick2MTFmock" in kind:  # noqa
         keys = ["RA", "DEC", "z_CMB", "mag", "eta", "e_mag", "e_eta"]
         RA, dec, zCMB, mag, eta, e_mag, e_eta = (loader.cat[k] for k in keys)
 
         mask = (zCMB < zcmb_max) & (zCMB > zcmb_min)
+
+        if "Carrick2MTFmock" in kind:
+            # For the mock we only want to select objects with the '2M++'
+            # volume.
+            mask &= loader.cat["r"] < 125
+
         calibration_params = {"mag": mag[mask], "eta": eta[mask],
                               "e_mag": e_mag[mask], "e_eta": e_eta[mask]}
 
