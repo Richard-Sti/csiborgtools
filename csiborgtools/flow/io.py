@@ -216,11 +216,6 @@ class DataLoader:
             los_density = np.ones_like(los_density)
             los_velocity = np.zeros_like(los_velocity)
 
-        # These mocks have no inhomogeneous Malmquist when being generated,
-        # so just set to 0.
-        if "Carrick2MTFmock" in catalogue:
-            los_density[...] = 0.
-
         return rdist, los_density, los_velocity
 
     def _read_catalogue(self, catalogue, catalogue_fpath):
@@ -498,10 +493,17 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
 
         mask = (zCMB < zcmb_max) & (zCMB > zcmb_min)
 
+        # For the mock we only want to select objects with the '2M++' volume.
         if "Carrick2MTFmock" in kind:
-            # For the mock we only want to select objects with the '2M++'
-            # volume.
-            mask &= loader.cat["r"] < 125
+            mask &= loader.cat["r"] < 130
+
+        if "Carrick2MTFmock" in kind:
+            fprint("disabling homogeneous and inhomogeneous Malmquist bias for the mock.")  # noqa
+            with_homogeneous_malmquist = False
+            with_inhomogeneous_malmquist = False
+        else:
+            with_homogeneous_malmquist = True
+            with_inhomogeneous_malmquist = True
 
         calibration_params = {"mag": mag[mask], "eta": eta[mask],
                               "e_mag": e_mag[mask], "e_eta": e_eta[mask]}
@@ -514,7 +516,9 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             RA[mask], dec[mask], zCMB[mask], None, calibration_params, None,
             mag_selection, loader.rdist, loader._Omega_m, "TFR", name=kind,
             void_kwargs=void_kwargs,
-            wo_num_dist_marginalisation=wo_num_dist_marginalisation)
+            wo_num_dist_marginalisation=wo_num_dist_marginalisation,
+            with_homogeneous_malmquist=with_homogeneous_malmquist,
+            with_inhomogeneous_malmquist=with_inhomogeneous_malmquist)
     elif "CF4_TFR_" in kind:
         # The full name can be e.g. "CF4_TFR_not2MTForSFI_i" or "CF4_TFR_i".
         band = kind.split("_")[-1]
