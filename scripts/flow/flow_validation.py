@@ -116,6 +116,9 @@ def get_models(ksim, get_model_kwargs, mag_selection, void_kwargs,
                      "Pantheon+_groups", "Pantheon+_groups_zSN",
                      "Pantheon+_zSN"]:
             fpath = join(folder, "PV_compilation.hdf5")
+        elif "Carrick2MTFmock" in cat:
+            ki = cat.split("_")[-1]
+            fpath =f"/mnt/extraspace/rstiskalek/csiborg_postprocessing/flow_mock/Carrick2MTFmock_seed{ki}.hdf5"  # noqa
         elif "CF4_TFR" in cat:
             fpath = join(folder, "PV/CF4/CF4_TF-distances.hdf5")
         elif cat in ["CF4_GroupAll"]:
@@ -238,7 +241,7 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole):
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
                 "sample_alpha": sample_alpha
                 }
-    elif catalogue in ["SFI_gals", "2MTF"] or "CF4_TFR" in catalogue or "IndranilVoidTFRMock" in catalogue:  # noqa
+    elif catalogue in ["SFI_gals", "2MTF"] or "CF4_TFR" in catalogue or "IndranilVoidTFRMock" in catalogue or "Carrick2MTFmock" in catalogue:  # noqa
         return {"e_mu_min": 0.001, "e_mu_max": 1.0,
                 "a_mean": -21., "a_std": 5.0,
                 "b_mean": -5.95, "b_std": 4.0,
@@ -247,6 +250,7 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole):
                 "sample_a_dipole": sample_mag_dipole,
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
                 "sample_alpha": sample_alpha,
+                "sample_curvature": False if "Carrick2MTFmock" in catalogue else True,  # noqa
                 }
     elif catalogue in ["CF4_GroupAll"]:
         return {"e_mu_min": 0.001, "e_mu_max": 1.0,
@@ -310,8 +314,15 @@ if __name__ == "__main__":
     sample_mag_dipole = False
     wo_num_dist_marginalisation = False
     absolute_calibration = None
-    calculate_harmonic = (False if inference_method == "bayes" else True) and (not wo_num_dist_marginalisation)  # noqa
+    calculate_harmonic = (False if (inference_method == "bayes") else True) and (not wo_num_dist_marginalisation)  # noqa
     sample_h = True if absolute_calibration is not None else False
+
+    # These mocks are generated without a density field, so there is no
+    # inhomogeneous Malmquist and we also do not need evidences.
+    for catalogue in ARGS.catalogue:
+        if "Carrick2MTFmock" in catalogue:
+            sample_alpha = False
+            calculate_harmonic = False
 
     fname_kwargs = {"inference_method": inference_method,
                     "smooth": ARGS.ksmooth,
