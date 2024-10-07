@@ -18,4 +18,5 @@ from .flow_model import (PV_LogLikelihood, PV_validation_model, dist2redshift,  
                          Observed2CosmologicalRedshift, predict_zobs,           # noqa
                          project_Vext, stack_pzosmo_over_realizations)          # noqa
 from .selection import ToyMagnitudeSelection                                    # noqa
-from .void_model import load_void_data, interpolate_void                        # noqa
+from .void_model import (load_void_data, interpolate_void, select_void_h,       # noqa
+                         mock_void)                                             # noqa
