@@ -20,6 +20,7 @@ from h5py import File
 from ..params import SPEED_OF_LIGHT, simname2Omega_m
 from ..utils import fprint, radec_to_galactic, radec_to_supergalactic
 from .flow_model import PV_LogLikelihood
+from .void_model import load_void_data, mock_void, select_void_h
 
 H0 = 100  # km / s / Mpc
 
@@ -242,6 +243,25 @@ class DataLoader:
                 arr = np.empty(len(f["RA"]), dtype=dtype)
                 for key in f.keys():
                     arr[key] = f[key][:]
+        elif "IndranilVoidTFRMock" in catalogue:
+            # The name can be e.g. "IndranilVoidTFRMock_exp_34_0", where the
+            # first and second number are the LG observer index and random
+            # seed.
+            profile, rLG_index, seed = catalogue.split("_")[1:]
+            rLG_index = int(rLG_index)
+            seed = int(seed)
+            rLG, vrad_data = load_void_data(profile, "vrad")
+            h = select_void_h(profile)
+            print(f"Mock observed galaxies for LG observer with index "
+                  f"{rLG_index} at {rLG[rLG_index] * h} Mpc / h and "
+                  f"seed {seed}.")
+            mock_data = mock_void(vrad_data, rLG_index, profile, seed=seed)[0]
+
+            # Convert the dictionary to a structured array
+            dtype = [(key, np.float32) for key in mock_data.keys()]
+            arr = np.empty(len(mock_data["RA"]), dtype=dtype)
+            for key in mock_data.keys():
+                arr[key] = mock_data[key]
         elif "UPGLADE" in catalogue:
             with File(catalogue_fpath, 'r') as f:
                 dtype = [(key, np.float32) for key in f.keys()]
@@ -459,7 +479,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             None, mag_selection, loader.rdist, loader._Omega_m, "SN",
             name=kind, void_kwargs=void_kwargs,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation)
-    elif kind in ["SFI_gals", "2MTF", "SFI_gals_masked"]:
+    elif kind in ["SFI_gals", "2MTF", "SFI_gals_masked"] or "IndranilVoidTFRMock" in kind:  # noqa
         keys = ["RA", "DEC", "z_CMB", "mag", "eta", "e_mag", "e_eta"]
         RA, dec, zCMB, mag, eta, e_mag, e_eta = (loader.cat[k] for k in keys)
 
