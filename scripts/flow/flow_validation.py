@@ -120,6 +120,8 @@ def get_models(ksim, get_model_kwargs, mag_selection, void_kwargs,
             fpath = join(folder, "PV/CF4/CF4_TF-distances.hdf5")
         elif cat in ["CF4_GroupAll"]:
             fpath = join(folder, "PV/CF4/CF4_GroupAll.hdf5")
+        elif "IndranilVoidTFRMock" in cat:
+            fpath = None
         else:
             raise ValueError(f"Unsupported catalogue: `{ARGS.catalogue}`.")
 
@@ -133,14 +135,6 @@ def get_models(ksim, get_model_kwargs, mag_selection, void_kwargs,
 
     fprint(f"num. radial steps is {len(loader.rdist)}")
     return models
-
-
-def select_void_h(kind):
-    hs = {"mb": 0.7615, "gauss": 0.7724, "exp": 0.7725}
-    try:
-        return hs[kind]
-    except KeyError:
-        raise ValueError(f"Unknown void kind: `{kind}`.")
 
 
 def get_harmonic_evidence(samples, log_posterior, nchains_harmonic, epoch_num):
@@ -244,7 +238,7 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole):
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
                 "sample_alpha": sample_alpha
                 }
-    elif catalogue in ["SFI_gals", "2MTF"] or "CF4_TFR" in catalogue:
+    elif catalogue in ["SFI_gals", "2MTF"] or "CF4_TFR" in catalogue or "IndranilVoidTFRMock" in catalogue:  # noqa
         return {"e_mu_min": 0.001, "e_mu_max": 1.0,
                 "a_mean": -21., "a_std": 5.0,
                 "b_mean": -5.95, "b_std": 4.0,
@@ -300,10 +294,10 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 1_000
-    nburn = 1_000
+    nsteps = 2_000
+    nburn = 2_000
     zcmb_min = None
-    zcmb_max = 0.04
+    zcmb_max = 0.05
     nchains_harmonic = 10
     num_epochs = 50
     inference_method = "mike"
@@ -314,7 +308,7 @@ if __name__ == "__main__":
     sample_Vmag_vax = False
     sample_Vmono = False
     sample_mag_dipole = False
-    wo_num_dist_marginalisation = True
+    wo_num_dist_marginalisation = False
     absolute_calibration = None
     calculate_harmonic = (False if inference_method == "bayes" else True) and (not wo_num_dist_marginalisation)  # noqa
     sample_h = True if absolute_calibration is not None else False
@@ -361,7 +355,7 @@ if __name__ == "__main__":
                 "`IndranilVoid` does not have multiple realisations.")
 
         profile = ARGS.simname.split("_")[-1]
-        h = select_void_h(profile)
+        h = csiborgtools.flow.select_void_h(profile)
         rdist = np.arange(0, 165, 0.5)
         void_kwargs = {"profile": profile, "h": h, "order": 1, "rdist": rdist}
     else:
@@ -380,7 +374,7 @@ if __name__ == "__main__":
     calibration_hyperparams = {"Vext_min": -3000, "Vext_max": 3000,
                                "Vmono_min": -1000, "Vmono_max": 1000,
                                "beta_min": -10.0, "beta_max": 10.0,
-                               "sigma_v_min": 1.0, "sigma_v_max": 5000 if "IndranilVoid_" in ARGS.simname else 750.,  # noqa
+                               "sigma_v_min": 1.0, "sigma_v_max": 1000 if "IndranilVoid_" in ARGS.simname else 750.,  # noqa
                                "h_min": 0.01, "h_max": 5.0,
                                "no_Vext": False if no_Vext is None else no_Vext,        # noqa
                                "sample_Vmag_vax": sample_Vmag_vax,
