@@ -189,7 +189,7 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
         neg_ln_evidence_err = (jax.numpy.nan, jax.numpy.nan)
 
     fname = join(out_folder, fname)
-    print(f"Saving results to `{fname}`.")
+    print(f"Saving results:         `{fname}`.")
     with File(fname, "w") as f:
         # Write samples
         grp = f.create_group("samples")
@@ -206,15 +206,22 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
         grp.create_dataset("neg_lnZ_harmonic", data=neg_ln_evidence)
         grp.create_dataset("neg_lnZ_harmonic_err", data=neg_ln_evidence_err)
 
-    fname_summary = fname.replace(".hdf5", ".txt")
-    print(f"Saving summary to `{fname_summary}`.")
-    with open(fname_summary, 'w') as f:
+    fname_config = fname.replace(".hdf5", "_config.txt")
+    print(f"Saving configuration:   `{fname_config}`.")
+    with open(fname_config, 'w') as f:
         original_stdout = sys.stdout
         sys.stdout = f
 
         print("User parameters:")
         for kwargs in kwargs_print:
             print_variables(kwargs.keys(), kwargs.values())
+        sys.stdout = original_stdout
+
+    fname_summary = fname.replace(".hdf5", "_summary.txt")
+    print(f"Saving summary:         `{fname_summary}`.")
+    with open(fname_summary, 'w') as f:
+        original_stdout = sys.stdout
+        sys.stdout = f
 
         print("HMC summary:")
         print(f"{'BIC':<20} {BIC}")
@@ -298,8 +305,8 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 2_000
-    nburn = 2_000
+    nsteps = 1_500
+    nburn = 1_500
     zcmb_min = None
     zcmb_max = 0.05
     nchains_harmonic = 10
@@ -386,7 +393,7 @@ if __name__ == "__main__":
                                "Vmono_min": -1000, "Vmono_max": 1000,
                                "beta_min": -10.0, "beta_max": 10.0,
                                "sigma_v_min": 1.0, "sigma_v_max": 1000 if "IndranilVoid_" in ARGS.simname else 750.,  # noqa
-                               "h_min": 0.01, "h_max": 5.0,
+                               "h_min": 0.25, "h_max": 1.,
                                "no_Vext": False if no_Vext is None else no_Vext,        # noqa
                                "sample_Vmag_vax": sample_Vmag_vax,
                                "sample_Vmono": sample_Vmono,
