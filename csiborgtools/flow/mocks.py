@@ -27,9 +27,10 @@ from .cosmography import distmod2dist, distmod2redshift
 
 def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
                      a_TF=-22.8, b_TF=-7.2, sigma_TF=0.25, sigma_v=100.,
-                     Vext=[150.0, 10.0, -100.0], beta=0.4,
+                     Vext=[150.0, 10.0, -100.0], h=1.0, beta=0.4,
                      mean_eta=0.069, std_eta=0.078, mean_e_eta=0.012,
                      mean_mag=10.31, std_mag=0.83, mean_e_mag=0.044,
+                     sigma_calibration=0.05,
                      seed=42, Om0=0.3, **kwargs):
     """
     Mock TFR catalogue build against the Carrick velocity field and the
@@ -74,13 +75,19 @@ def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
     mag_obs = gen.normal(mag_true, mean_e_mag)
 
     # Calculate the 'true' distance modulus and redshift from the TFR distance.
+
+    # If h != 1, then these distance modulii are in physical units.
     mu_TFR = mag_true - (a_TF + b_TF * eta_true)
     mu_true = gen.normal(mu_TFR, sigma_TF)
+    # This is the distance modulus in units of little h.
+    mu_true_h = mu_true + 5 * np.log10(h)
+
+    mu_calibration = gen.normal(mu_true, sigma_calibration)
 
     # Convert the true distance modulus to true distance and cosmological
-    # redshift.
-    r = distmod2dist(mu_true, Om0)
-    zcosmo = distmod2redshift(mu_true, Om0)
+    # redshift. The distance is in Mpc/h because the box is in Mpc / h.
+    r = distmod2dist(mu_true_h, Om0)
+    zcosmo = distmod2redshift(mu_true_h, Om0)
 
     # Calculate the Cartesian coordinates of each galaxy. This is initially
     # centered at (0, 0, 0).
@@ -89,8 +96,8 @@ def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
         np.sin(gal_theta) * np.sin(gal_phi),
         np.cos(gal_theta)])
     pos = pos.T
-
     pos_box = pos / boxsize + 0.5
+
     vel = evaluate_cartesian_regular(
         velocity_field[0], velocity_field[1], velocity_field[2],
         pos=pos_box, smooth_scales=None, method="cubic")
@@ -118,8 +125,9 @@ def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
               "mag": mag_obs,
               "e_eta": np.ones(nsamples) * mean_e_eta,
               "e_mag": np.ones(nsamples) * mean_e_mag,
+              "mu_calibration": mu_calibration,
+              "e_mu_calibration": np.ones(nsamples) * sigma_calibration,
               "r": r,
-              "distmod_true": mu_true,
-              "distmod_TFR": mu_TFR}
+              }
 
     return sample, truths
