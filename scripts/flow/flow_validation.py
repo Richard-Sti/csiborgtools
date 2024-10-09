@@ -189,7 +189,7 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
         neg_ln_evidence_err = (jax.numpy.nan, jax.numpy.nan)
 
     fname = join(out_folder, fname)
-    print(f"Saving results:         `{fname}`.")
+    print(f"Saving results: `{fname}`.")
     with File(fname, "w") as f:
         # Write samples
         grp = f.create_group("samples")
@@ -207,7 +207,7 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
         grp.create_dataset("neg_lnZ_harmonic_err", data=neg_ln_evidence_err)
 
     fname_config = fname.replace(".hdf5", "_config.txt")
-    print(f"Saving configuration:   `{fname_config}`.")
+    print(f"Saving configuration: `{fname_config}`.")
     with open(fname_config, 'w') as f:
         original_stdout = sys.stdout
         sys.stdout = f
@@ -218,7 +218,7 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
         sys.stdout = original_stdout
 
     fname_summary = fname.replace(".hdf5", "_summary.txt")
-    print(f"Saving summary:         `{fname_summary}`.")
+    print(f"Saving summary: `{fname_summary}`.")
     with open(fname_summary, 'w') as f:
         original_stdout = sys.stdout
         sys.stdout = f
