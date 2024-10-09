@@ -809,16 +809,31 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                 mu_true = sample("mu", Normal(mu, e_mu))
 
             # Likelihood of the true distance modulii given the calibration.
-            # Should this likelihood go into the noramlisation toooo?
             if field_calibration_params["sample_h"]:
+                raise RuntimeError(
+                    "Sampling of 'h' has not yet been thoroughly tested.")
                 h = field_calibration_params["h"]
 
                 # Now, the rest of the code except the calibration likelihood
                 # uses the distance modulus in units of h
                 mu_true_h = mu_true + 5 * jnp.log10(h)
 
-                ll_calibration = normal_logpdf(
-                    self.mu_calibration, mu_true, self.e_mu_calibration)
+                # Calculate the log-likelihood of the calibration, but the
+                # shape is `(n_calibrators, n_data)`. Where there is no data
+                # we set the likelihood to 0 (or the log-likelihood to -inf)
+                ll_calibration = jnp.where(
+                   self.is_finite_calibrator,
+                   normal_logpdf(self.mu_calibration, mu_true[None, :],
+                                 self.e_mu_calibration),
+                   -jnp.inf)
+
+                # Now average out over the calibrators, however only if the
+                # there is at least one calibrator. If there isn't, then we
+                # just assing a log-likelihood of 0.
+                ll_calibration = jnp.where(
+                    self.any_calibrator,
+                    logsumexp(ll_calibration, axis=0) - jnp.log(self.counts_calibrators),  # noqa
+                    0.)
             else:
                 mu_true_h = mu_true
 
