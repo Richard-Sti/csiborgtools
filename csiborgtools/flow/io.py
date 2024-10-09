@@ -58,7 +58,8 @@ class DataLoader:
     def __init__(self, simname, ksim, catalogue, catalogue_fpath, paths,
                  ksmooth=None, store_full_velocity=False, verbose=True):
         fprint("reading the catalogue,", verbose)
-        self._cat = self._read_catalogue(catalogue, catalogue_fpath)
+        self._cat, self._absmag_calibration = self._read_catalogue(
+            catalogue, catalogue_fpath)
         self._catname = catalogue
 
         fprint("reading the interpolated field.", verbose)
@@ -131,6 +132,15 @@ class DataLoader:
     def cat(self):
         """The distance indicators catalogue (structured array)."""
         return self._cat[self._mask]
+
+    @property
+    def absmag_calibration(self):
+        """Returns the absolute magnitude calibration with masking applied."""
+        if self._absmag_calibration is None:
+            return None
+
+        return {key: val[:, self._mask]
+                for key, val in self._absmag_calibration.items()}
 
     @property
     def catname(self):
@@ -219,6 +229,8 @@ class DataLoader:
         return rdist, los_density, los_velocity
 
     def _read_catalogue(self, catalogue, catalogue_fpath):
+        absmag_calibration = None
+
         if catalogue == "A2":
             with File(catalogue_fpath, 'r') as f:
                 dtype = [(key, np.float32) for key in f.keys()]
@@ -266,10 +278,18 @@ class DataLoader:
                 arr[key] = mock_data[key]
         elif "Carrick2MTFmock" in catalogue:
             with File(catalogue_fpath, 'r') as f:
-                dtype = [(key, np.float32) for key in f.keys()]
+                keys_skip = ["mu_calibration", "e_mu_calibration"]
+                dtype = [(key, np.float32) for key in f.keys()
+                         if key not in keys_skip]
                 arr = np.empty(len(f["RA"]), dtype=dtype)
                 for key in f.keys():
-                    arr[key] = f[key][:]
+                    if key not in keys_skip:
+                        arr[key] = f[key][:]
+
+                absmag_calibration = {
+                    "mu_calibration": f["mu_calibration"][...],
+                    "e_mu_calibration": f["e_mu_calibration"][...]}
+
         elif "UPGLADE" in catalogue:
             with File(catalogue_fpath, 'r') as f:
                 dtype = [(key, np.float32) for key in f.keys()]
@@ -294,7 +314,7 @@ class DataLoader:
         else:
             raise ValueError(f"Unknown catalogue: `{catalogue}`.")
 
-        return arr
+        return arr, absmag_calibration
 
 
 ###############################################################################
@@ -330,7 +350,7 @@ def radial_velocity_los(los_velocity, ra, dec):
 def read_absolute_calibration(kind, data_length, calibration_fpath):
     """
     Read the absolute calibration for the CF4 TFR sample from LEDA but
-    preprocessed by me.
+    preprocessed by me. Missing values are replaced with NaN.
 
     Parameters
     ----------
@@ -343,13 +363,13 @@ def read_absolute_calibration(kind, data_length, calibration_fpath):
 
     Returns
     -------
-    data : 3-dimensional array of shape (data_length, max_calib, 2)
+    mu : 2-dimensional array of shape `(ncalib, ngalaxies)`
         Absolute calibration data.
-    with_calibration : 1-dimensional array of shape (data_length)
-        Whether the sample has a calibration.
-    length_calibration : 1-dimensional array of shape (data_length)
-        Number of calibration points per sample.
+    e_mu : 2-dimensional array of shape `(ncalib, ngalaxies)`
+        Uncertainties of the absolute calibration.
     """
+    raise RuntimeError("The read-in functions are not guaranteed to work "
+                       "properly.")
     data = {}
     with File(calibration_fpath, 'r') as f:
         for key in f[kind].keys():
@@ -363,14 +383,14 @@ def read_absolute_calibration(kind, data_length, calibration_fpath):
     max_calib = max(len(val) for val in data.values())
 
     out = np.full((data_length, max_calib, 2), np.nan)
-    with_calibration = np.full(data_length, False)
-    length_calibration = np.full(data_length, 0)
     for i in data.keys():
         out[int(i), :len(data[i]), :] = data[i]
-        with_calibration[int(i)] = True
-        length_calibration[int(i)] = len(data[i])
 
-    return out, with_calibration, length_calibration
+    # Unpack from this the distsance modulus and its uncertainty.
+    mu = out[:, :, 0].T
+    e_mu = out[:, :, 1].T
+
+    return mu, e_mu
 
 
 def mask_fields(density, velocity, mask, return_none):
@@ -430,8 +450,9 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
 
         loader._field_rdist = rdist
 
-    if absolute_calibration is not None and "CF4_TFR_" not in kind:
-        raise ValueError("Absolute calibration supported only for the CF4 TFR sample.")  # noqa
+    if absolute_calibration is not None and not ("CF4_TFR_" in kind or "Carrick2MTFmock" in kind):  # noqa
+        raise ValueError("Absolute calibration supported only for either "
+                         "the CF4 TFR sample or Carrick 2MTF mocks.")
 
     if kind in ["LOSS", "Foundation"]:
         keys = ["RA", "DEC", "z_CMB", "mB", "x1", "c", "e_mB", "e_x1", "e_c"]
@@ -450,7 +471,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         model = PV_LogLikelihood(
             los_overdensity, los_velocity,
             RA[mask], dec[mask], zCMB[mask], e_zCMB, calibration_params,
-            None, mag_selection, loader.rdist, loader._Omega_m, "SN",
+            mag_selection, loader.rdist, loader._Omega_m, "SN",
             name=kind, void_kwargs=void_kwargs,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation)
     elif "Pantheon+" in kind:
@@ -484,7 +505,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         model = PV_LogLikelihood(
             los_overdensity, los_velocity,
             RA[mask], dec[mask], zCMB[mask], e_zCMB[mask], calibration_params,
-            None, mag_selection, loader.rdist, loader._Omega_m, "SN",
+            mag_selection, loader.rdist, loader._Omega_m, "SN",
             name=kind, void_kwargs=void_kwargs,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation)
     elif kind in ["SFI_gals", "2MTF", "SFI_gals_masked"] or "IndranilVoidTFRMock" in kind or "Carrick2MTFmock" in kind:  # noqa
@@ -492,12 +513,11 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         RA, dec, zCMB, mag, eta, e_mag, e_eta = (loader.cat[k] for k in keys)
 
         mask = (zCMB < zcmb_max) & (zCMB > zcmb_min)
-
-        # For the mock we only want to select objects with the '2M++' volume.
         if "Carrick2MTFmock" in kind:
+            # For the mock we only want to select objects with the '2M++'
+            # volume.
             mask &= loader.cat["r"] < 130
-
-        if "Carrick2MTFmock" in kind:
+            # The mocks are generated without Malmquist.
             fprint("disabling homogeneous and inhomogeneous Malmquist bias for the mock.")  # noqa
             with_homogeneous_malmquist = False
             with_inhomogeneous_malmquist = False
@@ -508,12 +528,34 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         calibration_params = {"mag": mag[mask], "eta": eta[mask],
                               "e_mag": e_mag[mask], "e_eta": e_eta[mask]}
 
+        # Append the calibration data
+        if "Carrick2MTFmock" in kind:
+            absmag_calibration = loader.absmag_calibration
+
+            # The shape of these is (`ncalibrators, nobjects`).
+            mu_calibration = absmag_calibration["mu_calibration"][:, mask]
+            e_mu_calibration = absmag_calibration["e_mu_calibration"][:, mask]
+            # Auxiliary parameters.
+            m = np.isfinite(mu_calibration)
+
+            # NumPyro refuses to start if any inputs are not finite, so we
+            # replace with some ficutive mean and very large standard
+            # deviation.
+            mu_calibration[~m] = 0.0
+            e_mu_calibration[~m] = 1000.0
+
+            calibration_params["mu_calibration"] = mu_calibration
+            calibration_params["e_mu_calibration"] = e_mu_calibration
+            calibration_params["is_finite_calibrator"] = m
+            calibration_params["counts_calibrators"] = np.sum(m, axis=0)
+            calibration_params["any_calibrator"] = np.any(m, axis=0)
+
         los_overdensity, los_velocity = mask_fields(
             los_overdensity, los_velocity, mask, void_kwargs is not None)
 
         model = PV_LogLikelihood(
             los_overdensity, los_velocity,
-            RA[mask], dec[mask], zCMB[mask], None, calibration_params, None,
+            RA[mask], dec[mask], zCMB[mask], None, calibration_params,
             mag_selection, loader.rdist, loader._Omega_m, "TFR", name=kind,
             void_kwargs=void_kwargs,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation,
@@ -555,29 +597,30 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         else:
             mask &= Qs == 5
 
-        # Read the absolute calibration
-        if absolute_calibration is not None:
-            CF4_length = len(RA)
-            distmod, with_calibration, length_calibration = read_absolute_calibration(  # noqa
-                "Cepheids", CF4_length, calibration_fpath)
-
-            distmod = distmod[mask]
-            with_calibration = with_calibration[mask]
-            length_calibration = length_calibration[mask]
-            fprint(f"found {np.sum(with_calibration)} galaxies with absolute calibration.")  # noqa
-
-            distmod = distmod[with_calibration]
-            length_calibration = length_calibration[with_calibration]
-
-            abs_calibration_params = {
-                "calibration_distmod": distmod,
-                "data_with_calibration": with_calibration,
-                "length_calibration": length_calibration}
-        else:
-            abs_calibration_params = None
-
         calibration_params = {"mag": mag[mask], "eta": eta[mask],
                               "e_mag": e_mag[mask], "e_eta": e_eta[mask]}
+
+        # Read the absolute calibration
+        mu_calibration, e_mu_calibration = read_absolute_calibration(
+            absolute_calibration, len(RA), calibration_fpath)
+
+        # The shape of these is (`ncalibrators, nobjects`).
+        mu_calibration = mu_calibration[:, mask]
+        e_mu_calibration = e_mu_calibration[:, mask]
+        # Auxiliary parameters.
+        m = np.isfinite(mu_calibration)
+
+        # NumPyro refuses to start if any inputs are not finite, so we
+        # replace with some ficutive mean and very large standard
+        # deviation.
+        mu_calibration[~m] = 0.0
+        e_mu_calibration[~m] = 1000.0
+
+        calibration_params["mu_calibration"] = mu_calibration
+        calibration_params["e_mu_calibration"] = e_mu_calibration
+        calibration_params["is_finite_calibrator"] = m
+        calibration_params["counts_calibrators"] = np.sum(m, axis=0)
+        calibration_params["any_calibrator"] = np.any(m, axis=0)
 
         los_overdensity, los_velocity = mask_fields(
             los_overdensity, los_velocity, mask, void_kwargs is not None)
@@ -585,8 +628,8 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         model = PV_LogLikelihood(
             los_overdensity, los_velocity,
             RA[mask], dec[mask], z_obs[mask], None, calibration_params,
-            abs_calibration_params, mag_selection, loader.rdist,
-            loader._Omega_m, "TFR", name=kind, void_kwargs=void_kwargs,
+            mag_selection, loader.rdist, loader._Omega_m, "TFR", name=kind,
+            void_kwargs=void_kwargs,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation)
     elif kind in ["CF4_GroupAll"]:
         # Note, this for some reason works terribly.
@@ -606,7 +649,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
 
         model = PV_LogLikelihood(
             los_overdensity, los_velocity,
-            RA[mask], dec[mask], zCMB[mask], None, calibration_params, None,
+            RA[mask], dec[mask], zCMB[mask], None, calibration_params,
             mag_selection,  loader.rdist, loader._Omega_m, "simple",
             name=kind, void_kwargs=void_kwargs,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation)
