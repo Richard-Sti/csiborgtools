@@ -30,8 +30,9 @@ def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
                      Vext=[150.0, 10.0, -100.0], h=1.0, beta=0.4,
                      mean_eta=0.069, std_eta=0.078, mean_e_eta=0.012,
                      mean_mag=10.31, std_mag=0.83, mean_e_mag=0.044,
-                     sigma_calibration=0.05,
-                     seed=42, Om0=0.3, **kwargs):
+                     sigma_calibration=0.05, calibration_max_percentile=10,
+                     calibration_rand_fraction=0.5, nrepeat_calibration=1,
+                     seed=42, Om0=0.3, verbose=True, **kwargs):
     """
     Mock TFR catalogue build against the Carrick velocity field and the
     2MTF sky distribution to avoid recomputing the LOS velocities.
@@ -82,7 +83,21 @@ def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
     # This is the distance modulus in units of little h.
     mu_true_h = mu_true + 5 * np.log10(h)
 
-    mu_calibration = gen.normal(mu_true, sigma_calibration)
+    # Select a fraction of nearby galaxies.
+    mu_max = np.percentile(mu_true, calibration_max_percentile)
+    ks = np.where(mu_true < mu_max)[0]
+    nsel = int(calibration_rand_fraction * len(ks))
+    if verbose:
+        print(f"Assigning calibration to {nsel}/{nsamples} galaxies.")
+
+    mu_calibration = np.full((nrepeat_calibration, nsamples), np.nan)
+    e_mu_calibration = np.full((nrepeat_calibration, nsamples), np.nan)
+
+    for n in range(nrepeat_calibration):
+        ks_n = gen.choice(ks, nsel, replace=False)
+
+        mu_calibration[n, ks_n] = gen.normal(mu_true[ks_n], sigma_calibration)
+        e_mu_calibration[n, ks_n] = np.ones(len(ks_n)) * sigma_calibration
 
     # Convert the true distance modulus to true distance and cosmological
     # redshift. The distance is in Mpc/h because the box is in Mpc / h.
@@ -125,8 +140,10 @@ def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
               "mag": mag_obs,
               "e_eta": np.ones(nsamples) * mean_e_eta,
               "e_mag": np.ones(nsamples) * mean_e_mag,
+              "mu_true": mu_true,
+              "mu_TFR": mu_TFR,
               "mu_calibration": mu_calibration,
-              "e_mu_calibration": np.ones(nsamples) * sigma_calibration,
+              "e_mu_calibration": e_mu_calibration,
               "r": r,
               }
 
