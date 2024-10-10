@@ -20,7 +20,7 @@ from h5py import File
 from ..params import SPEED_OF_LIGHT, simname2Omega_m
 from ..utils import fprint, radec_to_galactic, radec_to_supergalactic
 from .flow_model import PV_LogLikelihood
-from .void_model import load_void_data, mock_void, select_void_h
+from .void_model import load_void_fiducial, mock_void, select_void_h
 
 H0 = 100  # km / s / Mpc
 
@@ -264,7 +264,7 @@ class DataLoader:
             profile, rLG_index, seed = catalogue.split("_")[1:]
             rLG_index = int(rLG_index)
             seed = int(seed)
-            rLG, vrad_data = load_void_data(profile, "vrad")
+            rLG, vrad_data = load_void_fiducial(profile, "vrad")
             h = select_void_h(profile)
             print(f"Mock observed galaxies for LG observer with index "
                   f"{rLG_index} at {rLG[rLG_index] * h} Mpc / h and "

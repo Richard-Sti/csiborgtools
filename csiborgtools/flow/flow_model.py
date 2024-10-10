@@ -41,8 +41,8 @@ from ..utils import fprint
 from .cosmography import (dist2redshift, distmod2dist, distmod2dist_gradient,
                           distmod2redshift, gradient_redshift2dist)
 from .selection import toy_log_magnitude_selection
-from .void_model import (angular_distance_from_void_axis, interpolate_void,
-                         load_void_data)
+from .void_model import (angular_distance_from_void_axis, interpolate_fiducial_void,
+                         load_void_fiducial)
 
 H0 = 100  # km / s / Mpc
 
@@ -197,7 +197,7 @@ class BaseFlowValidationModel(ABC):
         """Create the void interpolator."""
         # h is the MOND model value of local H0 to convert the radial grid
         # to Mpc / h
-        rLG_grid, void_grid = load_void_data(profile, kind)
+        rLG_grid, void_grid = load_void_fiducial(profile, kind)
         void_grid = jnp.asarray(void_grid, dtype=jnp.float32)
         rLG_grid = jnp.asarray(rLG_grid, dtype=jnp.float32)
 
@@ -213,11 +213,11 @@ class BaseFlowValidationModel(ABC):
 
         if kind == "density":
             void_grid = jnp.log(void_grid)
-            self.void_log_rho_interpolator = lambda rLG: interpolate_void(
+            self.void_log_rho_interpolator = lambda rLG: interpolate_fiducial_void(
                 rLG, self.r_xrange, phi, void_grid, rgrid_min, rgrid_max,
                 rLG_min, rLG_max, order)
         elif kind == "vrad":
-            self.void_vrad_interpolator = lambda rLG: interpolate_void(
+            self.void_vrad_interpolator = lambda rLG: interpolate_fiducial_void(
                 rLG, self.r_xrange, phi, void_grid, rgrid_min, rgrid_max,
                 rLG_min, rLG_max, order)
         else:
