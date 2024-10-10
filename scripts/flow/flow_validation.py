@@ -374,13 +374,11 @@ if __name__ == "__main__":
 
         profile = ARGS.simname.split("_")[-1]
         h = csiborgtools.flow.select_void_h(profile)
-        rdist = np.arange(0, 165, 0.5)
+        rdist = np.arange(0, 165, 0.8)
         void_kwargs = {
             "profile": profile, "h": h, "order": 1, "rdist": rdist,
             "is_fiducial": "IndranilVoidSizeVar" not in ARGS.simname,
             }
-        print("VOID KWARGS ARE:")
-        print(void_kwargs)
     else:
         void_kwargs = None
         h = 1.
