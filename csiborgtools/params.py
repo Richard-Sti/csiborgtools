@@ -109,6 +109,9 @@ def simname2Omega_m(simname):
          "IndranilVoid_exp": 0.3,
          "IndranilVoid_gauss": 0.3,
          "IndranilVoid_mb": 0.3,
+         "IndranilVoidSizeVar_exp": 0.3,
+         "IndranilVoidSizeVar_gauss": 0.3,
+         "IndranilVoidSizeVar_mb": 0.3,
          "no_field": 0.3,
          "CLONES": 0.307115,
          }
