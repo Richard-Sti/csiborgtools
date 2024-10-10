@@ -41,8 +41,9 @@ from ..utils import fprint
 from .cosmography import (dist2redshift, distmod2dist, distmod2dist_gradient,
                           distmod2redshift, gradient_redshift2dist)
 from .selection import toy_log_magnitude_selection
-from .void_model import (angular_distance_from_void_axis, interpolate_fiducial_void,
-                         load_void_fiducial)
+from .void_model import (angular_distance_from_void_axis,
+                         interpolate_fiducial_void, interpolate_size_var_void,
+                         load_void_fiducial, load_void_size_variation)
 
 H0 = 100  # km / s / Mpc
 
@@ -193,11 +194,19 @@ class BaseFlowValidationModel(ABC):
         self.z_xrange = jnp.asarray(z_xrange)
         self.mu_xrange = jnp.asarray(mu_xrange)
 
-    def _set_void_data(self, RA, dec, profile, kind, h, order):
+    def _set_void_data(self, RA, dec, profile, kind, h, order, is_fiducial):
         """Create the void interpolator."""
         # h is the MOND model value of local H0 to convert the radial grid
         # to Mpc / h
-        rLG_grid, void_grid = load_void_fiducial(profile, kind)
+        if is_fiducial:
+            rLG_grid, void_grid = load_void_fiducial(profile, kind)
+            size_min, size_max = None, None
+        else:
+            size_grid, rLG_grid, void_grid = load_void_size_variation(
+                profile, kind)
+            size_grid = jnp.asarray(size_grid, dtype=jnp.float32)
+            size_min, size_max = size_grid.min(), size_grid.max()
+
         void_grid = jnp.asarray(void_grid, dtype=jnp.float32)
         rLG_grid = jnp.asarray(rLG_grid, dtype=jnp.float32)
 
@@ -213,13 +222,24 @@ class BaseFlowValidationModel(ABC):
 
         if kind == "density":
             void_grid = jnp.log(void_grid)
-            self.void_log_rho_interpolator = lambda rLG: interpolate_fiducial_void(
-                rLG, self.r_xrange, phi, void_grid, rgrid_min, rgrid_max,
-                rLG_min, rLG_max, order)
+
+        args = (self.r_xrange, phi, void_grid, size_min, size_max,
+                rgrid_min, rgrid_max, rLG_min, rLG_max, order)
+
+        if kind == "density":
+            if is_fiducial:
+                f = lambda rLG: interpolate_fiducial_void(None, rLG, *args)  # noqa
+            else:
+                f = lambda void_size, rLG: interpolate_size_var_void(        # noqa
+                    void_size, rLG, *args)
+            self.void_log_rho_interpolator = f
         elif kind == "vrad":
-            self.void_vrad_interpolator = lambda rLG: interpolate_fiducial_void(
-                rLG, self.r_xrange, phi, void_grid, rgrid_min, rgrid_max,
-                rLG_min, rLG_max, order)
+            if is_fiducial:
+                f = lambda rLG: interpolate_fiducial_void(None, rLG, *args)  # noqa
+            else:
+                f = lambda void_size, rLG: interpolate_size_var_void(         # noqa
+                    void_size, rLG, *args)
+            self.void_vrad_interpolator = f
         else:
             raise ValueError(f"Unknown kind: `{kind}`.")
 
@@ -247,14 +267,16 @@ class BaseFlowValidationModel(ABC):
     def log_los_density(self, **kwargs):
         if self.is_void_data:
             # We want the shape to be `(1, n_objects, n_radial_steps)``.
-            return self.void_log_rho_interpolator(kwargs["rLG"])[None, ...]
+            return self.void_log_rho_interpolator(
+                kwargs["void_size"], kwargs["rLG"])[None, ...]
 
         return self._log_los_density
 
     def los_velocity(self, **kwargs):
         if self.is_void_data:
             # We want the shape to be `(1, n_objects, n_radial_steps)``.
-            return self.void_vrad_interpolator(kwargs["rLG"])[None, ...]
+            return self.void_vrad_interpolator(
+                kwargs["void_size"], kwargs["rLG"])[None, ...]
 
         return self._los_velocity
 
@@ -398,7 +420,8 @@ def sample_simple(e_mu_min, e_mu_max, dmu_min, dmu_max, alpha_min, alpha_max,
 def sample_calibration(Vext_min, Vext_max, Vmono_min, Vmono_max, beta_min,
                        beta_max, sigma_v_min, sigma_v_max, h_min, h_max,
                        rLG_min, rLG_max, no_Vext, sample_Vmono, sample_beta,
-                       sample_h, sample_rLG, sample_Vmag_vax):
+                       sample_h, sample_rLG, sample_Vmag_vax, sample_void_size,
+                       void_size_min, void_size_max):
     """Sample the flow calibration."""
     sigma_v = sample("sigma_v", Uniform(sigma_v_min, sigma_v_max))
 
@@ -437,6 +460,11 @@ def sample_calibration(Vext_min, Vext_max, Vmono_min, Vmono_max, beta_min,
     else:
         rLG = None
 
+    if sample_void_size:
+        void_size = sample("void_size", Uniform(void_size_min, void_size_max))
+    else:
+        void_size = None
+
     return {"Vext": Vext,
             "Vmono": Vmono,
             "sigma_v": sigma_v,
@@ -444,6 +472,7 @@ def sample_calibration(Vext_min, Vext_max, Vmono_min, Vmono_max, beta_min,
             "h": h,
             "sample_h": sample_h,
             "rLG": rLG,
+            "void_size": void_size,
             }
 
 
@@ -512,11 +541,6 @@ class PV_LogLikelihood(BaseFlowValidationModel):
 
         self.is_void_data = void_kwargs is not None
 
-        # This must be done before we convert to radians.
-        if void_kwargs is not None:
-            self._set_void_data(RA=RA, dec=dec,  kind="density", **void_kwargs)
-            self._set_void_data(RA=RA, dec=dec,  kind="vrad", **void_kwargs)
-
         # Convert RA/dec to radians.
         RA, dec = np.deg2rad(RA), np.deg2rad(dec)
 
@@ -537,6 +561,15 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         self._setattr_as_jax(names, values)
         self._set_calibration_params(calibration_params)
         self._set_radial_spacing(r_xrange, Omega_m)
+
+        # RA, DEC was above converted to radians, but we need input in degrees
+        if void_kwargs is not None:
+            RA_deg = np.rad2deg(RA)
+            dec_deg = np.rad2deg(dec)
+            self._set_void_data(RA=RA_deg, dec=dec_deg,
+                                kind="density", **void_kwargs)
+            self._set_void_data(RA=RA_deg, dec=dec_deg,
+                                kind="vrad", **void_kwargs)
 
         self.kind = kind
         self.name = name
@@ -769,8 +802,10 @@ class PV_LogLikelihood(BaseFlowValidationModel):
 
             if self.is_void_data:
                 rLG = field_calibration_params["rLG"]
-                log_los_density = self.log_los_density(rLG=rLG)
-                los_velocity = self.los_velocity(rLG=rLG)
+                void_size = field_calibration_params["void_size"]
+                log_los_density = self.log_los_density(
+                    void_size=void_size, rLG=rLG)
+                los_velocity = self.los_velocity(void_size=void_size, rLG=rLG)
             else:
                 log_los_density = self.log_los_density()
                 los_velocity = self.los_velocity()
