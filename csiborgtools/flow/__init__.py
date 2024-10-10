@@ -20,4 +20,5 @@ from .flow_model import (PV_LogLikelihood, PV_validation_model, dist2redshift,  
 from .mocks import mock_Carrick2MTF                                             # noqa
 from .selection import ToyMagnitudeSelection                                    # noqa
 from .void_model import (load_void_fiducial, load_void_size_variation,          # noqa
-                         interpolate_fiducial_void, select_void_h, mock_void)   # noqa
+                         interpolate_fiducial_void, interpolate_size_var_void,  # noqa
+                         select_void_h, mock_void)                              # noqa
