@@ -404,7 +404,7 @@ if __name__ == "__main__":
                                "sample_h": sample_h,
                                "sample_rLG": "IndranilVoid" in ARGS.simname,
                                "sample_void_size": "IndranilVoidSizeVar" in ARGS.simname,  # noqa
-                               "void_size_min": 0.101, "void_size_max": 2.99,
+                               "void_size_min": 0.1, "void_size_max": 3.0,
                                "rLG_min": 0.0, "rLG_max": 500 * h,
                                }
     print_variables(
