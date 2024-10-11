@@ -374,8 +374,11 @@ if __name__ == "__main__":
 
         profile = ARGS.simname.split("_")[-1]
         h = csiborgtools.flow.select_void_h(profile)
-        rdist = np.arange(0, 165, 0.5)
-        void_kwargs = {"profile": profile, "h": h, "order": 1, "rdist": rdist}
+        rdist = np.arange(0, 165, 0.8)
+        void_kwargs = {
+            "profile": profile, "h": h, "order": 1, "rdist": rdist,
+            "is_fiducial": "IndranilVoidSizeVar" not in ARGS.simname,
+            }
     else:
         void_kwargs = None
         h = 1.
@@ -400,6 +403,8 @@ if __name__ == "__main__":
                                "sample_beta": sample_beta,
                                "sample_h": sample_h,
                                "sample_rLG": "IndranilVoid" in ARGS.simname,
+                               "sample_void_size": "IndranilVoidSizeVar" in ARGS.simname,  # noqa
+                               "void_size_min": 0.1, "void_size_max": 3.0,
                                "rLG_min": 0.0, "rLG_max": 500 * h,
                                }
     print_variables(

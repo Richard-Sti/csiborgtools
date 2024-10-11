@@ -15,19 +15,20 @@
 """Functions to work with the void data from Sergij & Indranil's files."""
 
 from glob import glob
-from os.path import join
+from os.path import exists, join
 from re import search
 
 import numpy as np
 from astropy.coordinates import SkyCoord, angular_separation
+from h5py import File
 from jax import numpy as jnp
 from jax import vmap
 from jax.scipy.ndimage import map_coordinates
 from scipy.interpolate import RegularGridInterpolator
 from tqdm import tqdm
 
-from ..utils import galactic_to_radec
 from ..params import SPEED_OF_LIGHT
+from ..utils import fprint, galactic_to_radec
 from .cosmography import distmod2dist, distmod2redshift
 
 ###############################################################################
@@ -62,7 +63,8 @@ def select_void_h(kind):
 ###############################################################################
 
 
-def load_void_data(profile, kind):
+def load_void_fiducial(profile, kind, try_load_from_hdf5=True,
+                       dump_to_hdf5=True):
     """
     Load the void velocities from Sergij & Indranil's files for a given kind
     of void profile per observer.
@@ -73,10 +75,17 @@ def load_void_data(profile, kind):
         Void profile to load. One of "exp", "gauss", "mb".
     kind : str
         Data kind, either "density" or "vrad".
+    try_load_from_hdf5 : bool, optional
+        Attempt to load the data from a preprocessed HDF5 file.
+    dump_to_hdf5 : bool, optional
+        Dump the loaded data to an HDF5 file for faster loading next time.
 
     Returns
     -------
+    rLG : 1-dimensional array of shape `(nLG,)`
+        The observer's distance from the center of the void.
     velocities : 3-dimensional array of shape (nLG, nrad, nphi)
+        Void velocities for different observers, radial distances, and angles.
     """
     if profile not in ["exp", "gauss", "mb"]:
         raise ValueError("profile must be one of 'exp', 'gauss', 'mb'")
@@ -84,12 +93,23 @@ def load_void_data(profile, kind):
     if kind not in ["density", "vrad"]:
         raise ValueError("kind must be one of 'density', 'vrad'")
 
-    fdir = "/mnt/extraspace/rstiskalek/catalogs/IndranilVoid"
+    fdir_base = "/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/SizeVariation"  # noqa
+    fdir = join(fdir_base, "sizenumber10")
+    fname_scratch = join(fdir, f"processed_fiducial_{profile}_{kind}.hdf5")
+
+    if try_load_from_hdf5 and exists(fname_scratch):
+        fprint(f"loading pre-processed data from `{fname_scratch}`.")
+        with File(fname_scratch, 'r') as f:
+            rLG = f['rLG'][...]
+            data = f['data'][...]
+
+        return rLG, data
 
     if kind == "density":
         fdir = join(fdir, "rho_data")
         tag = "rho"
     else:
+        fdir = join(fdir, "vr_data")
         tag = "v_pec"
 
     profile = profile.upper()
@@ -112,22 +132,127 @@ def load_void_data(profile, kind):
     if np.any(np.isnan(data)):
         raise ValueError("Found NaNs in loaded data.")
 
+    if dump_to_hdf5:
+        fprint(f"dumping data to `{fname_scratch}`.")
+        with File(fname_scratch, 'w') as f:
+            f.create_dataset('rLG', data=rLG)
+            f.create_dataset('data', data=data)
+
     return rLG, data
+
+
+def load_void_size_variation(profile, kind, try_load_from_hdf5=True,
+                             dump_to_hdf5=True):
+    """
+    Load the void velocities from Sergij & Indranil's files for a given kind
+    of void profile per observer with varying void sizes.
+
+    The original files are slow to load, so depending on the flags attempts
+    to load from a preprocessed HDF5 file
+
+    Parameters
+    ----------
+    profile : str
+        Void profile to load. One of "exp", "gauss", "mb".
+    kind : str
+        Data kind, either "density" or "vrad".
+    try_load_from_hdf5 : bool, optional
+        Attempt to load the data from a preprocessed HDF5 file.
+    dump_to_hdf5 : bool, optional
+        Dump the loaded data to an HDF5 file for faster loading next time.
+
+    Returns
+    -------
+    sizes: 1-dimensional array of shape `(nsize,)`
+        Relative void sizes.
+    rLG : 1-dimensional array of shape `(nLG,)`
+        The observer's distance from the center of the void.
+    velocities : 3-dimensional array of shape (nLG, nrad, nphi)
+        Void velocities for different void sizes, observers, radial distances,
+        and angles.
+    """
+    if profile not in ["exp", "gauss", "mb"]:
+        raise ValueError("profile must be one of 'exp', 'gauss', 'mb'")
+
+    if kind not in ["density", "vrad"]:
+        raise ValueError("kind must be one of 'density', 'vrad'")
+
+    base_dir = "/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/SizeVariation"
+    fname_scratch = join(base_dir, f"processed_{profile}_{kind}.hdf5")
+
+    if try_load_from_hdf5 and exists(fname_scratch):
+        fprint(f"loading pre-processed data from `{fname_scratch}`.")
+        with File(fname_scratch, 'r') as f:
+            size = f['size'][...]
+            rLG = f['rLG'][...]
+            data = f['data'][...]
+
+        return size, rLG, data
+
+    size_indxs = sorted(int(search(r'sizenumber(\d+)', d).group(1))
+                        for d in glob(join(base_dir, 'sizenumber*')))
+    size = np.array(size_indxs) / 10
+
+    # Loop over the void sizes
+    for ki, k in enumerate(tqdm(size_indxs, desc=f"Loading {profile}, {kind} void size variation data")):  # noqa
+        fdir = join(base_dir, f"sizenumber{str(k).zfill(2)}")
+        if kind == "density":
+            fdir = join(fdir, "rho_data")
+            tag = "rho"
+        else:
+            fdir = join(fdir, "vr_data")
+            tag = "v_pec"
+
+        profile = profile.upper()
+        fdir = join(fdir, f"{profile}profile")
+
+        files = glob(join(fdir, "*.dat"))
+        rLG = [int(search(rf'{tag}_{profile}profile_rLG_(\d+)', f).group(1))
+               for f in files]
+        rLG = np.sort(rLG)
+
+        for i, ri in enumerate(rLG):
+            f = join(fdir, f"{tag}_{profile}profile_rLG_{ri}.dat")
+            data_i = np.genfromtxt(f).T
+
+            if i == 0 and ki == 0:
+                data = np.full((len(size_indxs), len(rLG), *data_i.shape),
+                               np.nan, dtype=np.float32)
+
+            data[ki, i] = data_i
+
+    if np.any(np.isnan(data)):
+        raise ValueError("Found NaNs in loaded data.")
+
+    if dump_to_hdf5:
+        fprint(f"dumping data to `{fname_scratch}`.")
+        with File(fname_scratch, 'w') as f:
+            f.create_dataset('size', data=size)
+            f.create_dataset('rLG', data=rLG)
+            f.create_dataset('data', data=data)
+
+    return size, rLG, data
 
 ###############################################################################
 #                      Interpolation of void velocities                       #
 ###############################################################################
 
 
-def interpolate_void(rLG, r, phi, data, rgrid_min, rgrid_max, rLG_min, rLG_max,
-                     order=1):
+def interpolate_fiducial_void(void_size, rLG, r, phi, data, void_size_min,
+                              void_size_max, rgrid_min, rgrid_max, rLG_min,
+                              rLG_max, order=1):
     """
     Interpolate the void velocities from Sergij & Indranil's files for a given
     observer over a set of radial distances and at angles specifying the
     galaxies.
 
+    `void_size`, `void_size_min`, and `void_size_max` are not used, but are
+    kept for consistency with the other interpolation functions.
+
     Parameters
     ----------
+    void_size : float
+        Not used. Pass arbitrary value.
     rLG : float
         The observer's distance from the center of the void.
     r : 1-dimensional array of shape `(nsteps,)
@@ -138,6 +263,8 @@ def interpolate_void(rLG, r, phi, data, rgrid_min, rgrid_max, rLG_min, rLG_max,
     data : 3-dimensional array of shape (nLG, nrad, nphi)
         The void velocities for different observers, radial distances, and
         angles.
+    void_size_min, void_size_max : float
+        Not used. Pass arbitrary values.
     rgrid_min, rgrid_max : float
         The minimum and maximum radial distances in the data.
     rLG_min, rLG_max : float
@@ -163,6 +290,72 @@ def interpolate_void(rLG, r, phi, data, rgrid_min, rgrid_max, rLG_min, rLG_max,
 
         # Create the grid for this specific phi
         X = jnp.vstack([rLG_normalized,
+                        r_normalized,
+                        jnp.repeat(phi_normalized, r.size)])
+
+        # Interpolate over the data using map_coordinates. The mode is nearest
+        # to avoid extrapolation. But values outside of the grid should never
+        # occur.
+        return map_coordinates(data, X, order=order, mode='nearest')
+
+    return vmap(interpolate_single_phi)(phi)
+
+
+def interpolate_size_var_void(void_size, rLG, r, phi, data, void_size_min,
+                              void_size_max, rgrid_min, rgrid_max, rLG_min,
+                              rLG_max, order=1):
+    """
+    Interpolate the void velocities from Sergij & Indranil's files for a given
+    void size and observer over a set of radial distances and at angles
+    specifying the galaxies.
+
+    Parameters
+    ----------
+    void_size : float
+        The relative void size.
+    rLG : float
+        The observer's distance from the center of the void.
+    r : 1-dimensional array of shape `(nsteps,)
+        The radial distances at which to interpolate the velocities.
+    phi : 1-dimensional array of shape `(ngal,)`
+        The angles at which to interpolate the velocities, in degrees,
+        defining the galaxy position.
+    data : 3-dimensional array of shape (nLG, nrad, nphi)
+        The void velocities for different observers, radial distances, and
+        angles.
+    void_size_min, void_size_max : float
+        The minimum and maximum relative void sizes in the data.
+    rgrid_min, rgrid_max : float
+        The minimum and maximum radial distances in the data.
+    rLG_min, rLG_max : float
+        The minimum and maximum observer distances in the data.
+    order : int, optional
+        The order of the interpolation. Default is 1, can be 0.
+
+    Returns
+    -------
+    vel : 2-dimensional array of shape `(ngal, nsteps)`
+    """
+    nsize, nLG, nrad, nphi = data.shape
+
+    # Normalize the void size and rLG to the grid scale
+    void_size_normalized = ((void_size - void_size_min)
+                            / (void_size_max - void_size_min) * (nsize - 1))
+    void_size_normalized = jnp.repeat(void_size_normalized, r.size)
+
+    rLG_normalized = (rLG - rLG_min) / (rLG_max - rLG_min) * (nLG - 1)
+    rLG_normalized = jnp.repeat(rLG_normalized, r.size)
+
+    r_normalized = (r - rgrid_min) / (rgrid_max - rgrid_min) * (nrad - 1)
+
+    # Function to perform interpolation for a single phi
+    def interpolate_single_phi(phi_val):
+        # Normalize phi to match the grid
+        phi_normalized = phi_val / 180 * (nphi - 1)
+
+        # Create the grid for this specific phi
+        X = jnp.vstack([void_size_normalized,
+                        rLG_normalized,
                         r_normalized,
                         jnp.repeat(phi_normalized, r.size)])
 

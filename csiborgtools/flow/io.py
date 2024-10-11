@@ -20,7 +20,7 @@ from h5py import File
 from ..params import SPEED_OF_LIGHT, simname2Omega_m
 from ..utils import fprint, radec_to_galactic, radec_to_supergalactic
 from .flow_model import PV_LogLikelihood
-from .void_model import load_void_data, mock_void, select_void_h
+from .void_model import load_void_fiducial, mock_void, select_void_h
 
 H0 = 100  # km / s / Mpc
 
@@ -264,7 +264,7 @@ class DataLoader:
             profile, rLG_index, seed = catalogue.split("_")[1:]
             rLG_index = int(rLG_index)
             seed = int(seed)
-            rLG, vrad_data = load_void_data(profile, "vrad")
+            rLG, vrad_data = load_void_fiducial(profile, "vrad")
             h = select_void_h(profile)
             print(f"Mock observed galaxies for LG observer with index "
                   f"{rLG_index} at {rLG[rLG_index] * h} Mpc / h and "
@@ -601,26 +601,27 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
                               "e_mag": e_mag[mask], "e_eta": e_eta[mask]}
 
         # Read the absolute calibration
-        mu_calibration, e_mu_calibration = read_absolute_calibration(
-            absolute_calibration, len(RA), calibration_fpath)
+        if absolute_calibration is not None:
+            mu_calibration, e_mu_calibration = read_absolute_calibration(
+                absolute_calibration, len(RA), calibration_fpath)
 
-        # The shape of these is (`ncalibrators, nobjects`).
-        mu_calibration = mu_calibration[:, mask]
-        e_mu_calibration = e_mu_calibration[:, mask]
-        # Auxiliary parameters.
-        m = np.isfinite(mu_calibration)
+            # The shape of these is (`ncalibrators, nobjects`).
+            mu_calibration = mu_calibration[:, mask]
+            e_mu_calibration = e_mu_calibration[:, mask]
+            # Auxiliary parameters.
+            m = np.isfinite(mu_calibration)
 
-        # NumPyro refuses to start if any inputs are not finite, so we
-        # replace with some ficutive mean and very large standard
-        # deviation.
-        mu_calibration[~m] = 0.0
-        e_mu_calibration[~m] = 1000.0
+            # NumPyro refuses to start if any inputs are not finite, so we
+            # replace with some ficutive mean and very large standard
+            # deviation.
+            mu_calibration[~m] = 0.0
+            e_mu_calibration[~m] = 1000.0
 
-        calibration_params["mu_calibration"] = mu_calibration
-        calibration_params["e_mu_calibration"] = e_mu_calibration
-        calibration_params["is_finite_calibrator"] = m
-        calibration_params["counts_calibrators"] = np.sum(m, axis=0)
-        calibration_params["any_calibrator"] = np.any(m, axis=0)
+            calibration_params["mu_calibration"] = mu_calibration
+            calibration_params["e_mu_calibration"] = e_mu_calibration
+            calibration_params["is_finite_calibrator"] = m
+            calibration_params["counts_calibrators"] = np.sum(m, axis=0)
+            calibration_params["any_calibrator"] = np.any(m, axis=0)
 
         los_overdensity, los_velocity = mask_fields(
             los_overdensity, los_velocity, mask, void_kwargs is not None)
