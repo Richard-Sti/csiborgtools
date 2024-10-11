@@ -93,8 +93,9 @@ def load_void_fiducial(profile, kind, try_load_from_hdf5=True,
     if kind not in ["density", "vrad"]:
         raise ValueError("kind must be one of 'density', 'vrad'")
 
-    fdir = "/mnt/extraspace/rstiskalek/catalogs/IndranilVoid"
-    fname_scratch = join(fdir, f"processed_{profile}_{kind}.hdf5")
+    fdir_base = "/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/SizeVariation"  # noqa
+    fdir = join(fdir_base, "sizenumber10")
+    fname_scratch = join(fdir, f"processed_fiducial_{profile}_{kind}.hdf5")
 
     if try_load_from_hdf5 and exists(fname_scratch):
         fprint(f"loading pre-processed data from `{fname_scratch}`.")
@@ -108,6 +109,7 @@ def load_void_fiducial(profile, kind, try_load_from_hdf5=True,
         fdir = join(fdir, "rho_data")
         tag = "rho"
     else:
+        fdir = join(fdir, "vr_data")
         tag = "v_pec"
 
     profile = profile.upper()
