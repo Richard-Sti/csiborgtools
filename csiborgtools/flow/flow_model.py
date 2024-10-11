@@ -228,14 +228,14 @@ class BaseFlowValidationModel(ABC):
 
         if kind == "density":
             if is_fiducial:
-                f = lambda rLG: interpolate_fiducial_void(None, rLG, *args)  # noqa
+                f = lambda void_size, rLG: interpolate_fiducial_void(None, rLG, *args)  # noqa
             else:
                 f = lambda void_size, rLG: interpolate_size_var_void(        # noqa
                     void_size, rLG, *args)
             self.void_log_rho_interpolator = f
         elif kind == "vrad":
             if is_fiducial:
-                f = lambda rLG: interpolate_fiducial_void(None, rLG, *args)  # noqa
+                f = lambda void_size, rLG: interpolate_fiducial_void(None, rLG, *args)  # noqa
             else:
                 f = lambda void_size, rLG: interpolate_size_var_void(         # noqa
                     void_size, rLG, *args)
