@@ -30,7 +30,7 @@ from interpax import interp1d
 from jax import jit
 from jax import numpy as jnp
 from jax import vmap
-from jax.scipy.special import erf, logsumexp
+from jax.scipy.special import erf, erfc, logsumexp
 from numpyro import factor, plate, sample
 from numpyro.distributions import MultivariateNormal, Normal, Uniform
 from quadax import simpson
@@ -106,11 +106,23 @@ def normal_logpdf(x, loc, scale):
             - jnp.log(scale) - 0.5 * jnp.log(2 * jnp.pi))
 
 
+def lower_truncated_normal_logpdf(x, loc, scale, xmin):
+    """Log of the normal probability density function truncated at `xmin`."""
+    norm = 0.5 * erfc(-jnp.abs(xmin - loc) / (jnp.sqrt(2) * scale))
+    return normal_logpdf(x, loc, scale) - jnp.log(norm)
+
+
 def upper_truncated_normal_logpdf(x, loc, scale, xmax):
     """Log of the normal probability density function truncated at `xmax`."""
     # Need the absolute value just to avoid sometimes things going wrong,
     # but it should never occur that loc > xmax.
     norm = 0.5 * (1 + erf((jnp.abs(xmax - loc)) / (jnp.sqrt(2) * scale)))
+    return normal_logpdf(x, loc, scale) - jnp.log(norm)
+
+
+def truncated_normal_logpdf(x, loc, scale, xmin, xmax):
+    norm = (+ 0.5 * erf(jnp.abs(xmax - loc) / (jnp.sqrt(2) * scale))
+            - 0.5 * erf(-jnp.abs(xmin - loc) / (jnp.sqrt(2) * scale)))
     return normal_logpdf(x, loc, scale) - jnp.log(norm)
 
 
@@ -507,8 +519,8 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         Errors on the observed redshifts.
     calibration_params : dict
         Calibration parameters of each object.
-    mag_selection : dict
-        Magnitude selection parameters, optional.
+    selection : dict
+        Magnitude and linewidth selection parameters, optional.
     r_xrange : 1-dimensional array
         Radial distances where the field was interpolated for each object.
     Omega_m : float
@@ -530,7 +542,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
     """
 
     def __init__(self, los_density, los_velocity, RA, dec, z_obs, e_zobs,
-                 calibration_params, mag_selection, r_xrange, Omega_m, kind,
+                 calibration_params, selection, r_xrange, Omega_m, kind,
                  name, void_kwargs=None, wo_num_dist_marginalisation=False,
                  with_homogeneous_malmquist=True,
                  with_inhomogeneous_malmquist=True):
@@ -579,23 +591,27 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         self.with_inhomogeneous_malmquist = with_inhomogeneous_malmquist
         self.norm = - self.ndata * jnp.log(self.num_sims)
 
-        if mag_selection is not None:
-            self.mag_selection_kind = mag_selection["kind"]
+        if selection is not None:
+            self.mag_selection_kind = selection["mag_kind"]
 
             if self.mag_selection_kind == "hard":
-                self.mag_selection_max = mag_selection["coeffs"]
-                fprint(f"catalogue {name} with selection mmax = {self.mag_selection_max}.")               # noqa
+                self.mag_selection_max = selection["mag_coeffs"]
+                fprint(f"catalogue {name} with magnitude selection m_max = {self.mag_selection_max}.")               # noqa
             elif self.mag_selection_kind == "soft":
-                self.m1, self.m2, self.a = mag_selection["coeffs"]
-                fprint(f"catalogue {name} with selection m1 = {self.m1}, m2 = {self.m2}, a = {self.a}.")  # noqa
+                self.m1, self.m2, self.a = selection["mag_coeffs"]
+                fprint(f"catalogue {name} with magnitude selection m1 = {self.m1}, m2 = {self.m2}, a = {self.a}.")  # noqa
                 self.log_Fm = toy_log_magnitude_selection(
                     self.mag, self.m1, self.m2, self.a)
+
+            self.eta_selection_kind = selection["eta_kind"]
+            self.eta_selection_min, self.eta_selection_max = selection["eta_coeffs"]  # noqa
+            fprint(f"catalogue {name} with linewidth selection eta_min = {self.eta_selection_min}, eta_max = {self.eta_selection_max}.")  # noqa
         else:
             self.mag_selection_kind = None
 
-        if mag_selection is not None and kind != "TFR":
-            raise ValueError("Magnitude selection is only implemented "
-                             "for TFRs.")
+        if selection is not None and kind != "TFR":
+            raise ValueError("Selection is only implemented "
+                             "for TFR samples.")
 
         if kind == "TFR":
             self.mag_min, self.mag_max = jnp.min(self.mag), jnp.max(self.mag)
@@ -668,7 +684,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                     ll0 += jnp.sum(normal_logpdf(
                         mag_true, self.mag, self.e_mag))
                 else:
-                    raise NotImplementedError("Maxmag selection not implemented.")  # noqa
+                    raise NotImplementedError("Magnitude selection not implemented.")  # noqa
 
                 # Log-likelihood of the observed x1 and c.
                 ll0 += jnp.sum(normal_logpdf(x1_true, self.x1, self.e_x1))
@@ -746,7 +762,21 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                         self.mag, mag_true, self.e_mag))
 
                 # Log-likelihood of the observed linewidths.
-                ll0 += jnp.sum(normal_logpdf(eta_true, self.eta, self.e_eta))
+                if self.eta_selection_kind == "hard":
+                    ll0 += jnp.sum(truncated_normal_logpdf(
+                        self.eta, eta_true, self.e_eta,
+                        self.eta_selection_min, self.eta_selection_max))
+                elif self.eta_selection_kind == "lower_hard":
+                    ll0 += jnp.sum(lower_truncated_normal_logpdf(
+                        self.eta, eta_true, self.e_eta,
+                        self.eta_selection_min))
+                elif self.eta_selection_kind == "upper_hard":
+                    ll0 += jnp.sum(upper_truncated_normal_logpdf(
+                        self.eta, eta_true, self.e_eta,
+                        self.eta_selection_max))
+                else:
+                    ll0 += jnp.sum(normal_logpdf(
+                        eta_true, self.eta, self.e_eta))
 
                 e2_mu = jnp.ones_like(mag_true) * e_mu**2
             else:

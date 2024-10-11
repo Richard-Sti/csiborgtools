@@ -15,7 +15,7 @@
 """Selection functions for peculiar velocities."""
 from jax import numpy as jnp
 from numpyro import factor, sample
-from numpyro.distributions import Normal, Uniform
+from numpyro.distributions import Uniform
 from quadax import simpson
 
 
@@ -57,7 +57,7 @@ class ToyMagnitudeSelection:
 
     def __call__(self, mag):
         """NumPyro model, uses an informative prior on `alpha`."""
-        alpha = sample("alpha", Normal(0.6, 0.1))
+        alpha = 0.6
         m1 = sample("m1", Uniform(0, 25))
         m2 = sample("m2", Uniform(0, 25))
         a = sample("a", Uniform(-10, 0))

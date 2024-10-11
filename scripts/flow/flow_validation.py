@@ -274,24 +274,35 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole):
 def get_toy_selection(catalogue):
     """Toy magnitude selection coefficients."""
     if catalogue == "SFI_gals":
-        kind = "soft"
+        mag_kind = "soft"
         # m1, m2, a
-        coeffs = [11.467, 12.906, -0.231]
+        mag_coeffs = [11.602, 12.948, -0.233]
+        eta_coeffs = None
+        eta_kind = None
     elif "CF4_TFR" in catalogue and "_i" in catalogue:
-        kind = "soft"
-        coeffs = [13.043, 14.423, -0.129]
+        mag_kind = "soft"
+        mag_coeffs = [12.010, 13.879, -0.158]
+        eta_coeffs = [-0.3, None]
+        eta_kind = "lower_hard"
     elif "CF4_TFR" in catalogue and "w1" in catalogue:
-        kind = "soft"
-        coeffs = [11.731, 14.189, -0.118]
+        mag_kind = "soft"
+        mag_coeffs = [10.921, 13.471, -0.118]
+        eta_kind = "lower_hard"
+        eta_coeffs = [-0.3, None]
     elif catalogue == "2MTF":
-        kind = "hard"
-        coeffs = 11.25
+        mag_kind = "hard"
+        mag_coeffs = 11.25
+        eta_coeffs = [-0.1, 0.2]
+        eta_kind = "hard"
     else:
         fprint(f"found no selection coefficients for {catalogue}.")
         return None
 
-    return {"kind": kind,
-            "coeffs": coeffs}
+    return {"mag_kind": mag_kind,
+            "mag_coeffs": mag_coeffs,
+            "eta_kind": eta_kind,
+            "eta_coeffs": eta_coeffs,
+            }
 
 
 if __name__ == "__main__":
@@ -306,12 +317,12 @@ if __name__ == "__main__":
 
     # `None` means default behaviour
     nsteps = 1_500
-    nburn = 1_500
+    nburn = 2_500
     zcmb_min = None
     zcmb_max = 0.05
     nchains_harmonic = 10
     num_epochs = 50
-    inference_method = "mike"
+    inference_method = "bayes"
     mag_selection = None
     sample_alpha = False if (ARGS.simname == "no_field" or "IndranilVoid" in ARGS.simname) else True  # noqa
     sample_beta = None
