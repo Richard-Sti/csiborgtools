@@ -443,10 +443,11 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
     kind = loader._catname
 
     if void_kwargs is not None:
-        rdist = void_kwargs.pop("rdist", None)
-        if rdist is None:
+        try:
+            rdist = void_kwargs["rdist"]
+        except KeyError as e:
             raise ValueError(
-                "The radial distances must be provided for the void.")
+                "The radial distances must be provided for the void.") from e
 
         loader._field_rdist = rdist
 
