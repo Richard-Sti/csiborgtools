@@ -63,6 +63,7 @@ def names_to_latex(names, for_corner=False):
            "Vext_axis_mag": "V_{\\rm axis} ~ [\\mathrm{km} / \\mathrm{s}]",
            "Vvoid": "\\tilde{V}_{\\rm void} ~ [\\mathrm{km} / \\mathrm{s}]",
            "void_size": "r_{\\rm void}",
+           "hubble": "h",
            }
 
     ltx_corner = {"alpha": r"$\alpha$",
@@ -75,6 +76,7 @@ def names_to_latex(names, for_corner=False):
                   "beta_cal": r"$\mathcal{B}$",
                   "mag_cal": r"$\mathcal{M}$",
                   "Vvoid": r"$\tilde{V}_{\rm void}$",
+                  "hubble": r"$h$",
                   }
 
     names = copy(names)
@@ -89,18 +91,18 @@ def names_to_latex(names, for_corner=False):
             names[i] = names[i].replace("CF4_TFR_i", "CF4,TFR")
 
     for cat in ["2MTF", "SFI", "CF4,TFR"]:
-        ltx[f"a_{cat}"] = f"a_{{\\rm TF}}^{{\\rm {cat}}}"
-        ltx[f"b_{cat}"] = f"b_{{\\rm TF}}^{{\\rm {cat}}}"
-        ltx[f"c_{cat}"] = f"c_{{\\rm TF}}^{{\\rm {cat}}}"
+        ltx[f"aTFR_{cat}"] = f"a_{{\\rm TF}}^{{\\rm {cat}}}"
+        ltx[f"bTFR_{cat}"] = f"b_{{\\rm TF}}^{{\\rm {cat}}}"
+        ltx[f"cTFR_{cat}"] = f"c_{{\\rm TF}}^{{\\rm {cat}}}"
         ltx[f"corr_mag_eta_{cat}"] = f"\\rho_{{m,\\eta}}^{{\\rm {cat}}}"
         ltx[f"eta_mean_{cat}"] = f"\\widehat{{\\eta}}^{{\\rm {cat}}}"
         ltx[f"eta_std_{cat}"] = f"\\widehat{{\\sigma}}_\\eta^{{\\rm {cat}}}"
         ltx[f"mag_mean_{cat}"] = f"\\widehat{{m}}^{{\\rm {cat}}}"
         ltx[f"mag_std_{cat}"] = f"\\widehat{{\\sigma}}_m^{{\\rm {cat}}}"
 
-        ltx_corner[f"a_{cat}"] = rf"$a_{{\rm TF}}^{{\rm {cat}}}$"
-        ltx_corner[f"b_{cat}"] = rf"$b_{{\rm TF}}^{{\rm {cat}}}$"
-        ltx_corner[f"c_{cat}"] = rf"$c_{{\rm TF}}^{{\rm {cat}}}$"
+        ltx_corner[f"aTFR_{cat}"] = rf"$a_{{\rm TF}}^{{\rm {cat}}}$"
+        ltx_corner[f"bTFR_{cat}"] = rf"$b_{{\rm TF}}^{{\rm {cat}}}$"
+        ltx_corner[f"cTFR_{cat}"] = rf"$c_{{\rm TF}}^{{\rm {cat}}}$"
         ltx_corner[f"corr_mag_eta_{cat}"] = rf"$\rho_{{m,\eta}}^{{\rm {cat}}}$"
         ltx_corner[f"eta_mean_{cat}"] = rf"$\widehat{{\eta}}^{{\rm {cat}}}$"
         ltx_corner[f"eta_std_{cat}"] = rf"$\widehat{{\sigma}}_\eta^{{\rm {cat}}}$"  # noqa
@@ -252,6 +254,35 @@ def get_samples(fname, convert_Vext_to_galactic=True):
             samples[key.replace("a_dipole", "a_dipole_mag")] = adipole_mag
             samples[key.replace("a_dipole", "a_dipole_l")] = l
             samples[key.replace("a_dipole", "a_dipole_b")] = b
+
+    return samples
+
+
+def get_some_samples(fname, labels):
+    """Read in the samples from the HDF5 file."""
+    if not isinstance(labels, list) and all(isinstance(label, str) for label in labels):  # noqa
+        raise ValueError("`labels` must be a list of strings.")
+
+    samples = {}
+    with File(fname, 'r') as f:
+        grp = f["samples"]
+
+        if "Vext" in labels:
+            Vext = grp["Vext"][...]
+            samples["Vmag"] = np.linalg.norm(Vext, axis=1)
+            Vext = csiborgtools.cartesian_to_radec(Vext)
+            samples["l"], samples["b"] = csiborgtools.radec_to_galactic(
+                Vext[:, 1], Vext[:, 2])
+
+        for label in labels:
+            if "Vext" in label:
+                continue
+            for key in grp.keys():
+                if label in key:
+                    x = grp[key][...]
+                    if x.ndim > 1:
+                        raise ValueError("All samples must be 1D arrays.")
+                    samples[key] = grp[key][...]
 
     return samples
 
