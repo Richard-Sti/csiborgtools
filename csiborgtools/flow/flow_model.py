@@ -29,10 +29,14 @@ from astropy.cosmology import FlatLambdaCDM, z_at_value
 from interpax import interp1d
 from jax import jit
 from jax import numpy as jnp
-from jax import vmap
+from jax import random, vmap
 from jax.scipy.special import erf, erfc, logsumexp
-from numpyro import factor, plate, sample
-from numpyro.distributions import MultivariateNormal, Normal, Uniform
+from numpyro import deterministic, factor, plate, sample
+from numpyro.distributions import (Distribution, MultivariateNormal, Normal,
+                                   Uniform, constraints)
+from numpyro.distributions.util import is_prng_key, validate_sample
+from numpyro.handlers import reparam
+from numpyro.infer.reparam import CircularReparam
 from quadax import simpson
 from tqdm import trange
 
@@ -340,6 +344,7 @@ def sample_SN(e_mu_min, e_mu_max, mag_cal_mean, mag_cal_std, alpha_cal_mean,
               sample_alpha, name):
     """Sample SNIe Tripp parameters."""
     e_mu = sample(f"e_mu_{name}", Uniform(e_mu_min, e_mu_max))
+    factor(f"ll_e_mu_{name}", -jnp.log(e_mu))
     mag_cal = sample(f"mag_cal_{name}", Normal(mag_cal_mean, mag_cal_std))
     alpha_cal = sample(
         f"alpha_cal_{name}", Normal(alpha_cal_mean, alpha_cal_std))
@@ -377,6 +382,7 @@ def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
                sample_curvature, name):
     """Sample Tully-Fisher calibration parameters."""
     e_mu = sample(f"e_mu_{name}", Uniform(e_mu_min, e_mu_max))
+    factor(f"ll_e_mu_{name}", -jnp.log(e_mu))
     a = sample(f"a_{name}", Normal(a_mean, a_std))
 
     if sample_a_dipole:
@@ -412,6 +418,8 @@ def sample_simple(e_mu_min, e_mu_max, dmu_min, dmu_max, alpha_min, alpha_max,
                   sample_dmu_dipole, name):
     """Sample simple calibration parameters."""
     e_mu = sample(f"e_mu_{name}", Uniform(e_mu_min, e_mu_max))
+    factor(f"ll_e_mu_{name}", -jnp.log(e_mu))
+
     dmu = sample(f"dmu_{name}", Uniform(dmu_min, dmu_max))
     alpha = sample_alpha_bias(name, alpha_min, alpha_max, sample_alpha)
 
@@ -434,13 +442,14 @@ def sample_simple(e_mu_min, e_mu_max, dmu_min, dmu_max, alpha_min, alpha_max,
 ###############################################################################
 
 
-def sample_calibration(Vext_min, Vext_max, Vmono_min, Vmono_max, beta_min,
-                       beta_max, sigma_v_min, sigma_v_max, h_min, h_max,
-                       rLG_min, rLG_max, no_Vext, sample_Vmono, sample_beta,
-                       sample_h, sample_rLG, sample_Vmag_vax, sample_void_size,
-                       void_size_min, void_size_max):
+def sample_calibration(Vext_mag_min, Vext_mag_max, Vmono_min, Vmono_max,
+                       beta_min, beta_max, sigma_v_min, sigma_v_max, h_min,
+                       h_max, rLG_min, rLG_max, no_Vext, sample_Vmono,
+                       sample_beta, sample_h, sample_rLG, sample_Vmag_vax,
+                       sample_void_size, void_size_min, void_size_max):
     """Sample the flow calibration."""
     sigma_v = sample("sigma_v", Uniform(sigma_v_min, sigma_v_max))
+    factor("ll_sigma_v", -jnp.log(sigma_v))
 
     if sample_beta:
         beta = sample("beta", Uniform(beta_min, beta_max))
@@ -455,12 +464,26 @@ def sample_calibration(Vext_min, Vext_max, Vmono_min, Vmono_max, beta_min,
         Vext = jnp.zeros(3)
 
         if sample_Vmag_vax:
-            Vext_mag = sample("Vext_axis_mag", Uniform(Vext_min, Vext_max))
+            Vext_mag = sample(
+                "Vext_axis_mag", Uniform(-Vext_mag_max, Vext_mag_max))
             # In the direction if (l, b) = (117, 4)
             Vext = Vext_mag * jnp.asarray([0.4035093, -0.01363162, 0.91487396])
 
     else:
-        Vext = sample("Vext", Uniform(Vext_min, Vext_max).expand([3]))
+        # Sample the direction of Vext and uniform in magnitude.
+        with reparam(config={"Vext_phi_unscaled": CircularReparam()}):
+            Vext_phi = sample("Vext_phi_unscaled", CircularUniform())
+        Vext_phi = deterministic("Vext_phi", Vext_phi + jnp.pi)
+        Vext_cos_theta = sample("Vext_cos_theta", Uniform(-1.0, 1.0))
+        Vext_sin_theta = jnp.sqrt(1 - Vext_cos_theta**2)
+
+        Vext_mag = sample("Vext_mag", Uniform(Vext_mag_min, Vext_mag_max))
+
+        Vext = deterministic(
+            "Vext", Vext_mag * jnp.asarray([
+                Vext_sin_theta * jnp.cos(Vext_phi),
+                Vext_sin_theta * jnp.sin(Vext_phi),
+                Vext_cos_theta]))
 
     if sample_Vmono:
         Vmono = sample("Vmono", Uniform(Vmono_min, Vmono_max))
@@ -498,6 +521,29 @@ def sample_gaussian_hyperprior(param, name, xmin, xmax):
     mean = sample(f"{param}_mean_{name}", Uniform(xmin, xmax))
     std = sample(f"{param}_std_{name}", Uniform(0.0, xmax - xmin))
     return mean, std
+
+
+###############################################################################
+#                        Uniform sky distribution                             #
+###############################################################################
+
+
+class CircularUniform(Distribution):
+    """Circular uniform distribution in the range [-pi, pi]."""
+    support = constraints.circular
+
+    def __init__(self, validate_args=None):
+        super(CircularUniform, self).__init__(validate_args=validate_args)
+
+    def sample(self, key, sample_shape=()):
+        assert is_prng_key(key)
+        return random.uniform(
+            key, shape=sample_shape + self.batch_shape + self.event_shape,
+            minval=-jnp.pi, maxval=jnp.pi)
+
+    @validate_sample
+    def log_prob(self, value):
+        return - jnp.log(2 * jnp.pi)
 
 
 ###############################################################################
@@ -642,7 +688,6 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         if inference_method not in ["mike", "bayes", "delta"]:
             raise ValueError(f"Unknown method: `{inference_method}`.")
 
-        ll0 = 0.0
         sigma_v = field_calibration_params["sigma_v"]
         e2_cz = self.e2_cz_obs + sigma_v**2
 
@@ -651,10 +696,6 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         Vext_rad = project_Vext(Vext[0], Vext[1], Vext[2], self.RA, self.dec)
 
         e_mu = distmod_params["e_mu"]
-
-        # Jeffrey's prior on sigma_v and the intrinsic scatter, they are above
-        # "sampled" from uniform distributions.
-        ll0 -= jnp.log(sigma_v) + jnp.log(e_mu)
 
         # ------------------------------------------------------------
         # 1. Sample true observables and obtain the distance estimate
@@ -673,7 +714,8 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                     "c", self.name, self.c_min, self.c_max)
 
                 # Jeffrey's prior on the the MNR hyperprior widths.
-                ll0 -= jnp.log(mag_std) + jnp.log(x1_std) + jnp.log(c_std)
+                factor(f"ll_SN_MNR_std_{self.name}",
+                       - jnp.log(mag_std) - jnp.log(x1_std) - jnp.log(c_std))
 
                 # NOTE: that the true variables are currently uncorrelated.
                 with plate(f"true_SN_{self.name}", self.ndata):
@@ -684,16 +726,21 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                     c_true = sample(
                         f"c_true_{self.name}", Normal(c_mean, c_std))
 
-                # Log-likelihood of the observed magnitudes.
-                if self.mag_selection_kind is None:
-                    ll0 += jnp.sum(normal_logpdf(
-                        mag_true, self.mag, self.e_mag))
-                else:
-                    raise NotImplementedError("Magnitude selection not implemented.")  # noqa
+                    # Log-likelihood of the observed magnitudes.
+                    if self.mag_selection_kind is None:
+                        ll_mag = normal_logpdf(mag_true, self.mag, self.e_mag)
+                    else:
+                        raise NotImplementedError(
+                            "Magnitude selection not implemented.")
 
-                # Log-likelihood of the observed x1 and c.
-                ll0 += jnp.sum(normal_logpdf(x1_true, self.x1, self.e_x1))
-                ll0 += jnp.sum(normal_logpdf(c_true, self.c, self.e_c))
+                    factor(f"ll_mag_{self.name}", ll_mag)
+
+                    # Log-likelihood of the observed x1 and c.
+                    ll_x1 = normal_logpdf(x1_true, self.x1, self.e_x1)
+                    factor(f"ll_x1_{self.name}", ll_x1)
+                    ll_c = normal_logpdf(c_true, self.c, self.e_c)
+                    factor(f"ll_c_{self.name}", ll_c)
+
                 e2_mu = jnp.ones_like(mag_true) * e_mu**2
             else:
                 mag_true = self.mag
@@ -727,7 +774,8 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                     f"corr_mag_eta_{self.name}", Uniform(-1, 1))
 
                 # Jeffrey's prior on the the MNR hyperprior widths.
-                ll0 -= jnp.log(mag_std) + jnp.log(eta_std)
+                factor(f"ll_TFR_MNR_std_{self.name}",
+                       -jnp.log(mag_std) - jnp.log(eta_std))
 
                 loc = jnp.array([mag_mean, eta_mean])
                 cov = jnp.array(
@@ -738,50 +786,52 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                     x_true = sample(
                         f"x_TFR_{self.name}", MultivariateNormal(loc, cov))
 
-                mag_true, eta_true = x_true[..., 0], x_true[..., 1]
-                # Log-likelihood of the observed magnitudes.
-                if self.mag_selection_kind == "hard":
-                    ll0 += jnp.sum(upper_truncated_normal_logpdf(
-                        self.mag, mag_true, self.e_mag,
-                        self.mag_selection_max))
-                elif self.mag_selection_kind == "soft":
-                    ll_mag = self.log_Fm
-                    ll_mag += normal_logpdf(self.mag, mag_true, self.e_mag)
+                    mag_true, eta_true = x_true[..., 0], x_true[..., 1]
+                    # Log-likelihood of the observed magnitudes.
+                    if self.mag_selection_kind == "hard":
+                        ll_mag = upper_truncated_normal_logpdf(
+                            self.mag, mag_true, self.e_mag,
+                            self.mag_selection_max)
+                    elif self.mag_selection_kind == "soft":
+                        ll_mag = self.log_Fm
+                        ll_mag += normal_logpdf(self.mag, mag_true, self.e_mag)
 
-                    # Normalization per datapoint, initially (ndata, nxrange)
-                    mu_start = mag_true - 5 * self.e_mag
-                    mu_end = mag_true + 5 * self.e_mag
-                    # 100 is a reasonable and sufficient choice.
-                    mu_xrange = jnp.linspace(mu_start, mu_end, 100).T
+                        # Normalization per datapoint, initially
+                        # `(ndata, nxrange)`.
+                        mu_start = mag_true - 5 * self.e_mag
+                        mu_end = mag_true + 5 * self.e_mag
+                        # 100 is a reasonable and sufficient choice.
+                        mu_xrange = jnp.linspace(mu_start, mu_end, 100).T
 
-                    norm = toy_log_magnitude_selection(
-                        mu_xrange, self.m1, self.m2, self.a)
-                    norm = norm + normal_logpdf(
-                        mu_xrange, mag_true[:, None], self.e_mag[:, None])
-                    # Now integrate over the magnitude range.
-                    norm = simpson(jnp.exp(norm), x=mu_xrange, axis=-1)
+                        norm = toy_log_magnitude_selection(
+                            mu_xrange, self.m1, self.m2, self.a)
+                        norm = norm + normal_logpdf(
+                            mu_xrange, mag_true[:, None], self.e_mag[:, None])
+                        # Now integrate over the magnitude range.
+                        norm = simpson(jnp.exp(norm), x=mu_xrange, axis=-1)
+                        ll_mag -= jnp.log(norm)
+                    else:
+                        ll_mag = normal_logpdf(self.mag, mag_true, self.e_mag)
 
-                    ll0 += jnp.sum(ll_mag - jnp.log(norm))
-                else:
-                    ll0 += jnp.sum(normal_logpdf(
-                        self.mag, mag_true, self.e_mag))
+                    factor(f"ll_mag_{self.name}", ll_mag)
 
-                # Log-likelihood of the observed linewidths.
-                if self.eta_selection_kind == "hard":
-                    ll0 += jnp.sum(truncated_normal_logpdf(
-                        self.eta, eta_true, self.e_eta,
-                        self.eta_selection_min, self.eta_selection_max))
-                elif self.eta_selection_kind == "lower_hard":
-                    ll0 += jnp.sum(lower_truncated_normal_logpdf(
-                        self.eta, eta_true, self.e_eta,
-                        self.eta_selection_min))
-                elif self.eta_selection_kind == "upper_hard":
-                    ll0 += jnp.sum(upper_truncated_normal_logpdf(
-                        self.eta, eta_true, self.e_eta,
-                        self.eta_selection_max))
-                else:
-                    ll0 += jnp.sum(normal_logpdf(
-                        eta_true, self.eta, self.e_eta))
+                    # Log-likelihood of the observed linewidths.
+                    if self.eta_selection_kind == "hard":
+                        ll_eta = truncated_normal_logpdf(
+                            self.eta, eta_true, self.e_eta,
+                            self.eta_selection_min, self.eta_selection_max)
+                    elif self.eta_selection_kind == "lower_hard":
+                        ll_eta = lower_truncated_normal_logpdf(
+                            self.eta, eta_true, self.e_eta,
+                            self.eta_selection_min)
+                    elif self.eta_selection_kind == "upper_hard":
+                        ll_eta = upper_truncated_normal_logpdf(
+                            self.eta, eta_true, self.e_eta,
+                            self.eta_selection_max)
+                    else:
+                        ll_eta = normal_logpdf(eta_true, self.eta, self.e_eta)
+
+                    factor(f"ll_eta_{self.name}", ll_eta)
 
                 e2_mu = jnp.ones_like(mag_true) * e_mu**2
             else:
@@ -870,7 +920,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             ll = jnp.log(simpson(ptilde, x=self.r_xrange, axis=-1))
             ll -= jnp.log(pnorm)
 
-            return ll0 + jnp.sum(logsumexp(ll, axis=0)) + self.norm
+            ll_per_galaxy = logsumexp(ll, axis=0) + self.norm
         else:
             e_mu = jnp.sqrt(e2_mu)
             # True distance modulus, shape is `(n_data)`. If we have absolute
@@ -904,6 +954,8 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                     self.any_calibrator,
                     logsumexp(ll_calibration, axis=0) - jnp.log(self.counts_calibrators),  # noqa
                     0.)
+
+                factor("ll_calibration", jnp.sum(ll_calibration))
             else:
                 mu_true_h = mu_true
 
@@ -965,10 +1017,9 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             ll += log_likelihood_zobs(
                 self.z_obs[None, :], zobs, e2_cz[None, :])
 
-            if field_calibration_params["sample_h"]:
-                ll += ll_calibration[None, :]
+            ll_per_galaxy = logsumexp(ll, axis=0) + self.norm
 
-            return ll0 + jnp.sum(logsumexp(ll, axis=0)) + self.norm
+        factor("ll_per_galaxy", jnp.sum(ll_per_galaxy))
 
 
 ###############################################################################
@@ -992,16 +1043,8 @@ def PV_validation_model(models, distmod_hyperparams_per_model,
     inference_method : str
         Either `mike` or `bayes`.
     """
-    ll = 0.0
-
     field_calibration_params = sample_calibration(
         **field_calibration_hyperparams)
-
-    # We sample the components of Vext with a uniform prior, which means
-    # there is a |Vext|^2 prior, we correct for this so that the sampling
-    # is effecitvely uniformly in magnitude of Vext and angles.
-    if "Vext" in field_calibration_params and not field_calibration_hyperparams["no_Vext"]:  # noqa
-        ll -= jnp.log(jnp.sum(field_calibration_params["Vext"]**2))
 
     for n in range(len(models)):
         model = models[n]
@@ -1017,9 +1060,7 @@ def PV_validation_model(models, distmod_hyperparams_per_model,
         else:
             raise ValueError(f"Unknown kind: `{model.kind}`.")
 
-        ll += model(field_calibration_params, distmod_params, inference_method)
-
-    factor("ll", ll)
+        model(field_calibration_params, distmod_params, inference_method)
 
 
 ###############################################################################
