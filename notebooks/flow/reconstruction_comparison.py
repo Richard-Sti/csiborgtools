@@ -62,6 +62,7 @@ def names_to_latex(names, for_corner=False):
            "rLG": "R_{\\rm offset} ~ [\\mathrm{Mpc} / h]",
            "Vext_axis_mag": "V_{\\rm axis} ~ [\\mathrm{km} / \\mathrm{s}]",
            "Vvoid": "\\tilde{V}_{\\rm void} ~ [\\mathrm{km} / \\mathrm{s}]",
+           "void_size": "r_{\\rm void}",
            }
 
     ltx_corner = {"alpha": r"$\alpha$",
@@ -165,6 +166,9 @@ def simname_to_pretty(simname):
            "IndranilVoid_exp": "Exponential",
            "IndranilVoid_gauss": "Gaussian",
            "IndranilVoid_mb": "Maxwell-Boltzmann",
+           "IndranilVoidSizeVar_exp": "Exponential",
+           "IndranilVoidSizeVar_gauss": "Gaussian",
+           "IndranilVoidSizeVar_mb": "Maxwell-Boltzmann",
            }
 
     if isinstance(simname, list):
