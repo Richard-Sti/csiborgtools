@@ -383,17 +383,17 @@ def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
     """Sample Tully-Fisher calibration parameters."""
     e_mu = sample(f"e_mu_{name}", Uniform(e_mu_min, e_mu_max))
     factor(f"ll_e_mu_{name}", -jnp.log(e_mu))
-    a = sample(f"a_{name}", Normal(a_mean, a_std))
+    a = sample(f"aTFR_{name}", Normal(a_mean, a_std))
 
     if sample_a_dipole:
         ax, ay, az = sample(f"a_dipole_{name}", Normal(a_dipole_mean, a_dipole_std).expand([3]))  # noqa
     else:
         ax, ay, az = 0.0, 0.0, 0.0
 
-    b = sample(f"b_{name}", Normal(b_mean, b_std))
+    b = sample(f"bTFR_{name}", Normal(b_mean, b_std))
 
     if sample_curvature:
-        c = sample(f"c_{name}", Normal(c_mean, c_std))
+        c = sample(f"cTFR_{name}", Normal(c_mean, c_std))
     else:
         c = 0.
 
@@ -491,7 +491,7 @@ def sample_calibration(Vext_mag_min, Vext_mag_max, Vmono_min, Vmono_max,
         Vmono = 0.0
 
     if sample_h:
-        h = sample("h", Uniform(h_min, h_max))
+        h = sample("hubble", Uniform(h_min, h_max))
     else:
         h = 1.0
 
@@ -659,6 +659,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             fprint(f"catalogue {name} with linewidth selection eta_min = {self.eta_selection_min}, eta_max = {self.eta_selection_max}.")  # noqa
         else:
             self.mag_selection_kind = None
+            self.eta_selection_kind = None
 
         if selection is not None and kind != "TFR":
             raise ValueError("Selection is only implemented "
@@ -930,8 +931,8 @@ class PV_LogLikelihood(BaseFlowValidationModel):
 
             # Likelihood of the true distance modulii given the calibration.
             if field_calibration_params["sample_h"]:
-                raise RuntimeError(
-                    "Sampling of 'h' has not yet been thoroughly tested.")
+                # raise RuntimeError(
+                #     "Sampling of 'h' has not yet been thoroughly tested.")
                 h = field_calibration_params["h"]
 
                 # Now, the rest of the code except the calibration likelihood
