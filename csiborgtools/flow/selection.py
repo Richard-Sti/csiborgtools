@@ -14,7 +14,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """Selection functions for peculiar velocities."""
 from jax import numpy as jnp
-from numpyro import factor, sample
+from numpyro import factor, plate, sample
 from numpyro.distributions import Uniform
 from quadax import simpson
 
@@ -62,8 +62,8 @@ class ToyMagnitudeSelection:
         m2 = sample("m2", Uniform(0, 25))
         a = sample("a", Uniform(-10, 0))
 
-        ll = jnp.sum(self.log_observed_pdf(mag, alpha, m1, m2, a))
-        factor("ll", ll)
+        with plate("data", len(mag)):
+            factor("ll", self.log_observed_pdf(mag, alpha, m1, m2, a))
 
 
 def toy_log_magnitude_selection(mag, m1, m2, a):

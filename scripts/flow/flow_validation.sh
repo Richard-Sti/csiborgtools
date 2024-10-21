@@ -37,13 +37,14 @@ else
 fi
 
 
-for simname in "IndranilVoid_exp" "IndranilVoid_gauss" "IndranilVoid_mb"; do
+# for simname in "IndranilVoid_exp" "IndranilVoid_gauss" "IndranilVoid_mb"; do
 # for simname in "IndranilVoidSizeVar_exp" "IndranilVoidSizeVar_gauss" "IndranilVoidSizeVar_mb"; do
-# for simname in "IndranilVoidSizeVar_exp"; do
+for simname in "Carrick2015"; do
 # for simname in "Carrick2015" "Lilow2024" "csiborg2_main" "csiborg2X" "manticore_2MPP_N128_DES_V1" "CF4" "CLONES"; do
     # for catalogue in "LOSS" "Foundation" "2MTF" "SFI_gals" "CF4_TFR_i" "CF4_TFR_w1"; do
     # for catalogue in "CF4_TFR_i" "CF4_TFR_w1"; do
-    for catalogue in "2MTF" "SFI_gals" "CF4_TFR_i" "CF4_TFR_w1"; do
+    # for catalogue in "2MTF" "SFI_gals" "CF4_TFR_i" "CF4_TFR_w1"; do
+    for catalogue in "2MTF"; do
         for ksim in "none"; do
         # for ksim in 0; do
         # for ksim in $(seq 0 5 500); do
