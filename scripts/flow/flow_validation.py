@@ -316,13 +316,13 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 1_500
-    nburn = 2_500
+    nsteps = 3_000
+    nburn = 3_000
     zcmb_min = None
     zcmb_max = 0.05
     nchains_harmonic = 10
     num_epochs = 50
-    inference_method = "bayes"
+    inference_method = "mike"
     mag_selection = None
     sample_alpha = False if (ARGS.simname == "no_field" or "IndranilVoid" in ARGS.simname) else True  # noqa
     sample_beta = None
@@ -385,7 +385,7 @@ if __name__ == "__main__":
 
         profile = ARGS.simname.split("_")[-1]
         h = csiborgtools.flow.select_void_h(profile)
-        rdist = np.arange(0, 165, 0.8)
+        rdist = np.arange(0, 165, 1.0)
         void_kwargs = {
             "profile": profile, "h": h, "order": 1, "rdist": rdist,
             "is_fiducial": "IndranilVoidSizeVar" not in ARGS.simname,

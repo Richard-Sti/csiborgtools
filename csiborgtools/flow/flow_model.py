@@ -206,7 +206,8 @@ class BaseFlowValidationModel(ABC):
         self.z_xrange = jnp.asarray(z_xrange)
         self.mu_xrange = jnp.asarray(mu_xrange)
 
-    def _set_void_data(self, RA, dec, profile, kind, h, order, is_fiducial):
+    def _set_void_data(self, RA, dec, profile, kind, h, order, is_fiducial,
+                       **kwargs):
         """Create the void interpolator."""
         # h is the MOND model value of local H0 to convert the radial grid
         # to Mpc / h
@@ -218,6 +219,10 @@ class BaseFlowValidationModel(ABC):
                 profile, kind)
             size_grid = jnp.asarray(size_grid, dtype=jnp.float32)
             size_min, size_max = size_grid.min(), size_grid.max()
+
+            fprint("downsampling LG observers by a factor of 2.")
+            rLG_grid = rLG_grid[::2]
+            void_grid = void_grid[:, ::2, ...]
 
         void_grid = jnp.asarray(void_grid, dtype=jnp.float32)
         rLG_grid = jnp.asarray(rLG_grid, dtype=jnp.float32)
