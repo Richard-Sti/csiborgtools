@@ -27,7 +27,7 @@ from .cosmography import distmod2dist, distmod2redshift
 
 def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
                      a_TF=-22.8, b_TF=-7.2, sigma_TF=0.25, sigma_v=100.,
-                     Vext=[150.0, 10.0, -100.0], h=1.0, beta=0.4,
+                     Vext=[150.0, 50.0, -10.0], h=1.0, beta=0.4,
                      mean_eta=0.069, std_eta=0.078, mean_e_eta=0.012,
                      mean_mag=10.31, std_mag=0.83, mean_e_mag=0.044,
                      sigma_calibration=0.05, calibration_max_percentile=10,
@@ -50,6 +50,8 @@ def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
               "Vext": Vext,
               "mean_eta": mean_eta, "std_eta": std_eta,
               "mean_mag": mean_mag, "std_mag": std_mag,
+              "h": h, "beta": beta,
+              "Vmag": Vext_mag, "Vl": Vext_l, "Vb": Vext_b,
               }
 
     gen = np.random.default_rng(seed)
