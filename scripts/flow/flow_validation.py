@@ -78,7 +78,7 @@ import jax                                                                      
 import numpy as np                                                              # noqa
 from csiborgtools import fprint                                                 # noqa
 from h5py import File                                                           # noqa
-from numpyro.infer import MCMC, NUTS, init_to_median                            # noqa
+from numpyro.infer import MCMC, NUTS, init_to_sample                            # noqa
 
 
 def print_variables(names, variables):
@@ -165,7 +165,7 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
         raise AttributeError("The models must have an attribute `ndata` "
                              "indicating the number of data points.") from e
 
-    nuts_kernel = NUTS(model, init_strategy=init_to_median(num_samples=10000))
+    nuts_kernel = NUTS(model, init_strategy=init_to_sample())
     mcmc = MCMC(nuts_kernel, num_warmup=nburn, num_samples=nsteps)
     rng_key = jax.random.PRNGKey(42)
 
@@ -176,7 +176,7 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
     BIC, AIC = csiborgtools.BIC_AIC(samples, log_posterior, ndata)
     print(f"{'BIC':<20} {BIC}")
     print(f"{'AIC':<20} {AIC}")
-    mcmc.print_summary()
+    mcmc.print_summary(exclude_deterministic=False)
 
     if calculate_harmonic:
         print("Calculating the evidence using `harmonic`.", flush=True)
@@ -316,13 +316,13 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 3_000
-    nburn = 3_000
+    nsteps = 1_000
+    nburn = 1_000
     zcmb_min = None
     zcmb_max = 0.05
     nchains_harmonic = 10
     num_epochs = 50
-    inference_method = "mike"
+    inference_method = "bayes"
     mag_selection = None
     sample_alpha = False if (ARGS.simname == "no_field" or "IndranilVoid" in ARGS.simname) else True  # noqa
     sample_beta = None
@@ -403,7 +403,8 @@ if __name__ == "__main__":
         raise ValueError(
             "The number of steps must be divisible by the number of chains.")
 
-    calibration_hyperparams = {"Vext_min": -3000, "Vext_max": 3000,
+    calibration_hyperparams = {"Vext_mag_min": 0.,
+                               "Vext_mag_max": 3000.0 if "IndranilVoid_" in ARGS.simname else 750.0,  # noqa
                                "Vmono_min": -1000, "Vmono_max": 1000,
                                "beta_min": -10.0, "beta_max": 10.0,
                                "sigma_v_min": 1.0, "sigma_v_max": 1000 if "IndranilVoid_" in ARGS.simname else 750.,  # noqa
