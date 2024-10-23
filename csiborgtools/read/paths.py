@@ -695,7 +695,8 @@ class Paths:
                         sample_Vmono=False, sample_mag_dipole=False,
                         sample_curvature=False, absolute_calibration=None,
                         sample_Vmag_vax=False,
-                        sample_h_intrinsic_scatter=False,verbose_print=True):
+                        sample_h_intrinsic_scatter=False,
+                        verbose_print=True):
         """Flow validation file path."""
         if isinstance(catalogue, list) and len(catalogue) == 1:
             catalogue = catalogue[0]
