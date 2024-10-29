@@ -26,7 +26,7 @@ from .cosmography import distmod2dist, distmod2redshift
 
 
 def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
-                     a_TF=-22.8, b_TF=-7.2, sigma_TF=0.25, sigma_v=100.,
+                     a_TF=-22.8, b_TF=-7.2, sigma_TF=0.35, sigma_v=100.,
                      Vext=[150.0, 50.0, -10.0], h=1.0, beta=0.4,
                      mean_eta=0.069, std_eta=0.078, mean_e_eta=0.012,
                      mean_mag=10.31, std_mag=0.83, mean_e_mag=0.044,
@@ -85,22 +85,6 @@ def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
     # This is the distance modulus in units of little h.
     mu_true_h = mu_true + 5 * np.log10(h)
 
-    # Select a fraction of nearby galaxies.
-    mu_max = np.percentile(mu_true, calibration_max_percentile)
-    ks = np.where(mu_true < mu_max)[0]
-    nsel = int(calibration_rand_fraction * len(ks))
-    if verbose:
-        print(f"Assigning calibration to {nsel}/{nsamples} galaxies.")
-
-    mu_calibration = np.full((nrepeat_calibration, nsamples), np.nan)
-    e_mu_calibration = np.full((nrepeat_calibration, nsamples), np.nan)
-
-    for n in range(nrepeat_calibration):
-        ks_n = gen.choice(ks, nsel, replace=False)
-
-        mu_calibration[n, ks_n] = gen.normal(mu_true[ks_n], sigma_calibration)
-        e_mu_calibration[n, ks_n] = np.ones(len(ks_n)) * sigma_calibration
-
     # Convert the true distance modulus to true distance and cosmological
     # redshift. The distance is in Mpc/h because the box is in Mpc / h.
     r = distmod2dist(mu_true_h, Om0)
@@ -117,7 +101,7 @@ def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
 
     vel = evaluate_cartesian_regular(
         velocity_field[0], velocity_field[1], velocity_field[2],
-        pos=pos_box, smooth_scales=None, method="cubic")
+        pos=pos_box, smooth_scales=None, method="linear")
     vel = beta * np.vstack(vel).T
 
     for i in range(3):
@@ -129,6 +113,23 @@ def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
     # The true redshift of the source.
     zCMB_true = (1 + zcosmo) * (1 + Vr / SPEED_OF_LIGHT) - 1
     zCMB_obs = gen.normal(zCMB_true, sigma_v / SPEED_OF_LIGHT)
+
+    # We make the cut in observed redshift, cutting in the true distance yields
+    # biases.
+    p = np.percentile(zCMB_obs, calibration_max_percentile)
+    ks = np.where(zCMB_obs < p)[0]
+    nsel = int(calibration_rand_fraction * len(ks))
+    if verbose:
+        print(f"Assigning calibration to {nsel}/{nsamples} galaxies.")
+
+    mu_calibration = np.full((nrepeat_calibration, nsamples), np.nan)
+    e_mu_calibration = np.full((nrepeat_calibration, nsamples), np.nan)
+
+    for n in range(nrepeat_calibration):
+        ks_n = gen.choice(ks, nsel, replace=False)
+
+        mu_calibration[n, ks_n] = gen.normal(mu_true[ks_n], sigma_calibration)
+        e_mu_calibration[n, ks_n] = np.ones(len(ks_n)) * sigma_calibration
 
     # These galaxies will be masked out when LOS is read it because they are
     # too far away.
