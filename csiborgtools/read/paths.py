@@ -94,11 +94,14 @@ class Paths:
         self.aux_cat_dir = aux_cat_dir
         self.CF4_dir = CF4_dir
 
-    def get_ics(self, simname):
+    def get_ics(self, simname, subsample=False):
         """Get available IC realisation IDs for a given simulation."""
         if simname == "csiborg1" or simname == "borg1":
             files = glob(join(self.csiborg1_srcdir, "chain_*"))
             files = [int(search(r'chain_(\d+)', f).group(1)) for f in files]
+
+            if subsample:
+                files = files[::5]
         elif simname == "csiborg2_main" or simname == "borg2":
             files = glob(join(self.csiborg2_main_srcdir, "chain_*"))
             files = [int(search(r'chain_(\d+)', f).group(1)) for f in files]
