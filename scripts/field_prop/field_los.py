@@ -431,17 +431,21 @@ if __name__ == "__main__":
 
     Om0 = csiborgtools.simname2Omega_m(args.simname)
     # r = make_spacing(200, 0.75, 23.25, 34, 0.01, Om0)
-    r = np.arange(0, 200, 0.5)
+    r = np.arange(0, 200, 0.25)
 
-    # smooth_scales = [0, 2, 4, 6, 8]
-    smooth_scales = [0, 8]
+    sigma_original = csiborgtools.simname2icresolution(args.simname)
+    sigma_target = 8
+    sigma_smooth = max((sigma_target**2 - sigma_original**2), 0)**0.5
+    print(f"Secondary smoothing is {sigma_smooth} Mpc / h.")
+
+    smooth_scales = [0, sigma_smooth]
 
     print(f"Running catalogue {args.catalogue} for simulation {args.simname} "
           f"with {len(r)} radial points.")
 
     comm = MPI.COMM_WORLD
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    nsims = get_nsims(args, paths)
+    nsims = get_nsims(args, paths, subsample=True)
 
     out_folder = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_los"
     # Create the dumping folder.
