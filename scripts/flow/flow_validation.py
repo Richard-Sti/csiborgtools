@@ -167,7 +167,7 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
 
     nuts_kernel = NUTS(model, init_strategy=init_to_sample())
     mcmc = MCMC(nuts_kernel, num_warmup=nburn, num_samples=nsteps)
-    rng_key = jax.random.PRNGKey(42)
+    rng_key = jax.random.PRNGKey(40)
 
     mcmc.run(rng_key, extra_fields=("potential_energy",), **model_kwargs)
     samples = mcmc.get_samples()
@@ -250,8 +250,8 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole):
                 }
     elif catalogue in ["SFI_gals", "2MTF"] or "CF4_TFR" in catalogue or "IndranilVoidTFRMock" in catalogue or "Carrick2MTFmock" in catalogue:  # noqa
         return {"e_mu_min": 0.001, "e_mu_max": 1.0,
-                "a_mean": -21., "a_std": 5.0,
-                "b_mean": -5.95, "b_std": 4.0,
+                "a_mean": -22.8, "a_std": 5.0,
+                "b_mean": -7.0, "b_std": 4.0,
                 "c_mean": 0., "c_std": 20.0,
                 "a_dipole_mean": 0., "a_dipole_std": 1.0,
                 "sample_a_dipole": sample_mag_dipole,
@@ -316,8 +316,8 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 1_000
-    nburn = 1_000
+    nsteps = 1500
+    nburn = 3500
     zcmb_min = None
     zcmb_max = 0.05
     nchains_harmonic = 10
@@ -326,12 +326,13 @@ if __name__ == "__main__":
     mag_selection = None
     sample_alpha = False if (ARGS.simname == "no_field" or "IndranilVoid" in ARGS.simname) else True  # noqa
     sample_beta = None
+    sample_h_e_int = False
     no_Vext = None
     sample_Vmag_vax = False
     sample_Vmono = False
     sample_mag_dipole = False
-    wo_num_dist_marginalisation = False
-    absolute_calibration = None
+    wo_num_dist_marginalisation = True
+    absolute_calibration = True
     calculate_harmonic = (False if (inference_method == "bayes") else True) and (not wo_num_dist_marginalisation)  # noqa
     sample_h = True if absolute_calibration is not None else False
 
@@ -355,6 +356,7 @@ if __name__ == "__main__":
                     "sample_Vmono": sample_Vmono,
                     "sample_mag_dipole": sample_mag_dipole,
                     "absolute_calibration": absolute_calibration,
+                    "sample_h_e_int": sample_h_e_int,
                     }
 
     main_params = {"nsteps": nsteps, "nburn": nburn,
@@ -403,17 +405,19 @@ if __name__ == "__main__":
         raise ValueError(
             "The number of steps must be divisible by the number of chains.")
 
-    calibration_hyperparams = {"Vext_mag_min": 0.,
-                               "Vext_mag_max": 3000.0 if "IndranilVoid_" in ARGS.simname else 750.0,  # noqa
+    Vext_i_lim = 3000 if "IndranilVoid_" in ARGS.simname else 500.
+    calibration_hyperparams = {"Vext_i_min": -Vext_i_lim,
+                               "Vext_i_max": Vext_i_lim,
                                "Vmono_min": -1000, "Vmono_max": 1000,
                                "beta_min": -10.0, "beta_max": 10.0,
                                "sigma_v_min": 1.0, "sigma_v_max": 1000 if "IndranilVoid_" in ARGS.simname else 750.,  # noqa
-                               "h_min": 0.25, "h_max": 1.,
+                               "h_min": 0.25, "h_max": 5.,
                                "no_Vext": False if no_Vext is None else no_Vext,        # noqa
                                "sample_Vmag_vax": sample_Vmag_vax,
                                "sample_Vmono": sample_Vmono,
                                "sample_beta": sample_beta,
                                "sample_h": sample_h,
+                               "sample_h_e_int": sample_h_e_int,  # noqa
                                "sample_rLG": "IndranilVoid" in ARGS.simname,
                                "sample_void_size": "IndranilVoidSizeVar" in ARGS.simname,  # noqa
                                "void_size_min": 0.1, "void_size_max": 3.0,
