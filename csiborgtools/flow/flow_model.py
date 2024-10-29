@@ -920,13 +920,14 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                 else:
                     e_mu_h = self.e_mu_calibration
 
-                # Calculate the log-likelihood of the calibration, but the
-                # shape is `(n_calibrators, n_data)`. Converts the sampled
-                # distances from Mpc / h to Mpc.
+                # Calculate the log-likelihood of the calibration, treating
+                # all calibrators as independent. A galaxy may have more than
+                # a single calibrator. Converts the sampled distances from
+                # Mpc / h to Mpc.
                 ll_calibration = normal_logpdf(
-                    self.mu_calibration[self.is_finite_calibrator],
-                    mu_true_h[self.is_finite_calibrator] - 5 * jnp.log10(h),
-                    e_mu_h[self.is_finite_calibrator])
+                    self.mu_calibration,
+                    mu_true_h[self.calibration_indxs] - 5 * jnp.log10(h),
+                    e_mu_h)
 
                 factor("ll_calibration", ll_calibration)
 
