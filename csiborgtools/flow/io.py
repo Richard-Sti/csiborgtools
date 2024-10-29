@@ -517,7 +517,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         if "Carrick2MTFmock" in kind:
             # For the mock we only want to select objects with the '2M++'
             # volume.
-            mask &= loader.cat["r"] < 130
+            mask &= loader.cat["r"] < 150
             # The mocks are generated without Malmquist.
             fprint("disabling homogeneous and inhomogeneous Malmquist bias for the mock.")  # noqa
             with_homogeneous_malmquist = False
@@ -536,20 +536,26 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             # The shape of these is (`ncalibrators, nobjects`).
             mu_calibration = absmag_calibration["mu_calibration"][:, mask]
             e_mu_calibration = absmag_calibration["e_mu_calibration"][:, mask]
-            # Auxiliary parameters.
-            m = np.isfinite(mu_calibration)
 
-            # NumPyro refuses to start if any inputs are not finite, so we
-            # replace with some ficutive mean and very large standard
-            # deviation.
-            mu_calibration[~m] = 0.0
-            e_mu_calibration[~m] = 1000.0
+            m = np.any(np.isfinite(mu_calibration), axis=0)
+            print(f"Only {m.sum()} out of {len(m)} galaxies have at least "
+                  "one calibrator.")
+
+            # print(f"Selecting only {m.sum()} out of {len(m)} calibrators.")
+            calibration_indxs = np.hstack(
+                [np.where(np.isfinite(mu_calibration[i]))[0]
+                 for i in range(len(mu_calibration))])
+
+            mu_calibration = np.hstack(
+                [mu_calibration[i][np.isfinite(mu_calibration[i])]
+                 for i in range(len(mu_calibration))])
+            e_mu_calibration = np.hstack(
+                [e_mu_calibration[i][np.isfinite(e_mu_calibration[i])]
+                 for i in range(len(e_mu_calibration))])
 
             calibration_params["mu_calibration"] = mu_calibration
             calibration_params["e_mu_calibration"] = e_mu_calibration
-            calibration_params["is_finite_calibrator"] = m
-            calibration_params["counts_calibrators"] = np.sum(m, axis=0)
-            calibration_params["any_calibrator"] = np.any(m, axis=0)
+            calibration_params["calibration_indxs"] = calibration_indxs
 
         los_overdensity, los_velocity = mask_fields(
             los_overdensity, los_velocity, mask, void_kwargs is not None)
