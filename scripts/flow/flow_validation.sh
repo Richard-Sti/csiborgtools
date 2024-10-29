@@ -45,6 +45,7 @@ for simname in "Carrick2015"; do
     # for catalogue in "CF4_TFR_i" "CF4_TFR_w1"; do
     # for catalogue in "2MTF" "SFI_gals" "CF4_TFR_i" "CF4_TFR_w1"; do
     for catalogue in "2MTF"; do
+    # for catalogue in "Carrick2MTFmock_0"; do
         for ksim in "none"; do
         # for ksim in 0; do
         # for ksim in $(seq 0 5 500); do

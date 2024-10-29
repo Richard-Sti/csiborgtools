@@ -34,12 +34,12 @@ except ModuleNotFoundError:
 ###############################################################################
 
 
-def get_nsims(args, paths):
+def get_nsims(args, paths, subsample=False):
     """
     Get simulation indices from the command line arguments.
     """
     if args.nsims is None or args.nsims[0] == -1:
-        nsims = paths.get_ics(args.simname)
+        nsims = paths.get_ics(args.simname, subsample=subsample)
     else:
         nsims = args.nsims
     return list(nsims)

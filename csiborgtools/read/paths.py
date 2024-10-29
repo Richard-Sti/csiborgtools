@@ -94,11 +94,14 @@ class Paths:
         self.aux_cat_dir = aux_cat_dir
         self.CF4_dir = CF4_dir
 
-    def get_ics(self, simname):
+    def get_ics(self, simname, subsample=False):
         """Get available IC realisation IDs for a given simulation."""
         if simname == "csiborg1" or simname == "borg1":
             files = glob(join(self.csiborg1_srcdir, "chain_*"))
             files = [int(search(r'chain_(\d+)', f).group(1)) for f in files]
+
+            if subsample:
+                files = files[::5]
         elif simname == "csiborg2_main" or simname == "borg2":
             files = glob(join(self.csiborg2_main_srcdir, "chain_*"))
             files = [int(search(r'chain_(\d+)', f).group(1)) for f in files]
@@ -694,7 +697,9 @@ class Paths:
                         sample_beta=False, no_Vext=None,
                         sample_Vmono=False, sample_mag_dipole=False,
                         sample_curvature=False, absolute_calibration=None,
-                        sample_Vmag_vax=False, verbose_print=True):
+                        sample_Vmag_vax=False,
+                        sample_h_e_int=False,
+                        verbose_print=True):
         """Flow validation file path."""
         if isinstance(catalogue, list) and len(catalogue) == 1:
             catalogue = catalogue[0]
@@ -710,11 +715,13 @@ class Paths:
         keys = ["smooth", "nsim", "zcmb_min", "zcmb_max", "mag_selection",
                 "sample_alpha", "sample_beta", "no_Vext", "sample_Vmono",
                 "sample_mag_dipole", "sample_curvature",
-                "sample_Vmag_vax", "absolute_calibration"]
+                "sample_Vmag_vax", "absolute_calibration",
+                "sample_h_e_int"]
         values = [smooth, nsim, zcmb_min, zcmb_max, mag_selection,
                   sample_alpha, sample_beta, no_Vext, sample_Vmono,
                   sample_mag_dipole, sample_curvature,
-                  sample_Vmag_vax, absolute_calibration]
+                  sample_Vmag_vax, absolute_calibration,
+                  sample_h_e_int]
 
         for key, value in zip(keys, values):
 

@@ -124,6 +124,31 @@ def simname2Omega_m(simname):
     return omega_m
 
 
+def simname2icresolution(simname):
+    """Return the IC resolution in `Mpc/h` for a given simulation."""
+    d = {"csiborg1": 677.7 / 256,
+         "csiborg2_main": 676.6 / 256,
+         "csiborg2_varysmall": 676.6 / 256,
+         "csiborg2_random": 676.6 / 256,
+         "csiborg2X": 681.1 / 128,
+         "manticore_2MPP_N128_DES_V1": 681.1 / 128,
+         "borg1": 677.7 / 256,
+         "borg2": 676.6 / 256,
+         "borg2_all": 676.6 / 256,
+         "Carrick2015": 400. / 256,
+         "CF4": 1000. / 128,  # These need to be checked with Helene Courtois.
+         "CF4gp": 1000. / 128,
+         "Lilow2024": 400. / 128,
+         "CLONES": 500. / 128,
+         }
+    res = d.get(simname, None)
+
+    if res is None:
+        raise ValueError(f"Unknown simulation: `{simname}`.")
+
+    return res
+
+
 paths_glamdring = {
     "csiborg1_srcdir": "/mnt/extraspace/rstiskalek/csiborg1",
     "csiborg2_main_srcdir": "/mnt/extraspace/rstiskalek/csiborg2_main",

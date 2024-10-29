@@ -1191,7 +1191,7 @@ class Lilow2024Field(BaseField):
 
     def overdensity_field(self, **kwargs):
         fpath = self.paths.field(
-            "overdensity", None, None, self.nsim, "CF4")
+            "overdensity", None, None, self.nsim, "Lilow2024")
         return np.load(fpath) - 1
 
     def density_field(self, **kwargs):
