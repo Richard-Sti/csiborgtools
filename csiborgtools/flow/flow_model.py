@@ -29,14 +29,10 @@ from astropy.cosmology import FlatLambdaCDM, z_at_value
 from interpax import interp1d
 from jax import jit
 from jax import numpy as jnp
-from jax import random, vmap
+from jax import vmap
 from jax.scipy.special import erf, erfc, logsumexp
 from numpyro import deterministic, factor, plate, sample
-from numpyro.distributions import (Distribution, MultivariateNormal, Normal,
-                                   Uniform, constraints)
-from numpyro.distributions.util import is_prng_key, validate_sample
-from numpyro.handlers import reparam
-from numpyro.infer.reparam import CircularReparam
+from numpyro.distributions import MultivariateNormal, Normal, Uniform
 from quadax import simpson
 from tqdm import trange
 
@@ -379,11 +375,19 @@ def e2_distmod_TFR(e2_mag, e2_eta, eta, b, c, e_mu_intrinsic):
 def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
                c_mean, c_std, alpha_min, alpha_max, sample_alpha,
                a_dipole_mean, a_dipole_std, sample_a_dipole,
-               sample_curvature, name):
+               sample_curvature, h, name):
     """Sample Tully-Fisher calibration parameters."""
     e_mu = sample(f"e_mu_{name}", Uniform(e_mu_min, e_mu_max))
     factor(f"ll_e_mu_{name}", -jnp.log(e_mu))
-    a = sample(f"aTFR_{name}", Normal(a_mean, a_std))
+
+    if h is not None:
+        # Sample the zero-point that has the factor of h in it, so that the
+        # TFR-estimated distances are in Mpc / h.
+        a = sample(f"ahTFR_{name}", Normal(a_mean, a_std))
+        # However, keep track of the zero-point without the factor of h.
+        deterministic(f"aTFR_{name}", a + 5 * jnp.log10(h))
+    else:
+        a = sample(f"aTFR_{name}", Normal(a_mean, a_std))
 
     if sample_a_dipole:
         ax, ay, az = sample(f"a_dipole_{name}", Normal(a_dipole_mean, a_dipole_std).expand([3]))  # noqa
@@ -442,11 +446,12 @@ def sample_simple(e_mu_min, e_mu_max, dmu_min, dmu_max, alpha_min, alpha_max,
 ###############################################################################
 
 
-def sample_calibration(Vext_mag_min, Vext_mag_max, Vmono_min, Vmono_max,
+def sample_calibration(Vext_i_min, Vext_i_max, Vmono_min, Vmono_max,
                        beta_min, beta_max, sigma_v_min, sigma_v_max, h_min,
                        h_max, rLG_min, rLG_max, no_Vext, sample_Vmono,
                        sample_beta, sample_h, sample_rLG, sample_Vmag_vax,
-                       sample_void_size, void_size_min, void_size_max):
+                       sample_void_size, void_size_min, void_size_max,
+                       sample_h_e_int):
     """Sample the flow calibration."""
     sigma_v = sample("sigma_v", Uniform(sigma_v_min, sigma_v_max))
     factor("ll_sigma_v", -jnp.log(sigma_v))
@@ -465,25 +470,15 @@ def sample_calibration(Vext_mag_min, Vext_mag_max, Vmono_min, Vmono_max,
 
         if sample_Vmag_vax:
             Vext_mag = sample(
-                "Vext_axis_mag", Uniform(-Vext_mag_max, Vext_mag_max))
+                "Vext_axis_mag", Uniform(-Vext_i_max, Vext_i_max))
             # In the direction if (l, b) = (117, 4)
             Vext = Vext_mag * jnp.asarray([0.4035093, -0.01363162, 0.91487396])
 
     else:
-        # Sample the direction of Vext and uniform in magnitude.
-        with reparam(config={"Vext_phi_unscaled": CircularReparam()}):
-            Vext_phi = sample("Vext_phi_unscaled", CircularUniform())
-        Vext_phi = deterministic("Vext_phi", Vext_phi + jnp.pi)
-        Vext_cos_theta = sample("Vext_cos_theta", Uniform(-1.0, 1.0))
-        Vext_sin_theta = jnp.sqrt(1 - Vext_cos_theta**2)
+        with plate("Vext_plate", 3):
+            Vext = sample("Vext", Uniform(Vext_i_min, Vext_i_max))
 
-        Vext_mag = sample("Vext_mag", Uniform(Vext_mag_min, Vext_mag_max))
-
-        Vext = deterministic(
-            "Vext", Vext_mag * jnp.asarray([
-                Vext_sin_theta * jnp.cos(Vext_phi),
-                Vext_sin_theta * jnp.sin(Vext_phi),
-                Vext_cos_theta]))
+        factor("Vext_ll", -jnp.log(jnp.sum(Vext**2)))
 
     if sample_Vmono:
         Vmono = sample("Vmono", Uniform(Vmono_min, Vmono_max))
@@ -492,8 +487,15 @@ def sample_calibration(Vext_mag_min, Vext_mag_max, Vmono_min, Vmono_max,
 
     if sample_h:
         h = sample("hubble", Uniform(h_min, h_max))
+
+        if sample_h_e_int:
+            e_mu_h = sample("e_mu_h", Uniform(0.001, 1.0))
+            factor("ll_e_mu_h", -jnp.log(e_mu_h))
+        else:
+            e_mu_h = 0.
     else:
-        h = 1.0
+        h = None
+        e_mu_h = None
 
     if sample_rLG:
         rLG = sample("rLG", Uniform(rLG_min, rLG_max))
@@ -510,6 +512,7 @@ def sample_calibration(Vext_mag_min, Vext_mag_max, Vmono_min, Vmono_max,
             "sigma_v": sigma_v,
             "beta": beta,
             "h": h,
+            "sample_h_e_int": sample_h_e_int,
             "sample_h": sample_h,
             "rLG": rLG,
             "void_size": void_size,
@@ -521,29 +524,6 @@ def sample_gaussian_hyperprior(param, name, xmin, xmax):
     mean = sample(f"{param}_mean_{name}", Uniform(xmin, xmax))
     std = sample(f"{param}_std_{name}", Uniform(0.0, xmax - xmin))
     return mean, std
-
-
-###############################################################################
-#                        Uniform sky distribution                             #
-###############################################################################
-
-
-class CircularUniform(Distribution):
-    """Circular uniform distribution in the range [-pi, pi]."""
-    support = constraints.circular
-
-    def __init__(self, validate_args=None):
-        super(CircularUniform, self).__init__(validate_args=validate_args)
-
-    def sample(self, key, sample_shape=()):
-        assert is_prng_key(key)
-        return random.uniform(
-            key, shape=sample_shape + self.batch_shape + self.event_shape,
-            minval=-jnp.pi, maxval=jnp.pi)
-
-    @validate_sample
-    def log_prob(self, value):
-        return - jnp.log(2 * jnp.pi)
 
 
 ###############################################################################
@@ -924,41 +904,31 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             ll_per_galaxy = logsumexp(ll, axis=0) + self.norm
         else:
             e_mu = jnp.sqrt(e2_mu)
-            # True distance modulus, shape is `(n_data)`. If we have absolute
-            # calibration, then this distance modulus assumes a particular h.
+            # True distance modulus, shape is `(n_data)` in units of `Mpc / h`.
             with plate("plate_mu", self.ndata):
-                mu_true = sample("mu", Normal(mu, e_mu))
+                mu_true_h = sample("mu", Normal(mu, e_mu))
 
-            # Likelihood of the true distance modulii given the calibration.
+            # Likelihood of the sampled true distance converted to Mpc given
+            # calibration.
             if field_calibration_params["sample_h"]:
-                # raise RuntimeError(
-                #     "Sampling of 'h' has not yet been thoroughly tested.")
                 h = field_calibration_params["h"]
 
-                # Now, the rest of the code except the calibration likelihood
-                # uses the distance modulus in units of h
-                mu_true_h = mu_true + 5 * jnp.log10(h)
+                if field_calibration_params["sample_h_e_int"]:
+                    e_mu_h = jnp.sqrt(
+                        self.e2_mu_calibration
+                        + field_calibration_params["e_mu_h"]**2)
+                else:
+                    e_mu_h = self.e_mu_calibration
 
                 # Calculate the log-likelihood of the calibration, but the
-                # shape is `(n_calibrators, n_data)`. Where there is no data
-                # we set the likelihood to 0 (or the log-likelihood to -inf)
-                ll_calibration = jnp.where(
-                   self.is_finite_calibrator,
-                   normal_logpdf(self.mu_calibration, mu_true[None, :],
-                                 self.e_mu_calibration),
-                   -jnp.inf)
+                # shape is `(n_calibrators, n_data)`. Converts the sampled
+                # distances from Mpc / h to Mpc.
+                ll_calibration = normal_logpdf(
+                    self.mu_calibration[self.is_finite_calibrator],
+                    mu_true_h[self.is_finite_calibrator] - 5 * jnp.log10(h),
+                    e_mu_h[self.is_finite_calibrator])
 
-                # Now average out over the calibrators, however only if the
-                # there is at least one calibrator. If there isn't, then we
-                # just assing a log-likelihood of 0.
-                ll_calibration = jnp.where(
-                    self.any_calibrator,
-                    logsumexp(ll_calibration, axis=0) - jnp.log(self.counts_calibrators),  # noqa
-                    0.)
-
-                factor("ll_calibration", jnp.sum(ll_calibration))
-            else:
-                mu_true_h = mu_true
+                factor("ll_calibration", ll_calibration)
 
             # True distance and redshift, shape is `(n_data)`. The distance
             # here is in units of `Mpc / h``.
@@ -978,33 +948,45 @@ class PV_LogLikelihood(BaseFlowValidationModel):
 
             alpha = distmod_params["alpha"]
 
-            # Normalisation of p(mu), shape is `(n_sims, n_data, n_rad)`
-            pnorm = normal_logpdf(
-                self.mu_xrange[None, :], mu[:, None], e_mu[:, None])[None, ...]
-            if self.with_homogeneous_malmquist:
-                pnorm += self.log_r2_xrange[None, None, :]
-            if self.with_inhomogeneous_malmquist:
-                pnorm += alpha * log_los_density_grid
+            if self.with_homogeneous_malmquist or self.with_inhomogeneous_malmquist:  # noqa
+                # We get the numerator of p(mu_true | mu_TFR). Because
+                # sampling a Malmquist bias, add the Jacobian to the
+                # log-likelihood. Shape is `(ndata,)`. Eventually, because of
+                # inhomogeneous Malmquist, the this likelihood will be averaged
+                # over the simulations, together with the redshift likelihood.
+                jac = jnp.abs(distmod2dist_gradient(mu_true_h, self.Omega_m))
+                ll = jnp.log(jac)
 
-            pnorm = jnp.exp(pnorm)
-            # Now integrate over the radial steps. Shape is `(nsims, ndata)`.
-            # No Jacobian here because I integrate over distance, not the
-            # distance modulus.
-            pnorm = simpson(pnorm, x=self.r_xrange, axis=-1)
+                if self.with_homogeneous_malmquist:
+                    ll += 2 * jnp.log(r_true) - self.log_r2_xrange_mean
 
-            # Jacobian |dr / dmu|_(mu_true_h), shape is `(n_data)`.
-            jac = jnp.abs(distmod2dist_gradient(mu_true_h, self.Omega_m))
+                # Now, change the shape to be `(n_sims, n_data)`.
+                ll = ll[None, :]
 
-            # Calculate unnormalized log p(mu). Shape is (nsims, ndata)
-            ll = 0.0
-            if self.with_homogeneous_malmquist:
-                ll += (+ jnp.log(jac)
-                       + (2 * jnp.log(r_true) - self.log_r2_xrange_mean))
-            if self.with_inhomogeneous_malmquist:
-                ll += alpha * log_density
+                if self.with_inhomogeneous_malmquist:
+                    ll += alpha * log_density
 
-            # Subtract the normalization. Shape remains (nsims, ndata)
-            ll -= jnp.log(pnorm)
+                # Normalisation of p(mu), shape is `(n_sims, n_data, n_rad)`.
+                # We ensure that both mu_xrange and mu are in physical distance
+                # units.
+                pnorm = normal_logpdf(
+                    self.mu_xrange[None, :], mu[:, None],
+                    e_mu[:, None])[None, ...]
+
+                if self.with_homogeneous_malmquist:
+                    pnorm += self.log_r2_xrange[None, None, :]
+                if self.with_inhomogeneous_malmquist:
+                    pnorm += alpha * log_los_density_grid
+
+                # Now integrate over the radial steps.
+                # Shape is `(nsims, ndata)`. No Jacobian here because I
+                # integrate over distance, not the distance modulus.
+                pnorm = simpson(jnp.exp(pnorm), x=self.r_xrange, axis=-1)
+
+                # Subtract the normalisation from the log-likelihood
+                ll -= jnp.log(pnorm)
+            else:
+                ll = 0.
 
             # Calculate z_obs at the true distance. Shape: (nsims, ndata)
             vrad = field_calibration_params["beta"] * los_velocity
@@ -1013,7 +995,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             zobs *= 1 + vrad / SPEED_OF_LIGHT
             zobs -= 1.
 
-            # Add the log-likelihood of observed redshifts. Shape remains
+            # Log-likelihood of observed redshifts. Shape remains
             # `(nsims, ndata)`
             ll += log_likelihood_zobs(
                 self.z_obs[None, :], zobs, e2_cz[None, :])
@@ -1046,6 +1028,7 @@ def PV_validation_model(models, distmod_hyperparams_per_model,
     """
     field_calibration_params = sample_calibration(
         **field_calibration_hyperparams)
+    h = field_calibration_params["h"]
 
     for n in range(len(models)):
         model = models[n]
@@ -1053,10 +1036,13 @@ def PV_validation_model(models, distmod_hyperparams_per_model,
         distmod_hyperparams = distmod_hyperparams_per_model[n]
 
         if model.kind == "TFR":
-            distmod_params = sample_TFR(**distmod_hyperparams, name=name)
+            distmod_params = sample_TFR(**distmod_hyperparams, h=h,
+                                        name=name)
         elif model.kind == "SN":
+            # TODO: Add the `h` here.
             distmod_params = sample_SN(**distmod_hyperparams, name=name)
         elif model.kind == "simple":
+            # TODO: Add the `h` here.
             distmod_params = sample_simple(**distmod_hyperparams, name=name)
         else:
             raise ValueError(f"Unknown kind: `{model.kind}`.")
