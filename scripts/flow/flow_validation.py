@@ -125,6 +125,8 @@ def get_models(ksim, get_model_kwargs, mag_selection, void_kwargs,
             fpath = join(folder, "PV/CF4/CF4_GroupAll.hdf5")
         elif "IndranilVoidTFRMock" in cat:
             fpath = None
+        elif cat in ["SDSS-FP"]:
+            fpath = join(folder, "PV/CF4/SDSS-FP-LOWZ.hdf5")
         else:
             raise ValueError(f"Unsupported catalogue: `{ARGS.catalogue}`.")
 
@@ -267,6 +269,13 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole):
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
                 "sample_alpha": sample_alpha,
                 }
+    elif catalogue in ["SDSS-FP"]:
+        return {"e_mu_min": 0.001, "e_mu_max": 10.0,
+                "a_mean": 0.0, "a_std": 2.0,
+                "b_mean": 0.0, "b_std": 2.0,
+                "c_mean": 0.0, "c_std": 2.0,
+                "alpha_min": alpha_min, "alpha_max": alpha_max,
+                "sample_alpha": sample_alpha}
     else:
         raise ValueError(f"Unsupported catalogue: `{ARGS.catalogue}`.")
 
@@ -316,13 +325,13 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 1500
-    nburn = 3500
+    nsteps = 500
+    nburn = 1500
     zcmb_min = None
     zcmb_max = 0.05
     nchains_harmonic = 10
     num_epochs = 50
-    inference_method = "bayes"
+    inference_method = "mike"
     mag_selection = None
     sample_alpha = False if (ARGS.simname == "no_field" or "IndranilVoid" in ARGS.simname) else True  # noqa
     sample_beta = None
@@ -405,12 +414,12 @@ if __name__ == "__main__":
         raise ValueError(
             "The number of steps must be divisible by the number of chains.")
 
-    Vext_i_lim = 3000 if "IndranilVoid_" in ARGS.simname else 500.
+    Vext_i_lim = 3000 if "IndranilVoid_" in ARGS.simname else 5000.
     calibration_hyperparams = {"Vext_i_min": -Vext_i_lim,
                                "Vext_i_max": Vext_i_lim,
                                "Vmono_min": -1000, "Vmono_max": 1000,
                                "beta_min": -10.0, "beta_max": 10.0,
-                               "sigma_v_min": 1.0, "sigma_v_max": 1000 if "IndranilVoid_" in ARGS.simname else 750.,  # noqa
+                               "sigma_v_min": 1.0, "sigma_v_max": 1000 if "IndranilVoid_" in ARGS.simname else 2500.,  # noqa
                                "h_min": 0.25, "h_max": 5.,
                                "no_Vext": False if no_Vext is None else no_Vext,        # noqa
                                "sample_Vmag_vax": sample_Vmag_vax,
