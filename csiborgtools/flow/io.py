@@ -57,6 +57,8 @@ class DataLoader:
     """
     def __init__(self, simname, ksim, catalogue, catalogue_fpath, paths,
                  ksmooth=None, store_full_velocity=False, verbose=True):
+        self._is_no_field = simname == "no_field"
+
         fprint("reading the catalogue,", verbose)
         self._cat, self._absmag_calibration = self._read_catalogue(
             catalogue, catalogue_fpath)
@@ -443,6 +445,10 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
     zcmb_min = 0.0 if zcmb_min is None else zcmb_min
     zcmb_max = np.infty if zcmb_max is None else zcmb_max
 
+    with_inhomogeneous_malmquist = True
+    if loader._is_no_field:
+        with_inhomogeneous_malmquist = False
+
     if void_kwargs is None:
         los_overdensity = loader.los_density
         los_velocity = loader.los_radial_velocity
@@ -484,6 +490,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             RA[mask], dec[mask], zCMB[mask], e_zCMB, calibration_params,
             mag_selection, loader.rdist, loader._Omega_m, "SN",
             name=kind, void_kwargs=void_kwargs,
+            with_inhomogeneous_malmquist=with_inhomogeneous_malmquist,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation)
     elif "Pantheon+" in kind:
         keys = ["RA", "DEC", "zCMB", "mB", "x1", "c", "biasCor_m_b", "mBERR",
@@ -518,6 +525,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             RA[mask], dec[mask], zCMB[mask], e_zCMB[mask], calibration_params,
             mag_selection, loader.rdist, loader._Omega_m, "SN",
             name=kind, void_kwargs=void_kwargs,
+            with_inhomogeneous_malmquist=with_inhomogeneous_malmquist,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation)
     elif kind in ["SFI_gals", "2MTF", "SFI_gals_masked"] or "IndranilVoidTFRMock" in kind or "Carrick2MTFmock" in kind:  # noqa
         keys = ["RA", "DEC", "z_CMB", "mag", "eta", "e_mag", "e_eta"]
@@ -531,10 +539,10 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             # The mocks are generated without Malmquist.
             fprint("disabling homogeneous and inhomogeneous Malmquist bias for the mock.")  # noqa
             with_homogeneous_malmquist = False
-            with_inhomogeneous_malmquist = False
+            with_inhomogeneous_malmquist &= False
         else:
             with_homogeneous_malmquist = True
-            with_inhomogeneous_malmquist = True
+            with_inhomogeneous_malmquist &= True
 
         calibration_params = {"mag": mag[mask], "eta": eta[mask],
                               "e_mag": e_mag[mask], "e_eta": e_eta[mask]}
@@ -650,6 +658,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             RA[mask], dec[mask], z_obs[mask], None, calibration_params,
             mag_selection, loader.rdist, loader._Omega_m, "TFR", name=kind,
             void_kwargs=void_kwargs,
+            with_inhomogeneous_malmquist=with_inhomogeneous_malmquist,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation)
     elif kind in ["CF4_GroupAll"]:
         # Note, this for some reason works terribly.
@@ -672,6 +681,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             RA[mask], dec[mask], zCMB[mask], None, calibration_params,
             mag_selection,  loader.rdist, loader._Omega_m, "simple",
             name=kind, void_kwargs=void_kwargs,
+            with_inhomogeneous_malmquist=with_inhomogeneous_malmquist,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation)
     elif kind in ["SDSS-FP"]:
         Msun = 4.65
@@ -731,6 +741,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             RA[mask], dec[mask], zCMB[mask], None, calibration_params,
             mag_selection, loader.rdist, loader._Omega_m, "FP", name=kind,
             void_kwargs=void_kwargs,
+            with_inhomogeneous_malmquist=with_inhomogeneous_malmquist,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation)
     else:
         raise ValueError(f"Catalogue `{kind}` not recognized.")
