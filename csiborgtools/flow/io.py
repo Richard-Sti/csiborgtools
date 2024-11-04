@@ -190,7 +190,8 @@ class DataLoader:
         # For no-field read in Carrick+2015 but then zero it.
         if simname == "no_field":
             simname = "Carrick2015"
-        to_wipe = simname == "no_field"
+
+        to_wipe = self._is_no_field
 
         if not all(0 <= ksim < len(nsims) for ksim in ksims):
             raise ValueError(f"Invalid simulation index: `{ksims}`")
