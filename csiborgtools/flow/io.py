@@ -607,6 +607,8 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             mask &= not_matched_to_2MTF_or_SFI
         elif "2MTForSFI" in kind:
             mask &= ~not_matched_to_2MTF_or_SFI
+        elif "notSDSS" in kind:
+            mask &= Qs < 5
 
         fprint("employing a quality cut on the galaxies.")
         if "w" in band:
