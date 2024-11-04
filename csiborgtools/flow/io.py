@@ -311,6 +311,16 @@ class DataLoader:
 
                 if "CF4_TFR" in catalogue:
                     arr["RA"] *= 360 / 24
+        elif catalogue == "SDSS-FP":
+            with File(catalogue_fpath, 'r') as f:
+                dtype = [(key, np.float32) for key in f.keys()]
+                dtype += [("DEC", np.float32), ("RA", np.float32)]
+                arr = np.empty(len(f["Ra"]), dtype=dtype)
+                for key in f.keys():
+                    arr[key] = f[key][:]
+
+                arr["DEC"] = arr["Dec"]
+                arr["RA"] = arr["Ra"]
         else:
             raise ValueError(f"Unknown catalogue: `{catalogue}`.")
 
@@ -660,6 +670,65 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             RA[mask], dec[mask], zCMB[mask], None, calibration_params,
             mag_selection,  loader.rdist, loader._Omega_m, "simple",
             name=kind, void_kwargs=void_kwargs,
+            wo_num_dist_marginalisation=wo_num_dist_marginalisation)
+    elif kind in ["SDSS-FP"]:
+        Msun = 4.65
+
+        # We want to read in the group redshifts, instead of the galaxy
+        # redshifts to suppress the noise due to small-scale velocities.
+        keys = ["Ra", "Dec", "gczcmb", "rad", "erad", "boa", "eboa",
+                "sig", "esig", "plate", "rmag", "ermag", "Exr", "kcr",
+                "gczcmb", "czh", "r", "er", "s", "es", "i", "ei", "Sn"]
+
+        (RA, dec, zCMB, rdev, e_rdev, boa, e_boa, sig, e_sig, SDSS_plate,
+         rmag, e_rmag, Ar, kcr, gzCMB, zhel, r, er, s, es, i,
+         ei, Sn) = (loader.cat[k] for k in keys)
+
+        # Convert from velocity to redshift.
+        zCMB = zCMB.astype(float) / SPEED_OF_LIGHT
+        gzCMB = gzCMB.astype(float) / SPEED_OF_LIGHT
+        zhel = zhel.astype(float) / SPEED_OF_LIGHT
+
+        # Aperture size in arcseconds, depending on SDSS plate number.
+        theta_aperture = np.ones_like(RA) * 1.5
+        theta_aperture[SDSS_plate >= 3510] = 1.0
+
+        # Precompute the effective size along with its propagated error.
+        theta_eff = rdev * np.sqrt(boa)
+        e_theta_eff = theta_eff * np.sqrt(
+            (e_rdev / rdev)**2 + (e_boa / boa)**2 / 4)
+
+        e_log_theta_eff = e_theta_eff / theta_eff
+        e_log_sig = e_sig / sig
+
+        # Constant composed of several terms that enter the effective
+        # brightness calculation.
+        K = 0.4 * (Msun - 0.85 * gzCMB + kcr + Ar)
+
+        mask = (zCMB < zcmb_max) & (zCMB > zcmb_min)
+        calibration_params = {
+            "theta_eff": theta_eff[mask], "e_theta_eff": e_theta_eff[mask],
+            "sig": sig[mask], "e_sig": e_sig[mask],
+            "log_theta_aperture": np.log10(theta_aperture[mask]),
+            "rmag": rmag[mask],
+            "e_rmag": e_rmag[mask], "K": K[mask],
+            "e_log_theta_eff": e_log_theta_eff[mask],
+            "e_log_sig": e_log_sig[mask],
+            "zhel": zhel[mask],
+            "r": r[mask], "e_r": er[mask],
+            "s": s[mask], "e_s": es[mask],
+            "i": i[mask], "e_i": ei[mask],
+            "Sn": Sn[mask],
+            }
+
+        los_overdensity, los_velocity = mask_fields(
+            los_overdensity, los_velocity, mask, void_kwargs is not None)
+
+        model = PV_LogLikelihood(
+            los_overdensity, los_velocity,
+            RA[mask], dec[mask], zCMB[mask], None, calibration_params,
+            mag_selection, loader.rdist, loader._Omega_m, "FP", name=kind,
+            void_kwargs=void_kwargs,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation)
     else:
         raise ValueError(f"Catalogue `{kind}` not recognized.")
