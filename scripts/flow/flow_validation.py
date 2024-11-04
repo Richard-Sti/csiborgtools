@@ -93,7 +93,7 @@ def get_models(ksim, get_model_kwargs, mag_selection, void_kwargs,
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     folder = "/mnt/extraspace/rstiskalek/catalogs/"
 
-    nsims = paths.get_ics(ARGS.simname)
+    nsims = paths.get_ics(ARGS.simname, subsample=True)
     if ksim is None:
         nsim_iterator = [i for i in range(len(nsims))]
     else:
@@ -325,8 +325,8 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 500
-    nburn = 1500
+    nsteps = 1500
+    nburn = 10_000
     zcmb_min = None
     zcmb_max = 0.05
     nchains_harmonic = 10

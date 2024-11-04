@@ -181,7 +181,7 @@ class DataLoader:
         if "IndranilVoid" in simname:
             return None, None, None
 
-        nsims = paths.get_ics(simname)
+        nsims = paths.get_ics(simname, subsample=True)
         if isinstance(ksims, int):
             ksims = [ksims]
 
