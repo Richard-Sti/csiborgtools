@@ -36,15 +36,18 @@ else
     env="/mnt/users/rstiskalek/csiborgtools/venv_csiborg/bin/python"
 fi
 
+# For the void test: "LOSS,Foundation,CF4_TFR_i,CF4_TFR_notSDSS_w1"
 
 # for simname in "IndranilVoid_exp" "IndranilVoid_gauss" "IndranilVoid_mb"; do
 # for simname in "IndranilVoidSizeVar_exp" "IndranilVoidSizeVar_gauss" "IndranilVoidSizeVar_mb"; do
-for simname in "Carrick2015"; do
+for simname in "no_field"; do
 # for simname in "Carrick2015" "Lilow2024" "csiborg2_main" "csiborg2X" "manticore_2MPP_N128_DES_V1" "CF4" "CLONES"; do
     # for catalogue in "LOSS" "Foundation" "2MTF" "SFI_gals" "CF4_TFR_i" "CF4_TFR_w1"; do
     # for catalogue in "CF4_TFR_i" "CF4_TFR_w1"; do
     # for catalogue in "2MTF" "SFI_gals" "CF4_TFR_i" "CF4_TFR_w1"; do
-    for catalogue in "SDSS-FP"; do
+    # for catalogue in "LOSS,Foundation,CF4_TFR_i,CF4_TFR_notSDSS_w1"; do
+    # for catalogue in "LOSS,Foundation,CF4_TFR_i,CF4_TFR_notSDSS_w1"; do
+    for catalogue in "LOSS,Foundation,CF4_TFR_i,CF4_TFR_notSDSS_w1"; do
     # for catalogue in "Carrick2MTFmock_0"; do
         for ksim in "none"; do
         # for ksim in 0; do
