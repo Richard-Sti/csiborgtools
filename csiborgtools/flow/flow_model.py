@@ -705,7 +705,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         self.wo_num_dist_marginalisation = wo_num_dist_marginalisation
         self.with_homogeneous_malmquist = with_homogeneous_malmquist
         self.with_inhomogeneous_malmquist = with_inhomogeneous_malmquist
-        self.norm = - self.ndata * jnp.log(self.num_sims)
+        self.norm = - jnp.log(self.num_sims)
 
         if selection is not None and kind != "TFR":
             raise ValueError("Selection is only implemented "
@@ -1072,7 +1072,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                     mu_true_h[self.calibration_indxs] - 5 * jnp.log10(h),
                     e_mu_h)
 
-                factor("ll_calibration", ll_calibration)
+                factor(f"ll_calibration_{self.name}", ll_calibration)
 
             # True distance and redshift, shape is `(n_data)`. The distance
             # here is in units of `Mpc / h``.
@@ -1146,9 +1146,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
 
             ll_per_galaxy = logsumexp(ll, axis=0) + self.norm
 
-            ll_per_galaxy /= self.Sn
-
-        factor("ll_per_galaxy", ll_per_galaxy)
+        factor(f"ll_per_galaxy_{self.name}", ll_per_galaxy)
 
     # def FP_method(self, field_calibration_params, distmod_params,
     #               inference_method):
