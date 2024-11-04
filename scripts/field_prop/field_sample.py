@@ -18,6 +18,7 @@ Supports additional smoothing of the field as well.
 """
 from argparse import ArgumentParser
 from os.path import join
+import sys
 
 import csiborgtools
 import numpy
@@ -25,10 +26,10 @@ from astropy.cosmology import FlatLambdaCDM
 from h5py import File
 from mpi4py import MPI
 from taskmaster import work_delegation
-from tqdm import tqdm
 from numba import jit
 
-from utils import get_nsims
+sys.path.append("../")
+from utils import get_nsims                                                     # noqa
 
 
 @jit(nopython=True, fastmath=True, boundscheck=False)
@@ -106,6 +107,7 @@ def open_galaxy_positions(survey_name, comm, scatter=None):
                                 survey["DEC"]],
                                ).T
             pos = pos.astype(numpy.float32)
+            pos = csiborgtools.radec_to_cartesian(pos)
         elif survey_name == "SDSSxALFALFA":
             survey = csiborgtools.SDSSxALFALFA()()
             pos = numpy.vstack([survey["DIST"],
@@ -113,6 +115,7 @@ def open_galaxy_positions(survey_name, comm, scatter=None):
                                 survey["DEC_1"]],
                                ).T
             pos = pos.astype(numpy.float32)
+            pos = csiborgtools.radec_to_cartesian(pos)
         elif survey_name == "GW170817":
             samples = File("/mnt/extraspace/rstiskalek/GWLSS/H1L1V1-EXTRACT_POSTERIOR_GW170817-1187008600-400.hdf", 'r')["samples"]  # noqa
             cosmo = FlatLambdaCDM(H0=100, Om0=0.3175)
@@ -121,6 +124,7 @@ def open_galaxy_positions(survey_name, comm, scatter=None):
                 samples["ra"][:] * 180 / numpy.pi,
                 samples["dec"][:] * 180 / numpy.pi],
                                ).T
+            pos = csiborgtools.radec_to_cartesian(pos)
         elif survey_name == "TNG300-1":
             with File("/mnt/extraspace/rstiskalek/TNG300-1/postprocessing/subhalo_catalogue_099.hdf5", 'r') as f:  # noqa
                 pos = numpy.vstack([f["SubhaloPos"][:, 0],
@@ -149,45 +153,6 @@ def open_galaxy_positions(survey_name, comm, scatter=None):
         pos = comm.bcast(pos, root=0)
 
     return pos
-
-
-def evaluate_field(field, pos, boxsize, smooth_scales, verbose=True):
-    """
-    Evaluate the field at the given galaxy positions.
-
-    Parameters
-    ----------
-    field : 3-dimensional array
-        Cartesian field to be evaluated.
-    pos : 2-dimensional array
-        Galaxy positions in the form of (distance, RA, DEC).
-    boxsize : float
-        Box size in `Mpc / h`.
-    smooth_scales : list
-        List of smoothing scales in `Mpc / h`.
-    verbose : bool
-        Verbosity flag.
-
-    Returns
-    -------
-    val : 2-dimensional array
-        Evaluated field.
-    """
-    mpc2box = 1. / boxsize
-    val = numpy.full((pos.shape[0], len(smooth_scales)), numpy.nan,
-                     dtype=field.dtype)
-
-    for i, scale in enumerate(tqdm(smooth_scales, desc="Smoothing",
-                                   disable=not verbose)):
-        if scale > 0:
-            field_smoothed = csiborgtools.field.smoothen_field(
-                field, scale * mpc2box, boxsize=1, make_copy=True)
-        else:
-            field_smoothed = numpy.copy(field)
-        val[:, i] = csiborgtools.field.evaluate_sky(
-            field_smoothed, pos=pos, mpc2box=mpc2box)
-
-    return val
 
 
 def match_to_no_selection(val, parser_args):
@@ -239,7 +204,6 @@ def main(nsim, parser_args, pos, verbose):
     None
     """
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
-    boxsize = csiborgtools.simname2boxsize(parser_args.simname)
 
     # Get the appropriate field loader
     if parser_args.simname == "csiborg1":
@@ -258,8 +222,9 @@ def main(nsim, parser_args, pos, verbose):
     else:
         raise NotImplementedError(f"Field `{parser_args.kind}` is not supported.")  # noqa
 
-    val = evaluate_field(field, pos, boxsize, parser_args.smooth_scales,
-                         verbose=verbose)
+    val = csiborgtools.field.evaluate_cartesian_cic(
+        field, pos=pos, smooth_scales=parser_args.smooth_scales,
+        verbose=verbose)
 
     if parser_args.survey == "GW170817":
         fout = join(
@@ -319,7 +284,17 @@ if __name__ == "__main__":
     else:
         nsims = get_nsims(args, paths)
 
+    boxsize = csiborgtools.simname2boxsize(args.simname)
+
     pos = open_galaxy_positions(args.survey, MPI.COMM_WORLD, args.scatter)
+    # Convert positions to box units
+    pos += boxsize / 2
+    pos /= boxsize
+
+    # Convert smooth scales to box units
+    if args.smooth_scales is not None:
+        args.smooth_scales = [s / boxsize for s in args.smooth_scales]
+    print(f"Smoothing scales in box units are {args.smooth_scales}")
 
     def _main(nsim):
         main(nsim, args, pos, verbose=MPI.COMM_WORLD.Get_size() == 1)
