@@ -12,6 +12,7 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+from .cosmography import distmod2redshift, log_dA_to_distmod                    # noqa
 from .io import (DataLoader, get_model, read_absolute_calibration,              # noqa
                  radial_velocity_los)                                           # noqa
 from .flow_model import (PV_LogLikelihood, PV_validation_model, dist2redshift,  # noqa
