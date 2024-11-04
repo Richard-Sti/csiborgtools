@@ -128,6 +128,12 @@ def get_los(catalogue_name, simname, comm):
             with File(fname, 'r') as f:
                 RA = f["RA"][:] * 360 / 24  # Convert to degrees from hours.
                 dec = f["DE"][:]
+        elif catalogue_name == "SDSS-FP":
+            fname = "/mnt/extraspace/rstiskalek/catalogs/PV/CF4/SDSS-FP-LOWZ.hdf5"  # noqa
+
+            with File(fname, 'r') as f:
+                RA = f["Ra"][...]
+                dec = f["Dec"][...]
         else:
             raise ValueError(f"Unknown catalogue name: `{catalogue_name}`.")
 
