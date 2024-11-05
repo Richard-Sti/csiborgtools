@@ -286,7 +286,7 @@ def get_toy_selection(catalogue):
         mag_kind = "soft"
         # m1, m2, a
         mag_coeffs = [11.602, 12.948, -0.233]
-        eta_coeffs = None
+        eta_coeffs = [None, None]
         eta_kind = None
     elif "CF4_TFR" in catalogue and "_i" in catalogue:
         mag_kind = "soft"
