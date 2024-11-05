@@ -158,8 +158,8 @@ def names_to_latex(names, for_corner=False):
 def simname_to_pretty(simname):
     ltx = {"Carrick2015": "Carrick+15",
            "Lilow2024": "Lilow+24",
-           "csiborg1": "CB1",
-           "csiborg2_main": "CB2",
+           "csiborg1": r"\texttt{CSiBORG}\textsuperscript{(1)}",
+           "csiborg2_main": r"\texttt{CSiBORG}\textsuperscript{(2)}",
            "csiborg2X": "Manticore V0",
            "manticore_2MPP_N128_DES_V1": "Manticore V1",
            "CF4": "Courtois+23",
