@@ -466,7 +466,10 @@ def BIC_AIC(samples, log_likelihood, ndata):
 
     # How many parameters?
     nparam = 0
-    for val in samples.values():
+    for key, val in samples.items():
+        if "_deterministic" in key:
+            continue
+
         if val.ndim == 1:
             nparam += 1
         else:
@@ -479,12 +482,15 @@ def BIC_AIC(samples, log_likelihood, ndata):
     return float(BIC), float(AIC)
 
 
-def dict_samples_to_array(samples):
+def dict_samples_to_array(samples, exclude_deterministic=False):
     """Convert a dictionary of samples to a 2-dimensional array."""
     data = []
     names = []
 
     for key, value in samples.items():
+        if exclude_deterministic and "_deterministic" in key:
+            continue
+
         if value.ndim == 1:
             data.append(value)
             names.append(key)

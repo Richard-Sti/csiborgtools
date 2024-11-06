@@ -388,7 +388,7 @@ def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
         # TFR-estimated distances are in Mpc / h.
         a = sample(f"ahTFR_{name}", Normal(a_mean, a_std))
         # However, keep track of the zero-point without the factor of h.
-        deterministic(f"aTFR_{name}", a + 5 * jnp.log10(h))
+        deterministic(f"aTFR_{name}_deterministic", a + 5 * jnp.log10(h))
     else:
         a = sample(f"aTFR_{name}", Normal(a_mean, a_std))
 
@@ -531,7 +531,7 @@ def sample_calibration(Vext_i_min, Vext_i_max, Vmono_min, Vmono_max,
                        h_max, rLG_min, rLG_max, no_Vext, sample_Vmono,
                        sample_beta, sample_h, sample_rLG, sample_Vmag_vax,
                        sample_void_size, void_size_min, void_size_max,
-                       sample_h_e_int):
+                       sample_h_e_int, rvoid_fiducial):
     """Sample the flow calibration."""
     sigma_v = sample("sigma_v", Uniform(sigma_v_min, sigma_v_max))
     factor("ll_sigma_v", -jnp.log(sigma_v))
@@ -577,15 +577,20 @@ def sample_calibration(Vext_i_min, Vext_i_max, Vmono_min, Vmono_max,
         h = None
         e_mu_h = None
 
-    if sample_rLG:
-        rLG = sample("rLG", Uniform(rLG_min, rLG_max))
-    else:
-        rLG = None
-
     if sample_void_size:
         void_size = sample("void_size", Uniform(void_size_min, void_size_max))
     else:
         void_size = None
+
+    if sample_rLG:
+        if sample_void_size:
+            r_LG = sample("rLG_void_units", Uniform(
+                rLG_min / rvoid_fiducial, rLG_max / rvoid_fiducial))
+            r_LG = deterministic("rLG_deterministic", r_LG * rvoid_fiducial)
+        else:
+            r_LG = sample("rLG", Uniform(rLG_min, rLG_max))
+    else:
+        r_LG = None
 
     return {"Vext": Vext,
             "Vmono": Vmono,
@@ -594,7 +599,7 @@ def sample_calibration(Vext_i_min, Vext_i_max, Vmono_min, Vmono_max,
             "h": h,
             "sample_h_e_int": sample_h_e_int,
             "sample_h": sample_h,
-            "rLG": rLG,
+            "rLG": r_LG,
             "void_size": void_size,
             }
 
