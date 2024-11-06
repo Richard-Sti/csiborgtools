@@ -16,6 +16,7 @@
 from copy import copy, deepcopy
 
 import numpy as np
+from scipy.stats import norm
 from jax import numpy as jnp
 from getdist import MCSamples
 from h5py import File
@@ -314,6 +315,8 @@ def get_bulkflow(fname, simname, convert_to_galactic=True, downsample=1,
         except KeyError:
             beta = jnp.ones(len(Vext))
 
+        sigma_v = f["samples/sigma_v"][...]
+
     # Read in the bulk flow
     f = np.load(f"/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_shells/enclosed_mass_{simname}.npz")  # noqa
     r = f["distances"]
@@ -342,16 +345,34 @@ def get_bulkflow(fname, simname, convert_to_galactic=True, downsample=1,
     By = By + Vext[:, 1]
     Bz = Bz + Vext[:, 2]
 
+    Bcart = np.stack([Bx, By, Bz], axis=-1)
+
+    # Bulk flow in Cartesian coordinates at the origin, `(nsims, nsamples, 3)`.
+    # We need to find the first finite point in radial distance.
+    k = np.where(np.isfinite(Bcart[0, :, 0, 0]))[0][0]
+    Bcart_origin = Bcart[:, k, ...]
+
+    # Add sigma_v scatter to it
+    nsim, nsample, __ = Bcart_origin.shape
+    for i in range(nsample):
+        Bcart_origin[:, i, :] += norm(0, sigma_v[i]).rvs(size=(nsim, 3))
+
     if convert_to_galactic:
         Bmag, Bl, Bb = cartesian_to_radec(Bx, By, Bz)
         Bl, Bb = csiborgtools.radec_to_galactic(Bl, Bb)
         B = np.stack([Bmag, Bl, Bb], axis=-1)
+
+        Bmag, Bl, Bb = cartesian_to_radec(
+            Bcart_origin[..., 0], Bcart_origin[..., 1], Bcart_origin[..., 2])
+        Bl, Bb = csiborgtools.radec_to_galactic(Bl, Bb)
+        Borigin = np.stack([Bmag, Bl, Bb], axis=-1)[0, ...]
     else:
-        B = np.stack([Bx, By, Bz], axis=-1)
+        B = Bcart
+        Borigin = Bcart_origin
 
     # Stack over the simulations
     B = np.hstack([B[i] for i in range(len(B))])
-    return r, B
+    return r, B, Borigin
 
 ###############################################################################
 #                      Prepare samples for plotting                           #
