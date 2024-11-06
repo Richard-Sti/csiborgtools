@@ -22,4 +22,4 @@ from .mocks import mock_Carrick2MTF                                             
 from .selection import ToyMagnitudeSelection                                    # noqa
 from .void_model import (load_void_fiducial, load_void_size_variation,          # noqa
                          interpolate_fiducial_void, interpolate_size_var_void,  # noqa
-                         select_void_h, mock_void)                              # noqa
+                         select_void_h, select_void__fiducial_size, mock_void)  # noqa
