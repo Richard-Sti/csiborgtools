@@ -169,7 +169,7 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
 
     nuts_kernel = NUTS(model, init_strategy=init_to_sample())
     mcmc = MCMC(nuts_kernel, num_warmup=nburn, num_samples=nsteps)
-    rng_key = jax.random.PRNGKey(40)
+    rng_key = jax.random.PRNGKey(42)
 
     mcmc.run(rng_key, extra_fields=("potential_energy",), **model_kwargs)
     samples = mcmc.get_samples()
@@ -331,7 +331,7 @@ if __name__ == "__main__":
     zcmb_max = 0.05
     nchains_harmonic = 10
     num_epochs = 50
-    inference_method = "mike"
+    inference_method = "bayes"
     mag_selection = None
     sample_alpha = False if (ARGS.simname == "no_field" or "IndranilVoid" in ARGS.simname) else True  # noqa
     sample_beta = None
