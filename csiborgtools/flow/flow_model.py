@@ -531,7 +531,7 @@ def sample_calibration(Vext_i_min, Vext_i_max, Vmono_min, Vmono_max,
                        h_max, rLG_min, rLG_max, no_Vext, sample_Vmono,
                        sample_beta, sample_h, sample_rLG, sample_Vmag_vax,
                        sample_void_size, void_size_min, void_size_max,
-                       sample_h_e_int, rvoid_fiducial):
+                       sample_h_e_int, rvoid_fiducial, vvoid):
     """Sample the flow calibration."""
     sigma_v = sample("sigma_v", Uniform(sigma_v_min, sigma_v_max))
     factor("ll_sigma_v", -jnp.log(sigma_v))
@@ -557,6 +557,11 @@ def sample_calibration(Vext_i_min, Vext_i_max, Vmono_min, Vmono_max,
     else:
         with plate("Vext_plate", 3):
             Vext = sample("Vext", Uniform(Vext_i_min, Vext_i_max))
+
+        if vvoid is not None:
+            # Subtract the V_void velocity which was baked into the void
+            # velocities in the Haslbauer+2020 paper.
+            Vext -= vvoid * jnp.asarray([-0.4035093, 0.01363162, -0.91487399])
 
         factor("Vext_ll", -jnp.log(jnp.sum(Vext**2)))
 
