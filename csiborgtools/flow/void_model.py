@@ -67,6 +67,15 @@ def select_void__fiducial_size(kind):
         raise ValueError(f"Unknown void kind: `{kind}`.")
 
 
+def select_vvoid(kind):
+    """Select the fidicual void velocity for a void profile `kind`."""
+    vvoid = {"exp": 2307, "gauss": 2018, "mb": 1586}
+    try:
+        return vvoid[kind]
+    except KeyError:
+        raise ValueError(f"Unknown void kind: `{kind}`.")
+
+
 ###############################################################################
 #                            I/O of the void data                             #
 ###############################################################################
