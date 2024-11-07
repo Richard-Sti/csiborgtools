@@ -586,7 +586,8 @@ def sample_calibration(Vext_i_min, Vext_i_max, Vmono_min, Vmono_max,
         if sample_void_size:
             r_LG = sample("rLG_void_units", Uniform(
                 rLG_min / rvoid_fiducial, rLG_max / rvoid_fiducial))
-            r_LG = deterministic("rLG_deterministic", r_LG * rvoid_fiducial)
+            r_LG = deterministic(
+                "rLG_deterministic", r_LG * rvoid_fiducial * void_size)
         else:
             r_LG = sample("rLG", Uniform(rLG_min, rLG_max))
     else:
