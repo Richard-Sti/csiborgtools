@@ -144,7 +144,8 @@ def get_models(ksim, get_model_kwargs, mag_selection, void_kwargs,
 
 def get_harmonic_evidence(samples, log_posterior, nchains_harmonic, epoch_num):
     """Compute evidence using the `harmonic` package."""
-    data, names = csiborgtools.dict_samples_to_array(samples)
+    data, names = csiborgtools.dict_samples_to_array(
+        samples, exclude_deterministic=True)
     data = data.reshape(nchains_harmonic, -1, len(names))
     log_posterior = log_posterior.reshape(nchains_harmonic, -1)
 
@@ -169,7 +170,7 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
 
     nuts_kernel = NUTS(model, init_strategy=init_to_sample())
     mcmc = MCMC(nuts_kernel, num_warmup=nburn, num_samples=nsteps)
-    rng_key = jax.random.PRNGKey(42)
+    rng_key = jax.random.PRNGKey(40)
 
     mcmc.run(rng_key, extra_fields=("potential_energy",), **model_kwargs)
     samples = mcmc.get_samples()
@@ -331,7 +332,7 @@ if __name__ == "__main__":
     zcmb_max = 0.05
     nchains_harmonic = 10
     num_epochs = 50
-    inference_method = "bayes"
+    inference_method = "mike"
     mag_selection = None
     sample_alpha = False if (ARGS.simname == "no_field" or "IndranilVoid" in ARGS.simname) else True  # noqa
     sample_beta = None
@@ -396,13 +397,16 @@ if __name__ == "__main__":
 
         profile = ARGS.simname.split("_")[-1]
         h = csiborgtools.flow.select_void_h(profile)
+        rvoid_fiducial = csiborgtools.flow.select_void__fiducial_size(profile)
         rdist = np.arange(0, 165, 1.0)
+
         void_kwargs = {
             "profile": profile, "h": h, "order": 1, "rdist": rdist,
             "is_fiducial": "IndranilVoidSizeVar" not in ARGS.simname,
             }
     else:
         void_kwargs = None
+        rvoid_fiducial = None
         h = 1.
 
     if inference_method != "bayes":
@@ -431,6 +435,7 @@ if __name__ == "__main__":
                                "sample_void_size": "IndranilVoidSizeVar" in ARGS.simname,  # noqa
                                "void_size_min": 0.1, "void_size_max": 3.0,
                                "rLG_min": 0.0, "rLG_max": 500 * h,
+                               "rvoid_fiducial": rvoid_fiducial,
                                }
     print_variables(
         calibration_hyperparams.keys(), calibration_hyperparams.values())
