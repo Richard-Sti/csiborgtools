@@ -92,3 +92,12 @@ def distmod2redshift(mu, Om0):
     valid for a flat universe over the range of 0.00001 < z < 0.1.
     """
     return jnp.exp(((0.461108 * mu) - ((0.022187 * Om0) + (((0.022347 * mu)** (12.631788 - ((-6.708757) * Om0))) + 19.529852))))  # noqa
+
+
+def log_dA_to_distmod(log_dA, Om0):
+    """
+    Convert log10 of the angular diameter distance in Mpc / h to distance
+    modulus. The expression is valid for a flat universe over the range of
+    0.00001 < z < 0.1.
+    """
+    return jnp.exp((-6.542245 + 2.307573 * log_dA) +  jnp.exp(2.708684 * log_dA + (-9.708873 + 1.270249 * Om0))) + 5 * log_dA + 25  # noqa

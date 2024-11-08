@@ -16,6 +16,7 @@
 from copy import copy, deepcopy
 
 import numpy as np
+from scipy.stats import norm
 from jax import numpy as jnp
 from getdist import MCSamples
 from h5py import File
@@ -60,8 +61,9 @@ def names_to_latex(names, for_corner=False):
            "l": "\\ell ~ [\\mathrm{deg}]",
            "b": "b ~ [\\mathrm{deg}]",
            "rLG": "R_{\\rm offset} ~ [\\mathrm{Mpc} / h]",
+           "rLG_deterministic": "R_{\\rm offset} ~ [\\mathrm{Mpc} / h]",
            "Vext_axis_mag": "V_{\\rm axis} ~ [\\mathrm{km} / \\mathrm{s}]",
-           "Vvoid": "\\tilde{V}_{\\rm void} ~ [\\mathrm{km} / \\mathrm{s}]",
+           "Vvoid": "V_{\\rm void} ~ [\\mathrm{km} / \\mathrm{s}]",
            "void_size": "r_{\\rm void}",
            "hubble": "h",
            }
@@ -75,7 +77,7 @@ def names_to_latex(names, for_corner=False):
                   "alpha_cal": r"$\mathcal{A}$",
                   "beta_cal": r"$\mathcal{B}$",
                   "mag_cal": r"$\mathcal{M}$",
-                  "Vvoid": r"$\tilde{V}_{\rm void}$",
+                  "Vvoid": r"$V_{\rm void}$",
                   "hubble": r"$h$",
                   }
 
@@ -158,8 +160,8 @@ def names_to_latex(names, for_corner=False):
 def simname_to_pretty(simname):
     ltx = {"Carrick2015": "Carrick+15",
            "Lilow2024": "Lilow+24",
-           "csiborg1": "CB1",
-           "csiborg2_main": "CB2",
+           "csiborg1": r"\texttt{CSiBORG}\textsuperscript{(1)}",
+           "csiborg2_main": r"\texttt{CSiBORG}\textsuperscript{(2)}",
            "csiborg2X": "Manticore V0",
            "manticore_2MPP_N128_DES_V1": "Manticore V1",
            "CF4": "Courtois+23",
@@ -168,9 +170,10 @@ def simname_to_pretty(simname):
            "IndranilVoid_exp": "Exponential",
            "IndranilVoid_gauss": "Gaussian",
            "IndranilVoid_mb": "Maxwell-Boltzmann",
-           "IndranilVoidSizeVar_exp": "Exponential",
-           "IndranilVoidSizeVar_gauss": "Gaussian",
-           "IndranilVoidSizeVar_mb": "Maxwell-Boltzmann",
+           "IndranilVoidSizeVar_exp": "Extended Exponential",
+           "IndranilVoidSizeVar_gauss": "Extended Gaussian",
+           "IndranilVoidSizeVar_mb": "Extended Maxwell-Boltzmann",
+           "no_field": r"$\mathbf{V}_{\rm ext}$ only"
            }
 
     if isinstance(simname, list):
@@ -314,6 +317,8 @@ def get_bulkflow(fname, simname, convert_to_galactic=True, downsample=1,
         except KeyError:
             beta = jnp.ones(len(Vext))
 
+        sigma_v = f["samples/sigma_v"][...]
+
     # Read in the bulk flow
     f = np.load(f"/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_shells/enclosed_mass_{simname}.npz")  # noqa
     r = f["distances"]
@@ -342,16 +347,34 @@ def get_bulkflow(fname, simname, convert_to_galactic=True, downsample=1,
     By = By + Vext[:, 1]
     Bz = Bz + Vext[:, 2]
 
+    Bcart = np.stack([Bx, By, Bz], axis=-1)
+
+    # Bulk flow in Cartesian coordinates at the origin, `(nsims, nsamples, 3)`.
+    # We need to find the first finite point in radial distance.
+    k = np.where(np.isfinite(Bcart[0, :, 0, 0]))[0][0]
+    Bcart_origin = Bcart[:, k, ...]
+
+    # Add sigma_v scatter to it
+    nsim, nsample, __ = Bcart_origin.shape
+    for i in range(nsample):
+        Bcart_origin[:, i, :] += norm(0, sigma_v[i]).rvs(size=(nsim, 3))
+
     if convert_to_galactic:
         Bmag, Bl, Bb = cartesian_to_radec(Bx, By, Bz)
         Bl, Bb = csiborgtools.radec_to_galactic(Bl, Bb)
         B = np.stack([Bmag, Bl, Bb], axis=-1)
+
+        Bmag, Bl, Bb = cartesian_to_radec(
+            Bcart_origin[..., 0], Bcart_origin[..., 1], Bcart_origin[..., 2])
+        Bl, Bb = csiborgtools.radec_to_galactic(Bl, Bb)
+        Borigin = np.stack([Bmag, Bl, Bb], axis=-1)[0, ...]
     else:
-        B = np.stack([Bx, By, Bz], axis=-1)
+        B = Bcart
+        Borigin = Bcart_origin
 
     # Stack over the simulations
     B = np.hstack([B[i] for i in range(len(B))])
-    return r, B
+    return r, B, Borigin
 
 ###############################################################################
 #                      Prepare samples for plotting                           #
@@ -379,10 +402,12 @@ def samples_for_corner(samples):
     return data, labels, keys
 
 
-def samples_to_getdist(samples, label):
+def samples_to_getdist(samples, label, ranges=None):
     data, __, keys = samples_for_corner(samples)
 
     return MCSamples(
         samples=data, names=keys,
         labels=names_to_latex(keys, for_corner=False),
-        label=label)
+        label=label,
+        ranges=ranges,
+        )

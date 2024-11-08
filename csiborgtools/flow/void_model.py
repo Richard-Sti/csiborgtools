@@ -58,6 +58,24 @@ def select_void_h(kind):
         raise ValueError(f"Unknown void kind: `{kind}`.")
 
 
+def select_void__fiducial_size(kind):
+    """Select the fiducial void size in cMpc / h for a void profile `kind`."""
+    rvoid = {"mb": 228.2, "gauss": 1030, "exp": 1030}
+    try:
+        return rvoid[kind] * select_void_h(kind)
+    except KeyError:
+        raise ValueError(f"Unknown void kind: `{kind}`.")
+
+
+def select_vvoid(kind):
+    """Select the fidicual void velocity for a void profile `kind`."""
+    vvoid = {"exp": 2307, "gauss": 2018, "mb": 1586}
+    try:
+        return vvoid[kind]
+    except KeyError:
+        raise ValueError(f"Unknown void kind: `{kind}`.")
+
+
 ###############################################################################
 #                            I/O of the void data                             #
 ###############################################################################

@@ -12,6 +12,7 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+from .cosmography import distmod2redshift, log_dA_to_distmod                    # noqa
 from .io import (DataLoader, get_model, read_absolute_calibration,              # noqa
                  radial_velocity_los)                                           # noqa
 from .flow_model import (PV_LogLikelihood, PV_validation_model, dist2redshift,  # noqa
@@ -21,4 +22,5 @@ from .mocks import mock_Carrick2MTF                                             
 from .selection import ToyMagnitudeSelection                                    # noqa
 from .void_model import (load_void_fiducial, load_void_size_variation,          # noqa
                          interpolate_fiducial_void, interpolate_size_var_void,  # noqa
-                         select_void_h, mock_void)                              # noqa
+                         select_void_h, select_void__fiducial_size,             # noqa
+                         select_vvoid, mock_void)                               # noqa

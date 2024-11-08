@@ -128,6 +128,12 @@ def get_los(catalogue_name, simname, comm):
             with File(fname, 'r') as f:
                 RA = f["RA"][:] * 360 / 24  # Convert to degrees from hours.
                 dec = f["DE"][:]
+        elif catalogue_name == "SDSS-FP":
+            fname = "/mnt/extraspace/rstiskalek/catalogs/PV/CF4/SDSS-FP-LOWZ.hdf5"  # noqa
+
+            with File(fname, 'r') as f:
+                RA = f["Ra"][...]
+                dec = f["Dec"][...]
         else:
             raise ValueError(f"Unknown catalogue name: `{catalogue_name}`.")
 
@@ -438,7 +444,8 @@ if __name__ == "__main__":
     sigma_smooth = max((sigma_target**2 - sigma_original**2), 0)**0.5
     print(f"Secondary smoothing is {sigma_smooth} Mpc / h.")
 
-    smooth_scales = [0, sigma_smooth]
+    smooth_scales = [0, sigma_smooth]  # + [2 * n for n in range(1, 33)]
+    # print(f"Actually, the smooth scales are: {smooth_scales} Mpc / h.")
 
     print(f"Running catalogue {args.catalogue} for simulation {args.simname} "
           f"with {len(r)} radial points.")

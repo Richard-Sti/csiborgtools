@@ -57,6 +57,8 @@ class DataLoader:
     """
     def __init__(self, simname, ksim, catalogue, catalogue_fpath, paths,
                  ksmooth=None, store_full_velocity=False, verbose=True):
+        self._is_no_field = simname == "no_field"
+
         fprint("reading the catalogue,", verbose)
         self._cat, self._absmag_calibration = self._read_catalogue(
             catalogue, catalogue_fpath)
@@ -181,14 +183,15 @@ class DataLoader:
         if "IndranilVoid" in simname:
             return None, None, None
 
-        nsims = paths.get_ics(simname)
+        nsims = paths.get_ics(simname, subsample=True)
         if isinstance(ksims, int):
             ksims = [ksims]
 
         # For no-field read in Carrick+2015 but then zero it.
         if simname == "no_field":
             simname = "Carrick2015"
-        to_wipe = simname == "no_field"
+
+        to_wipe = self._is_no_field
 
         if not all(0 <= ksim < len(nsims) for ksim in ksims):
             raise ValueError(f"Invalid simulation index: `{ksims}`")
@@ -311,6 +314,16 @@ class DataLoader:
 
                 if "CF4_TFR" in catalogue:
                     arr["RA"] *= 360 / 24
+        elif catalogue == "SDSS-FP":
+            with File(catalogue_fpath, 'r') as f:
+                dtype = [(key, np.float32) for key in f.keys()]
+                dtype += [("DEC", np.float32), ("RA", np.float32)]
+                arr = np.empty(len(f["Ra"]), dtype=dtype)
+                for key in f.keys():
+                    arr[key] = f[key][:]
+
+                arr["DEC"] = arr["Dec"]
+                arr["RA"] = arr["Ra"]
         else:
             raise ValueError(f"Unknown catalogue: `{catalogue}`.")
 
@@ -433,6 +446,10 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
     zcmb_min = 0.0 if zcmb_min is None else zcmb_min
     zcmb_max = np.infty if zcmb_max is None else zcmb_max
 
+    with_inhomogeneous_malmquist = True
+    if loader._is_no_field:
+        with_inhomogeneous_malmquist = False
+
     if void_kwargs is None:
         los_overdensity = loader.los_density
         los_velocity = loader.los_radial_velocity
@@ -474,6 +491,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             RA[mask], dec[mask], zCMB[mask], e_zCMB, calibration_params,
             mag_selection, loader.rdist, loader._Omega_m, "SN",
             name=kind, void_kwargs=void_kwargs,
+            with_inhomogeneous_malmquist=with_inhomogeneous_malmquist,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation)
     elif "Pantheon+" in kind:
         keys = ["RA", "DEC", "zCMB", "mB", "x1", "c", "biasCor_m_b", "mBERR",
@@ -508,6 +526,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             RA[mask], dec[mask], zCMB[mask], e_zCMB[mask], calibration_params,
             mag_selection, loader.rdist, loader._Omega_m, "SN",
             name=kind, void_kwargs=void_kwargs,
+            with_inhomogeneous_malmquist=with_inhomogeneous_malmquist,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation)
     elif kind in ["SFI_gals", "2MTF", "SFI_gals_masked"] or "IndranilVoidTFRMock" in kind or "Carrick2MTFmock" in kind:  # noqa
         keys = ["RA", "DEC", "z_CMB", "mag", "eta", "e_mag", "e_eta"]
@@ -521,10 +540,10 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             # The mocks are generated without Malmquist.
             fprint("disabling homogeneous and inhomogeneous Malmquist bias for the mock.")  # noqa
             with_homogeneous_malmquist = False
-            with_inhomogeneous_malmquist = False
+            with_inhomogeneous_malmquist &= False
         else:
             with_homogeneous_malmquist = True
-            with_inhomogeneous_malmquist = True
+            with_inhomogeneous_malmquist &= True
 
         calibration_params = {"mag": mag[mask], "eta": eta[mask],
                               "e_mag": e_mag[mask], "e_eta": e_eta[mask]}
@@ -597,6 +616,8 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             mask &= not_matched_to_2MTF_or_SFI
         elif "2MTForSFI" in kind:
             mask &= ~not_matched_to_2MTF_or_SFI
+        elif "notSDSS" in kind:
+            mask &= Qs < 5
 
         fprint("employing a quality cut on the galaxies.")
         if "w" in band:
@@ -638,6 +659,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             RA[mask], dec[mask], z_obs[mask], None, calibration_params,
             mag_selection, loader.rdist, loader._Omega_m, "TFR", name=kind,
             void_kwargs=void_kwargs,
+            with_inhomogeneous_malmquist=with_inhomogeneous_malmquist,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation)
     elif kind in ["CF4_GroupAll"]:
         # Note, this for some reason works terribly.
@@ -660,6 +682,67 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             RA[mask], dec[mask], zCMB[mask], None, calibration_params,
             mag_selection,  loader.rdist, loader._Omega_m, "simple",
             name=kind, void_kwargs=void_kwargs,
+            with_inhomogeneous_malmquist=with_inhomogeneous_malmquist,
+            wo_num_dist_marginalisation=wo_num_dist_marginalisation)
+    elif kind in ["SDSS-FP"]:
+        Msun = 4.65
+
+        # We want to read in the group redshifts, instead of the galaxy
+        # redshifts to suppress the noise due to small-scale velocities.
+        keys = ["Ra", "Dec", "gczcmb", "rad", "erad", "boa", "eboa",
+                "sig", "esig", "plate", "rmag", "ermag", "Exr", "kcr",
+                "gczcmb", "czh", "r", "er", "s", "es", "i", "ei", "Sn"]
+
+        (RA, dec, zCMB, rdev, e_rdev, boa, e_boa, sig, e_sig, SDSS_plate,
+         rmag, e_rmag, Ar, kcr, gzCMB, zhel, r, er, s, es, i,
+         ei, Sn) = (loader.cat[k] for k in keys)
+
+        # Convert from velocity to redshift.
+        zCMB = zCMB.astype(float) / SPEED_OF_LIGHT
+        gzCMB = gzCMB.astype(float) / SPEED_OF_LIGHT
+        zhel = zhel.astype(float) / SPEED_OF_LIGHT
+
+        # Aperture size in arcseconds, depending on SDSS plate number.
+        theta_aperture = np.ones_like(RA) * 1.5
+        theta_aperture[SDSS_plate >= 3510] = 1.0
+
+        # Precompute the effective size along with its propagated error.
+        theta_eff = rdev * np.sqrt(boa)
+        e_theta_eff = theta_eff * np.sqrt(
+            (e_rdev / rdev)**2 + (e_boa / boa)**2 / 4)
+
+        e_log_theta_eff = e_theta_eff / theta_eff
+        e_log_sig = e_sig / sig
+
+        # Constant composed of several terms that enter the effective
+        # brightness calculation.
+        K = 0.4 * (Msun - 0.85 * gzCMB + kcr + Ar)
+
+        mask = (zCMB < zcmb_max) & (zCMB > zcmb_min)
+        calibration_params = {
+            "theta_eff": theta_eff[mask], "e_theta_eff": e_theta_eff[mask],
+            "sig": sig[mask], "e_sig": e_sig[mask],
+            "log_theta_aperture": np.log10(theta_aperture[mask]),
+            "rmag": rmag[mask],
+            "e_rmag": e_rmag[mask], "K": K[mask],
+            "e_log_theta_eff": e_log_theta_eff[mask],
+            "e_log_sig": e_log_sig[mask],
+            "zhel": zhel[mask],
+            "r": r[mask], "e_r": er[mask],
+            "s": s[mask], "e_s": es[mask],
+            "i": i[mask], "e_i": ei[mask],
+            "Sn": Sn[mask],
+            }
+
+        los_overdensity, los_velocity = mask_fields(
+            los_overdensity, los_velocity, mask, void_kwargs is not None)
+
+        model = PV_LogLikelihood(
+            los_overdensity, los_velocity,
+            RA[mask], dec[mask], zCMB[mask], None, calibration_params,
+            mag_selection, loader.rdist, loader._Omega_m, "FP", name=kind,
+            void_kwargs=void_kwargs,
+            with_inhomogeneous_malmquist=with_inhomogeneous_malmquist,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation)
     else:
         raise ValueError(f"Catalogue `{kind}` not recognized.")

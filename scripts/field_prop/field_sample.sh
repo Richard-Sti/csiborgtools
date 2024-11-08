@@ -6,10 +6,11 @@ env="/mnt/zfsusers/rstiskalek/csiborgtools/venv_csiborg/bin/python"
 file="field_sample.py"
 
 
-nsims="-1"
-simname="csiborg1"
+nsims="15517"
+simname="csiborg2_main"
 survey="SDSS"
 smooth_scales="0 2 4 8 16"
+# smooth_scales="0 2"
 kind="density"
 MAS="SPH"
 grid=1024
