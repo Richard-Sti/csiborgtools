@@ -398,6 +398,7 @@ if __name__ == "__main__":
         profile = ARGS.simname.split("_")[-1]
         h = csiborgtools.flow.select_void_h(profile)
         rvoid_fiducial = csiborgtools.flow.select_void__fiducial_size(profile)
+        vvoid = csiborgtools.flow.select_vvoid(profile)
         rdist = np.arange(0, 165, 1.0)
 
         void_kwargs = {
@@ -407,6 +408,7 @@ if __name__ == "__main__":
     else:
         void_kwargs = None
         rvoid_fiducial = None
+        vvoid = None
         h = 1.
 
     if inference_method != "bayes":
@@ -436,6 +438,7 @@ if __name__ == "__main__":
                                "void_size_min": 0.1, "void_size_max": 3.0,
                                "rLG_min": 0.0, "rLG_max": 500 * h,
                                "rvoid_fiducial": rvoid_fiducial,
+                               "vvoid": vvoid,
                                }
     print_variables(
         calibration_hyperparams.keys(), calibration_hyperparams.values())
