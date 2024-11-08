@@ -61,8 +61,9 @@ def names_to_latex(names, for_corner=False):
            "l": "\\ell ~ [\\mathrm{deg}]",
            "b": "b ~ [\\mathrm{deg}]",
            "rLG": "R_{\\rm offset} ~ [\\mathrm{Mpc} / h]",
+           "rLG_deterministic": "R_{\\rm offset} ~ [\\mathrm{Mpc} / h]",
            "Vext_axis_mag": "V_{\\rm axis} ~ [\\mathrm{km} / \\mathrm{s}]",
-           "Vvoid": "\\tilde{V}_{\\rm void} ~ [\\mathrm{km} / \\mathrm{s}]",
+           "Vvoid": "V_{\\rm void} ~ [\\mathrm{km} / \\mathrm{s}]",
            "void_size": "r_{\\rm void}",
            "hubble": "h",
            }
@@ -76,7 +77,7 @@ def names_to_latex(names, for_corner=False):
                   "alpha_cal": r"$\mathcal{A}$",
                   "beta_cal": r"$\mathcal{B}$",
                   "mag_cal": r"$\mathcal{M}$",
-                  "Vvoid": r"$\tilde{V}_{\rm void}$",
+                  "Vvoid": r"$V_{\rm void}$",
                   "hubble": r"$h$",
                   }
 
@@ -169,9 +170,10 @@ def simname_to_pretty(simname):
            "IndranilVoid_exp": "Exponential",
            "IndranilVoid_gauss": "Gaussian",
            "IndranilVoid_mb": "Maxwell-Boltzmann",
-           "IndranilVoidSizeVar_exp": "Exponential",
-           "IndranilVoidSizeVar_gauss": "Gaussian",
-           "IndranilVoidSizeVar_mb": "Maxwell-Boltzmann",
+           "IndranilVoidSizeVar_exp": "Extended Exponential",
+           "IndranilVoidSizeVar_gauss": "Extended Gaussian",
+           "IndranilVoidSizeVar_mb": "Extended Maxwell-Boltzmann",
+           "no_field": r"$\mathbf{V}_{\rm ext}$ only"
            }
 
     if isinstance(simname, list):
@@ -400,10 +402,12 @@ def samples_for_corner(samples):
     return data, labels, keys
 
 
-def samples_to_getdist(samples, label):
+def samples_to_getdist(samples, label, ranges=None):
     data, __, keys = samples_for_corner(samples)
 
     return MCSamples(
         samples=data, names=keys,
         labels=names_to_latex(keys, for_corner=False),
-        label=label)
+        label=label,
+        ranges=ranges,
+        )
