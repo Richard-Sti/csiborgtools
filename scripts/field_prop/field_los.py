@@ -215,13 +215,22 @@ def get_field(simname, nsim, kind, MAS, grid):
         else:
             raise ValueError(f"Unknown field kind: `{kind}`.")
     elif simname == "CF4":
-        folder = "/mnt/extraspace/rstiskalek/catalogs/CF4"
+        # folder = "/mnt/extraspace/rstiskalek/catalogs/CF4"
+        folder = "/mnt/extraspace/rstiskalek/catalogs/CF4/CF4gp_23avr24_256-z008"  # noqa
         warn(f"Using local paths from `{folder}`.", RuntimeWarning)
 
         if kind == "density":
-            fpath = join(folder, f"CF4_new_128-z008_realization{nsim}_delta.fits")     # noqa
+            fpath = join(
+                folder,
+                # f"CF4_new_128-z008_realization{nsim}_delta.fits"
+                f"CF4gp_23avr24_256-z008_test_realization{nsim}_delta.fits"
+                )
         elif kind == "velocity":
-            fpath = join(folder, f"CF4_new_128-z008_realization{nsim}_velocity.fits")  # noqa
+            fpath = join(
+                folder,
+                # f"CF4_new_128-z008_realization{nsim}_velocity.fits"
+                f"CF4gp_23avr24_256-z008_test_realization{nsim}_velocity.fits"
+                )
         else:
             raise ValueError(f"Unknown field kind: `{kind}`.")
 
