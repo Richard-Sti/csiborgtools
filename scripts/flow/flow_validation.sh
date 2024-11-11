@@ -41,7 +41,8 @@ fi
 # for simname in "IndranilVoidSizeVar_exp"; do
 # for simname in "IndranilVoid_gauss"; do
 # for simname in "IndranilVoid_exp" "IndranilVoid_gauss" "IndranilVoid_mb"; do
-for simname in "CF4"; do
+# for simname in "CF4"; do
+for simname in "IndranilVoid_exp"; do
 # for simname in "no_field"; do
 # for simname in "IndranilVoidSizeVar_exp" "IndranilVoidSizeVar_gauss" "IndranilVoidSizeVar_mb"; do
 # for simname in "Carrick2015"; do
@@ -49,7 +50,8 @@ for simname in "CF4"; do
 # for simname in "csiborg1"; do
     # for catalogue in "LOSS,Foundation,CF4_TFR_i,CF4_TFR_notSDSS_w1"; do
     # for catalogue in "CF4_TFR_w1"; do
-    for catalogue in "LOSS" "Foundation" "2MTF" "SFI_gals" "CF4_TFR_i" "CF4_TFR_w1"; do
+    # for catalogue in "LOSS" "Foundation" "2MTF" "SFI_gals" "CF4_TFR_i" "CF4_TFR_w1"; do
+    for catalogue in "CF4_GroupAll"; do
     # for catalogue in "LOSS,Foundation,CF4_TFR_i,CF4_TFR_notSDSS_w1"; do
     # for catalogue in "LOSS,Foundation" "LOSS,Foundation,CF4_TFR_i,CF4_TFR_notSDSS_w1"; do
     # for catalogue in "CF4_TFR_i,CF4_TFR_notSDSS_w1"; do
