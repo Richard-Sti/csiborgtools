@@ -1270,7 +1270,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         if inference_method not in ["mike", "bayes", "delta"]:
             raise ValueError(f"Unknown method: `{inference_method}`.")
 
-        if self.kind in ["TFR", "SN", "FP"]:
+        if self.kind in ["TFR", "SN", "FP", "simple"]:
             self.forward_distance_method(
                 field_calibration_params, distmod_params, inference_method)
         # elif self.kind == "FP":
