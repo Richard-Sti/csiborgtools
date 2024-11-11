@@ -23,4 +23,6 @@ from .selection import ToyMagnitudeSelection                                    
 from .void_model import (load_void_fiducial, load_void_size_variation,          # noqa
                          interpolate_fiducial_void, interpolate_size_var_void,  # noqa
                          select_void_h, select_void__fiducial_size,             # noqa
-                         select_vvoid, mock_void)                               # noqa
+                         select_vvoid, mock_void,                               # noqa
+                         # void_bulkflow_from_vrad                              # noqa
+                         )                                                      # noqa

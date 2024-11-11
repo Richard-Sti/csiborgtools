@@ -25,10 +25,12 @@ from jax import numpy as jnp
 from jax import vmap
 from jax.scipy.ndimage import map_coordinates
 from scipy.interpolate import RegularGridInterpolator
+# from numba import jit
 from tqdm import tqdm
 
 from ..params import SPEED_OF_LIGHT
 from ..utils import fprint, galactic_to_radec
+# from ..utils import cartesian_to_radec
 from .cosmography import distmod2dist, distmod2redshift
 
 ###############################################################################
@@ -486,3 +488,116 @@ def mock_void(vrad_data, rLG_index, profile,
               "due to the true distance cutoff.")
 
     return sample, truths
+
+
+###############################################################################
+#                        Void-predicted bulk flows                            #
+###############################################################################
+
+# @jit(nopython=True)
+# def bulkflow_MV(xrange, r, pos, vrad):
+#     """
+#     Calculate the bulk flow using the `minimum variance` estimator at
+# `xrange`
+#     (can be optimized but no need for speed at the moment).
+#     """
+#     bf = np.full((3, len(xrange)), np.nan)
+
+#     norm = pos / r[:, np.newaxis]
+#     for i in range(3):
+#         x = norm[:, i] * vrad / r**2
+#         for j, R in enumerate(xrange):
+#             mask = r < R
+#             N = np.sum(mask)
+#             # Skip if no enclosed particles.
+#             if N > 0:
+#                 bf[i, j] = np.sum(x[mask]) / N * R**2
+#     return bf
+
+
+# @jit(nopython=True)
+# def bulkflow_from_vrad_volume_average(Rmax, r, vr, x, y, z, dV):
+#     ntot = len(r)
+#     Ntot = 0
+
+#     Bx, By, Bz = 0., 0., 0.
+
+#     for i in range(ntot):
+#         if r[i] < Rmax:
+#             rcube = r[i]**3
+#             vri = vr[i]
+
+#             Ntot += 1
+
+#             Bx += vri * x[i] / rcube
+#             By += vri * y[i] / rcube
+#             Bz += vri * z[i] / rcube
+
+#     if Ntot > 0:
+#         Bx *= Rmax**2 / Ntot
+#         By *= Rmax**2 / Ntot
+#         Bz *= Rmax**2 / Ntot
+
+#     return Bx, By, Bz
+
+# from tqdm import trange
+
+# def void_bulkflow_from_vrad(vrad_data, profile, ngrid=30, seed=42):
+#     h = select_void_h(profile)
+#     vvoid = select_vvoid(profile)
+
+#     r_void_grid = np.arange(0, 251) * h
+#     phi_void_grid = np.arange(0, 181)
+
+#     rmax = np.sqrt(3) * r_void_grid.max()
+#     x = np.linspace(-rmax, rmax, ngrid)
+#     y = np.linspace(-rmax, rmax, ngrid)
+#     z = np.linspace(-rmax, rmax, ngrid)
+
+#     dV = (x[1] - x[0])**3
+
+#     X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
+
+#     X = X.reshape(-1, )
+#     Y = Y.reshape(-1, )
+#     Z = Z.reshape(-1, )
+
+#     # R = np.sqrt(X**2 + Y**2 + Z**2)
+
+#     radec_coords = cartesian_to_radec(np.vstack([X, Y, Z]).T)
+
+#     R_grid = radec_coords[:, 0]
+#     RA_grid = radec_coords[:, 1]
+#     DEC_grid = radec_coords[:, 2]
+#     phi_grid = angular_distance_from_void_axis(RA_grid, DEC_grid)
+
+#     Vr = RegularGridInterpolator(
+#         (r_void_grid, phi_void_grid), vrad_data, fill_value=np.nan,
+#         bounds_error=False, method="cubic")(np.vstack([R_grid, phi_grid]).T)
+
+#     r_range = np.linspace(0, r_void_grid.max(), 51)[1:]
+#     bf = np.full((len(r_range), 3), np.nan)
+#     for i in trange(len(r_range)):
+#         bf[i, :] = bulkflow_from_vrad_volume_average(
+#             r_range[i], R_grid, Vr, X, Y, Z, dV)
+
+#     return r_range, bf
+
+#     # Xcart = gen.uniform(0, r_grid.max(), size=(nquery, 3))
+#     # Xradec = cartesian_to_radec(Xcart)
+
+#     # r = Xradec[:, 0]
+#     # phi = angular_distance_from_void_axis(Xradec[:, 1], Xradec[:, 2])
+
+#     # Vr = RegularGridInterpolator((r_grid, phi_grid), vrad_data,
+#     #                              fill_value=np.nan, bounds_error=False,
+#     #                              method="cubic")(np.vstack([r, phi]).T)
+
+
+#     # r_range = np.arange(0, r_grid.max(), 1)
+#     # bf = bulkflow_MV(r_range, r, Xcart, Vr)
+
+#     # # bf -= vvoid
+# * np.asarray([-0.4035093, 0.01363162, -0.91487399])[:, None]
+
+#     # return r_range, bf
