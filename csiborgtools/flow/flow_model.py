@@ -541,27 +541,25 @@ def sample_calibration(Vext_i_min, Vext_i_max, Vmono_min, Vmono_max,
     else:
         beta = 1.0
 
-    if not no_Vext and sample_Vmag_vax:
-        raise RuntimeError("Cannot sample Vext and Vext magnitude along the "
-                           "void axis simultaneously.")
-
-    if no_Vext:
-        Vext = jnp.zeros(3)
-
+    if not no_Vext:
         if sample_Vmag_vax:
             Vext_mag = sample(
                 "Vext_axis_mag", Uniform(-Vext_i_max, Vext_i_max))
-            # In the direction if (l, b) = (117, 4)
-            Vext = Vext_mag * jnp.asarray([0.4035093, -0.01363162, 0.91487396])
 
+            # In the direction if (l, b) = (297, -4)
+            Vext = Vext_mag * jnp.asarray(
+                [-0.4035093, 0.01363162, -0.91487396])
+        else:
+            with plate("Vext_plate", 3):
+                Vext = sample("Vext", Uniform(Vext_i_min, Vext_i_max))
     else:
-        with plate("Vext_plate", 3):
-            Vext = sample("Vext", Uniform(Vext_i_min, Vext_i_max))
+        Vext = jnp.zeros(3)
 
-        if vvoid is not None:
-            # Subtract the V_void velocity which was baked into the void
-            # velocities in the Haslbauer+2020 paper.
-            Vext -= vvoid * jnp.asarray([-0.4035093, 0.01363162, -0.91487399])
+    # Subtract the velocity baked into the void fields.
+    if not no_Vext and vvoid is not None:
+        # Subtract the V_void velocity which was baked into the void
+        # velocities in the Haslbauer+2020 paper.
+        Vext -= vvoid * jnp.asarray([-0.4035093, 0.01363162, -0.91487399])
 
         factor("Vext_ll", -jnp.log(jnp.sum(Vext**2)))
 
