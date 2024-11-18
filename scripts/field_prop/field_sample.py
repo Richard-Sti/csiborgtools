@@ -266,6 +266,7 @@ def main(nsim, parser_args, pos, edist, boxsize, r_grid, verbose):
         # the same shape as the `uncut` survey
         if parser_args.survey != "TNG300-1":
             val = match_to_no_selection(val, parser_args)
+            val_with_edist = match_to_no_selection(val_with_edist, parser_args)
 
     if verbose:
         print(f"Saving to ... `{fout}`.")
