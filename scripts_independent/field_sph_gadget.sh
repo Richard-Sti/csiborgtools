@@ -2,12 +2,12 @@
 nthreads=12
 memory=7
 on_login=${1}
-queue="cmb"
+queue="berg"
 env="/mnt/zfsusers/rstiskalek/csiborgtools/venv_csiborg/bin/python"
 file="field_sph_gadget.py"
 
 # Guilhem says higher resolution is better
-resolution=256
+resolution=1024
 SPH_executable="/mnt/users/rstiskalek/cosmotool/bld/sample/simple3DFilter"
 scratch_space="/mnt/extraspace/rstiskalek/dump/"
 
@@ -40,34 +40,11 @@ export OMP_MAX_ACTIVE_LEVELS=4
 # fi
 
 
-# ####### Manticore SWIFT submission loop #######
-# snapshot_kind="swift"
-# for k in {0..40}; do
-#     snapshot_path="/mnt/extraspace/rstiskalek/MANTICORE/2MPP_N128_DES_V1/resimulations/R512/mcmc_$k/swift_monofonic/snap_0001/snap_0001.hdf5"
-#     output_path="/mnt/extraspace/rstiskalek/MANTICORE/2MPP_N128_DES_V1/fields/R512/SPH_$k.hdf5"
-#
-#     pythoncm="$env $file --snapshot_path $snapshot_path --output_path $output_path --resolution $resolution --scratch_space $scratch_space --SPH_executable $SPH_executable --snapshot_kind $snapshot_kind"
-#     if [ $on_login -eq 1 ]; then
-#         echo $pythoncm
-#         $pythoncm
-#     else
-#         cm="addqueue -s -q $queue -n 1x$nthreads -m $memory $pythoncm"
-#         echo "Submitting:"
-#         echo $cm
-#         echo
-#         eval $cm
-#     fi
-#
-#     sleep 0.05
-# done
-
-####### Quijote submission loop #######
-snapshot_kind="gadget2"
-
-for k in {1..50}; do
-# for k in 0; do
-    snapshot_path="/mnt/extraspace/rstiskalek/quijote/Snapshots_fiducial/${k}/snapdir_004/snap_004"
-    output_path="/mnt/extraspace/rstiskalek/quijote/SPHField_fiducial/field_${k}_004.hdf5"
+####### Manticore SWIFT submission loop #######
+snapshot_kind="swift"
+for k in {0..9}; do
+    snapshot_path="/mnt/extraspace/rstiskalek/MANTICORE/2MPP_MULTIBIN_N128_DES_V1/R512/mcmc_$k/swift_monofonic/snap_0001/snap_0001.hdf5"
+    output_path="/mnt/extraspace/rstiskalek/MANTICORE/2MPP_MULTIBIN_N128_DES_V1/fields/R512/SPH_$k.hdf5"
 
     pythoncm="$env $file --snapshot_path $snapshot_path --output_path $output_path --resolution $resolution --scratch_space $scratch_space --SPH_executable $SPH_executable --snapshot_kind $snapshot_kind"
     if [ $on_login -eq 1 ]; then
@@ -83,3 +60,26 @@ for k in {1..50}; do
 
     sleep 0.05
 done
+
+####### Quijote submission loop #######
+# snapshot_kind="gadget2"
+
+# for k in {1..50}; do
+# # for k in 0; do
+#     snapshot_path="/mnt/extraspace/rstiskalek/quijote/Snapshots_fiducial/${k}/snapdir_004/snap_004"
+#     output_path="/mnt/extraspace/rstiskalek/quijote/SPHField_fiducial/field_${k}_004.hdf5"
+
+#     pythoncm="$env $file --snapshot_path $snapshot_path --output_path $output_path --resolution $resolution --scratch_space $scratch_space --SPH_executable $SPH_executable --snapshot_kind $snapshot_kind"
+#     if [ $on_login -eq 1 ]; then
+#         echo $pythoncm
+#         $pythoncm
+#     else
+#         cm="addqueue -s -q $queue -n 1x$nthreads -m $memory $pythoncm"
+#         echo "Submitting:"
+#         echo $cm
+#         echo
+#         eval $cm
+#     fi
+
+#     sleep 0.05
+# done
