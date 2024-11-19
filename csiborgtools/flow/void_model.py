@@ -25,12 +25,11 @@ from jax import numpy as jnp
 from jax import vmap
 from jax.scipy.ndimage import map_coordinates
 from scipy.interpolate import RegularGridInterpolator
-# from numba import jit
+from scipy.ndimage import map_coordinates as map_coordinates_np
 from tqdm import tqdm
 
 from ..params import SPEED_OF_LIGHT
 from ..utils import fprint, galactic_to_radec
-# from ..utils import cartesian_to_radec
 from .cosmography import distmod2dist, distmod2redshift
 
 ###############################################################################
@@ -94,7 +93,7 @@ def load_void_fiducial(profile, kind, try_load_from_hdf5=True,
     profile : str
         Void profile to load. One of "exp", "gauss", "mb".
     kind : str
-        Data kind, either "density" or "vrad".
+        Data kind. One of "density", "vrad", "vx", or "vy".
     try_load_from_hdf5 : bool, optional
         Attempt to load the data from a preprocessed HDF5 file.
     dump_to_hdf5 : bool, optional
@@ -110,8 +109,8 @@ def load_void_fiducial(profile, kind, try_load_from_hdf5=True,
     if profile not in ["exp", "gauss", "mb"]:
         raise ValueError("profile must be one of 'exp', 'gauss', 'mb'")
 
-    if kind not in ["density", "vrad"]:
-        raise ValueError("kind must be one of 'density', 'vrad'")
+    if kind not in ["density", "vrad", "vx", "vy"]:
+        raise ValueError("kind must be one of 'density', 'vrad', 'vx', 'vy'.")
 
     fdir_base = "/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/SizeVariation"  # noqa
     fdir = join(fdir_base, "sizenumber10")
@@ -128,9 +127,17 @@ def load_void_fiducial(profile, kind, try_load_from_hdf5=True,
     if kind == "density":
         fdir = join(fdir, "rho_data")
         tag = "rho"
-    else:
+    elif kind == "vrad":
         fdir = join(fdir, "vr_data")
         tag = "v_pec"
+    elif kind == "vx":
+        fdir = join(fdir, "vx_data")
+        tag = "v_x"
+    elif kind == "vy":
+        fdir = join(fdir, "vy_data")
+        tag = "v_y"
+    else:
+        raise ValueError(f"Unknown kind: `{kind}`.")
 
     profile = profile.upper()
     fdir = join(fdir, f"{profile}profile")
@@ -494,110 +501,63 @@ def mock_void(vrad_data, rLG_index, profile,
 #                        Void-predicted bulk flows                            #
 ###############################################################################
 
-# @jit(nopython=True)
-# def bulkflow_MV(xrange, r, pos, vrad):
-#     """
-#     Calculate the bulk flow using the `minimum variance` estimator at
-# `xrange`
-#     (can be optimized but no need for speed at the moment).
-#     """
-#     bf = np.full((3, len(xrange)), np.nan)
 
-#     norm = pos / r[:, np.newaxis]
-#     for i in range(3):
-#         x = norm[:, i] * vrad / r**2
-#         for j, R in enumerate(xrange):
-#             mask = r < R
-#             N = np.sum(mask)
-#             # Skip if no enclosed particles.
-#             if N > 0:
-#                 bf[i, j] = np.sum(x[mask]) / N * R**2
-#     return bf
+def void_velocity_vector(X_cartesian, vx_grid, vy_grid, r_grid, phi_grid,
+                         vvoid_to_subtract=None):
+    """
+    Calculate the 3D velocity of each galaxy in ICRS.
 
+    Parameters
+    ----------
+    X_cartesian : 2-dimensional array of shape `(npoints, 3)`
+        Cartesian ICRS coordinates of the galaxies in Mpc.
+    vx_grid, vy_grid : 2-dimensional array of shape `(nrad, nphi)`
+        Grids of void velocities.
+    r_grid, phi_grid : 1-dimensional array
+        Radial and angular grid of the void model.
+    vvoid_to_subtract : 1-dimensional array of shape `(3,)`, optional
+        The void velocity to subtract from the bulk flow if some was added.
 
-# @jit(nopython=True)
-# def bulkflow_from_vrad_volume_average(Rmax, r, vr, x, y, z, dV):
-#     ntot = len(r)
-#     Ntot = 0
+    Returns
+    -------
+    vel : 2-dimensional array of shape `(npoints, 3)`
+        3D velocity of each galaxy in ICRS.
+    """
+    raise ValueError("This function does not yield consistent results.")
 
-#     Bx, By, Bz = 0., 0., 0.
+    if not vx_grid.ndim == vy_grid.ndim == 2:
+        raise ValueError("`vx_grid` and `vy_grid` must be 2-dimensional.")
 
-#     for i in range(ntot):
-#         if r[i] < Rmax:
-#             rcube = r[i]**3
-#             vri = vr[i]
+    # Unit vector pointing towards (l, b) = (117, 4) in degrees.
+    n_hat = np.asarray([0.4035093, -0.01363162, 0.91487399])
 
-#             Ntot += 1
+    # Unit vector pointing towards each galaxy.
+    r = np.linalg.norm(X_cartesian, axis=1)
+    r_hat = X_cartesian / r[:, np.newaxis]
 
-#             Bx += vri * x[i] / rcube
-#             By += vri * y[i] / rcube
-#             Bz += vri * z[i] / rcube
+    # Angular separation of each point from the void axis.
+    cos_phi = np.sum(r_hat * n_hat[None, :], axis=1)
 
-#     if Ntot > 0:
-#         Bx *= Rmax**2 / Ntot
-#         By *= Rmax**2 / Ntot
-#         Bz *= Rmax**2 / Ntot
+    # We use grid-like interpolation, it is faster.
+    rgrid_min, rgrid_max = r_grid.min(), r_grid.max()
+    phi_grid_min, phi_grid_max = phi_grid.min(), phi_grid.max()
 
-#     return Bx, By, Bz
+    nrad, npi = vx_grid.shape
+    r_normalized = (r - rgrid_min) / (rgrid_max - rgrid_min) * (nrad - 1)
+    phi_normalized = np.arccos(cos_phi) * 180 / np.pi / (phi_grid_max - phi_grid_min) * (npi - 1)  # noqa
 
-# from tqdm import trange
+    vx = map_coordinates_np(vx_grid, np.vstack([r_normalized, phi_normalized]),
+                            order=1, mode='constant', cval=np.nan)
+    vy = map_coordinates_np(vy_grid, np.vstack([r_normalized, phi_normalized]),
+                            order=1, mode='constant', cval=np.nan)
+    # vrad = map_coordinates_np(vrad_grid, np.vstack([r_normalized, phi_normalized]),  # noqa
+    #                           order=1, mode='constant', cval=np.nan)
 
-# def void_bulkflow_from_vrad(vrad_data, profile, ngrid=30, seed=42):
-#     h = select_void_h(profile)
-#     vvoid = select_vvoid(profile)
+    # Start calculating the 3D velocity, shape is `(npoints, 3)`
+    vel = vx[:, None] * n_hat[None, :]
+    vel += vy[:, None] * (r_hat - cos_phi[:, None] * n_hat[None, :]) / np.sqrt(1 - cos_phi[:, None]**2)  # noqa
 
-#     r_void_grid = np.arange(0, 251) * h
-#     phi_void_grid = np.arange(0, 181)
+    if vvoid_to_subtract is not None:
+        vel -= vvoid_to_subtract[None, :]
 
-#     rmax = np.sqrt(3) * r_void_grid.max()
-#     x = np.linspace(-rmax, rmax, ngrid)
-#     y = np.linspace(-rmax, rmax, ngrid)
-#     z = np.linspace(-rmax, rmax, ngrid)
-
-#     dV = (x[1] - x[0])**3
-
-#     X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
-
-#     X = X.reshape(-1, )
-#     Y = Y.reshape(-1, )
-#     Z = Z.reshape(-1, )
-
-#     # R = np.sqrt(X**2 + Y**2 + Z**2)
-
-#     radec_coords = cartesian_to_radec(np.vstack([X, Y, Z]).T)
-
-#     R_grid = radec_coords[:, 0]
-#     RA_grid = radec_coords[:, 1]
-#     DEC_grid = radec_coords[:, 2]
-#     phi_grid = angular_distance_from_void_axis(RA_grid, DEC_grid)
-
-#     Vr = RegularGridInterpolator(
-#         (r_void_grid, phi_void_grid), vrad_data, fill_value=np.nan,
-#         bounds_error=False, method="cubic")(np.vstack([R_grid, phi_grid]).T)
-
-#     r_range = np.linspace(0, r_void_grid.max(), 51)[1:]
-#     bf = np.full((len(r_range), 3), np.nan)
-#     for i in trange(len(r_range)):
-#         bf[i, :] = bulkflow_from_vrad_volume_average(
-#             r_range[i], R_grid, Vr, X, Y, Z, dV)
-
-#     return r_range, bf
-
-#     # Xcart = gen.uniform(0, r_grid.max(), size=(nquery, 3))
-#     # Xradec = cartesian_to_radec(Xcart)
-
-#     # r = Xradec[:, 0]
-#     # phi = angular_distance_from_void_axis(Xradec[:, 1], Xradec[:, 2])
-
-#     # Vr = RegularGridInterpolator((r_grid, phi_grid), vrad_data,
-#     #                              fill_value=np.nan, bounds_error=False,
-#     #                              method="cubic")(np.vstack([r, phi]).T)
-
-
-#     # r_range = np.arange(0, r_grid.max(), 1)
-#     # bf = bulkflow_MV(r_range, r, Xcart, Vr)
-
-#     # # bf -= vvoid
-# * np.asarray([-0.4035093, 0.01363162, -0.91487399])[:, None]
-
-#     # return r_range, bf
+    return vel

@@ -24,8 +24,8 @@ from .void_model import (load_void_fiducial, load_void_size_variation,          
                          interpolate_fiducial_void, interpolate_size_var_void,  # noqa
                          select_void_h, select_void__fiducial_size,             # noqa
                          select_vvoid, mock_void,                               # noqa
-                         # void_bulkflow_from_vrad                              # noqa
-                         )                                                      # noqa
+                         angular_distance_from_void_axis,                       # noqa
+                         void_velocity_vector)                                  # noqa
 from .growth_factor import (sigma8_nonlinear_to_linear_juszkiewicz,             # noqa
                             make_nonlinear_to_linear_sigma8,                    # noqa
                             find_linear_sigma8)                                 # noqa
