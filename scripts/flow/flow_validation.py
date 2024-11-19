@@ -78,7 +78,8 @@ import jax                                                                      
 import numpy as np                                                              # noqa
 from csiborgtools import fprint                                                 # noqa
 from h5py import File                                                           # noqa
-from numpyro.infer import MCMC, NUTS, init_to_sample                            # noqa
+from numpyro.infer import (MCMC, NUTS, init_to_sample, init_to_feasible,        # noqa
+                           init_to_median)                                      # noqa
 
 
 def print_variables(names, variables):
@@ -168,7 +169,7 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
         raise AttributeError("The models must have an attribute `ndata` "
                              "indicating the number of data points.") from e
 
-    nuts_kernel = NUTS(model, init_strategy=init_to_sample())
+    nuts_kernel = NUTS(model, init_strategy=init_to_median(num_samples=1000))
     mcmc = MCMC(nuts_kernel, num_warmup=nburn, num_samples=nsteps)
     rng_key = jax.random.PRNGKey(40)
 
@@ -332,7 +333,7 @@ if __name__ == "__main__":
     zcmb_max = 0.05
     nchains_harmonic = 10
     num_epochs = 50
-    inference_method = "mike"
+    inference_method = "bayes"
     mag_selection = None
     sample_alpha = False if (ARGS.simname == "no_field" or "IndranilVoid" in ARGS.simname) else True  # noqa
     sample_beta = None
