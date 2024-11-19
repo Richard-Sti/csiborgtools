@@ -523,7 +523,9 @@ def void_velocity_vector(X_cartesian, vx_grid, vy_grid, r_grid, phi_grid,
     vel : 2-dimensional array of shape `(npoints, 3)`
         3D velocity of each galaxy in ICRS.
     """
-    raise ValueError("This function does not yield consistent results.")
+    raise ValueError("This function does not yield consistent results. "
+                     "Most likely there is something wrong with the data.. "
+                     "investigating...")
 
     if not vx_grid.ndim == vy_grid.ndim == 2:
         raise ValueError("`vx_grid` and `vy_grid` must be 2-dimensional.")
@@ -560,4 +562,4 @@ def void_velocity_vector(X_cartesian, vx_grid, vy_grid, r_grid, phi_grid,
     if vvoid_to_subtract is not None:
         vel -= vvoid_to_subtract[None, :]
 
-    return vel
+    return vel, vx, vy
