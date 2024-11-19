@@ -29,6 +29,7 @@ from astropy.cosmology import FlatLambdaCDM, z_at_value
 from interpax import interp1d
 from jax import jit
 from jax import numpy as jnp
+from jax.debug import print as jprint                                           # noqa
 from jax import vmap
 from jax.scipy.special import erf, erfc, logsumexp
 from numpyro import deterministic, factor, plate, sample
