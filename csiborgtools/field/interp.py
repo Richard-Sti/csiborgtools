@@ -258,9 +258,9 @@ def evaluate_los(*fields, sky_pos, boxsize, rdist, smooth_scales=None,
 
     # Account for the observer position
     if observer_pos is not None:
-        observer_pos[:, 0] += observer_pos[0] / boxsize
-        observer_pos[:, 1] += observer_pos[1] / boxsize
-        observer_pos[:, 2] += observer_pos[2] / boxsize
+        pos[:, 0] += observer_pos[0] / boxsize
+        pos[:, 1] += observer_pos[1] / boxsize
+        pos[:, 2] += observer_pos[2] / boxsize
     else:
         pos += 0.5
 
