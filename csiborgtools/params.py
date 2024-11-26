@@ -153,6 +153,7 @@ def simname2icresolution(simname):
 
 
 def simname2observerpos(simname):
+    """Return the observer position in `Mpc/h` for a given simulation."""
     x = {"manticore_2MPP_MULTIBIN_N128_DES_V1": [250, 248, 254],
          }
 
