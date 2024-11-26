@@ -72,6 +72,7 @@ def simname2boxsize(simname):
          "csiborg2_random": 676.6,
          "csiborg2X": 681.1,
          "manticore_2MPP_N128_DES_V1": 681.1,
+         "manticore_2MPP_MULTIBIN_N128_DES_V1": 512,
          "borg1": 677.7,
          "borg2": 676.6,
          "borg2_all": 676.6,
@@ -99,6 +100,7 @@ def simname2Omega_m(simname):
          "csiborg2_varysmall": 0.3111,
          "csiborg2X": 0.306,
          "manticore_2MPP_N128_DES_V1": 0.306,
+         "manticore_2MPP_MULTIBIN_N128_DES_V1": 0.306,
          "borg1": 0.307,
          "borg2": 0.3111,
          "borg2_all": 0.3111,
@@ -132,6 +134,7 @@ def simname2icresolution(simname):
          "csiborg2_random": 676.6 / 256,
          "csiborg2X": 681.1 / 128,
          "manticore_2MPP_N128_DES_V1": 681.1 / 128,
+         "manticore_2MPP_MULTIBIN_N128_DES_V1": 512 / 128,
          "borg1": 677.7 / 256,
          "borg2": 676.6 / 256,
          "borg2_all": 676.6 / 256,
@@ -145,6 +148,17 @@ def simname2icresolution(simname):
 
     if res is None:
         raise ValueError(f"Unknown simulation: `{simname}`.")
+
+    return res
+
+
+def simname2observerpos(simname):
+    x = {"manticore_2MPP_MULTIBIN_N128_DES_V1": [250, 248, 254],
+         }
+
+    res = x.get(simname, None)
+    if res is None:
+        res = [0.5 * simname2boxsize(simname)] * 3
 
     return res
 
