@@ -377,8 +377,6 @@ def interpolate_field(pos, simname, nsim, MAS, grid, dump_folder, r,
     """
     boxsize = csiborgtools.simname2boxsize(simname)
     observer_pos = csiborgtools.simname2observerpos(simname)
-    print("Observer pos is", observer_pos)
-    print(np.asarray(observer_pos) / boxsize)
     fname_out = join(dump_folder, f"los_{simname}_{nsim}.hdf5")
 
     # First do the density field.
