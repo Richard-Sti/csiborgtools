@@ -188,6 +188,8 @@ def get_field(simname, nsim, kind, MAS, grid):
         field_reader = csiborgtools.read.CSiBORG2XField(nsim, version=0)
     elif simname == "manticore_2MPP_N128_DES_V1":
         field_reader = csiborgtools.read.CSiBORG2XField(nsim, version=1)
+    elif simname == "manticore_2MPP_MULTIBIN_N128_DES_V1":
+        field_reader = csiborgtools.read.CSiBORG2XField(nsim, version=2)
     elif simname == "CLONES":
         field_reader = csiborgtools.read.CLONESField(nsim)
     elif simname == "Carrick2015":
@@ -374,6 +376,9 @@ def interpolate_field(pos, simname, nsim, MAS, grid, dump_folder, r,
     None
     """
     boxsize = csiborgtools.simname2boxsize(simname)
+    observer_pos = csiborgtools.simname2observerpos(simname)
+    print("Observer pos is", observer_pos)
+    print(np.asarray(observer_pos) / boxsize)
     fname_out = join(dump_folder, f"los_{simname}_{nsim}.hdf5")
 
     # First do the density field.
@@ -383,8 +388,8 @@ def interpolate_field(pos, simname, nsim, MAS, grid, dump_folder, r,
     density = get_field(simname, nsim, "density", MAS, grid)
     rdist, finterp = csiborgtools.field.evaluate_los(
         density, sky_pos=pos, boxsize=boxsize, rdist=r,
-        smooth_scales=smooth_scales, verbose=verbose,
-        interpolation_method="linear")
+        smooth_scales=smooth_scales, observer_pos=observer_pos,
+        verbose=verbose, interpolation_method="linear")
 
     rmax_density = np.full((len(pos), len(smooth_scales)), np.nan)
     for i in range(len(pos)):
@@ -409,7 +414,8 @@ def interpolate_field(pos, simname, nsim, MAS, grid, dump_folder, r,
     rdist, finterp = csiborgtools.field.evaluate_los(
         velocity[0], velocity[1], velocity[2],
         sky_pos=pos, boxsize=boxsize, rdist=r, smooth_scales=smooth_scales,
-        verbose=verbose, interpolation_method="linear")
+        observer_pos=observer_pos, verbose=verbose,
+        interpolation_method="linear")
 
     rmax_velocity = np.full((3, len(pos), len(smooth_scales)), np.nan)
     for k in range(3):
