@@ -121,7 +121,7 @@ def get_models(ksim, get_model_kwargs, mag_selection, void_kwargs,
             ki = cat.split("_")[-1]
             fpath =f"/mnt/extraspace/rstiskalek/csiborg_postprocessing/flow_mock/Carrick2MTFmock_seed{ki}.hdf5"  # noqa
         elif "CF4_TFR" in cat:
-            fpath = join(folder, "PV/CF4/CF4_TF-distances.hdf5")
+            fpath = join(folder, "PV/CF4/CF4_TFR.hdf5")
         elif cat in ["CF4_GroupAll"]:
             fpath = join(folder, "PV/CF4/CF4_GroupAll.hdf5")
         elif "IndranilVoidTFRMock" in cat:
@@ -169,9 +169,11 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
         raise AttributeError("The models must have an attribute `ndata` "
                              "indicating the number of data points.") from e
 
-    nuts_kernel = NUTS(model, init_strategy=init_to_median(num_samples=1000))
+    nuts_kernel = NUTS(model,
+                       init_strategy=init_to_median(num_samples=1000),
+                       )
     mcmc = MCMC(nuts_kernel, num_warmup=nburn, num_samples=nsteps)
-    rng_key = jax.random.PRNGKey(40)
+    rng_key = jax.random.PRNGKey(42)
 
     mcmc.run(rng_key, extra_fields=("potential_energy",), **model_kwargs)
     samples = mcmc.get_samples()
@@ -245,7 +247,7 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole):
     alpha_max = 10.0
 
     if catalogue in ["LOSS", "Foundation", "Pantheon+", "Pantheon+_groups", "Pantheon+_zSN"]:  # noqa
-        return {"e_mu_min": 0.001, "e_mu_max": 1.0,
+        return {"e_mu_min": 0.005, "e_mu_max": 1.0,
                 "mag_cal_mean": -18.25, "mag_cal_std": 2.0,
                 "alpha_cal_mean": 0.148, "alpha_cal_std": 1.0,
                 "beta_cal_mean": 3.112, "beta_cal_std": 2.0,
@@ -253,8 +255,8 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole):
                 "sample_alpha": sample_alpha
                 }
     elif catalogue in ["SFI_gals", "2MTF"] or "CF4_TFR" in catalogue or "IndranilVoidTFRMock" in catalogue or "Carrick2MTFmock" in catalogue:  # noqa
-        return {"e_mu_min": 0.001, "e_mu_max": 1.0,
-                "a_mean": -22.8, "a_std": 5.0,
+        return {"e_mu_min": 0.005, "e_mu_max": 1.0,
+                "a_mean": -22.0, "a_std": 5.0,
                 "b_mean": -7.0, "b_std": 4.0,
                 "c_mean": 0., "c_std": 20.0,
                 "a_dipole_mean": 0., "a_dipole_std": 1.0,
@@ -264,7 +266,7 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole):
                 "sample_curvature": False if "Carrick2MTFmock" in catalogue else True,  # noqa
                 }
     elif catalogue in ["CF4_GroupAll"]:
-        return {"e_mu_min": 0.001, "e_mu_max": 1.0,
+        return {"e_mu_min": 0.005, "e_mu_max": 1.0,
                 "dmu_min": -3.0, "dmu_max": 3.0,
                 "dmu_dipole_mean": 0., "dmu_dipole_std": 1.0,
                 "sample_dmu_dipole": sample_mag_dipole,
@@ -272,7 +274,7 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole):
                 "sample_alpha": sample_alpha,
                 }
     elif catalogue in ["SDSS-FP"]:
-        return {"e_mu_min": 0.001, "e_mu_max": 10.0,
+        return {"e_mu_min": 0.005, "e_mu_max": 10.0,
                 "a_mean": 0.0, "a_std": 2.0,
                 "b_mean": 0.0, "b_std": 2.0,
                 "c_mean": 0.0, "c_std": 2.0,
@@ -330,10 +332,11 @@ if __name__ == "__main__":
     nsteps = 1500
     nburn = 10_000
     zcmb_min = None
-    zcmb_max = 0.05
+    zcmb_max = 0.049991
+    # zcmb_max = 0.05
     nchains_harmonic = 10
     num_epochs = 50
-    inference_method = "bayes"
+    inference_method = "mike"
     mag_selection = None
     sample_alpha = False if (ARGS.simname == "no_field" or "IndranilVoid" in ARGS.simname) else True  # noqa
     sample_beta = None
@@ -421,12 +424,12 @@ if __name__ == "__main__":
         raise ValueError(
             "The number of steps must be divisible by the number of chains.")
 
-    Vext_i_lim = 3000 if "IndranilVoid_" in ARGS.simname else 5000.
+    Vext_i_lim = 3000 if "IndranilVoid_" in ARGS.simname else 750.
     calibration_hyperparams = {"Vext_i_min": -Vext_i_lim,
                                "Vext_i_max": Vext_i_lim,
                                "Vmono_min": -1000, "Vmono_max": 1000,
                                "beta_min": -10.0, "beta_max": 10.0,
-                               "sigma_v_min": 1.0, "sigma_v_max": 1000 if "IndranilVoid_" in ARGS.simname else 2500.,  # noqa
+                               "sigma_v_min": 10., "sigma_v_max": 1000 if "IndranilVoid_" in ARGS.simname else 750.,  # noqa
                                "h_min": 0.25, "h_max": 5.,
                                "no_Vext": False if no_Vext is None else no_Vext,        # noqa
                                "sample_Vmag_vax": sample_Vmag_vax,
