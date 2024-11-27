@@ -553,7 +553,7 @@ def sample_calibration(Vext_i_min, Vext_i_max, Vmono_min, Vmono_max,
         else:
             with plate("Vext_plate", 3):
                 Vext = sample("Vext", Uniform(Vext_i_min, Vext_i_max))
-                factor("Vext_ll", -jnp.log(jnp.sum(Vext**2)))
+            factor("Vext_ll", -jnp.log(jnp.sum(Vext**2)))
     else:
         Vext = jnp.zeros(3)
 
