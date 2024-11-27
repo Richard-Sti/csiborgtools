@@ -54,20 +54,36 @@ def get_reader(simname, paths, nsim):
         kind = simname.split("_")[-1]
         reader = csiborgtools.read.CSiBORG2Snapshot(nsim, 99, kind, paths,
                                                     flip_xz=True)
-    elif simname == "manticore_2MPP_N128_DES_V1":
-        reader = csiborgtools.read.CSiBORG2XSnapshot(nsim)
+    elif "manticore_" in simname:
+        if simname == "manticore_2MPP_N128_DES_V1":
+            version = 1
+        elif simname == "manticore_2MPP_MULTIBIN_N128_DES_V1":
+            version = 2
+        else:
+            raise ValueError(f"Unknown Manticore version: `{simname}`.")
+
+        reader = csiborgtools.read.CSiBORG2XSnapshot(nsim, version)
     else:
         raise ValueError(f"Unknown simname: `{simname}`.")
 
     return reader
 
 
-def get_particles(reader, boxsize, get_velocity=True, verbose=True):
+def get_particles(reader, boxsize, get_velocity=True, obs_pos=None,
+                  verbose=True):
     """Get the snapshot particles."""
     fprint("reading coordinates and calculating radial distance.", verbose)
     pos = reader.coordinates()
     dtype = pos.dtype
-    pos -= boxsize / 2
+
+    # Subtract the observer position.
+    if obs_pos is not None:
+        pos[:, 0] -= obs_pos[0]
+        pos[:, 1] -= obs_pos[1]
+        pos[:, 2] -= obs_pos[2]
+    else:
+        pos -= boxsize / 2
+
     dist = np.linalg.norm(pos, axis=1).astype(dtype)
     collect()
 
@@ -134,6 +150,7 @@ def main_borg(args, folder):
 def main_csiborg(args, folder):
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     boxsize = csiborgtools.simname2boxsize(args.simname)
+    obs_pos = csiborgtools.simname2observerpos(args.simname)
     nsims = paths.get_ics(args.simname)
     distances = np.linspace(0, boxsize / 2, 501)[1:]
 
@@ -146,7 +163,8 @@ def main_csiborg(args, folder):
 
     for i, nsim in enumerate(tqdm(nsims, desc="Simulations")):
         reader = get_reader(args.simname, paths, nsim)
-        rdist, mass, vel, vrad = get_particles(reader, boxsize,  verbose=True)
+        rdist, mass, vel, vrad = get_particles(
+            reader, boxsize, obs_pos=obs_pos, verbose=True)
 
         # Calculate masses
         cumulative_mass[i, :] = particles_enclosed_mass(rdist, mass, distances)
@@ -179,6 +197,12 @@ def main_from_field(args, folder):
     """Bulk flows in 3D fields"""
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     boxsize = csiborgtools.simname2boxsize(args.simname)
+    obs_pos = csiborgtools.simname2observerpos(args.simname)
+
+    if not np.all([np.isclose(x / boxsize, 0.5) for x in obs_pos]):
+        raise NotImplementedError("Only observer at the center of the box "
+                                  "is supported.")
+
     nsims = paths.get_ics(args.simname)
     distances = np.linspace(0, boxsize / 2, 101)[1:]
 
@@ -284,14 +308,15 @@ if __name__ == "__main__":
     parser.add_argument("--simname", type=str, help="Simulation name.",
                         choices=["csiborg1", "csiborg2_main", "csiborg2_varysmall", "csiborg2_random",  # noqa
                                  "borg1", "borg2", "borg2_all", "csiborg2X", "Carrick2015",             # noqa
-                                 "Lilow2024", "CLONES", "CF4", "manticore_2MPP_N128_DES_V1"])           # noqa
+                                 "Lilow2024", "CLONES", "CF4", "manticore_2MPP_N128_DES_V1",            # noqa
+                                 "manticore_2MPP_MULTIBIN_N128_DES_V1"])                                # noqa
     args = parser.parse_args()
 
     folder = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_shells"
     if args.simname in ["csiborg2X", "Carrick2015", "Lilow2024",
                         "CLONES", "CF4"]:
         main_from_field(args, folder)
-    elif "csiborg" in args.simname or args.simname == "manticore_2MPP_N128_DES_V1":  # noqa
+    elif "csiborg" in args.simname or "manticore_" in args.simname:
         main_csiborg(args, folder)
     elif "borg" in args.simname:
         main_borg(args, folder)
