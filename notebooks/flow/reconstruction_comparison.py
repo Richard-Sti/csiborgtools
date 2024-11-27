@@ -164,6 +164,7 @@ def simname_to_pretty(simname):
            "csiborg2_main": r"\texttt{CSiBORG}\textsuperscript{(2)}",
            "csiborg2X": "Manticore V0",
            "manticore_2MPP_N128_DES_V1": "Manticore V1",
+           "manticore_2MPP_MULTIBIN_N128_DES_V1": "Manticore V2",
            "CF4": "Courtois+23",
            "CF4gp": "CF4group",
            "CLONES": "Sorce+2018",
