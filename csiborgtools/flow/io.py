@@ -624,12 +624,12 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         if zcmb_max == 0.049993:
             absmag = mag - cosmo.distmod(z_obs).value
             fprint(r"selecting only the 25% of brightest galaxies.")
-            mask &= absmag < np.percentile((mag - absmag)[mask], 25)
+            mask &= absmag < np.percentile(absmag[mask], 25)
 
         if zcmb_max == 0.049994:
             absmag = mag - cosmo.distmod(z_obs).value
             fprint(r"selecting only the 25% of faintest galaxies.")
-            mask &= absmag > np.percentile((mag - absmag)[mask], 75)
+            mask &= absmag > np.percentile(absmag[mask], 75)
 
         if "not2MTForSFI" in kind or "2MTForSFI" in kind:
             raise NotImplementedError("Unmatching the 2MTF and SFI samples "
