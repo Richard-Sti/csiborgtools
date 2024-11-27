@@ -532,29 +532,30 @@ class CSiBORG2XSnapshot(BaseSnapshot):
     ----------
     nsim : int
         Simulation index.
-    nsnap : int
-        Snapshot index.
-    kind : str
-        CSiBORG2 run kind. One of `main`, `random`, or `varysmall`.
+    version : int
+        Manticore version index.
     paths : Paths, optional
         Paths object.
     keep_snapshot_open : bool, optional
         Whether to keep the snapshot file open when reading halo particles.
         This is useful for repeated access to the snapshot.
-    flip_xz : bool, optional
-        Whether to flip the x- and z-axes to undo the MUSIC bug so that the
-        coordinates are consistent with observations.
     """
-    def __init__(self, nsim, paths=None, keep_snapshot_open=False):
+    def __init__(self, nsim, version=1, paths=None, keep_snapshot_open=False):
         nsnap = 1
         flip_xz = False
         super().__init__(nsim, nsnap, paths, keep_snapshot_open, flip_xz)
 
-        fpath = self.paths.snapshot(self.nsnap, self.nsim,
-                                    "manticore_2MPP_N128_DES_V1")
+        if version == 1:
+            simname = "manticore_2MPP_N128_DES_V1"
+        elif version == 2:
+            simname = "manticore_2MPP_MULTIBIN_N128_DES_V1"
+        else:
+            raise ValueError("Invalid Manticore version index.")
+
+        fpath = self.paths.snapshot(self.nsnap, self.nsim, simname)
 
         self._snapshot_path = fpath
-        self._simname = "manticore_2MPP_N128_DES_V1"
+        self._simname = simname
 
     def _get_particles(self, kind):
         with File(self._snapshot_path, "r") as f:
