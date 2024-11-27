@@ -223,6 +223,15 @@ class Paths:
                 nsnap_str = str(nsnap).zfill(4)
                 fpath = join(fdir, f"mcmc_{nsim}", "swift_monofonic",
                              f"snap_{nsnap_str}", f"snap_{nsnap_str}.hdf5")
+            elif simname == "manticore_2MPP_MULTIBIN_N128_DES_V1":
+                if nsnap != 1:
+                    raise ValueError("Only snapshot 1 is available for "
+                                     "MANTICORE 2MPP_MULTIBIN_N128_DES_V1.")
+
+                fdir = join(fdir, "2MPP_MULTIBIN_N128_DES_V1", "R512")
+                nsnap_str = str(nsnap).zfill(4)
+                fpath = join(fdir, f"mcmc_{nsim}", "swift_monofonic",
+                             f"snap_{nsnap_str}", f"snap_{nsnap_str}.hdf5")
             else:
                 raise ValueError(f"Unknown MANTICORE simulation `{simname}`.")
         elif simname == "quijote":
