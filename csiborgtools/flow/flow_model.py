@@ -1155,6 +1155,9 @@ class PV_LogLikelihood(BaseFlowValidationModel):
 
             ll_per_galaxy = logsumexp(ll, axis=0) + self.norm
 
+        # Save the log-likelihoods per galaxy for the deltaL analysis.
+        # deterministic(
+        #     # f"ll_per_galaxy_{self.name}_deterministic", ll_per_galaxy)
         factor(f"ll_per_galaxy_{self.name}", ll_per_galaxy)
 
     # def FP_method(self, field_calibration_params, distmod_params,
