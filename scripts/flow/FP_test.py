@@ -9,6 +9,7 @@ from h5py import File
 from jax import numpy as jnp
 from jax import random
 from numpyro import factor, sample, deterministic, plate
+from numpyro.infer import init_to_median
 from numpyro.handlers import scale
 from numpyro.distributions import Normal, Uniform
 from numpyro.infer import MCMC, NUTS
@@ -21,11 +22,11 @@ ARCSEC2RAD = 4.84813681109536e-06
 
 subtract_mean_independent = False
 sample_sigma_v = False
-with_malmquist = True
+with_malmquist = False
 make_full_sky = False
 maglim = 17.0
 zmin = 0.003
-zmax = 0.03
+zmax = 0.05
 cosmo = FlatLambdaCDM(H0=100, Om0=0.3)
 
 Vmin = cosmo.comoving_distance(zmin).value**3
@@ -36,7 +37,7 @@ if with_malmquist:
 
 # Minimum and maximum of the radial range for sampling the comoving distance.
 rmin = 0.01
-rmax = 500
+rmax = cosmo.comoving_distance(zmax + 450 / SPEED_OF_LIGHT).value
 
 
 def distmod2redshift(mu, Om0):
@@ -160,16 +161,21 @@ print(f"Loaded {len(log_sigma)} galaxies.")
 #                          Define the MCMC model                              #
 ###############################################################################
 
+from jax.debug import print as jprint
+
 
 def model():
     a = sample("aFP", Normal(0, 5))
     b = sample("bFP", Normal(0, 5))
-    c = sample("cFP", Normal(0, 5))
+    c = sample("cFP", Normal(-1, 1))
+    # c = -0.11
 
     scatter = sample("scatter", Uniform(0, 1))
+    # scatter = 0.1
     # scatter = jnp.sqrt(scatter**2 + a**2 * e_log_sigma**2 + b**2 * e_log_Ie**2)
 
     Vext = sample("Vext", Normal(0, 500).expand([3]))
+    # Vext = [0, 0, 0]
 
     if sample_sigma_v:
         sigma_v = sample("sigma_v", Uniform(0, 2500))
@@ -188,7 +194,6 @@ def model():
     # zcosmo = 100 * r / SPEED_OF_LIGHT
     zcosmo = dist2redshift(r, 0.3)
 
-
     # Project V_ext to the line of sight
     Vext_projected = (+ Vext[0] * jnp.sin(theta) * jnp.cos(phi)
                       + Vext[1] * jnp.sin(theta) * jnp.sin(phi)
@@ -197,11 +202,28 @@ def model():
     zpec = Vext_projected / SPEED_OF_LIGHT
     czpred = ((1 + zcosmo) * (1 + zpec) - 1) * SPEED_OF_LIGHT
 
-    mue = get_effective_surface_brightness(rmag, zcosmo, zpec, theta_eff, kr, Ar)
-    log_Ie_pred = get_log_Ie(mue)
+
+    # mue = get_effective_surface_brightness(rmag, zcosmo, zpec, theta_eff, kr, Ar)
+    # log_Ie_pred = get_log_Ie(mue)
 
     # Predict the log effective radius from the FP in kpc / h
-    log_Reff_pred = a * log_sigma + b * log_Ie_pred + c
+    log_Reff_pred = a * log_sigma + b * log_Ie + c
+    # Convert to angular diameter distance in Mpc / h
+    # log_da_FP = (log_Reff_pred - log_theta_eff_rad) - 3
+    # log_da_FP = log_Reff_pred - log_theta_eff_rad - 3
+    # print(10**log_da_FP)
+    # jprint("DA = {x}", x=10**log_da_FP)
+    # Convert to a distance modulus
+    # mu_FP = log_dA_to_distmod(log_da_FP, 0.3)
+    # mu_FP = 5 * log_da_FP + 25
+    # jprint("mu_FP = {x}", x=mu_FP)
+    #  print(f"mu_FP = {mu_FP}")
+
+    # with plate("plate_mu", len(log_sigma)):
+        # mu = sample("mu", Normal(mu_FP, scatter))
+
+    # zcosmo = distmod2redshift(mu_FP, 0.3)
+
 
 
     # Sn = Sn_from_mag_distance(mag, r, 0.3)
@@ -225,9 +247,9 @@ def model():
 ###############################################################################
 
 
-kernel = NUTS(model)
+kernel = NUTS(model, init_strategy=init_to_median(num_samples=1000))
 mcmc = MCMC(kernel, num_warmup=1000, num_samples=1000)
-mcmc.run(random.PRNGKey(2))
+mcmc.run(random.PRNGKey(2),)
 
 samples = mcmc.get_samples()
 print(f"Samples are: {samples.keys()}")
