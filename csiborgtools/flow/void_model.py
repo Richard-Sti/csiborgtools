@@ -24,6 +24,7 @@ from h5py import File
 from jax import numpy as jnp
 from jax import vmap
 from jax.scipy.ndimage import map_coordinates
+from numba import jit
 from scipy.interpolate import RegularGridInterpolator
 from scipy.ndimage import map_coordinates as map_coordinates_np
 from tqdm import tqdm
@@ -107,13 +108,14 @@ def load_void_fiducial(profile, kind, try_load_from_hdf5=True,
         Void velocities for different observers, radial distances, and angles.
     """
     if profile not in ["exp", "gauss", "mb"]:
-        raise ValueError("profile must be one of 'exp', 'gauss', 'mb'")
+        raise ValueError("`profile` must be one of 'exp', 'gauss', 'mb'")
 
     if kind not in ["density", "vrad", "vx", "vy"]:
-        raise ValueError("kind must be one of 'density', 'vrad', 'vx', 'vy'.")
+        raise ValueError(
+            "`kind` must be one of 'density', 'vrad', 'vx', 'vy'.")
 
-    fdir_base = "/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/SizeVariation"  # noqa
-    fdir = join(fdir_base, "sizenumber10")
+    fdir_base = "/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/SizeVariation_new"  # noqa
+    fdir = join(fdir_base, "sizenumber100")
     fname_scratch = join(fdir, f"processed_fiducial_{profile}_{kind}.hdf5")
 
     if try_load_from_hdf5 and exists(fname_scratch):
@@ -147,9 +149,12 @@ def load_void_fiducial(profile, kind, try_load_from_hdf5=True,
            for f in files]
     rLG = np.sort(rLG)
 
+    if len(files) == 0:
+        raise ValueError(f"No files found in `{fdir}`.")
+
     for i, ri in enumerate(tqdm(rLG, desc=f"Loading void `{kind}`observer data")):  # noqa
         f = join(fdir, f"{tag}_{profile}profile_rLG_{ri}.dat")
-        data_i = np.genfromtxt(f).T
+        data_i = np.genfromtxt(f)
 
         if i == 0:
             data = np.full((len(rLG), *data_i.shape), np.nan, dtype=np.float32)
@@ -168,8 +173,8 @@ def load_void_fiducial(profile, kind, try_load_from_hdf5=True,
     return rLG, data
 
 
-def load_void_size_variation(profile, kind, try_load_from_hdf5=True,
-                             dump_to_hdf5=True):
+def load_void_size_variation(profile, kind, which_run="all",
+                             try_load_from_hdf5=True, dump_to_hdf5=True):
     """
     Load the void velocities from Sergij & Indranil's files for a given kind
     of void profile per observer with varying void sizes.
@@ -183,6 +188,8 @@ def load_void_size_variation(profile, kind, try_load_from_hdf5=True,
         Void profile to load. One of "exp", "gauss", "mb".
     kind : str
         Data kind, either "density" or "vrad".
+    which_run : str
+        Which run to load, either "coarse", "zoom" or "all".
     try_load_from_hdf5 : bool, optional
         Attempt to load the data from a preprocessed HDF5 file.
     dump_to_hdf5 : bool, optional
@@ -199,12 +206,23 @@ def load_void_size_variation(profile, kind, try_load_from_hdf5=True,
         and angles.
     """
     if profile not in ["exp", "gauss", "mb"]:
-        raise ValueError("profile must be one of 'exp', 'gauss', 'mb'")
+        raise ValueError("`profile` must be one of 'exp', 'gauss', 'mb'")
 
-    if kind not in ["density", "vrad"]:
-        raise ValueError("kind must be one of 'density', 'vrad'")
+    def make_mask(size):
+        if which_run == "coarse":
+            return size % 10 == 0
+        elif which_run == "zoom":
+            return size <= 20
+        elif which_run == "all":
+            return np.ones_like(size, dtype=bool)
+        else:
+            raise ValueError("`which_run` must be one of 'coarse' or 'zoom'.")
 
-    base_dir = "/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/SizeVariation"
+    if kind not in ["density", "vrad", "vx", "vy"]:
+        raise ValueError("`kind` must be one of 'density', 'vrad'")
+
+
+    base_dir = "/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/SizeVariation_new"  # noqa
     fname_scratch = join(base_dir, f"processed_{profile}_{kind}.hdf5")
 
     if try_load_from_hdf5 and exists(fname_scratch):
@@ -214,21 +232,30 @@ def load_void_size_variation(profile, kind, try_load_from_hdf5=True,
             rLG = f['rLG'][...]
             data = f['data'][...]
 
-        return size, rLG, data
+        m = make_mask(size)
+        return size[m].astype(np.float32) / 100, rLG, data[m]
 
     size_indxs = sorted(int(search(r'sizenumber(\d+)', d).group(1))
                         for d in glob(join(base_dir, 'sizenumber*')))
-    size = np.array(size_indxs) / 10
+    size = np.asarray(size_indxs, dtype=int)
 
     # Loop over the void sizes
     for ki, k in enumerate(tqdm(size_indxs, desc=f"Loading {profile}, {kind} void size variation data")):  # noqa
-        fdir = join(base_dir, f"sizenumber{str(k).zfill(2)}")
+        fdir = join(base_dir, f"sizenumber{str(k).zfill(3)}")
         if kind == "density":
             fdir = join(fdir, "rho_data")
             tag = "rho"
-        else:
+        elif kind == "vrad":
             fdir = join(fdir, "vr_data")
             tag = "v_pec"
+        elif kind == "vx":
+            fdir = join(fdir, "vx_data")
+            tag = "v_x"
+        elif kind == "vy":
+            fdir = join(fdir, "vy_data")
+            tag = "v_y"
+        else:
+            raise ValueError(f"Unknown kind: `{kind}`.")
 
         profile = profile.upper()
         fdir = join(fdir, f"{profile}profile")
@@ -238,9 +265,12 @@ def load_void_size_variation(profile, kind, try_load_from_hdf5=True,
                for f in files]
         rLG = np.sort(rLG)
 
+        if len(files) == 0:
+            raise ValueError(f"No files found in `{fdir}`.")
+
         for i, ri in enumerate(rLG):
             f = join(fdir, f"{tag}_{profile}profile_rLG_{ri}.dat")
-            data_i = np.genfromtxt(f).T
+            data_i = np.genfromtxt(f)
 
             if i == 0 and ki == 0:
                 data = np.full((len(size_indxs), len(rLG), *data_i.shape),
@@ -258,7 +288,8 @@ def load_void_size_variation(profile, kind, try_load_from_hdf5=True,
             f.create_dataset('rLG', data=rLG)
             f.create_dataset('data', data=data)
 
-    return size, rLG, data
+    m = make_mask(size)
+    return size[m].astype(np.float32) / 100, rLG, data[m]
 
 ###############################################################################
 #                      Interpolation of void velocities                       #
@@ -303,7 +334,7 @@ def interpolate_fiducial_void(void_size, rLG, r, phi, data, void_size_min,
     -------
     vel : 2-dimensional array of shape `(ngal, nsteps)`
     """
-    nLG, nrad, nphi = data.shape
+    nLG, nphi, nrad = data.shape
 
     # Normalize rLG to the grid scale
     rLG_normalized = (rLG - rLG_min) / (rLG_max - rLG_min) * (nLG - 1)
@@ -317,8 +348,8 @@ def interpolate_fiducial_void(void_size, rLG, r, phi, data, void_size_min,
 
         # Create the grid for this specific phi
         X = jnp.vstack([rLG_normalized,
-                        r_normalized,
-                        jnp.repeat(phi_normalized, r.size)])
+                        jnp.repeat(phi_normalized, r.size),
+                        r_normalized])
 
         # Interpolate over the data using map_coordinates. The mode is nearest
         # to avoid extrapolation. But values outside of the grid should never
@@ -363,7 +394,7 @@ def interpolate_size_var_void(void_size, rLG, r, phi, data, void_size_min,
     -------
     vel : 2-dimensional array of shape `(ngal, nsteps)`
     """
-    nsize, nLG, nrad, nphi = data.shape
+    nsize, nLG, nphi, nrad = data.shape
 
     # Normalize the void size and rLG to the grid scale
     void_size_normalized = ((void_size - void_size_min)
@@ -383,8 +414,8 @@ def interpolate_size_var_void(void_size, rLG, r, phi, data, void_size_min,
         # Create the grid for this specific phi
         X = jnp.vstack([void_size_normalized,
                         rLG_normalized,
-                        r_normalized,
-                        jnp.repeat(phi_normalized, r.size)])
+                        jnp.repeat(phi_normalized, r.size),
+                        r_normalized])
 
         # Interpolate over the data using map_coordinates. The mode is nearest
         # to avoid extrapolation. But values outside of the grid should never
@@ -503,7 +534,7 @@ def mock_void(vrad_data, rLG_index, profile,
 
 
 def void_velocity_vector(X_cartesian, vx_grid, vy_grid, r_grid, phi_grid,
-                         vvoid_to_subtract=None):
+                         return_icrs=True):
     """
     Calculate the 3D velocity of each galaxy in ICRS.
 
@@ -511,22 +542,19 @@ def void_velocity_vector(X_cartesian, vx_grid, vy_grid, r_grid, phi_grid,
     ----------
     X_cartesian : 2-dimensional array of shape `(npoints, 3)`
         Cartesian ICRS coordinates of the galaxies in Mpc.
-    vx_grid, vy_grid : 2-dimensional array of shape `(nrad, nphi)`
+    vx_grid, vy_grid : 2-dimensional array of shape `(nphi, nrad)`
         Grids of void velocities.
     r_grid, phi_grid : 1-dimensional array
         Radial and angular grid of the void model.
-    vvoid_to_subtract : 1-dimensional array of shape `(3,)`, optional
-        The void velocity to subtract from the bulk flow if some was added.
+    return_icrs : bool, optional
+        Whether to return the velocity in ICRS coordinates, otherwise in
+        the void frame.
 
     Returns
     -------
     vel : 2-dimensional array of shape `(npoints, 3)`
         3D velocity of each galaxy in ICRS.
     """
-    raise ValueError("This function does not yield consistent results. "
-                     "Most likely there is something wrong with the data.. "
-                     "investigating...")
-
     if not vx_grid.ndim == vy_grid.ndim == 2:
         raise ValueError("`vx_grid` and `vy_grid` must be 2-dimensional.")
 
@@ -535,7 +563,7 @@ def void_velocity_vector(X_cartesian, vx_grid, vy_grid, r_grid, phi_grid,
 
     # Unit vector pointing towards each galaxy.
     r = np.linalg.norm(X_cartesian, axis=1)
-    r_hat = X_cartesian / r[:, np.newaxis]
+    r_hat = X_cartesian / r[:, None]
 
     # Angular separation of each point from the void axis.
     cos_phi = np.sum(r_hat * n_hat[None, :], axis=1)
@@ -544,22 +572,177 @@ def void_velocity_vector(X_cartesian, vx_grid, vy_grid, r_grid, phi_grid,
     rgrid_min, rgrid_max = r_grid.min(), r_grid.max()
     phi_grid_min, phi_grid_max = phi_grid.min(), phi_grid.max()
 
-    nrad, npi = vx_grid.shape
+    nphi, nrad = vx_grid.shape
     r_normalized = (r - rgrid_min) / (rgrid_max - rgrid_min) * (nrad - 1)
-    phi_normalized = np.arccos(cos_phi) * 180 / np.pi / (phi_grid_max - phi_grid_min) * (npi - 1)  # noqa
+    phi_normalized = np.arccos(cos_phi) * 180 / np.pi / (phi_grid_max - phi_grid_min) * (nphi - 1)  # noqa
 
-    vx = map_coordinates_np(vx_grid, np.vstack([r_normalized, phi_normalized]),
+    vx = map_coordinates_np(vx_grid, np.vstack([phi_normalized, r_normalized]),
                             order=1, mode='constant', cval=np.nan)
-    vy = map_coordinates_np(vy_grid, np.vstack([r_normalized, phi_normalized]),
+    vy = map_coordinates_np(vy_grid, np.vstack([phi_normalized, r_normalized]),
                             order=1, mode='constant', cval=np.nan)
-    # vrad = map_coordinates_np(vrad_grid, np.vstack([r_normalized, phi_normalized]),  # noqa
-    #                           order=1, mode='constant', cval=np.nan)
+
+    if not return_icrs:
+        return np.vstack([vx, vy]).T
 
     # Start calculating the 3D velocity, shape is `(npoints, 3)`
     vel = vx[:, None] * n_hat[None, :]
     vel += vy[:, None] * (r_hat - cos_phi[:, None] * n_hat[None, :]) / np.sqrt(1 - cos_phi[:, None]**2)  # noqa
 
-    if vvoid_to_subtract is not None:
-        vel -= vvoid_to_subtract[None, :]
+    return vel
 
-    return vel, vx, vy
+
+@jit(nopython=True)
+def _cell_rdist(i, j, k, Ncells, boxsize):
+    """Radial distance of the center of a cell from the center of the box."""
+    xi = boxsize / Ncells * (i + 0.5) - boxsize / 2
+    yi = boxsize / Ncells * (j + 0.5) - boxsize / 2
+    zi = boxsize / Ncells * (k + 0.5) - boxsize / 2
+
+    return (xi**2 + yi**2 + zi**2)**0.5
+
+
+@jit(nopython=True, boundscheck=False)
+def _field_enclosed(field, rmax, boxsize):
+    Ncells = field.shape[0]
+    cell_volume = (boxsize / Ncells)**3
+
+    weight = 0.
+    volume = 0.
+    for i in range(Ncells):
+        for j in range(Ncells):
+            for k in range(Ncells):
+                if _cell_rdist(i, j, k, Ncells, boxsize) < rmax:
+                    weight += field[i, j, k]
+                    volume += 1.
+
+    return weight * cell_volume, volume * cell_volume
+
+
+def field_enclosed(field, distances, boxsize, verbose=True):
+    """
+    Calculate the approximate enclosed field within a given radius. Sums
+    the field over all cells whose centers are within the radius.
+
+    Parameters
+    ----------
+    field : 3-dimensional array
+        Field to calculate the enclosed sum of.
+    rmax : 1-dimensional array
+        Radii to calculate the enclosed mass at.
+    boxsize : float
+        Box size in `Mpc / h` (or the same as `rmax`).
+    verbose : bool
+        Verbosity flag.
+
+    Returns
+    -------
+    enclosed_field : 1-dimensional array
+        Enclosed mass at each distance.
+    enclosed_volume : 1-dimensional array
+        Enclosed grid-like volume at each distance.
+    """
+    enclosed_field = np.zeros_like(distances)
+    enclosed_volume = np.zeros_like(distances)
+
+    for i, dist in enumerate(tqdm(distances, disable=not verbose)):
+        enclosed_field[i], enclosed_volume[i] = _field_enclosed(
+            field, dist, boxsize)
+
+    return enclosed_field, enclosed_volume
+
+
+def make_grid(ngrid, rmax, boxsize, reshape_to_3d=True):
+    """
+    Make a grid of `ngrid` cells in a subbox if size `2 rmax` in a box of
+    size `boxsize`.
+    """
+    boxsize = 2 * rmax
+
+    x = boxsize / ngrid * (np.arange(ngrid) + 0.5) - boxsize / 2
+    X = np.vstack([x.reshape(-1,) for x in np.meshgrid(x, x, x)]).T
+
+    if reshape_to_3d:
+        X = X.reshape(ngrid, ngrid, ngrid)
+
+    return X
+
+
+def void_bulk_flow(r, vx, vy, ngrid, r_grid, phi_grid, in_icrs=True):
+    """
+    Calculate the bulk flow of the void velocity field.
+
+    Parameters
+    ----------
+    r : 1-dimensional array
+        Radial distances at which to calculate the bulk flow.
+    vx, vy : 2-dimensional array of shape `(nphi, nrad)`
+        Velocity along the x- and y-axis of the void.
+    ngrid : int
+        Number of grid points in each dimension.
+    r_grid, phi_grid : 1-dimensional array
+        Void radial and angular grid.
+    in_icrs : bool, optional
+        Whether to return the bulk flow in ICRS coordinates or in the void
+        coordinates.
+
+    Returns
+    -------
+    bulk_flow : 2-dimensional array of shape `(len(r), 3)`
+        Bulk flow at each distance.
+    """
+    rmax = np.max(r)
+    boxsize = 2 * rmax
+    X = make_grid(ngrid, rmax, boxsize, reshape_to_3d=False)
+
+    vel = void_velocity_vector(X, vx, vy, r_grid, phi_grid,
+                               return_icrs=in_icrs)
+
+    ndim = 3 if in_icrs else 2
+    bulk_flow = np.full((len(r), ndim), np.nan)
+
+    for n in range(ndim):
+        vi = vel[:, n].reshape(ngrid, ngrid, ngrid)
+        enclosed_vel, enclosed_vol = field_enclosed(vi, r, boxsize)
+
+        # Don't divide if nothing is enclosed.
+        m = enclosed_vol > 0
+        bulk_flow[m, n] = enclosed_vel[m] / enclosed_vol[m]
+
+    return bulk_flow
+
+
+def void_monopole(r, vr, ngrid, r_grid, phi_grid):
+    """
+    Calculate the monopole of the void velocity field.
+
+    Parameters
+    ----------
+    r : 1-dimensional array
+        Radial distances at which to calculate the monopole.
+    vr : 2-dimensional array of shape `(nphi, nrad)`
+        Radial void velocity field.
+    ngrid : int
+        Number of grid points in each dimension.
+    r_grid, phi_grid : 1-dimensional array
+        Void radial and angular grid.
+
+    Returns
+    -------
+    enclosed_vel : 1-dimensional array of shape `(len(r), )`
+        Enclosed monopole velocity at each distance.
+    """
+    rmax = np.max(r)
+    boxsize = 2 * rmax
+    X = make_grid(ngrid, rmax, boxsize, reshape_to_3d=False)
+
+    vel = void_velocity_vector(X, vr, np.zeros_like(vr), r_grid, phi_grid,
+                               return_icrs=False)
+    vel_rad = vel[:, 0]
+
+    enclosed_vel, enclosed_vol = field_enclosed(
+        vel_rad.reshape(ngrid, ngrid, ngrid), r, boxsize)
+
+    m = enclosed_vol > 0
+    enclosed_vel[m] /= enclosed_vol[m]
+
+    return enclosed_vel
