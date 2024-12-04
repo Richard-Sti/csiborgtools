@@ -51,31 +51,29 @@ def angular_distance_from_void_axis(RA, dec):
         model_axis.ra.rad, model_axis.dec.rad) * 180 / np.pi
 
 
-def select_void_h(kind):
-    """Select 'little h' for void profile `kind`."""
-    hs = {"mb": 0.7615, "gauss": 0.7724, "exp": 0.7725}
-    try:
-        return hs[kind]
-    except KeyError:
-        raise ValueError(f"Unknown void kind: `{kind}`.")
+def select_void_h(void_size_percent, profile, fname=None, return_all=False):
+    if fname is None:
+        fname = "/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/SizeVariation_new/H0_of_voids.dat"  # noqa
 
+    profiles = ["mb", "gauss", "exp"]
 
-def select_void__fiducial_size(kind):
-    """Select the fiducial void size in cMpc / h for a void profile `kind`."""
-    rvoid = {"mb": 228.2, "gauss": 1030, "exp": 1030}
-    try:
-        return rvoid[kind] * select_void_h(kind)
-    except KeyError:
-        raise ValueError(f"Unknown void kind: `{kind}`.")
+    if profile not in profiles:
+        raise ValueError(f"Profile `{profile}` not supported. "
+                         f"Must be one of `{profiles}`.")
+    d = np.genfromtxt(fname)
 
+    sizes = d[:, 0].astype(int)
+    H0s = d[:, profiles.index(profile)]
 
-def select_vvoid(kind):
-    """Select the fidicual void velocity for a void profile `kind`."""
-    vvoid = {"exp": 2307, "gauss": 2018, "mb": 1586}
-    try:
-        return vvoid[kind]
-    except KeyError:
-        raise ValueError(f"Unknown void kind: `{kind}`.")
+    if return_all:
+        return sizes.astype(float), H0s / 100
+
+    ks = np.where(sizes == void_size_percent)[0]
+
+    if len(ks) == 0:
+        raise ValueError(f"Void size {void_size_percent} not found.")
+
+    return H0s[ks[0]] / 100
 
 
 ###############################################################################
@@ -296,9 +294,9 @@ def load_void_size_variation(profile, kind, which_run="all",
 ###############################################################################
 
 
-def interpolate_fiducial_void(void_size, rLG, r, phi, data, void_size_min,
-                              void_size_max, rgrid_min, rgrid_max, rLG_min,
-                              rLG_max, order=1):
+def interpolate_fiducial_void(void_size, rLG, h_void, r, phi, data,
+                              void_size_min, void_size_max, rgrid_min,
+                              rgrid_max, rLG_min, rLG_max, order=1):
     """
     Interpolate the void velocities from Sergij & Indranil's files for a given
     observer over a set of radial distances and at angles specifying the
@@ -312,9 +310,11 @@ def interpolate_fiducial_void(void_size, rLG, r, phi, data, void_size_min,
     void_size : float
         Not used. Pass arbitrary value.
     rLG : float
-        The observer's distance from the center of the void.
+        The observer's distance from the center of the void in Mpc.
+    h_void : float
+        The void Hubble parameter to convert from Mpc / h to Mpc.
     r : 1-dimensional array of shape `(nsteps,)
-        The radial distances at which to interpolate the velocities.
+        The radial distances at which to interpolate the velocities in Mpc / h.
     phi : 1-dimensional array of shape `(ngal,)`
         The angles at which to interpolate the velocities, in degrees,
         defining the galaxy position.
@@ -328,7 +328,7 @@ def interpolate_fiducial_void(void_size, rLG, r, phi, data, void_size_min,
     rLG_min, rLG_max : float
         The minimum and maximum observer distances in the data.
     order : int, optional
-        The order of the interpolation. Default is 1, can be 0.
+        The order of interpolation. Default is 1, can be 0.
 
     Returns
     -------
@@ -339,7 +339,7 @@ def interpolate_fiducial_void(void_size, rLG, r, phi, data, void_size_min,
     # Normalize rLG to the grid scale
     rLG_normalized = (rLG - rLG_min) / (rLG_max - rLG_min) * (nLG - 1)
     rLG_normalized = jnp.repeat(rLG_normalized, r.size)
-    r_normalized = (r - rgrid_min) / (rgrid_max - rgrid_min) * (nrad - 1)
+    r_normalized = (r / h_void - rgrid_min) / (rgrid_max - rgrid_min) * (nrad - 1)  # noqa
 
     # Function to perform interpolation for a single phi
     def interpolate_single_phi(phi_val):
@@ -359,9 +359,9 @@ def interpolate_fiducial_void(void_size, rLG, r, phi, data, void_size_min,
     return vmap(interpolate_single_phi)(phi)
 
 
-def interpolate_size_var_void(void_size, rLG, r, phi, data, void_size_min,
-                              void_size_max, rgrid_min, rgrid_max, rLG_min,
-                              rLG_max, order=1):
+def interpolate_size_var_void(void_size, rLG, h_void, r, phi, data,
+                              void_size_min, void_size_max, rgrid_min,
+                              rgrid_max, rLG_min, rLG_max, order=1):
     """
     Interpolate the void velocities from Sergij & Indranil's files for a given
     void size and observer over a set of radial distances and at angles
@@ -372,9 +372,11 @@ def interpolate_size_var_void(void_size, rLG, r, phi, data, void_size_min,
     void_size : float
         The relative void size.
     rLG : float
-        The observer's distance from the center of the void.
+        The observer's distance from the center of the void in Mpc.
+    h_void : float
+        The void Hubble parameter to convert from Mpc / h to Mpc.
     r : 1-dimensional array of shape `(nsteps,)
-        The radial distances at which to interpolate the velocities.
+        The radial distances at which to interpolate the velocities in Mpc / h.
     phi : 1-dimensional array of shape `(ngal,)`
         The angles at which to interpolate the velocities, in degrees,
         defining the galaxy position.
@@ -388,7 +390,7 @@ def interpolate_size_var_void(void_size, rLG, r, phi, data, void_size_min,
     rLG_min, rLG_max : float
         The minimum and maximum observer distances in the data.
     order : int, optional
-        The order of the interpolation. Default is 1, can be 0.
+        The order of interpolation. Default is 1, can be 0.
 
     Returns
     -------
@@ -404,7 +406,7 @@ def interpolate_size_var_void(void_size, rLG, r, phi, data, void_size_min,
     rLG_normalized = (rLG - rLG_min) / (rLG_max - rLG_min) * (nLG - 1)
     rLG_normalized = jnp.repeat(rLG_normalized, r.size)
 
-    r_normalized = (r - rgrid_min) / (rgrid_max - rgrid_min) * (nrad - 1)
+    r_normalized = (r / h_void - rgrid_min) / (rgrid_max - rgrid_min) * (nrad - 1)  # noqa
 
     # Function to perform interpolation for a single phi
     def interpolate_single_phi(phi_val):
@@ -430,7 +432,7 @@ def interpolate_size_var_void(void_size, rLG, r, phi, data, void_size_min,
 ###############################################################################
 
 
-def mock_void(vrad_data, rLG_index, profile,
+def mock_void(vrad_data, rLG_index, h_void,
               a_TF=-22.8, b_TF=-7.2, sigma_TF=0.1, sigma_v=100.,
               mean_eta=0.069, std_eta=0.078, mean_e_eta=0.012,
               mean_mag=10.31, std_mag=0.83, mean_e_mag=0.044,
@@ -488,16 +490,13 @@ def mock_void(vrad_data, rLG_index, profile,
     r = distmod2dist(mu_true, Om0)
     zcosmo = distmod2redshift(mu_true, Om0)
 
-    # Little h of this void profile
-    h = select_void_h(profile)
-
     # Extract the velocities for the galaxies from the grid for this LG
     # index.
     vrad_data_rLG = vrad_data[rLG_index]
 
-    r_grid = np.arange(0, 251) * h
+    r_grid = np.arange(0, 251) * h_void
     phi_grid = np.arange(0, 181)
-    Vr = RegularGridInterpolator((r_grid, phi_grid), vrad_data_rLG,
+    Vr = RegularGridInterpolator((phi_grid, r_grid), vrad_data_rLG,
                                  fill_value=np.nan, bounds_error=False,
                                  method="cubic")(np.vstack([r, phi]).T)
 
@@ -744,5 +743,6 @@ def void_monopole(r, vr, ngrid, r_grid, phi_grid):
 
     m = enclosed_vol > 0
     enclosed_vel[m] /= enclosed_vol[m]
+    enclosed_vel[~m] = np.nan
 
     return enclosed_vel

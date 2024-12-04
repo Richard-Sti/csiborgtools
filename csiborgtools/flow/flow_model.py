@@ -210,32 +210,28 @@ class BaseFlowValidationModel(ABC):
         self.log10_dA_xrange = jnp.log10(jnp.asarray(
             cosmo.angular_diameter_distance(z_xrange).value))
 
-    def _set_void_data(self, RA, dec, profile, kind, h, order, is_fiducial,
-                       **kwargs):
+    def _set_void_data(self, RA, dec, profile, kind, order, is_fiducial,
+                       which_void_size_run, **kwargs):
         """Create the void interpolator."""
-        # h is the MOND model value of local H0 to convert the radial grid
-        # to Mpc / h
         if is_fiducial:
             rLG_grid, void_grid = load_void_fiducial(profile, kind)
             size_min, size_max = None, None
         else:
+            if which_void_size_run not in ["coarse", "zoom"]:
+                raise ValueError(
+                    f"Unknown void size run: `{which_void_size_run}`.")
+
             size_grid, rLG_grid, void_grid = load_void_size_variation(
-                profile, kind)
+                profile, kind, which_run=which_void_size_run)
             size_grid = jnp.asarray(size_grid, dtype=jnp.float32)
             size_min, size_max = size_grid.min(), size_grid.max()
-
-            fprint("downsampling LG observers by a factor of 2.")
-            rLG_grid = rLG_grid[::2]
-            void_grid = void_grid[:, ::2, ...]
 
         void_grid = jnp.asarray(void_grid, dtype=jnp.float32)
         rLG_grid = jnp.asarray(rLG_grid, dtype=jnp.float32)
 
-        rLG_grid *= h
         rLG_min, rLG_max = rLG_grid.min(), rLG_grid.max()
         rgrid_min, rgrid_max = 0, 250
-        fprint(f"setting radial grid from {rLG_min} to {rLG_max} Mpc / h.")
-        rgrid_max *= h
+        fprint(f"setting the observer radial grid from {rLG_min} to {rLG_max} Mpc.")  # noqa
 
         # Get angular separation of each object from the model axis.
         phi = angular_distance_from_void_axis(RA, dec)
@@ -249,17 +245,15 @@ class BaseFlowValidationModel(ABC):
 
         if kind == "density":
             if is_fiducial:
-                f = lambda void_size, rLG: interpolate_fiducial_void(None, rLG, *args)  # noqa
+                f = lambda void_size, rLG, h_void: interpolate_fiducial_void(None, rLG, h_void, *args)          # noqa
             else:
-                f = lambda void_size, rLG: interpolate_size_var_void(        # noqa
-                    void_size, rLG, *args)
+                f = lambda void_size, rLG, h_void: interpolate_size_var_void(void_size, rLG, h_void, *args)     # noqa
             self.void_log_rho_interpolator = f
         elif kind == "vrad":
             if is_fiducial:
-                f = lambda void_size, rLG: interpolate_fiducial_void(None, rLG, *args)  # noqa
+                f = lambda void_size, rLG, h_void: interpolate_fiducial_void(None, rLG, h_void, *args)          # noqa
             else:
-                f = lambda void_size, rLG: interpolate_size_var_void(         # noqa
-                    void_size, rLG, *args)
+                f = lambda void_size, rLG, h_void: interpolate_size_var_void(void_size, rLG, h_void, *args)     # noqa
             self.void_vrad_interpolator = f
         else:
             raise ValueError(f"Unknown kind: `{kind}`.")
@@ -289,7 +283,8 @@ class BaseFlowValidationModel(ABC):
         if self.is_void_data:
             # We want the shape to be `(1, n_objects, n_radial_steps)``.
             return self.void_log_rho_interpolator(
-                kwargs["void_size"], kwargs["rLG"])[None, ...]
+                kwargs["void_size"], kwargs["rLG"],
+                kwargs["h_void"])[None, ...]
 
         return self._log_los_density
 
@@ -297,7 +292,8 @@ class BaseFlowValidationModel(ABC):
         if self.is_void_data:
             # We want the shape to be `(1, n_objects, n_radial_steps)``.
             return self.void_vrad_interpolator(
-                kwargs["void_size"], kwargs["rLG"])[None, ...]
+                kwargs["void_size"], kwargs["rLG"],
+                kwargs["h_void"])[None, ...]
 
         return self._los_velocity
 
@@ -530,9 +526,8 @@ def sample_simple(e_mu_min, e_mu_max, dmu_min, dmu_max, alpha_min, alpha_max,
 def sample_calibration(Vext_i_min, Vext_i_max, Vmono_min, Vmono_max,
                        beta_min, beta_max, sigma_v_min, sigma_v_max, h_min,
                        h_max, rLG_min, rLG_max, no_Vext, sample_Vmono,
-                       sample_beta, sample_h, sample_rLG, sample_Vmag_vax,
-                       sample_void_size, void_size_min, void_size_max,
-                       sample_h_e_int, rvoid_fiducial, vvoid):
+                       sample_beta, sample_h, sample_rLG, sample_void_size,
+                       void_size_min, void_size_max, sample_h_e_int):
     """Sample the flow calibration."""
     sigma_v = sample("sigma_v", Uniform(sigma_v_min, sigma_v_max))
     factor("ll_sigma_v", -jnp.log(sigma_v))
@@ -542,26 +537,12 @@ def sample_calibration(Vext_i_min, Vext_i_max, Vmono_min, Vmono_max,
     else:
         beta = 1.0
 
-    if not no_Vext:
-        if sample_Vmag_vax:
-            Vext_mag = sample(
-                "Vext_axis_mag", Uniform(-Vext_i_max, Vext_i_max))
-
-            # In the direction if (l, b) = (297, -4)
-            Vext = Vext_mag * jnp.asarray(
-                [-0.4035093, 0.01363162, -0.91487396])
-        else:
-            with plate("Vext_plate", 3):
-                Vext = sample("Vext", Uniform(Vext_i_min, Vext_i_max))
-            factor("Vext_ll", -jnp.log(jnp.sum(Vext**2)))
-    else:
+    if no_Vext:
         Vext = jnp.zeros(3)
-
-    # Subtract the velocity baked into the void fields.
-    if not no_Vext and vvoid is not None:
-        # Subtract the V_void velocity which was baked into the void
-        # velocities in the Haslbauer+2020 paper.
-        Vext -= vvoid * jnp.asarray([-0.4035093, 0.01363162, -0.91487399])
+    else:
+        with plate("Vext_plate", 3):
+            Vext = sample("Vext", Uniform(Vext_i_min, Vext_i_max))
+        factor("Vext_ll", -jnp.log(jnp.sum(Vext**2)))
 
     if sample_Vmono:
         Vmono = sample("Vmono", Uniform(Vmono_min, Vmono_max))
@@ -586,13 +567,7 @@ def sample_calibration(Vext_i_min, Vext_i_max, Vmono_min, Vmono_max,
         void_size = None
 
     if sample_rLG:
-        if sample_void_size:
-            r_LG = sample("rLG_void_units", Uniform(
-                rLG_min / rvoid_fiducial, rLG_max / rvoid_fiducial))
-            r_LG = deterministic(
-                "rLG_deterministic", r_LG * rvoid_fiducial * void_size)
-        else:
-            r_LG = sample("rLG", Uniform(rLG_min, rLG_max))
+        r_LG = sample("rLG", Uniform(rLG_min, rLG_max))
     else:
         r_LG = None
 
@@ -701,12 +676,21 @@ class PV_LogLikelihood(BaseFlowValidationModel):
 
         # RA, DEC was above converted to radians, but we need input in degrees
         if void_kwargs is not None:
+            self._is_fiducial_void = void_kwargs["is_fiducial"]
+
             RA_deg = np.rad2deg(RA)
             dec_deg = np.rad2deg(dec)
-            self._set_void_data(RA=RA_deg, dec=dec_deg,
-                                kind="density", **void_kwargs)
-            self._set_void_data(RA=RA_deg, dec=dec_deg,
-                                kind="vrad", **void_kwargs)
+
+            self._set_void_data(
+                RA=RA_deg, dec=dec_deg, kind="density", **void_kwargs)
+            self._set_void_data(
+                RA=RA_deg, dec=dec_deg, kind="vrad", **void_kwargs)
+
+            self._void_size_to_h_void = void_kwargs["void_size_to_h_void"]
+
+            if void_kwargs["is_fiducial"]:
+                self._h_void = float(self._void_size_to_h_void(1))
+                fprint(f"setting the void h to {self._h_void}.")
 
         self.kind = kind
         self.name = name
@@ -1021,9 +1005,16 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             if self.is_void_data:
                 rLG = field_calibration_params["rLG"]
                 void_size = field_calibration_params["void_size"]
+
+                if self._is_fiducial_void:
+                    h_void = self._h_void
+                else:
+                    h_void = self._void_size_to_h_void(void_size)
+
                 log_los_density = self.log_los_density(
-                    void_size=void_size, rLG=rLG)
-                los_velocity = self.los_velocity(void_size=void_size, rLG=rLG)
+                    void_size=void_size, rLG=rLG, h_void=h_void)
+                los_velocity = self.los_velocity(
+                    void_size=void_size, rLG=rLG, h_void=h_void)
             else:
                 log_los_density = self.log_los_density()
                 los_velocity = self.los_velocity()

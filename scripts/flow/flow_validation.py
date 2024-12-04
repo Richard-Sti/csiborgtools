@@ -78,6 +78,7 @@ import jax                                                                      
 import numpy as np                                                              # noqa
 from csiborgtools import fprint                                                 # noqa
 from h5py import File                                                           # noqa
+from interpax import Interpolator1D                                             # noqa
 from numpyro.infer import (MCMC, NUTS, init_to_sample, init_to_feasible,        # noqa
                            init_to_median)                                      # noqa
 
@@ -329,8 +330,8 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 10_000
-    nburn = 1500
+    nsteps = 1500
+    nburn = 750
     zcmb_min = None
     zcmb_max = 0.05
     nchains_harmonic = 10
@@ -341,13 +342,17 @@ if __name__ == "__main__":
     sample_beta = None
     sample_h_e_int = False
     no_Vext = None
-    sample_Vmag_vax = False
     sample_Vmono = False
     sample_mag_dipole = False
     wo_num_dist_marginalisation = False
     absolute_calibration = None
     calculate_harmonic = (False if (inference_method == "bayes") else True) and (not wo_num_dist_marginalisation)  # noqa
     sample_h = True if absolute_calibration is not None else False
+    which_void_size_run = "zoom"
+
+    # Overwrite if if not running a varying void size simulation.
+    if "IndranilVoidSizeVar_" not in ARGS.simname:
+        which_void_size_run = None
 
     # These mocks are generated without a density field, so there is no
     # inhomogeneous Malmquist and we also do not need evidences.
@@ -365,11 +370,11 @@ if __name__ == "__main__":
                     "sample_alpha": sample_alpha,
                     "sample_beta": sample_beta,
                     "no_Vext": no_Vext,
-                    "sample_Vmag_vax": sample_Vmag_vax,
                     "sample_Vmono": sample_Vmono,
                     "sample_mag_dipole": sample_mag_dipole,
                     "absolute_calibration": absolute_calibration,
                     "sample_h_e_int": sample_h_e_int,
+                    "which_void_size_run": which_void_size_run,
                     }
 
     main_params = {"nsteps": nsteps, "nburn": nburn,
@@ -399,20 +404,40 @@ if __name__ == "__main__":
                 "`IndranilVoid` does not have multiple realisations.")
 
         profile = ARGS.simname.split("_")[-1]
-        h = csiborgtools.flow.select_void_h(profile)
-        rvoid_fiducial = csiborgtools.flow.select_void__fiducial_size(profile)
-        vvoid = csiborgtools.flow.select_vvoid(profile)
-        rdist = np.arange(0, 165, 1.0)
+
+        # This is the radial distance over which to intergrate along the LOS.
+        # 165 Mpc / h should be sufficient
+        rdist = np.arange(0, 165, 0.5)
+
+        # Create the interpolator of void size to void Hubble parameter
+        void_size, h_void = csiborgtools.flow.select_void_h(
+            None, profile, return_all=True)
+
+        # Check if the mapping is in H0 or h and sizes in percent
+        void_size_to_h_void = Interpolator1D(
+            void_size / 100, h_void, method="linear",
+            extrap=(h_void[0], h_void[-1]))
+
+        is_fiducial = "IndranilVoidSizeVar" not in ARGS.simname
 
         void_kwargs = {
-            "profile": profile, "h": h, "order": 1, "rdist": rdist,
-            "is_fiducial": "IndranilVoidSizeVar" not in ARGS.simname,
-            }
+            "profile": profile, "void_size_to_h_void": void_size_to_h_void,
+            "which_void_size_run": which_void_size_run, "order": 1,
+            "rdist": rdist, "is_fiducial": is_fiducial}
+
+        if which_void_size_run == "zoom":
+            void_size_min, void_size_max = 0.01, 0.2
+        elif which_void_size_run == "coarse":
+            void_size_min, void_size_max = 0.1, 3.0
+        elif is_fiducial:
+            void_size_min, void_size_max = None, None
+        else:
+            raise ValueError(
+                f"Unsupported void size run: `{which_void_size_run}`.")
+
     else:
         void_kwargs = None
-        rvoid_fiducial = None
-        vvoid = None
-        h = 1.
+        void_size_min, void_size_max = None, None
 
     if inference_method != "bayes":
         mag_selection = [None] * len(ARGS.catalogue)
@@ -430,18 +455,16 @@ if __name__ == "__main__":
                                "beta_min": -10.0, "beta_max": 10.0,
                                "sigma_v_min": 10., "sigma_v_max": 1000 if "IndranilVoid_" in ARGS.simname else 750.,  # noqa
                                "h_min": 0.25, "h_max": 5.,
-                               "no_Vext": False if no_Vext is None else no_Vext,        # noqa
-                               "sample_Vmag_vax": sample_Vmag_vax,
+                               "no_Vext": no_Vext is not None,
                                "sample_Vmono": sample_Vmono,
                                "sample_beta": sample_beta,
                                "sample_h": sample_h,
                                "sample_h_e_int": sample_h_e_int,  # noqa
                                "sample_rLG": "IndranilVoid" in ARGS.simname,
                                "sample_void_size": "IndranilVoidSizeVar" in ARGS.simname,  # noqa
-                               "void_size_min": 0.1, "void_size_max": 3.0,
-                               "rLG_min": 0.0, "rLG_max": 500 * h,
-                               "rvoid_fiducial": rvoid_fiducial,
-                               "vvoid": vvoid,
+                               "void_size_min": void_size_min,
+                               "void_size_max": void_size_max,
+                               "rLG_min": 0.0, "rLG_max": 50,
                                }
     print_variables(
         calibration_hyperparams.keys(), calibration_hyperparams.values())
