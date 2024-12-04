@@ -22,7 +22,7 @@ from .mocks import mock_Carrick2MTF                                             
 from .selection import ToyMagnitudeSelection                                    # noqa
 from .void_model import (load_void_fiducial, load_void_size_variation,          # noqa
                          interpolate_fiducial_void, interpolate_size_var_void,  # noqa
-                         select_void_h, select_void__fiducial_size, mock_void,  # noqa
+                         select_void_h, mock_void,                              # noqa
                          angular_distance_from_void_axis, void_velocity_vector, # noqa
                          void_bulk_flow, void_monopole)                         # noqa
 from .growth_factor import (sigma8_nonlinear_to_linear_juszkiewicz,             # noqa
