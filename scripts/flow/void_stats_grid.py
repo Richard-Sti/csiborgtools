@@ -21,6 +21,7 @@ from argparse import ArgumentParser
 import numpy as np
 from csiborgtools.flow import (load_void_size_variation, void_bulk_flow,
                                void_monopole)
+from tqdm import trange
 from h5py import File
 
 
@@ -50,14 +51,15 @@ def main(profile):
     monopole = np.zeros((num_sizes, num_rLG, len(r)))
     bulk_flow = np.zeros((num_sizes, num_rLG, len(r), 3))
 
-    for i in range(num_sizes):
+    for i in trange(num_sizes, desc="Sizes"):
         for j in range(num_sizes):
             enclosed_density[i, j, ...] = void_monopole(
-                r, rho[i, j], ngrid, r_grid, phi_grid)
+                r, rho[i, j], ngrid, r_grid, phi_grid, verbose=False)
             monopole[i, j, ...] = void_monopole(
-                r, vrad[i, j], ngrid, r_grid, phi_grid)
+                r, vrad[i, j], ngrid, r_grid, phi_grid, verbose=False)
             bulk_flow[i, j, ...] = void_bulk_flow(
-                r, vx[i, j], vy[i, j], ngrid, r_grid, phi_grid, in_icrs=True)
+                r, vx[i, j], vy[i, j], ngrid, r_grid, phi_grid, in_icrs=True,
+                verbose=False)
 
     with File(fname_out, "w") as f:
         # Write down the grid
@@ -69,10 +71,10 @@ def main(profile):
 
         # Write down the void stats
         grp = f.create_group("void_stats")
-        f.create_dataset("r", data=r)
-        f.create_dataset("enclosed_density", data=enclosed_density)
-        f.create_dataset("monopole", data=monopole)
-        f.create_dataset("bulk_flow", data=bulk_flow)
+        grp.create_dataset("r", data=r)
+        grp.create_dataset("enclosed_density", data=enclosed_density)
+        grp.create_dataset("monopole", data=monopole)
+        grp.create_dataset("bulk_flow", data=bulk_flow)
 
 
 if __name__ == "__main__":
