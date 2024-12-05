@@ -262,6 +262,13 @@ def get_samples(fname, convert_Vext_to_galactic=True):
     return samples
 
 
+def get_Vext_only(fname):
+    with File(fname, 'r') as f:
+        Vext = f["samples/Vext"][...]
+
+    return Vext
+
+
 def get_some_samples(fname, labels):
     """Read in the samples from the HDF5 file."""
     if not isinstance(labels, list) and all(isinstance(label, str) for label in labels):  # noqa
