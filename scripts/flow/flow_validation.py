@@ -348,7 +348,7 @@ if __name__ == "__main__":
     absolute_calibration = None
     calculate_harmonic = (False if (inference_method == "bayes") else True) and (not wo_num_dist_marginalisation)  # noqa
     sample_h = True if absolute_calibration is not None else False
-    which_void_size_run = "zoom"
+    which_void_size_run = "coarse"
 
     # Overwrite if if not running a varying void size simulation.
     if "IndranilVoidSizeVar_" not in ARGS.simname:
