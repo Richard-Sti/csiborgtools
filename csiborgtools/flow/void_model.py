@@ -185,7 +185,7 @@ def load_void_size_variation(profile, kind, which_run="all",
     profile : str
         Void profile to load. One of "exp", "gauss", "mb".
     kind : str
-        Data kind, either "density" or "vrad".
+        Data kind, either "density", "vrad", "vx", or "vy".
     which_run : str
         Which run to load, either "coarse", "zoom" or "all".
     try_load_from_hdf5 : bool, optional
@@ -666,7 +666,8 @@ def make_grid(ngrid, rmax, boxsize, reshape_to_3d=True):
     return X
 
 
-def void_bulk_flow(r, vx, vy, ngrid, r_grid, phi_grid, in_icrs=True):
+def void_bulk_flow(r, vx, vy, ngrid, r_grid, phi_grid, in_icrs=True,
+                   verbose=True):
     """
     Calculate the bulk flow of the void velocity field.
 
@@ -683,6 +684,8 @@ def void_bulk_flow(r, vx, vy, ngrid, r_grid, phi_grid, in_icrs=True):
     in_icrs : bool, optional
         Whether to return the bulk flow in ICRS coordinates or in the void
         coordinates.
+    verbose : bool, optional
+        Verbosity flag.
 
     Returns
     -------
@@ -701,7 +704,7 @@ def void_bulk_flow(r, vx, vy, ngrid, r_grid, phi_grid, in_icrs=True):
 
     for n in range(ndim):
         vi = vel[:, n].reshape(ngrid, ngrid, ngrid)
-        enclosed_vel, enclosed_vol = field_enclosed(vi, r, boxsize)
+        enclosed_vel, enclosed_vol = field_enclosed(vi, r, boxsize, verbose)
 
         # Don't divide if nothing is enclosed.
         m = enclosed_vol > 0
@@ -710,7 +713,7 @@ def void_bulk_flow(r, vx, vy, ngrid, r_grid, phi_grid, in_icrs=True):
     return bulk_flow
 
 
-def void_monopole(r, vr, ngrid, r_grid, phi_grid):
+def void_monopole(r, vr, ngrid, r_grid, phi_grid, verbose):
     """
     Calculate the monopole of the void velocity field.
 
@@ -724,6 +727,8 @@ def void_monopole(r, vr, ngrid, r_grid, phi_grid):
         Number of grid points in each dimension.
     r_grid, phi_grid : 1-dimensional array
         Void radial and angular grid.
+    verbose : bool, optional
+        Verbosity flag.
 
     Returns
     -------
@@ -739,7 +744,7 @@ def void_monopole(r, vr, ngrid, r_grid, phi_grid):
     vel_rad = vel[:, 0]
 
     enclosed_vel, enclosed_vol = field_enclosed(
-        vel_rad.reshape(ngrid, ngrid, ngrid), r, boxsize)
+        vel_rad.reshape(ngrid, ngrid, ngrid), r, boxsize, verbose)
 
     m = enclosed_vol > 0
     enclosed_vel[m] /= enclosed_vol[m]
