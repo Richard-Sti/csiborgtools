@@ -330,8 +330,8 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 1500
-    nburn = 750
+    nsteps = 10_000
+    nburn = 1500
     zcmb_min = None
     zcmb_max = 0.05
     nchains_harmonic = 10
@@ -448,12 +448,12 @@ if __name__ == "__main__":
         raise ValueError(
             "The number of steps must be divisible by the number of chains.")
 
-    Vext_i_lim = 3000 if "IndranilVoid_" in ARGS.simname else 750.
+    Vext_i_lim = 1000
     calibration_hyperparams = {"Vext_i_min": -Vext_i_lim,
                                "Vext_i_max": Vext_i_lim,
                                "Vmono_min": -1000, "Vmono_max": 1000,
                                "beta_min": -10.0, "beta_max": 10.0,
-                               "sigma_v_min": 10., "sigma_v_max": 1000 if "IndranilVoid_" in ARGS.simname else 750.,  # noqa
+                               "sigma_v_min": 10., "sigma_v_max": 750.,
                                "h_min": 0.25, "h_max": 5.,
                                "no_Vext": no_Vext is not None,
                                "sample_Vmono": sample_Vmono,
