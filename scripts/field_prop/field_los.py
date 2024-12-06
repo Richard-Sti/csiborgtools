@@ -238,9 +238,17 @@ def get_field(simname, nsim, kind, MAS, grid):
 
         field = fits.open(fpath)[0].data
 
-        # https://projets.ip2i.in2p3.fr//cosmicflows/ says to multiply by 52
-        if kind == "velocity":
-            field *= 52
+        print("Swapping the X and Z axes for CF4.")
+        if kind == "density":
+            field = np.swapaxes(field, 0, 2)
+        elif kind == "velocity":
+            vx, vy, vz = fits.open(fpath)[0].data
+            vx, vy, vz = np.swapaxes(vx, 0, 2), np.swapaxes(vy, 0, 2), np.swapaxes(vz, 0, 2)  # noqa
+            # https://projets.ip2i.in2p3.fr//cosmicflows/ says to multiply by
+            # 52
+            field = 52 * np.stack([vx, vy, vz], axis=0)
+        else:
+            raise ValueError(f"Unknown field kind: `{kind}`.")
 
         return field.astype(np.float32)
     elif simname == "Lilow2024":
@@ -466,6 +474,7 @@ if __name__ == "__main__":
     comm = MPI.COMM_WORLD
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsims = get_nsims(args, paths, subsample=True)
+    print(nsims)
 
     out_folder = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_los"
     # Create the dumping folder.
