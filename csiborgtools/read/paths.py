@@ -131,6 +131,7 @@ class Paths:
             # NOTE this too is preliminary
             fname = "/mnt/extraspace/rstiskalek/MANTICORE/resimulations/fields/2MPP_N128_DES_PROD/R512"  # noqa
             fdirs = listdir(fname)
+
             files = [int(search(r'\d+', fdir).group())
                      for fdir in fdirs if search(r'\d+', fdir)]
         elif simname == "quijote":
@@ -138,7 +139,7 @@ class Paths:
                               "chain_*"))
             files = [int(search(r'chain_(\d+)', f).group(1)) for f in files]
         elif simname == "CF4":
-            files = glob(join(self.CF4_dir, "CF4_new_128-z008_realization*_delta.fits"))  # noqa
+            files = glob(join(self.CF4_dir, "CF4gp_23avr24_256-z008_test_realization*_delta.fits"))  # noqa
             files = [search(r'realization(\d+)_delta\.fits', file).group(1)
                      for file in files if search(r'realization(\d+)_delta\.fits', file)]  # noqa
             files = [int(file) for file in files]
