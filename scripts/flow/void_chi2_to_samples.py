@@ -23,14 +23,12 @@ from jax import random
 from numpyro import factor, sample
 from numpyro.distributions import Uniform
 from numpyro.infer import MCMC, NUTS, init_to_sample
-from csiborgtools.flow import select_void_h
 
 
 def load_interpolator(kind):
     if kind not in ["exp", "gauss", "mb"]:
         raise ValueError("kind must be one of 'exp', 'gauss', 'mb'")
 
-    h = select_void_h(kind)
     kind = kind.upper()
 
     fpath = f"/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/ChiSq2D_{kind}profileresolution_3501x601.dat"  # noqa
@@ -39,27 +37,23 @@ def load_interpolator(kind):
     data = np.genfromtxt(fpath)
     nx, ny = data.shape
     xdata = np.arange(0, nx)
-    ydata = np.arange(0, ny) * h
+    ydata = np.arange(0, ny)
 
     if kind in ["EXP", "GAUSS"]:
-        ymin = -1
-        ymax = 200 * h
+        ymin = 0
+        ymax = 100
     else:
-        ymin = 100 * h
-        ymax = 250 * h
+        ymin = 100
+        ymax = 250
 
-    print(f"Selecting only the region where R_LG < {ymax} to avoid some "
+    xmin = 100
+    xmax = len(xdata)
+
+    print(f"Selecting only the region where R_LG < {ymax} Mpc to avoid some "
           "unexpected behavior.")
-
-    m = (ydata < ymax) & (ydata > ymin)
-    ydata = ydata[m]
-    data = data[:, m]
 
     # We want to interpolate the log-likelihood
     f = Interpolator2D(xdata, ydata, -0.5 * data, method="cubic")
-
-    xmin, xmax = 0, len(xdata) - 1
-    ymin, ymax = 0, len(ydata) - 1
 
     return f, xmin, xmax, ymin, ymax, fpath
 
@@ -75,8 +69,12 @@ if __name__ == "__main__":
 
     f, xmin, xmax, ymin, ymax, fpath = load_interpolator(args.kind)
 
+    print("Sampling the chi2 grid:")
+    print(f"xmin = {xmin}, xmax = {xmax}")
+    print(f"ymin = {ymin}, ymax = {ymax}")
+
     def model():
-        x = sample("Vvoid", Uniform(xmin, xmax))
+        x = sample("Vmag", Uniform(xmin, xmax))
         y = sample("rLG", Uniform(ymin, ymax))
 
         factor("lnL", f(x, y))
