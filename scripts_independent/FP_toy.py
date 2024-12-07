@@ -8,13 +8,10 @@ from astropy.cosmology import FlatLambdaCDM
 from h5py import File
 from jax import numpy as jnp
 from jax import random
-from numpyro import factor, sample, deterministic, plate
+from numpyro import factor, sample, plate
 from numpyro.infer import init_to_median
-from numpyro.handlers import scale
 from numpyro.distributions import Normal, Uniform
 from numpyro.infer import MCMC, NUTS
-from quadax import simpson
-from jax.debug import print as jprint
 
 SPEED_OF_LIGHT = 299792.458  # km / s
 ARCSEC2RAD = 4.84813681109536e-06
@@ -26,18 +23,28 @@ with_malmquist = False
 make_full_sky = False
 maglim = 17.0
 zmin = 0.003
-zmax = 0.05
-cosmo = FlatLambdaCDM(H0=100, Om0=0.3)
+zmax = 0.03
 
+cosmo = FlatLambdaCDM(H0=100, Om0=0.3)
 Vmin = cosmo.comoving_distance(zmin).value**3
 Vmax = cosmo.comoving_distance(zmax).value**3
+
+if subtract_mean_independent:
+    print("Subtracting mean of the independent variables.")
+
+if sample_sigma_v:
+    print("Sampling sigma_v.")
 
 if with_malmquist:
     print("Using homogeneous Malmquist bias.")
 
+if make_full_sky:
+    print("Resampling sky coordinates to be full sky.")
+
 # Minimum and maximum of the radial range for sampling the comoving distance.
 rmin = 0.01
-rmax = cosmo.comoving_distance(zmax + 450 / SPEED_OF_LIGHT).value
+rmax = cosmo.comoving_distance(zmax + 1000 / SPEED_OF_LIGHT).value
+print(f"Setting rmin = {rmin} Mpc / h, rmax = {rmax} Mpc / h.")
 
 
 def distmod2redshift(mu, Om0):
@@ -93,24 +100,6 @@ def r2distmod(r, Om0):
     ))
 
 
-def Sn_from_mag_distance(mag, r, Om0):
-    """Calculate the weights."""
-    mu = r2distmod(r, Om0)
-
-    mu_lim = mu + maglim - mag
-
-    return jnp.clip((distmod2dist(mu_lim, Om0)**3 - Vmin) / (Vmax - Vmin), 0, 1)
-
-
-def get_effective_surface_brightness(mr, zcosmo, zpec, theta_eff, kr, Ar):
-    return mr + 0.85 * zcosmo + 2.5 * jnp.log10(2 * np.pi * theta_eff**2) - 2.5 * jnp.log10((1 + zcosmo)**4 * (1 + zpec)**2) - kr - Ar
-
-
-def get_log_Ie(mu_e):
-    Msun = 4.65
-    return 0.4 * Msun - 0.4 * mu_e + 2 * np.log10(206265 / 10)
-
-
 ###############################################################################
 #                             Load the data                                   #
 ###############################################################################
@@ -133,9 +122,11 @@ with File("/mnt/extraspace/rstiskalek/catalogs/PV/CF4/SDSS-FP.hdf5", 'r') as f:
     e_log_Ie = jnp.asarray(f["ei"][...][m])
 
     theta_eff = jnp.asarray((f["rad"][...] * np.sqrt(f["boa"][...]))[m])
-
     log_theta_eff_rad = jnp.log10(theta_eff * ARCSEC2RAD)
-    log_da_kpc = jnp.log10(cosmo.angular_diameter_distance(czcmb / SPEED_OF_LIGHT).value * 1000)
+
+    # Computed from the *observed* redshift..
+    log_da_kpc = jnp.log10(
+        cosmo.angular_diameter_distance(czcmb / SPEED_OF_LIGHT).value * 1000)
 
     rmag = jnp.asarray(f["rmag"][...][m])
     kr = jnp.asarray(f["kcr"][...][m])
@@ -161,21 +152,15 @@ print(f"Loaded {len(log_sigma)} galaxies.")
 #                          Define the MCMC model                              #
 ###############################################################################
 
-from jax.debug import print as jprint
-
 
 def model():
-    a = sample("aFP", Normal(0, 5))
-    b = sample("bFP", Normal(0, 5))
-    c = sample("cFP", Normal(-1, 1))
-    # c = -0.11
+    a = sample("aFP", Normal(0, 1))
+    b = sample("bFP", Normal(0, 1))
+    c = sample("cFP", Normal(0, 1))
 
     scatter = sample("scatter", Uniform(0, 1))
-    # scatter = 0.1
-    # scatter = jnp.sqrt(scatter**2 + a**2 * e_log_sigma**2 + b**2 * e_log_Ie**2)
 
     Vext = sample("Vext", Normal(0, 500).expand([3]))
-    # Vext = [0, 0, 0]
 
     if sample_sigma_v:
         sigma_v = sample("sigma_v", Uniform(0, 2500))
@@ -183,15 +168,13 @@ def model():
     else:
         sigma_v = 250
 
-
     # Sample radial distance
     with plate("data", len(log_sigma)):
         r = sample("r", Uniform(rmin, rmax))
 
-    # # Convert to angular diameter distance in kpc / h
+    # Convert to angular diameter distance in kpc / h
     dA = r2da(r) * 1000
     # Convert to redsfhit, using just Hubble
-    # zcosmo = 100 * r / SPEED_OF_LIGHT
     zcosmo = dist2redshift(r, 0.3)
 
     # Project V_ext to the line of sight
@@ -202,44 +185,19 @@ def model():
     zpec = Vext_projected / SPEED_OF_LIGHT
     czpred = ((1 + zcosmo) * (1 + zpec) - 1) * SPEED_OF_LIGHT
 
-
-    # mue = get_effective_surface_brightness(rmag, zcosmo, zpec, theta_eff, kr, Ar)
-    # log_Ie_pred = get_log_Ie(mue)
-
     # Predict the log effective radius from the FP in kpc / h
     log_Reff_pred = a * log_sigma + b * log_Ie + c
-    # Convert to angular diameter distance in Mpc / h
-    # log_da_FP = (log_Reff_pred - log_theta_eff_rad) - 3
-    # log_da_FP = log_Reff_pred - log_theta_eff_rad - 3
-    # print(10**log_da_FP)
-    # jprint("DA = {x}", x=10**log_da_FP)
-    # Convert to a distance modulus
-    # mu_FP = log_dA_to_distmod(log_da_FP, 0.3)
-    # mu_FP = 5 * log_da_FP + 25
-    # jprint("mu_FP = {x}", x=mu_FP)
-    #  print(f"mu_FP = {mu_FP}")
 
-    # with plate("plate_mu", len(log_sigma)):
-        # mu = sample("mu", Normal(mu_FP, scatter))
-
-    # zcosmo = distmod2redshift(mu_FP, 0.3)
-
-
-
-    # Sn = Sn_from_mag_distance(mag, r, 0.3)
-    # # jprint("mean(Sn) = {x}", x=jnp.mean(Sn))
-
-    # deterministic("czpred", czpred)
+    # Log effective radius from the angular size and the ang diameter distance
     log_Reff_composed = log_theta_eff_rad + jnp.log10(dA)
 
     with plate("ll_plate", len(czcmb)):
-        sample("ll_log_Reff", Normal(log_Reff_pred, scatter), obs=log_Reff_composed)
-
+        sample("ll_log_Reff", Normal(log_Reff_pred, scatter),
+               obs=log_Reff_composed)
         sample("ll_czpred", Normal(czpred, sigma_v), obs=czcmb)
 
         if with_malmquist:
-            ll_r = 2 * jnp.log(r)
-            factor("ll_r", ll_r)
+            factor("ll_r", 2 * jnp.log(r))
 
 
 ###############################################################################
