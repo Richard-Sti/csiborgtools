@@ -769,3 +769,32 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
     fprint(f"selected {np.sum(mask)}/{len(mask)} galaxies in catalogue `{kind}`")  # noqa
 
     return model
+
+
+###############################################################################
+#                         Supplementary functions                             #
+###############################################################################
+
+
+def find_covmat_regul(C, dx_init, dx_step=0.001, dx_max=0.15, verbose=True):
+    """
+    Find a regularisation term for a covariance matrix `C` (so that all
+    eigenvalues are positive) by adding a constant diagonal term.
+    """
+    dx = dx_init
+
+    if verbose:
+        print(f"Finding a regularisation term for C with shape {C.shape}...")
+
+    while True:
+        eigval = np.linalg.eigvals(C + np.diag([dx] * C.shape[0]))
+
+        if np.all(eigval.real > 0):
+            break
+        else:
+            dx += dx_step
+
+        if dx > dx_max:
+            raise ValueError("No valid solution found.")
+
+    return dx
