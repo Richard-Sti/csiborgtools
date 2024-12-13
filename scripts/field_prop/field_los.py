@@ -95,13 +95,23 @@ def get_los(catalogue_name, simname, comm):
         folder = "/mnt/extraspace/rstiskalek/catalogs"
 
         if catalogue_name in ["LOSS", "Foundation", "SFI_gals",
-                              "SFI_gals_masked", "SFI_groups", "2MTF",
-                              "Pantheon+"]:
+                              "SFI_gals_masked", "SFI_groups", "2MTF"]:
             fpath = join(folder, "PV_compilation.hdf5")
             with File(fpath, 'r') as f:
                 grp = f[catalogue_name]
                 RA = grp["RA"][:]
                 dec = grp["DEC"][:]
+        elif catalogue_name == "Pantheon+":
+            fdir = join(folder, "PV")
+            fname = join(fdir, "Pantheon+SH0ES.dat")
+            fname_cov = join(fdir, "Pantheon+SH0ES_STAT+SYS.cov")
+            fname_cov_vel = join(fdir, "Pantheon+SH0ES_122221_VPEC.cov")
+
+            data = csiborgtools.read.read_pantheonplus_data(
+                fname, fname_cov, fname_cov_vel)[0]
+            RA = data["RA"]
+            dec = data["DEC"]
+
         elif catalogue_name == "A2":
             fpath = join(folder, "A2.h5")
             with File(fpath, 'r') as f:
