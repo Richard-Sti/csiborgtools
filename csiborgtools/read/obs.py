@@ -804,7 +804,7 @@ def read_pantheonplus_data(fname_data, fname_covmat_statsys, fname_covmat_vpec,
     fprint("reading the Pantheon+ STAT+SYS covariance matrix.", verbose)
     C = read_pantheonplus_covariance(fname_covmat_statsys, ww)
 
-    fprint("reading the Pantheon+ VPEC covariance matrix.", verbose)
+    fprint("reading the Pantheon+ VPEC systematic covariance matrix.", verbose)
     C_vpec = read_pantheonplus_covariance(fname_covmat_vpec, ww)
     return data, C, C_vpec
 
