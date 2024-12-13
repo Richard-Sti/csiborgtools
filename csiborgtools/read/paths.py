@@ -121,12 +121,17 @@ class Paths:
                 fdir = join(fdir, "2MPP_N128_DES_V1", "resimulations", "R512")
                 files = glob(join(fdir, "mcmc_*"))
                 files = [int(search(r'mcmc_(\d+)', f).group(1)) for f in files]
+            elif simname == "manticore_2MPP_MULTIBIN_N128_DES_V1":
+                fdir = join(fdir, "2MPP_MULTIBIN_N128_DES_V1", "R512")
+                files = glob(join(fdir, "mcmc_*"))
+                files = [int(search(r'mcmc_(\d+)', f).group(1)) for f in files]
             else:
                 raise ValueError(f"Unknown MANTICORE simulation `{simname}`.")
         elif simname == "csiborg2X":
             # NOTE this too is preliminary
             fname = "/mnt/extraspace/rstiskalek/MANTICORE/resimulations/fields/2MPP_N128_DES_PROD/R512"  # noqa
             fdirs = listdir(fname)
+
             files = [int(search(r'\d+', fdir).group())
                      for fdir in fdirs if search(r'\d+', fdir)]
         elif simname == "quijote":
@@ -134,7 +139,7 @@ class Paths:
                               "chain_*"))
             files = [int(search(r'chain_(\d+)', f).group(1)) for f in files]
         elif simname == "CF4":
-            files = glob(join(self.CF4_dir, "CF4_new_128-z008_realization*_delta.fits"))  # noqa
+            files = glob(join(self.CF4_dir, "CF4gp_23avr24_256-z008_test_realization*_delta.fits"))  # noqa
             files = [search(r'realization(\d+)_delta\.fits', file).group(1)
                      for file in files if search(r'realization(\d+)_delta\.fits', file)]  # noqa
             files = [int(file) for file in files]
@@ -216,6 +221,15 @@ class Paths:
                                      "MANTICORE 2MPP_N128_DES_V1.")
 
                 fdir = join(fdir, "2MPP_N128_DES_V1", "resimulations", "R512")
+                nsnap_str = str(nsnap).zfill(4)
+                fpath = join(fdir, f"mcmc_{nsim}", "swift_monofonic",
+                             f"snap_{nsnap_str}", f"snap_{nsnap_str}.hdf5")
+            elif simname == "manticore_2MPP_MULTIBIN_N128_DES_V1":
+                if nsnap != 1:
+                    raise ValueError("Only snapshot 1 is available for "
+                                     "MANTICORE 2MPP_MULTIBIN_N128_DES_V1.")
+
+                fdir = join(fdir, "2MPP_MULTIBIN_N128_DES_V1", "R512")
                 nsnap_str = str(nsnap).zfill(4)
                 fpath = join(fdir, f"mcmc_{nsim}", "swift_monofonic",
                              f"snap_{nsnap_str}", f"snap_{nsnap_str}.hdf5")
@@ -416,6 +430,11 @@ class Paths:
                            "fields", "R512")
             return join(basedir, f"SPH_{nsim}.hdf5")
 
+        if simname == "manticore_2MPP_MULTIBIN_N128_DES_V1":
+            basedir = join(self.manticore_dir, "2MPP_MULTIBIN_N128_DES_V1",
+                           "fields", "R512")
+            return join(basedir, f"SPH_{nsim}.hdf5")
+
         if simname == "Carrick2015":
             basedir = "/mnt/extraspace/rstiskalek/catalogs"
             if kind == "overdensity":
@@ -435,14 +454,21 @@ class Paths:
                 raise ValueError(f"Unsupported Lilow2024 field: `{kind}`.")
 
         if simname == "CF4":
-            basedir = "/mnt/extraspace/rstiskalek/catalogs/CF4"
+            # basedir = "/mnt/extraspace/rstiskalek/catalogs/CF4"
+            basedir = "/mnt/extraspace/rstiskalek/catalogs/CF4/CF4gp_23avr24_256-z008"  # noqa
+
             if kind == "overdensity":
                 return join(
-                    basedir, f"CF4_new_128-z008_realization{nsim}_delta.fits")
+                    basedir,
+                    # f"CF4_new_128-z008_realization{nsim}_delta.fits"
+                    f"CF4gp_23avr24_256-z008_test_realization{nsim}_delta.fits"
+                    )
             elif kind == "velocity":
                 return join(
                     basedir,
-                    f"CF4_new_128-z008_realization{nsim}_velocity.fits")
+                    # f"CF4_new_128-z008_realization{nsim}_velocity.fits",
+                    f"CF4gp_23avr24_256-z008_test_realization{nsim}_velocity.fits"  # noqa
+                    )
             else:
                 raise ValueError(f"Unsupported CF4 field: `{kind}`.")
 
@@ -697,8 +723,7 @@ class Paths:
                         sample_beta=False, no_Vext=None,
                         sample_Vmono=False, sample_mag_dipole=False,
                         sample_curvature=False, absolute_calibration=None,
-                        sample_Vmag_vax=False,
-                        sample_h_e_int=False,
+                        sample_h_e_int=False, which_void_size_run=None,
                         verbose_print=True):
         """Flow validation file path."""
         if isinstance(catalogue, list) and len(catalogue) == 1:
@@ -715,13 +740,12 @@ class Paths:
         keys = ["smooth", "nsim", "zcmb_min", "zcmb_max", "mag_selection",
                 "sample_alpha", "sample_beta", "no_Vext", "sample_Vmono",
                 "sample_mag_dipole", "sample_curvature",
-                "sample_Vmag_vax", "absolute_calibration",
-                "sample_h_e_int"]
+                "absolute_calibration", "sample_h_e_int",
+                "which_void_size_run"]
         values = [smooth, nsim, zcmb_min, zcmb_max, mag_selection,
                   sample_alpha, sample_beta, no_Vext, sample_Vmono,
-                  sample_mag_dipole, sample_curvature,
-                  sample_Vmag_vax, absolute_calibration,
-                  sample_h_e_int]
+                  sample_mag_dipole, sample_curvature, absolute_calibration,
+                  sample_h_e_int, which_void_size_run]
 
         for key, value in zip(keys, values):
 

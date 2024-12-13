@@ -199,7 +199,7 @@ def observer_peculiar_velocity(velocity_field, smooth_scales=None,
 
 
 def evaluate_los(*fields, sky_pos, boxsize, rdist, smooth_scales=None,
-                 interpolation_method="cic", verbose=False):
+                 observer_pos=None, interpolation_method="cic", verbose=False):
     """
     Interpolate the fields for a set of lines of sights from the observer
     in the centre of the box.
@@ -219,6 +219,9 @@ def evaluate_los(*fields, sky_pos, boxsize, rdist, smooth_scales=None,
     interpolation_method : str, optional
         Interpolation method. Must be one of `cic` or one of the methods of
         `scipy.interpolate.RegularGridInterpolator`.
+    observer_pos : list of 3 floats, optional
+        Observer position in `Mpc / h`. If `None`, the observer is assumed to
+        be in the centre of the box.
     verbose : bool, optional
         Smoothing verbosity flag.
 
@@ -251,7 +254,15 @@ def evaluate_los(*fields, sky_pos, boxsize, rdist, smooth_scales=None,
 
     pos = force_single_precision(pos)
     # Convert the spherical coordinates to Cartesian coordinates.
-    pos = radec_to_cartesian(pos) + 0.5
+    pos = radec_to_cartesian(pos)
+
+    # Account for the observer position
+    if observer_pos is not None:
+        pos[:, 0] += observer_pos[0] / boxsize
+        pos[:, 1] += observer_pos[1] / boxsize
+        pos[:, 2] += observer_pos[2] / boxsize
+    else:
+        pos += 0.5
 
     if smooth_scales is not None:
         if isinstance(smooth_scales, (int, float)):

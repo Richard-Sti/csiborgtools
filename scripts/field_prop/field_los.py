@@ -134,6 +134,11 @@ def get_los(catalogue_name, simname, comm):
             with File(fname, 'r') as f:
                 RA = f["Ra"][...]
                 dec = f["Dec"][...]
+        elif catalogue_name == "CF4_test_points":
+            fname = "/mnt/extraspace/rstiskalek/catalogs/PV/CF4_test_points.hdf5"  # noqa
+            with File(fname, 'r') as f:
+                RA = f["RA"][:]
+                dec = f["dec"][:]
         else:
             raise ValueError(f"Unknown catalogue name: `{catalogue_name}`.")
 
@@ -188,6 +193,8 @@ def get_field(simname, nsim, kind, MAS, grid):
         field_reader = csiborgtools.read.CSiBORG2XField(nsim, version=0)
     elif simname == "manticore_2MPP_N128_DES_V1":
         field_reader = csiborgtools.read.CSiBORG2XField(nsim, version=1)
+    elif simname == "manticore_2MPP_MULTIBIN_N128_DES_V1":
+        field_reader = csiborgtools.read.CSiBORG2XField(nsim, version=2)
     elif simname == "CLONES":
         field_reader = csiborgtools.read.CLONESField(nsim)
     elif simname == "Carrick2015":
@@ -215,21 +222,38 @@ def get_field(simname, nsim, kind, MAS, grid):
         else:
             raise ValueError(f"Unknown field kind: `{kind}`.")
     elif simname == "CF4":
-        folder = "/mnt/extraspace/rstiskalek/catalogs/CF4"
+        # folder = "/mnt/extraspace/rstiskalek/catalogs/CF4"
+        folder = "/mnt/extraspace/rstiskalek/catalogs/CF4/CF4gp_23avr24_256-z008"  # noqa
         warn(f"Using local paths from `{folder}`.", RuntimeWarning)
 
         if kind == "density":
-            fpath = join(folder, f"CF4_new_128-z008_realization{nsim}_delta.fits")     # noqa
+            fpath = join(
+                folder,
+                # f"CF4_new_128-z008_realization{nsim}_delta.fits"
+                f"CF4gp_23avr24_256-z008_test_realization{nsim}_delta.fits"
+                )
         elif kind == "velocity":
-            fpath = join(folder, f"CF4_new_128-z008_realization{nsim}_velocity.fits")  # noqa
+            fpath = join(
+                folder,
+                # f"CF4_new_128-z008_realization{nsim}_velocity.fits"
+                f"CF4gp_23avr24_256-z008_test_realization{nsim}_velocity.fits"
+                )
         else:
             raise ValueError(f"Unknown field kind: `{kind}`.")
 
         field = fits.open(fpath)[0].data
 
-        # https://projets.ip2i.in2p3.fr//cosmicflows/ says to multiply by 52
-        if kind == "velocity":
-            field *= 52
+        print("Swapping the X and Z axes for CF4.")
+        if kind == "density":
+            field = np.swapaxes(field, 0, 2)
+        elif kind == "velocity":
+            vx, vy, vz = fits.open(fpath)[0].data
+            vx, vy, vz = np.swapaxes(vx, 0, 2), np.swapaxes(vy, 0, 2), np.swapaxes(vz, 0, 2)  # noqa
+            # https://projets.ip2i.in2p3.fr//cosmicflows/ says to multiply by
+            # 52
+            field = 52 * np.stack([vx, vy, vz], axis=0)
+        else:
+            raise ValueError(f"Unknown field kind: `{kind}`.")
 
         return field.astype(np.float32)
     elif simname == "Lilow2024":
@@ -365,6 +389,7 @@ def interpolate_field(pos, simname, nsim, MAS, grid, dump_folder, r,
     None
     """
     boxsize = csiborgtools.simname2boxsize(simname)
+    observer_pos = csiborgtools.simname2observerpos(simname)
     fname_out = join(dump_folder, f"los_{simname}_{nsim}.hdf5")
 
     # First do the density field.
@@ -374,8 +399,8 @@ def interpolate_field(pos, simname, nsim, MAS, grid, dump_folder, r,
     density = get_field(simname, nsim, "density", MAS, grid)
     rdist, finterp = csiborgtools.field.evaluate_los(
         density, sky_pos=pos, boxsize=boxsize, rdist=r,
-        smooth_scales=smooth_scales, verbose=verbose,
-        interpolation_method="linear")
+        smooth_scales=smooth_scales, observer_pos=observer_pos,
+        verbose=verbose, interpolation_method="linear")
 
     rmax_density = np.full((len(pos), len(smooth_scales)), np.nan)
     for i in range(len(pos)):
@@ -400,7 +425,8 @@ def interpolate_field(pos, simname, nsim, MAS, grid, dump_folder, r,
     rdist, finterp = csiborgtools.field.evaluate_los(
         velocity[0], velocity[1], velocity[2],
         sky_pos=pos, boxsize=boxsize, rdist=r, smooth_scales=smooth_scales,
-        verbose=verbose, interpolation_method="linear")
+        observer_pos=observer_pos, verbose=verbose,
+        interpolation_method="linear")
 
     rmax_velocity = np.full((3, len(pos), len(smooth_scales)), np.nan)
     for k in range(3):
@@ -442,9 +468,10 @@ if __name__ == "__main__":
     sigma_original = csiborgtools.simname2icresolution(args.simname)
     sigma_target = 8
     sigma_smooth = max((sigma_target**2 - sigma_original**2), 0)**0.5
-    print(f"Secondary smoothing is {sigma_smooth} Mpc / h.")
+    # print(f"Secondary smoothing is {sigma_smooth} Mpc / h.")
 
-    smooth_scales = [0, sigma_smooth]  # + [2 * n for n in range(1, 33)]
+    # smooth_scales = [0, sigma_smooth]  # + [2 * n for n in range(1, 33)]
+    smooth_scales = [0, ]  # + [2 * n for n in range(1, 33)]
     # print(f"Actually, the smooth scales are: {smooth_scales} Mpc / h.")
 
     print(f"Running catalogue {args.catalogue} for simulation {args.simname} "
@@ -453,6 +480,7 @@ if __name__ == "__main__":
     comm = MPI.COMM_WORLD
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsims = get_nsims(args, paths, subsample=True)
+    print(nsims)
 
     out_folder = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_los"
     # Create the dumping folder.

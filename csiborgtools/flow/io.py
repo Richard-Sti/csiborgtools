@@ -588,18 +588,18 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             with_homogeneous_malmquist=with_homogeneous_malmquist,
             with_inhomogeneous_malmquist=with_inhomogeneous_malmquist)
     elif "CF4_TFR_" in kind:
+        cosmo = FlatLambdaCDM(H0=100, Om0=loader._Omega_m)
         # The full name can be e.g. "CF4_TFR_not2MTForSFI_i" or "CF4_TFR_i".
         band = kind.split("_")[-1]
         if band not in ['g', 'r', 'i', 'z', 'w1', 'w2']:
             raise ValueError(f"Band `{band}` not recognized.")
 
-        keys = ["RA", "DEC", "Vcmb", f"{band}", "lgWmxi", "elgWi",
-                "not_matched_to_2MTF_or_SFI", "Qs", "Qw"]
-        RA, dec, z_obs, mag, eta, e_eta, not_matched_to_2MTF_or_SFI, Qs, Qw = (
+        keys = ["RA", "DEC", "Vcmb", f"{band}", "lgWmxi", "elgWi", "Qs", "Qw",
+                "inc_e"]
+        RA, dec, z_obs, mag, eta, e_eta, Qs, Qw, e_inc = (
             loader.cat[k] for k in keys)
         l, b = radec_to_galactic(RA, dec)
 
-        not_matched_to_2MTF_or_SFI = not_matched_to_2MTF_or_SFI.astype(bool)
         # NOTE: fiducial uncertainty until we can get the actual values.
         e_mag = 0.05 * np.ones_like(mag)
 
@@ -612,11 +612,30 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         mask &= np.abs(b) > 7.5
         mask &= (z_obs < zcmb_max) & (z_obs > zcmb_min)
 
-        if "not2MTForSFI" in kind:
-            mask &= not_matched_to_2MTF_or_SFI
-        elif "2MTForSFI" in kind:
-            mask &= ~not_matched_to_2MTF_or_SFI
-        elif "notSDSS" in kind:
+        # A couple of specific selection cuts for testing.
+        if zcmb_max == 0.049991:
+            fprint("selecting only galaxies with below mean inclination errors.")  # noqa
+            mask &= e_inc < np.mean(e_inc[mask])
+
+        if zcmb_max == 0.049992:
+            fprint("selecting only galaxies with above mean inclination errors.")  # noqa
+            mask &= e_inc > np.mean(e_inc[mask])
+
+        if zcmb_max == 0.049993:
+            absmag = mag - cosmo.distmod(z_obs).value
+            fprint(r"selecting only the 25% of brightest galaxies.")
+            mask &= absmag < np.percentile(absmag[mask], 25)
+
+        if zcmb_max == 0.049994:
+            absmag = mag - cosmo.distmod(z_obs).value
+            fprint(r"selecting only the 25% of faintest galaxies.")
+            mask &= absmag > np.percentile(absmag[mask], 75)
+
+        if "not2MTForSFI" in kind or "2MTForSFI" in kind:
+            raise NotImplementedError("Unmatching the 2MTF and SFI samples "
+                                      "is not supported.")
+
+        if "notSDSS" in kind:
             mask &= Qs < 5
 
         fprint("employing a quality cut on the galaxies.")
@@ -750,3 +769,32 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
     fprint(f"selected {np.sum(mask)}/{len(mask)} galaxies in catalogue `{kind}`")  # noqa
 
     return model
+
+
+###############################################################################
+#                         Supplementary functions                             #
+###############################################################################
+
+
+def find_covmat_regul(C, dx_init, dx_step=0.001, dx_max=0.15, verbose=True):
+    """
+    Find a regularisation term for a covariance matrix `C` (so that all
+    eigenvalues are positive) by adding a constant diagonal term.
+    """
+    dx = dx_init
+
+    if verbose:
+        print(f"Finding a regularisation term for C with shape {C.shape}...")
+
+    while True:
+        eigval = np.linalg.eigvals(C + np.diag([dx] * C.shape[0]))
+
+        if np.all(eigval.real > 0):
+            break
+        else:
+            dx += dx_step
+
+        if dx > dx_max:
+            raise ValueError("No valid solution found.")
+
+    return dx

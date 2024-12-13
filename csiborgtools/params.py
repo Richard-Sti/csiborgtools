@@ -72,6 +72,7 @@ def simname2boxsize(simname):
          "csiborg2_random": 676.6,
          "csiborg2X": 681.1,
          "manticore_2MPP_N128_DES_V1": 681.1,
+         "manticore_2MPP_MULTIBIN_N128_DES_V1": 512,
          "borg1": 677.7,
          "borg2": 676.6,
          "borg2_all": 676.6,
@@ -99,6 +100,7 @@ def simname2Omega_m(simname):
          "csiborg2_varysmall": 0.3111,
          "csiborg2X": 0.306,
          "manticore_2MPP_N128_DES_V1": 0.306,
+         "manticore_2MPP_MULTIBIN_N128_DES_V1": 0.306,
          "borg1": 0.307,
          "borg2": 0.3111,
          "borg2_all": 0.3111,
@@ -132,6 +134,7 @@ def simname2icresolution(simname):
          "csiborg2_random": 676.6 / 256,
          "csiborg2X": 681.1 / 128,
          "manticore_2MPP_N128_DES_V1": 681.1 / 128,
+         "manticore_2MPP_MULTIBIN_N128_DES_V1": 512 / 128,
          "borg1": 677.7 / 256,
          "borg2": 676.6 / 256,
          "borg2_all": 676.6 / 256,
@@ -149,6 +152,18 @@ def simname2icresolution(simname):
     return res
 
 
+def simname2observerpos(simname):
+    """Return the observer position in `Mpc/h` for a given simulation."""
+    x = {"manticore_2MPP_MULTIBIN_N128_DES_V1": [250, 248, 254],
+         }
+
+    res = x.get(simname, None)
+    if res is None:
+        res = [0.5 * simname2boxsize(simname)] * 3
+
+    return res
+
+
 paths_glamdring = {
     "csiborg1_srcdir": "/mnt/extraspace/rstiskalek/csiborg1",
     "csiborg2_main_srcdir": "/mnt/extraspace/rstiskalek/csiborg2_main",
@@ -160,6 +175,6 @@ paths_glamdring = {
     "borg2_dir": "/mnt/extraspace/rstiskalek/BORG_STOPYRA_2023",
     "tng300_1_dir": "/mnt/extraspace/rstiskalek/TNG300-1/",
     "aux_cat_dir": "/mnt/extraspace/rstiskalek/catalogs",
-    "CF4_dir": "/mnt/extraspace/rstiskalek/catalogs/CF4",
+    "CF4_dir": "/mnt/extraspace/rstiskalek/catalogs/CF4/CF4gp_23avr24_256-z008",  # noqa
     "manticore_dir": "/mnt/extraspace/rstiskalek/MANTICORE",
     }

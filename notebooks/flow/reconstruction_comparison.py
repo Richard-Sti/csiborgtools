@@ -60,8 +60,8 @@ def names_to_latex(names, for_corner=False):
            "mag_cal": "\\mathcal{M}",
            "l": "\\ell ~ [\\mathrm{deg}]",
            "b": "b ~ [\\mathrm{deg}]",
-           "rLG": "R_{\\rm offset} ~ [\\mathrm{Mpc} / h]",
-           "rLG_deterministic": "R_{\\rm offset} ~ [\\mathrm{Mpc} / h]",
+           "rLG": "R_{\\rm offset} ~ [\\mathrm{Mpc}]",
+           "rLG_deterministic": "R_{\\rm offset} ~ [\\mathrm{Mpc}]",
            "Vext_axis_mag": "V_{\\rm axis} ~ [\\mathrm{km} / \\mathrm{s}]",
            "Vvoid": "V_{\\rm void} ~ [\\mathrm{km} / \\mathrm{s}]",
            "void_size": "r_{\\rm void}",
@@ -164,6 +164,7 @@ def simname_to_pretty(simname):
            "csiborg2_main": r"\texttt{CSiBORG}\textsuperscript{(2)}",
            "csiborg2X": "Manticore V0",
            "manticore_2MPP_N128_DES_V1": "Manticore V1",
+           "manticore_2MPP_MULTIBIN_N128_DES_V1": "Manticore V2",
            "CF4": "Courtois+23",
            "CF4gp": "CF4group",
            "CLONES": "Sorce+2018",
@@ -259,6 +260,13 @@ def get_samples(fname, convert_Vext_to_galactic=True):
             samples[key.replace("a_dipole", "a_dipole_b")] = b
 
     return samples
+
+
+def get_Vext_only(fname):
+    with File(fname, 'r') as f:
+        Vext = f["samples/Vext"][...]
+
+    return Vext
 
 
 def get_some_samples(fname, labels):

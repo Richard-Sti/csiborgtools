@@ -12,7 +12,7 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-import numpy
+import numpy as np
 from tqdm import tqdm
 
 
@@ -58,16 +58,21 @@ def read_interpolated_field(survey, simname, kind, MAS, grid, paths,
                                   disable=not verbose)):
         fpath = paths.field_interpolated(survey.name, simname, nsim, kind, MAS,
                                          grid)
-        data = numpy.load(fpath)
+        data = np.load(fpath)
         out_ = data["val"]
+        out_edist_ = data["val_with_edist"]
 
         if i == 0:
-            out = numpy.empty((len(nsims), *out_.shape), dtype=out_.dtype)
+            out = np.empty((len(nsims), *out_.shape), dtype=out_.dtype)
+            out_edist = np.empty(
+                (len(nsims), *out_edist_.shape), dtype=out_edist_.dtype)
             smooth_scales = data["smooth_scales"]
 
         out[i] = out_
+        out_edist[i] = out_edist_
 
     if survey.selection_mask is not None:
         out = out[:, survey.selection_mask, :]
+        out_edist = out_edist[:, survey.selection_mask, :]
 
-    return out, smooth_scales
+    return out, out_edist, smooth_scales

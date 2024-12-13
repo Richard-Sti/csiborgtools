@@ -795,7 +795,7 @@ def read_pantheonplus_covariance(fname, ww, ):
 
 
 def read_pantheonplus_data(fname_data, fname_covmat_statsys, fname_covmat_vpec,
-                           subtract_vpec, verbose=True):
+                           verbose=True):
     """Read in the Pantheon+ covariance matrix."""
     fprint("reading the Pantheon+ data.", verbose)
     data = np.genfromtxt(fname_data, names=True, dtype=None, encoding=None)
@@ -804,13 +804,8 @@ def read_pantheonplus_data(fname_data, fname_covmat_statsys, fname_covmat_vpec,
     fprint("reading the Pantheon+ STAT+SYS covariance matrix.", verbose)
     C = read_pantheonplus_covariance(fname_covmat_statsys, ww)
 
-    if subtract_vpec:
-        fprint("reading the Pantheon+ VPEC covariance matrix.", verbose)
-        C_vpec = read_pantheonplus_covariance(fname_covmat_vpec, ww)
-
-    # Subtracting the VPEC covariance matrix from the STAT+SYS covariance
-    # matrix produces negative eigenvalues. Emailed Maria to ask about this.
-
+    fprint("reading the Pantheon+ VPEC covariance matrix.", verbose)
+    C_vpec = read_pantheonplus_covariance(fname_covmat_vpec, ww)
     return data, C, C_vpec
 
 

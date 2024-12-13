@@ -78,7 +78,9 @@ import jax                                                                      
 import numpy as np                                                              # noqa
 from csiborgtools import fprint                                                 # noqa
 from h5py import File                                                           # noqa
-from numpyro.infer import MCMC, NUTS, init_to_sample                            # noqa
+from interpax import Interpolator1D                                             # noqa
+from numpyro.infer import (MCMC, NUTS, init_to_sample, init_to_feasible,        # noqa
+                           init_to_median)                                      # noqa
 
 
 def print_variables(names, variables):
@@ -120,7 +122,7 @@ def get_models(ksim, get_model_kwargs, mag_selection, void_kwargs,
             ki = cat.split("_")[-1]
             fpath =f"/mnt/extraspace/rstiskalek/csiborg_postprocessing/flow_mock/Carrick2MTFmock_seed{ki}.hdf5"  # noqa
         elif "CF4_TFR" in cat:
-            fpath = join(folder, "PV/CF4/CF4_TF-distances.hdf5")
+            fpath = join(folder, "PV/CF4/CF4_TFR.hdf5")
         elif cat in ["CF4_GroupAll"]:
             fpath = join(folder, "PV/CF4/CF4_GroupAll.hdf5")
         elif "IndranilVoidTFRMock" in cat:
@@ -168,9 +170,11 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
         raise AttributeError("The models must have an attribute `ndata` "
                              "indicating the number of data points.") from e
 
-    nuts_kernel = NUTS(model, init_strategy=init_to_sample())
+    nuts_kernel = NUTS(model,
+                       init_strategy=init_to_median(num_samples=1000),
+                       )
     mcmc = MCMC(nuts_kernel, num_warmup=nburn, num_samples=nsteps)
-    rng_key = jax.random.PRNGKey(40)
+    rng_key = jax.random.PRNGKey(42)
 
     mcmc.run(rng_key, extra_fields=("potential_energy",), **model_kwargs)
     samples = mcmc.get_samples()
@@ -244,7 +248,7 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole):
     alpha_max = 10.0
 
     if catalogue in ["LOSS", "Foundation", "Pantheon+", "Pantheon+_groups", "Pantheon+_zSN"]:  # noqa
-        return {"e_mu_min": 0.001, "e_mu_max": 1.0,
+        return {"e_mu_min": 0.005, "e_mu_max": 1.0,
                 "mag_cal_mean": -18.25, "mag_cal_std": 2.0,
                 "alpha_cal_mean": 0.148, "alpha_cal_std": 1.0,
                 "beta_cal_mean": 3.112, "beta_cal_std": 2.0,
@@ -252,8 +256,8 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole):
                 "sample_alpha": sample_alpha
                 }
     elif catalogue in ["SFI_gals", "2MTF"] or "CF4_TFR" in catalogue or "IndranilVoidTFRMock" in catalogue or "Carrick2MTFmock" in catalogue:  # noqa
-        return {"e_mu_min": 0.001, "e_mu_max": 1.0,
-                "a_mean": -22.8, "a_std": 5.0,
+        return {"e_mu_min": 0.005, "e_mu_max": 1.0,
+                "a_mean": -22.0, "a_std": 5.0,
                 "b_mean": -7.0, "b_std": 4.0,
                 "c_mean": 0., "c_std": 20.0,
                 "a_dipole_mean": 0., "a_dipole_std": 1.0,
@@ -263,7 +267,7 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole):
                 "sample_curvature": False if "Carrick2MTFmock" in catalogue else True,  # noqa
                 }
     elif catalogue in ["CF4_GroupAll"]:
-        return {"e_mu_min": 0.001, "e_mu_max": 1.0,
+        return {"e_mu_min": 0.005, "e_mu_max": 1.0,
                 "dmu_min": -3.0, "dmu_max": 3.0,
                 "dmu_dipole_mean": 0., "dmu_dipole_std": 1.0,
                 "sample_dmu_dipole": sample_mag_dipole,
@@ -271,7 +275,7 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole):
                 "sample_alpha": sample_alpha,
                 }
     elif catalogue in ["SDSS-FP"]:
-        return {"e_mu_min": 0.001, "e_mu_max": 10.0,
+        return {"e_mu_min": 0.005, "e_mu_max": 10.0,
                 "a_mean": 0.0, "a_std": 2.0,
                 "b_mean": 0.0, "b_std": 2.0,
                 "c_mean": 0.0, "c_std": 2.0,
@@ -326,8 +330,8 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 1500
-    nburn = 10_000
+    nsteps = 10_000
+    nburn = 1500
     zcmb_min = None
     zcmb_max = 0.05
     nchains_harmonic = 10
@@ -338,13 +342,17 @@ if __name__ == "__main__":
     sample_beta = None
     sample_h_e_int = False
     no_Vext = None
-    sample_Vmag_vax = False
     sample_Vmono = False
     sample_mag_dipole = False
     wo_num_dist_marginalisation = False
     absolute_calibration = None
     calculate_harmonic = (False if (inference_method == "bayes") else True) and (not wo_num_dist_marginalisation)  # noqa
     sample_h = True if absolute_calibration is not None else False
+    which_void_size_run = "zoom"
+
+    # Overwrite if if not running a varying void size simulation.
+    if "IndranilVoidSizeVar_" not in ARGS.simname:
+        which_void_size_run = None
 
     # These mocks are generated without a density field, so there is no
     # inhomogeneous Malmquist and we also do not need evidences.
@@ -362,11 +370,11 @@ if __name__ == "__main__":
                     "sample_alpha": sample_alpha,
                     "sample_beta": sample_beta,
                     "no_Vext": no_Vext,
-                    "sample_Vmag_vax": sample_Vmag_vax,
                     "sample_Vmono": sample_Vmono,
                     "sample_mag_dipole": sample_mag_dipole,
                     "absolute_calibration": absolute_calibration,
                     "sample_h_e_int": sample_h_e_int,
+                    "which_void_size_run": which_void_size_run,
                     }
 
     main_params = {"nsteps": nsteps, "nburn": nburn,
@@ -396,20 +404,40 @@ if __name__ == "__main__":
                 "`IndranilVoid` does not have multiple realisations.")
 
         profile = ARGS.simname.split("_")[-1]
-        h = csiborgtools.flow.select_void_h(profile)
-        rvoid_fiducial = csiborgtools.flow.select_void__fiducial_size(profile)
-        vvoid = csiborgtools.flow.select_vvoid(profile)
-        rdist = np.arange(0, 165, 1.0)
+
+        # This is the radial distance over which to intergrate along the LOS.
+        # 165 Mpc / h should be sufficient
+        rdist = np.arange(0, 165, 0.5)
+
+        # Create the interpolator of void size to void Hubble parameter
+        void_size, h_void = csiborgtools.flow.select_void_h(
+            None, profile, return_all=True)
+
+        # Check if the mapping is in H0 or h and sizes in percent
+        void_size_to_h_void = Interpolator1D(
+            void_size / 100, h_void, method="linear",
+            extrap=(h_void[0], h_void[-1]))
+
+        is_fiducial = "IndranilVoidSizeVar" not in ARGS.simname
 
         void_kwargs = {
-            "profile": profile, "h": h, "order": 1, "rdist": rdist,
-            "is_fiducial": "IndranilVoidSizeVar" not in ARGS.simname,
-            }
+            "profile": profile, "void_size_to_h_void": void_size_to_h_void,
+            "which_void_size_run": which_void_size_run, "order": 1,
+            "rdist": rdist, "is_fiducial": is_fiducial}
+
+        if which_void_size_run == "zoom":
+            void_size_min, void_size_max = 0.01, 0.2
+        elif which_void_size_run == "coarse":
+            void_size_min, void_size_max = 0.1, 3.0
+        elif is_fiducial:
+            void_size_min, void_size_max = None, None
+        else:
+            raise ValueError(
+                f"Unsupported void size run: `{which_void_size_run}`.")
+
     else:
         void_kwargs = None
-        rvoid_fiducial = None
-        vvoid = None
-        h = 1.
+        void_size_min, void_size_max = None, None
 
     if inference_method != "bayes":
         mag_selection = [None] * len(ARGS.catalogue)
@@ -420,25 +448,23 @@ if __name__ == "__main__":
         raise ValueError(
             "The number of steps must be divisible by the number of chains.")
 
-    Vext_i_lim = 3000 if "IndranilVoid_" in ARGS.simname else 5000.
+    Vext_i_lim = 1000
     calibration_hyperparams = {"Vext_i_min": -Vext_i_lim,
                                "Vext_i_max": Vext_i_lim,
                                "Vmono_min": -1000, "Vmono_max": 1000,
                                "beta_min": -10.0, "beta_max": 10.0,
-                               "sigma_v_min": 1.0, "sigma_v_max": 1000 if "IndranilVoid_" in ARGS.simname else 2500.,  # noqa
+                               "sigma_v_min": 10., "sigma_v_max": 750.,
                                "h_min": 0.25, "h_max": 5.,
-                               "no_Vext": False if no_Vext is None else no_Vext,        # noqa
-                               "sample_Vmag_vax": sample_Vmag_vax,
+                               "no_Vext": no_Vext is not None,
                                "sample_Vmono": sample_Vmono,
                                "sample_beta": sample_beta,
                                "sample_h": sample_h,
                                "sample_h_e_int": sample_h_e_int,  # noqa
                                "sample_rLG": "IndranilVoid" in ARGS.simname,
                                "sample_void_size": "IndranilVoidSizeVar" in ARGS.simname,  # noqa
-                               "void_size_min": 0.1, "void_size_max": 3.0,
-                               "rLG_min": 0.0, "rLG_max": 500 * h,
-                               "rvoid_fiducial": rvoid_fiducial,
-                               "vvoid": vvoid,
+                               "void_size_min": void_size_min,
+                               "void_size_max": void_size_max,
+                               "rLG_min": 0.0, "rLG_max": 50,
                                }
     print_variables(
         calibration_hyperparams.keys(), calibration_hyperparams.values())
