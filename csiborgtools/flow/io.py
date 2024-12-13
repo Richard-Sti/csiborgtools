@@ -69,9 +69,6 @@ class DataLoader:
         self._field_rdist, self._los_density, self._los_velocity = self._read_field(  # noqa
             simname, ksim, catalogue, ksmooth, paths)
 
-        print("len(self._cat) ", len(self._cat))
-        print("self._los_density.shape ", self._los_density.shape)
-
         if "IndranilVoid" not in simname:
             if len(self._cat) != self._los_density.shape[1]:
                 raise ValueError(
