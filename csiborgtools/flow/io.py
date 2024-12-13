@@ -21,6 +21,7 @@ from ..params import SPEED_OF_LIGHT, simname2Omega_m
 from ..utils import fprint, radec_to_galactic, radec_to_supergalactic
 from .flow_model import PV_LogLikelihood
 from .void_model import load_void_fiducial, mock_void, select_void_h
+from ..read import read_pantheonplus_data
 
 H0 = 100  # km / s / Mpc
 
@@ -67,6 +68,9 @@ class DataLoader:
         fprint("reading the interpolated field.", verbose)
         self._field_rdist, self._los_density, self._los_velocity = self._read_field(  # noqa
             simname, ksim, catalogue, ksmooth, paths)
+
+        print("len(self._cat) ", len(self._cat))
+        print("self._los_density.shape ", self._los_density.shape)
 
         if "IndranilVoid" not in simname:
             if len(self._cat) != self._los_density.shape[1]:
@@ -241,19 +245,24 @@ class DataLoader:
                 for key in f.keys():
                     arr[key] = f[key][:]
         elif catalogue in ["LOSS", "Foundation", "SFI_gals", "2MTF",
-                           "Pantheon+", "SFI_gals_masked", "SFI_groups",
-                           "Pantheon+_groups", "Pantheon+_groups_zSN",
-                           "Pantheon+_zSN"]:
+                           "SFI_gals_masked", "SFI_groups"]:
             with File(catalogue_fpath, 'r') as f:
-                if "Pantheon+" in catalogue:
-                    grp = f["Pantheon+"]
-                else:
-                    grp = f[catalogue]
+                grp = f[catalogue]
 
                 dtype = [(key, np.float32) for key in grp.keys()]
                 arr = np.empty(len(grp["RA"]), dtype=dtype)
                 for key in grp.keys():
                     arr[key] = grp[key][:]
+        elif "Pantheon+" in catalogue:
+            fname_covmat = catalogue_fpath.replace(".dat", "_STAT+SYS.cov")
+            fname_pecvel_covmat = catalogue_fpath.replace(".dat", "_122221_VPEC.cov")  # noqa
+
+            arr, C, Csysvpec = read_pantheonplus_data(
+                catalogue_fpath, fname_covmat, fname_pecvel_covmat)
+
+            self._covmat = C
+            self._covmat_sysvpec = Csysvpec
+
         elif "CB2_" in catalogue:
             with File(catalogue_fpath, 'r') as f:
                 dtype = [(key, np.float32) for key in f.keys()]
@@ -493,38 +502,32 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             name=kind, void_kwargs=void_kwargs,
             with_inhomogeneous_malmquist=with_inhomogeneous_malmquist,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation)
-    elif "Pantheon+" in kind:
-        keys = ["RA", "DEC", "zCMB", "mB", "x1", "c", "biasCor_m_b", "mBERR",
-                "x1ERR", "cERR", "biasCorErr_m_b", "zCMB_SN", "zCMB_Group",
-                "zCMBERR"]
+    elif kind == "Pantheon+":
+        keys = ["RA", "DEC", "zCMB", "zCMBERR", "m_b_corr"]
 
-        RA, dec, zCMB, mB, x1, c, bias_corr_mB, e_mB, e_x1, e_c, e_bias_corr_mB, zCMB_SN, zCMB_Group, e_zCMB = (loader.cat[k] for k in keys)  # noqa
-        mB -= bias_corr_mB
-        e_mB = np.sqrt(e_mB**2 + e_bias_corr_mB**2)
+        RA, dec, zCMB, e_zCMB, m_b = (loader.cat[k] for k in keys)
 
-        mask = (zCMB < zcmb_max) & (zCMB > zcmb_min)
+        covmat = loader._covmat - loader._covmat_sysvpec
 
-        if kind == "Pantheon+_groups":
-            mask &= np.isfinite(zCMB_Group)
+        mask = np.ones(len(RA), dtype=bool)
+        mask &= (zCMB < zcmb_max) & (zCMB > zcmb_min)
+        covmat = covmat[mask][:, mask]
 
-        if kind == "Pantheon+_groups_zSN":
-            mask &= np.isfinite(zCMB_Group)
-            zCMB = zCMB_SN
+        dmu = find_covmat_regul(covmat)
+        fprint(f"regularising the covariance matrix with `{dmu}`.")
+        covmat += dmu * np.eye(covmat.shape[0])
 
-        if kind == "Pantheon+_zSN":
-            zCMB = zCMB_SN
+        if not np.all(np.linalg.eigvals(covmat) > 0):
+            raise ValueError("The covariance matrix is not positive definite.")
 
-        calibration_params = {"mag": mB[mask], "x1": x1[mask], "c": c[mask],
-                              "e_mag": e_mB[mask], "e_x1": e_x1[mask],
-                              "e_c": e_c[mask]}
-
+        calibration_params = {"mag": m_b[mask], "mag_covmat": covmat}
         los_overdensity, los_velocity = mask_fields(
             los_overdensity, los_velocity, mask, void_kwargs is not None)
 
         model = PV_LogLikelihood(
             los_overdensity, los_velocity,
             RA[mask], dec[mask], zCMB[mask], e_zCMB[mask], calibration_params,
-            mag_selection, loader.rdist, loader._Omega_m, "SN",
+            mag_selection, loader.rdist, loader._Omega_m, "SN_calibrated",
             name=kind, void_kwargs=void_kwargs,
             with_inhomogeneous_malmquist=with_inhomogeneous_malmquist,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation)
@@ -776,7 +779,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
 ###############################################################################
 
 
-def find_covmat_regul(C, dx_init, dx_step=0.001, dx_max=0.15, verbose=True):
+def find_covmat_regul(C, dx_init=0, dx_step=0.001, dx_max=0.15, verbose=True):
     """
     Find a regularisation term for a covariance matrix `C` (so that all
     eigenvalues are positive) by adding a constant diagonal term.
