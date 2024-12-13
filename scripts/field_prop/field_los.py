@@ -134,6 +134,11 @@ def get_los(catalogue_name, simname, comm):
             with File(fname, 'r') as f:
                 RA = f["Ra"][...]
                 dec = f["Dec"][...]
+        elif catalogue_name == "CF4_test_points":
+            fname = "/mnt/extraspace/rstiskalek/catalogs/PV/CF4_test_points.hdf5"  # noqa
+            with File(fname, 'r') as f:
+                RA = f["RA"][:]
+                dec = f["dec"][:]
         else:
             raise ValueError(f"Unknown catalogue name: `{catalogue_name}`.")
 
@@ -463,9 +468,10 @@ if __name__ == "__main__":
     sigma_original = csiborgtools.simname2icresolution(args.simname)
     sigma_target = 8
     sigma_smooth = max((sigma_target**2 - sigma_original**2), 0)**0.5
-    print(f"Secondary smoothing is {sigma_smooth} Mpc / h.")
+    # print(f"Secondary smoothing is {sigma_smooth} Mpc / h.")
 
-    smooth_scales = [0, sigma_smooth]  # + [2 * n for n in range(1, 33)]
+    # smooth_scales = [0, sigma_smooth]  # + [2 * n for n in range(1, 33)]
+    smooth_scales = [0, ]  # + [2 * n for n in range(1, 33)]
     # print(f"Actually, the smooth scales are: {smooth_scales} Mpc / h.")
 
     print(f"Running catalogue {args.catalogue} for simulation {args.simname} "
