@@ -341,6 +341,7 @@ def sample_SN(e_mu_min, e_mu_max, mag_cal_mean, mag_cal_std, alpha_cal_mean,
     """Sample SNIe Tripp parameters."""
     e_mu = sample(f"e_mu_{name}", Uniform(e_mu_min, e_mu_max))
     factor(f"ll_e_mu_{name}", -jnp.log(e_mu))
+
     mag_cal = sample(f"mag_cal_{name}", Normal(mag_cal_mean, mag_cal_std))
     alpha_cal = sample(
         f"alpha_cal_{name}", Normal(alpha_cal_mean, alpha_cal_std))
@@ -351,6 +352,20 @@ def sample_SN(e_mu_min, e_mu_max, mag_cal_mean, mag_cal_std, alpha_cal_mean,
             "mag_cal": mag_cal,
             "alpha_cal": alpha_cal,
             "beta_cal": beta_cal,
+            "alpha": alpha
+            }
+
+
+def sample_SN_calibrated(e_mu_min, e_mu_max, mag_cal_mean, mag_cal_std,
+                         alpha_min, alpha_max, sample_alpha, name):
+    e_mu = sample(f"e_mu_{name}", Uniform(e_mu_min, e_mu_max))
+    factor(f"ll_e_mu_{name}", -jnp.log(e_mu))
+
+    mag_cal = sample(f"mag_cal_{name}", Normal(mag_cal_mean, mag_cal_std))
+    alpha = sample_alpha_bias(name, alpha_min, alpha_max, sample_alpha)
+
+    return {"e_mu": e_mu,
+            "mag_cal": mag_cal,
             "alpha": alpha
             }
 
@@ -733,6 +748,8 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             self.mag_min, self.mag_max = jnp.min(self.mag), jnp.max(self.mag)
             self.x1_min, self.x1_max = jnp.min(self.x1), jnp.max(self.x1)
             self.c_min, self.c_max = jnp.min(self.c), jnp.max(self.c)
+        elif kind == "SN_calibrated":
+            pass
         elif kind == "FP":
             # TODO: implement this when adding MNR for FP.
             pass
@@ -814,6 +831,18 @@ class PV_LogLikelihood(BaseFlowValidationModel):
 
             mu = distmod_SN(
                 mag_true, x1_true, c_true, mag_cal, alpha_cal, beta_cal)
+        elif self.kind == "SN_calibrated":
+            mag_cal = distmod_params["mag_cal"]
+
+            if inference_method == "bayes":
+                raise NotImplementedError("`bayes` method is not supported "
+                                          "for the `SN_calibrated` kind.")
+            else:
+                mag_true = sample(f"dmag_{self.name}", MultivariateNormal(
+                    self.mag, self.mag_covmat))
+
+            mu = mag_true - mag_cal
+            e2_mu = jnp.ones_like(mag_true) * e_mu**2
         elif self.kind == "TFR":
             a = distmod_params["a"]
             b = distmod_params["b"]
@@ -903,64 +932,6 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                     e2_mu = jnp.ones_like(mag_true) * e_mu**2
 
             mu = distmod_TFR(mag_true, eta_true, a, b, c)
-        # elif self.kind == "FP":
-        #     a = distmod_params["a"]
-        #     b = distmod_params["b"]
-        #     c = distmod_params["c"]
-
-        #     if inference_method == "bayes":
-        #         raise NotImplementedError("Bayes for FP not implemented.")
-        #     else:
-        #         theta_eff = self.theta_eff
-        #         # sig = self.sig
-        #         # rmag = self.rmag
-
-        #         if inference_method == "mike":
-        #             # There should be the propagated scatter from the
-        #               emaining observables.
-        #             # e_mag = jnp.sqrt(e_mu**2 + self.e2_rmag)
-        #             e2_mu = jnp.ones_like(self.rmag) * e_mu**2 + a**2
-        #           * self.e2_s + b**2 * self.e2_i
-        #             # e2_mu = a**2 * self.e2_log_sig + e_mu**2 +
-        # (0.4 * b)**2 * self.e2_rmag + (4 * b**2 + 1) * self.e2_log_theta_eff
-        #         else:
-        #             pass
-        #             # e2_mu = a**2 * self.e2_log_sig + e_mu**2 +
-        # (0.4 * b)**2 * self.e2_rmag + (4 * b**2 + 1) * self.e2_log_theta_eff
-
-        #     log_theta_eff = jnp.log10(theta_eff)
-        #     # log_sig0 = log_central_sigma_FP(
-        #     #     sig, log_theta_eff, self.log_theta_aperture)
-
-        #     # # Predict the surface brightness for each galaxy.
-        #     # logIe = logIe_from_magnitude_for_FP(
-        #     #     rmag, log_theta_eff, self.K, self.zhel)
-
-        #     # Use the FP equation to compute the logarithm of the angular
-        #     # diameter distance in units of Mpc / h. The latter conversions
-        #     # are to account for the fact that `theta_eff` is in arcseconds
-        #     # and that by default R_e is assumed to be in kpc / h.
-        #     # log_dA = (
-        #     #     a * log_sig0 + b * logIe + c - log_theta_eff
-        #     #     - (jnp.log10(np.pi) - jnp.log10(3) - 3 * jnp.log10(60))
-        # - 3)
-
-        #     log_dA = (
-        #         a * self.s + b * self.i + c - log_theta_eff
-        #         - (jnp.log10(np.pi) - jnp.log10(3) - 3 * jnp.log10(60)) - 3)
-
-        #     # jprint("log_dA = {x}", x=log_dA)
-
-        #     mu = log_dA_to_distmod(log_dA, self.Omega_m)
-
-        #     # jprint("max(muFP)= {x}", x=jnp.max(mu))
-        #     # jprint("min(muFP)= {x}", x=jnp.min(mu))
-        #     # jprint("min(mu_grid) = {x}", x=jnp.min(self.mu_xrange))
-        #     # jprint("max(mu_grid) = {x}", x=jnp.max(self.mu_xrange))
-
-        #     # Now, just convert the angular diameter distance to the distance
-        #     # modulus.
-        #     # mu = distmod_TFR(mag_true, eta_true, a, b, c)
         elif self.kind == "simple":
             dmu = distmod_params["dmu"]
 
@@ -1151,123 +1122,14 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         #     # f"ll_per_galaxy_{self.name}_deterministic", ll_per_galaxy)
         factor(f"ll_per_galaxy_{self.name}", ll_per_galaxy)
 
-    # def FP_method(self, field_calibration_params, distmod_params,
-    #               inference_method):
-    #     """
-    #     FP method meant to reproduce K. Said's likelihood for the FP.
-    #     """
-    #     if self.kind != "FP":
-    #         raise ValueError("FP method is only implemented for FP samples.")
-
-    #     if field_calibration_params["sample_h"]:
-    #         raise NotImplementedError(
-    #             "Sampling of 'h' is not supported if for the FP")
-
-    #     if not self.with_homogeneous_malmquist:
-    #         raise NotImplementedError(
-    #             "Homogeneous Malmquist bias is required for FP samples.")
-
-    #     if inference_method != "mike":
-    #         raise NotImplementedError(
-    #             "Only Mike's method is implemented for FP samples.")
-
-    #     if self.is_void_data:
-    #         rLG = field_calibration_params["rLG"]
-    #         void_size = field_calibration_params["void_size"]
-    #         log_los_density = self.log_los_density(
-    #             void_size=void_size, rLG=rLG)
-    #         los_velocity = self.los_velocity(void_size=void_size, rLG=rLG)
-    #     else:
-    #         log_los_density = self.log_los_density()
-    #         los_velocity = self.los_velocity()
-
-    #     sigma_v = field_calibration_params["sigma_v"]
-    #     e2_cz = self.e2_cz_obs + sigma_v**2
-
-    #     Vext = field_calibration_params["Vext"]
-    #     Vmono = field_calibration_params["Vmono"]
-    #     Vext_rad = project_Vext(Vext[0], Vext[1], Vext[2], self.RA, self.dec)
-
-    #     e_mu = distmod_params["e_mu"]
-    #     a = distmod_params["a"]
-    #     b = distmod_params["b"]
-    #     c = distmod_params["c"]
-
-    #     # ------------------------------------------------------------
-    #     # 1. Sample true observables and the true distance
-    #     # ------------------------------------------------------------
-
-    #     # jprint("Vext_rad = {x}", x=Vext)
-    #     # jprint("zpec = {x}", x=zpec[0, :, 0])
-
-    #     theta_eff = self.theta_eff
-    #     # sig = self.sig
-    #     # rmag = self.rmag
-
-    #     # log_theta_eff = jnp.log10(theta_eff)
-
-    #     # Uncertainty on the magnitude, the shape is (ndata,)
-    #     if inference_method == "mike":
-    #         # There should be the propagated scatter from the remaining
-    #           observables.
-    #         # e_mag = jnp.sqrt(e_mu**2 + self.e2_rmag)
-    #         e_mag = jnp.ones_like(self.e2_rmag) * e_mu
-    #     else:
-    #         e_mag = jnp.ones_like(self.e2_rmag) * e_mu
-
-    #     log_Re_from_FP = a * self.s + b * self.i + c
-    #     # Convert to Mpc / h
-    #     log_Re_from_FP -= 3
-
-    #     # The shape is now `(ndata, nrad)`
-    #     log_theta_eff_from_FP = log_Re_from_FP[:, None]
-    #           - self.log10_dA_xrange[None, :]
-    #     log_theta_eff_from_FP -= jnp.log10(ARCSEC2RAD)
-
-    #     theta_eff_from_FP = 10**log_theta_eff_from_FP
-
-    #     # deterministic("theta_eff", theta_eff_from_FP)
-
-    #     # ll = self.log_r2_xrange[None, :]
-
-    #     # The shape is now `(ndata, nrad)`
-    #     ll = normal_logpdf(
-    #         theta_eff_from_FP, theta_eff[:, None], e_mag[:, None])
-
-    #     # ll += 2 * jnp.log(self.r_xrange)[None, :]
-
-    #     # Convert to shape `(nsim, ndata, nrad)`
-    #     ll = ll[None, ...]
-
-    #      # Calculate z_obs at each distance. Shape: (nsims, ndata, nxrange)
-    #     vrad = field_calibration_params["beta"] * los_velocity
-    #     vrad += (Vext_rad[None, :, None] + Vmono)
-    #     zpec = vrad / SPEED_OF_LIGHT
-    #     zobs = (1 + self.z_xrange[None, None, :]) * (1 + zpec) - 1
-
-    #     ll_cz = log_likelihood_zobs(
-    #         self.z_obs[None, :, None], zobs, e2_cz[None, :, None])
-
-    #     ll += ll_cz
-
-    #     # Integrate over the radial distance. Shape: (nsims, ndata)
-    #     ll = jnp.log(simpson(jnp.exp(ll), x=self.r_xrange, axis=-1))
-    #     # ll_per_galaxy = logsumexp(ll, axis=0) + self.norm
-    #     ll_per_galaxy = ll[0] / self.Sn
-
-    #     factor("ll_per_galaxy", ll_per_galaxy)
-
     def __call__(self, field_calibration_params, distmod_params,
                  inference_method):
         if inference_method not in ["mike", "bayes", "delta"]:
             raise ValueError(f"Unknown method: `{inference_method}`.")
 
-        if self.kind in ["TFR", "SN", "FP", "simple"]:
+        if self.kind in ["TFR", "SN", "SN_calibrated", "simple"]:
             self.forward_distance_method(
                 field_calibration_params, distmod_params, inference_method)
-        # elif self.kind == "FP":
-        #     self.FP_method(field_calibration_params, distmod_params,
-        #                    inference_method)
         else:
             raise ValueError(f"Unknown kind: `{self.kind}`.")
 
@@ -1308,8 +1170,9 @@ def PV_validation_model(models, distmod_hyperparams_per_model,
         elif model.kind == "SN":
             # TODO: Add the `h` here.
             distmod_params = sample_SN(**distmod_hyperparams, name=name)
-        elif model.kind == "FP":
-            distmod_params = sample_FP(**distmod_hyperparams, name=name)
+        elif model.kind == "SN_calibrated":
+            distmod_params = sample_SN_calibrated(
+                **distmod_hyperparams, name=name)
         elif model.kind == "simple":
             # TODO: Add the `h` here.
             distmod_params = sample_simple(**distmod_hyperparams, name=name)
