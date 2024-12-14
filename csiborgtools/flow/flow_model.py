@@ -357,12 +357,16 @@ def sample_SN(e_mu_min, e_mu_max, mag_cal_mean, mag_cal_std, alpha_cal_mean,
 
 
 def sample_SN_calibrated(e_mu_min, e_mu_max, mag_cal_mean, mag_cal_std,
-                         alpha_min, alpha_max, sample_alpha, name):
+                         alpha_mean, alpha_std, sample_alpha, name):
     e_mu = sample(f"e_mu_{name}", Uniform(e_mu_min, e_mu_max))
     factor(f"ll_e_mu_{name}", -jnp.log(e_mu))
 
     mag_cal = sample(f"mag_cal_{name}", Normal(mag_cal_mean, mag_cal_std))
-    alpha = sample_alpha_bias(name, alpha_min, alpha_max, sample_alpha)
+
+    if sample_alpha:
+        alpha = sample(f"alpha_{name}", Normal(alpha_mean, alpha_std))
+    else:
+        alpha = 1.0
 
     return {"e_mu": e_mu,
             "mag_cal": mag_cal,
