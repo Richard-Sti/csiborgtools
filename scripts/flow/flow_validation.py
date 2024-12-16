@@ -113,11 +113,11 @@ def get_models(ksim, get_model_kwargs, mag_selection, void_kwargs,
     for i, cat in enumerate(ARGS.catalogue):
         if cat == "A2":
             fpath = join(folder, "A2.h5")
-        elif cat in ["LOSS", "Foundation", "Pantheon+", "SFI_gals",
-                     "2MTF", "SFI_groups", "SFI_gals_masked",
-                     "Pantheon+_groups", "Pantheon+_groups_zSN",
-                     "Pantheon+_zSN"]:
+        elif cat in ["LOSS", "Foundation", "SFI_gals", "2MTF", "SFI_groups",
+                     "SFI_gals_masked"]:
             fpath = join(folder, "PV_compilation.hdf5")
+        elif "Pantheon+" in cat:
+            fpath = join(folder, "PV", "Pantheon+SH0ES.dat")
         elif "Carrick2MTFmock" in cat:
             ki = cat.split("_")[-1]
             fpath =f"/mnt/extraspace/rstiskalek/csiborg_postprocessing/flow_mock/Carrick2MTFmock_seed{ki}.hdf5"  # noqa
@@ -247,12 +247,18 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole):
     alpha_min = -10 if "IndranilVoid" in ARGS.simname else -1.0
     alpha_max = 10.0
 
-    if catalogue in ["LOSS", "Foundation", "Pantheon+", "Pantheon+_groups", "Pantheon+_zSN"]:  # noqa
+    if catalogue in ["LOSS", "Foundation"]:
         return {"e_mu_min": 0.005, "e_mu_max": 1.0,
                 "mag_cal_mean": -18.25, "mag_cal_std": 2.0,
                 "alpha_cal_mean": 0.148, "alpha_cal_std": 1.0,
                 "beta_cal_mean": 3.112, "beta_cal_std": 2.0,
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
+                "sample_alpha": sample_alpha
+                }
+    elif catalogue in ["Pantheon+", "Pantheon+_groups", "Pantheon+_zSN"]:
+        return {"e_mu_min": 0.001, "e_mu_max": 1.0,
+                "mag_cal_mean": -18.5, "mag_cal_std": 2.0,
+                "alpha_mean": 1.0, "alpha_std": 0.5,
                 "sample_alpha": sample_alpha
                 }
     elif catalogue in ["SFI_gals", "2MTF"] or "CF4_TFR" in catalogue or "IndranilVoidTFRMock" in catalogue or "Carrick2MTFmock" in catalogue:  # noqa
@@ -353,6 +359,9 @@ if __name__ == "__main__":
     # Overwrite if if not running a varying void size simulation.
     if "IndranilVoidSizeVar_" not in ARGS.simname:
         which_void_size_run = None
+
+    if any("Pantheon+" in cat for cat in ARGS.catalogue):
+        calculate_harmonic = False
 
     # These mocks are generated without a density field, so there is no
     # inhomogeneous Malmquist and we also do not need evidences.

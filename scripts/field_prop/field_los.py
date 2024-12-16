@@ -26,13 +26,11 @@ from warnings import warn
 import numpy as np
 from astropy import units as u
 from astropy.coordinates import SkyCoord
-from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from h5py import File
 from mpi4py import MPI
 from numba import jit
-from scipy.interpolate import interp1d
-from taskmaster import work_delegation  # noqa
+from taskmaster import work_delegation                                          # noqa
 
 import csiborgtools
 
@@ -42,35 +40,6 @@ from utils import get_nsims  # noqa
 ###############################################################################
 #                             I/O functions                                   #
 ###############################################################################
-
-
-def make_spacing(rmax, dr, dense_mu_min, dense_mu_max, dmu, Om0):
-    """
-    Make radial spacing that at low distance is with constant spacing in
-    distance modulus and at higher distances is with constant spacing in
-    comoving distance.
-    """
-    # Create interpolant to go from distance modulus to comoving distance.
-    cosmo = FlatLambdaCDM(H0=100, Om0=Om0)
-
-    z_range = np.linspace(0, 0.1, 1000000)[1:]
-    r_range = cosmo.comoving_distance(z_range).value
-    mu_range = cosmo.distmod(z_range).value
-
-    mu2r = interp1d(mu_range, r_range, kind='cubic')
-
-    # Create the spacing in distance modulus.
-    mu = np.arange(dense_mu_min, dense_mu_max, dmu)
-    rmin_dense = mu2r(np.min(mu))
-    rmax_dense = mu2r(np.max(mu))
-
-    # Create the spacing in comoving distance below and above.
-    rlow = np.arange(0, rmin_dense, dr)
-    rmed = mu2r(mu)
-    rhigh = np.arange(rmax_dense, rmax, dr)[1:]
-
-    # Combine the spacings.
-    return np.hstack([rlow, rmed, rhigh])
 
 
 def get_los(catalogue_name, simname, comm):
@@ -95,13 +64,23 @@ def get_los(catalogue_name, simname, comm):
         folder = "/mnt/extraspace/rstiskalek/catalogs"
 
         if catalogue_name in ["LOSS", "Foundation", "SFI_gals",
-                              "SFI_gals_masked", "SFI_groups", "2MTF",
-                              "Pantheon+"]:
+                              "SFI_gals_masked", "SFI_groups", "2MTF"]:
             fpath = join(folder, "PV_compilation.hdf5")
             with File(fpath, 'r') as f:
                 grp = f[catalogue_name]
                 RA = grp["RA"][:]
                 dec = grp["DEC"][:]
+        elif catalogue_name == "Pantheon+":
+            fdir = join(folder, "PV")
+            fname = join(fdir, "Pantheon+SH0ES.dat")
+            fname_cov = join(fdir, "Pantheon+SH0ES_STAT+SYS.cov")
+            fname_cov_vel = join(fdir, "Pantheon+SH0ES_122221_VPEC.cov")
+
+            data = csiborgtools.read.read_pantheonplus_data(
+                fname, fname_cov, fname_cov_vel)[0]
+            RA = data["RA"]
+            dec = data["DEC"]
+
         elif catalogue_name == "A2":
             fpath = join(folder, "A2.h5")
             with File(fpath, 'r') as f:
@@ -462,7 +441,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     Om0 = csiborgtools.simname2Omega_m(args.simname)
-    # r = make_spacing(200, 0.75, 23.25, 34, 0.01, Om0)
     r = np.arange(0, 200, 0.25)
 
     sigma_original = csiborgtools.simname2icresolution(args.simname)
