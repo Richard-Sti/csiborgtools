@@ -39,7 +39,7 @@ fi
 # For the void test: "LOSS,Foundation,CF4_TFR_i,CF4_TFR_notSDSS_w1"
 
 # for simname in "IndranilVoidSizeVar_exp"; do
-for simname in "Carrick2015"; do
+for simname in "IndranilVoid_exp"; do
 # for simname in "no_field"; do
 # for simname in "Carrick2015" "Lilow2024" "csiborg1" "csiborg2_main" "CF4" "CLONES"; do
 # for simname in "manticore_2MPP_MULTIBIN_N128_DES_V1"; do
