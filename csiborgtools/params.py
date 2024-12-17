@@ -108,17 +108,14 @@ def simname2Omega_m(simname):
          "CF4": 0.3,
          "CF4gp": 0.3,
          "Lilow2024": 0.3175,
-         "IndranilVoid_exp": 0.3,
-         "IndranilVoid_gauss": 0.3,
-         "IndranilVoid_mb": 0.3,
-         "IndranilVoidSizeVar_exp": 0.3,
-         "IndranilVoidSizeVar_gauss": 0.3,
-         "IndranilVoidSizeVar_mb": 0.3,
          "no_field": 0.3,
          "CLONES": 0.307115,
          }
 
     omega_m = d.get(simname, None)
+
+    if "IndranilVoid" in simname:
+        omega_m = 0.3
 
     if omega_m is None:
         raise ValueError(f"Unknown simulation: `{simname}`.")
