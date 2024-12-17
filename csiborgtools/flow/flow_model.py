@@ -707,7 +707,6 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             self._void_size_to_h_void = void_kwargs["void_size_to_h_void"]
 
             if void_kwargs["is_fiducial"]:
-                # TODO: Correct this as well.
                 size_indx = void_kwargs["size_indx"]
                 if size_indx is None:
                     rel_size = 1.
