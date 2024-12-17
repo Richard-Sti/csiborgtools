@@ -63,7 +63,7 @@ def select_void_h(void_size_percent, profile, fname=None, return_all=False):
     d = np.genfromtxt(fname)
 
     sizes = d[:, 0].astype(int)
-    H0s = d[:, profiles.index(profile)]
+    H0s = d[:, 1 + profiles.index(profile)]
 
     if return_all:
         return sizes.astype(float), H0s / 100
