@@ -81,11 +81,12 @@ def select_void_h(void_size_percent, profile, fname=None, return_all=False):
 ###############################################################################
 
 
-def load_void_fiducial(profile, kind, try_load_from_hdf5=True,
+def load_void_fiducial(profile, kind, size_indx=None, try_load_from_hdf5=True,
                        dump_to_hdf5=True):
     """
     Load the void velocities from Sergij & Indranil's files for a given kind
-    of void profile per observer.
+    of void profile per observer. If `size_index` is `None`, load the fiducial
+    void size, otherwise load the void size at the given index.
 
     Parameters
     ----------
@@ -93,6 +94,8 @@ def load_void_fiducial(profile, kind, try_load_from_hdf5=True,
         Void profile to load. One of "exp", "gauss", "mb".
     kind : str
         Data kind. One of "density", "vrad", "vx", or "vy".
+    size_indx : int, optional
+        Index of the void size to load. If `None`, load the fiducial void size.
     try_load_from_hdf5 : bool, optional
         Attempt to load the data from a preprocessed HDF5 file.
     dump_to_hdf5 : bool, optional
@@ -113,7 +116,11 @@ def load_void_fiducial(profile, kind, try_load_from_hdf5=True,
             "`kind` must be one of 'density', 'vrad', 'vx', 'vy'.")
 
     fdir_base = "/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/SizeVariation_new"  # noqa
-    fdir = join(fdir_base, "sizenumber100")
+
+    if size_indx is None:
+        size_indx = 100
+
+    fdir = join(fdir_base, f"sizenumber{size_indx}")
     fname_scratch = join(fdir, f"processed_fiducial_{profile}_{kind}.hdf5")
 
     if try_load_from_hdf5 and exists(fname_scratch):

@@ -412,6 +412,17 @@ if __name__ == "__main__":
             raise ValueError(
                 "`IndranilVoid` does not have multiple realisations.")
 
+        # Check whether running at some fixed void size or varying void size
+        if "SizeVar" not in ARGS.simname:
+            size_indx = ''.join(
+                char for char in ARGS.simname if char.isdigit()).zfill(3)
+
+            # This indicates the fiducial run
+            if size_indx == "000":
+                size_indx = None
+        else:
+            size_indx = None
+
         profile = ARGS.simname.split("_")[-1]
 
         # This is the radial distance over which to intergrate along the LOS.
@@ -432,7 +443,8 @@ if __name__ == "__main__":
         void_kwargs = {
             "profile": profile, "void_size_to_h_void": void_size_to_h_void,
             "which_void_size_run": which_void_size_run, "order": 1,
-            "rdist": rdist, "is_fiducial": is_fiducial}
+            "rdist": rdist, "is_fiducial": is_fiducial,
+            "size_indx": size_indx}
 
         if which_void_size_run == "zoom":
             void_size_min, void_size_max = 0.01, 0.2
