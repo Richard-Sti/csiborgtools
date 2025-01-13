@@ -125,6 +125,10 @@ class Paths:
                 fdir = join(fdir, "2MPP_MULTIBIN_N128_DES_V1", "R512")
                 files = glob(join(fdir, "mcmc_*"))
                 files = [int(search(r'mcmc_(\d+)', f).group(1)) for f in files]
+            elif simname == "2MPP_MULTIBIN_N128_DES_V2":
+                fdir = join(fdir, "2MPP_MULTIBIN_N128_DES_V2", "R1024")
+                files = glob(join(fdir, "mcmc_*"))
+                files = [int(search(r'mcmc_(\d+)', f).group(1)) for f in files]
             else:
                 raise ValueError(f"Unknown MANTICORE simulation `{simname}`.")
         elif simname == "csiborg2X":
