@@ -202,7 +202,7 @@ def get_field(simname, nsim, kind, MAS, grid):
             raise ValueError(f"Unknown field kind: `{kind}`.")
     elif simname == "CF4":
         # folder = "/mnt/extraspace/rstiskalek/catalogs/CF4"
-        folder = "/mnt/extraspace/rstiskalek/catalogs/CF4/CF4gp_23avr24_256-z008"  # noqa
+        folder = "/mnt/extraspace/rstiskalek/catalogs/CF4/CF4gp_23avr24_256-z008_test_100_realizations"  # noqa
         warn(f"Using local paths from `{folder}`.", RuntimeWarning)
 
         if kind == "density":
@@ -222,17 +222,11 @@ def get_field(simname, nsim, kind, MAS, grid):
 
         field = fits.open(fpath)[0].data
 
-        print("Swapping the X and Z axes for CF4.")
-        if kind == "density":
-            field = np.swapaxes(field, 0, 2)
-        elif kind == "velocity":
+        if kind == "velocity":
             vx, vy, vz = fits.open(fpath)[0].data
-            vx, vy, vz = np.swapaxes(vx, 0, 2), np.swapaxes(vy, 0, 2), np.swapaxes(vz, 0, 2)  # noqa
             # https://projets.ip2i.in2p3.fr//cosmicflows/ says to multiply by
             # 52
             field = 52 * np.stack([vx, vy, vz], axis=0)
-        else:
-            raise ValueError(f"Unknown field kind: `{kind}`.")
 
         return field.astype(np.float32)
     elif simname == "Lilow2024":
