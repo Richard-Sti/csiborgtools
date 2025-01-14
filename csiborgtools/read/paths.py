@@ -458,19 +458,16 @@ class Paths:
                 raise ValueError(f"Unsupported Lilow2024 field: `{kind}`.")
 
         if simname == "CF4":
-            # basedir = "/mnt/extraspace/rstiskalek/catalogs/CF4"
-            basedir = "/mnt/extraspace/rstiskalek/catalogs/CF4/CF4gp_23avr24_256-z008"  # noqa
+            basedir = self.CF4_dir
 
             if kind == "overdensity":
                 return join(
                     basedir,
-                    # f"CF4_new_128-z008_realization{nsim}_delta.fits"
                     f"CF4gp_23avr24_256-z008_test_realization{nsim}_delta.fits"
                     )
             elif kind == "velocity":
                 return join(
                     basedir,
-                    # f"CF4_new_128-z008_realization{nsim}_velocity.fits",
                     f"CF4gp_23avr24_256-z008_test_realization{nsim}_velocity.fits"  # noqa
                     )
             else:
