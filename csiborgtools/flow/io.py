@@ -330,6 +330,15 @@ class DataLoader:
 
                 arr["DEC"] = arr["Dec"]
                 arr["RA"] = arr["Ra"]
+        elif catalogue == "CF4_test_points":
+            with File(catalogue_fpath, 'r') as f:
+                dtype = [(key, np.float32) for key in f.keys()]
+                dtype += [("DEC", np.float32), ]
+                arr = np.empty(len(f["RA"]), dtype=dtype)
+                for key in f.keys():
+                    arr[key] = f[key][:]
+
+                arr["DEC"] = arr["dec"]
         else:
             raise ValueError(f"Unknown catalogue: `{catalogue}`.")
 
