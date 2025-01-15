@@ -147,6 +147,9 @@ class Paths:
             files = [search(r'realization(\d+)_delta\.fits', file).group(1)
                      for file in files if search(r'realization(\d+)_delta\.fits', file)]  # noqa
             files = [int(file) for file in files]
+
+            if subsample:
+                files = files[::5]
         elif simname in ["Carrick2015", "Lilow2024", "no_field", "CLONES"]:
             files = [0]
         elif "IndranilVoid" in simname:
