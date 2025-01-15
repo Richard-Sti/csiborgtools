@@ -442,8 +442,8 @@ if __name__ == "__main__":
     sigma_smooth = max((sigma_target**2 - sigma_original**2), 0)**0.5
     # print(f"Secondary smoothing is {sigma_smooth} Mpc / h.")
 
-    smooth_scales = [0, sigma_smooth]  # + [2 * n for n in range(1, 33)]
-    # print(f"Actually, the smooth scales are: {smooth_scales} Mpc / h.")
+    smooth_scales = [0, sigma_smooth] + [2 * n for n in range(1, 33)]
+    print(f"Actually, the smooth scales are: {smooth_scales} Mpc / h.")
 
     print(f"Running catalogue {args.catalogue} for simulation {args.simname} "
           f"with {len(r)} radial points.")
@@ -451,7 +451,6 @@ if __name__ == "__main__":
     comm = MPI.COMM_WORLD
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsims = get_nsims(args, paths, subsample=True)
-    print(nsims)
 
     out_folder = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_los"
     # Create the dumping folder.
