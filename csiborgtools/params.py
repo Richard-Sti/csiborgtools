@@ -73,6 +73,7 @@ def simname2boxsize(simname):
          "csiborg2X": 681.1,
          "manticore_2MPP_N128_DES_V1": 681.1,
          "manticore_2MPP_MULTIBIN_N128_DES_V1": 512,
+         "manticore_2MPP_MULTIBIN_N128_DES_V2": 681,
          "borg1": 677.7,
          "borg2": 676.6,
          "borg2_all": 676.6,
@@ -101,6 +102,7 @@ def simname2Omega_m(simname):
          "csiborg2X": 0.306,
          "manticore_2MPP_N128_DES_V1": 0.306,
          "manticore_2MPP_MULTIBIN_N128_DES_V1": 0.306,
+         "manticore_2MPP_MULTIBIN_N128_DES_V2": 0.306,
          "borg1": 0.307,
          "borg2": 0.3111,
          "borg2_all": 0.3111,
@@ -108,17 +110,14 @@ def simname2Omega_m(simname):
          "CF4": 0.3,
          "CF4gp": 0.3,
          "Lilow2024": 0.3175,
-         "IndranilVoid_exp": 0.3,
-         "IndranilVoid_gauss": 0.3,
-         "IndranilVoid_mb": 0.3,
-         "IndranilVoidSizeVar_exp": 0.3,
-         "IndranilVoidSizeVar_gauss": 0.3,
-         "IndranilVoidSizeVar_mb": 0.3,
          "no_field": 0.3,
          "CLONES": 0.307115,
          }
 
     omega_m = d.get(simname, None)
+
+    if "IndranilVoid" in simname:
+        omega_m = 0.3
 
     if omega_m is None:
         raise ValueError(f"Unknown simulation: `{simname}`.")
@@ -135,6 +134,7 @@ def simname2icresolution(simname):
          "csiborg2X": 681.1 / 128,
          "manticore_2MPP_N128_DES_V1": 681.1 / 128,
          "manticore_2MPP_MULTIBIN_N128_DES_V1": 512 / 128,
+         "manticore_2MPP_MULTIBIN_N128_DES_V2": 681 / 128,
          "borg1": 677.7 / 256,
          "borg2": 676.6 / 256,
          "borg2_all": 676.6 / 256,
@@ -175,6 +175,6 @@ paths_glamdring = {
     "borg2_dir": "/mnt/extraspace/rstiskalek/BORG_STOPYRA_2023",
     "tng300_1_dir": "/mnt/extraspace/rstiskalek/TNG300-1/",
     "aux_cat_dir": "/mnt/extraspace/rstiskalek/catalogs",
-    "CF4_dir": "/mnt/extraspace/rstiskalek/catalogs/CF4/CF4gp_23avr24_256-z008",  # noqa
+    "CF4_dir": "/mnt/extraspace/rstiskalek/catalogs/CF4/CF4gp_23avr24_256-z008_test_100_realizations",  # noqa
     "manticore_dir": "/mnt/extraspace/rstiskalek/MANTICORE",
     }

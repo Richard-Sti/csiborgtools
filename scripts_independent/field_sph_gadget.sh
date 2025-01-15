@@ -1,6 +1,6 @@
 #!/bin/bash
 nthreads=12
-memory=7
+memory=14
 on_login=${1}
 queue="berg"
 env="/mnt/zfsusers/rstiskalek/csiborgtools/venv_csiborg/bin/python"
@@ -42,9 +42,13 @@ export OMP_MAX_ACTIVE_LEVELS=4
 
 ####### Manticore SWIFT submission loop #######
 snapshot_kind="swift"
-for k in {0..9}; do
-    snapshot_path="/mnt/extraspace/rstiskalek/MANTICORE/2MPP_MULTIBIN_N128_DES_V1/R512/mcmc_$k/swift_monofonic/snap_0001/snap_0001.hdf5"
-    output_path="/mnt/extraspace/rstiskalek/MANTICORE/2MPP_MULTIBIN_N128_DES_V1/fields/R512/SPH_$k.hdf5"
+# for k in {0..9}; do
+# for k in 0 5 10; do
+for k in 5 10; do
+    # snapshot_path="/mnt/extraspace/rstiskalek/MANTICORE/2MPP_MULTIBIN_N128_DES_V1/R512/mcmc_$k/swift_monofonic/snap_0001/snap_0001.hdf5"
+    # output_path="/mnt/extraspace/rstiskalek/MANTICORE/2MPP_MULTIBIN_N128_DES_V1/fields/R512/SPH_$k.hdf5"
+    snapshot_path="/mnt/extraspace/rstiskalek/MANTICORE/2MPP_MULTIBIN_N128_DES_V2/R1024/mcmc_$k/swift_monofonic/snap_0001/snap_0001.hdf5"
+    output_path="/mnt/extraspace/rstiskalek/MANTICORE/2MPP_MULTIBIN_N128_DES_V2/fields/SPH_$k.hdf5"
 
     pythoncm="$env $file --snapshot_path $snapshot_path --output_path $output_path --resolution $resolution --scratch_space $scratch_space --SPH_executable $SPH_executable --snapshot_kind $snapshot_kind"
     if [ $on_login -eq 1 ]; then

@@ -125,6 +125,10 @@ class Paths:
                 fdir = join(fdir, "2MPP_MULTIBIN_N128_DES_V1", "R512")
                 files = glob(join(fdir, "mcmc_*"))
                 files = [int(search(r'mcmc_(\d+)', f).group(1)) for f in files]
+            elif simname == "2MPP_MULTIBIN_N128_DES_V2":
+                fdir = join(fdir, "2MPP_MULTIBIN_N128_DES_V2", "R1024")
+                files = glob(join(fdir, "mcmc_*"))
+                files = [int(search(r'mcmc_(\d+)', f).group(1)) for f in files]
             else:
                 raise ValueError(f"Unknown MANTICORE simulation `{simname}`.")
         elif simname == "csiborg2X":
@@ -454,19 +458,16 @@ class Paths:
                 raise ValueError(f"Unsupported Lilow2024 field: `{kind}`.")
 
         if simname == "CF4":
-            # basedir = "/mnt/extraspace/rstiskalek/catalogs/CF4"
-            basedir = "/mnt/extraspace/rstiskalek/catalogs/CF4/CF4gp_23avr24_256-z008"  # noqa
+            basedir = self.CF4_dir
 
             if kind == "overdensity":
                 return join(
                     basedir,
-                    # f"CF4_new_128-z008_realization{nsim}_delta.fits"
                     f"CF4gp_23avr24_256-z008_test_realization{nsim}_delta.fits"
                     )
             elif kind == "velocity":
                 return join(
                     basedir,
-                    # f"CF4_new_128-z008_realization{nsim}_velocity.fits",
                     f"CF4gp_23avr24_256-z008_test_realization{nsim}_velocity.fits"  # noqa
                     )
             else:

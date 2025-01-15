@@ -207,14 +207,13 @@ class BaseFlowValidationModel(ABC):
 
         self.z_xrange = jnp.asarray(z_xrange)
         self.mu_xrange = jnp.asarray(mu_xrange)
-        self.log10_dA_xrange = jnp.log10(jnp.asarray(
-            cosmo.angular_diameter_distance(z_xrange).value))
 
     def _set_void_data(self, RA, dec, profile, kind, order, is_fiducial,
-                       which_void_size_run, **kwargs):
+                       which_void_size_run, size_indx, **kwargs):
         """Create the void interpolator."""
         if is_fiducial:
-            rLG_grid, void_grid = load_void_fiducial(profile, kind)
+            rLG_grid, void_grid = load_void_fiducial(
+                profile, kind, size_indx=size_indx)
             size_min, size_max = None, None
         else:
             if which_void_size_run not in ["coarse", "zoom"]:
@@ -708,8 +707,14 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             self._void_size_to_h_void = void_kwargs["void_size_to_h_void"]
 
             if void_kwargs["is_fiducial"]:
-                self._h_void = float(self._void_size_to_h_void(1))
-                fprint(f"setting the void h to {self._h_void}.")
+                size_indx = void_kwargs["size_indx"]
+                if size_indx is None:
+                    rel_size = 1.
+                else:
+                    rel_size = float(size_indx) / 100
+
+                self._h_void = float(self._void_size_to_h_void(rel_size))
+                fprint(f"for the size index {size_indx}, converting it to {rel_size} and setting the void h to {self._h_void}.")  # noqa
 
         self.kind = kind
         self.name = name
