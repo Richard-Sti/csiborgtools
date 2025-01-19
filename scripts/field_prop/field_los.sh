@@ -1,5 +1,5 @@
 nthreads=1
-memory=12
+memory=64
 on_login=${1}
 queue="berg"
 env="/mnt/users/rstiskalek/csiborgtools/venv_csiborg/bin/python"
@@ -19,9 +19,10 @@ fi
 
 
 # for simname in "csiborg1" "csiborg2_main" "csiborg2X" "Lilow2024" "Carrick2015" "CF4" "manticore_2MPP_N128_DES_V1"; do
-for simname in "CF4"; do
+for simname in "csiborg2_main"; do
 # for simname in "csiborg1" "csiborg2_main" "Lilow2024" "Carrick2015" "CF4" "CLONES"; do
-    for catalogue in "LOSS" "Foundation" "2MTF" "SFI_gals" "CF4_TFR"; do
+    # for catalogue in "LOSS" "Foundation" "2MTF" "SFI_gals" "CF4_TFR"; do
+    for catalogue in "CF4_TFR"; do
     # for catalogue in "Pantheon+"; do
     # for catalogue in "LOSS"; do
     # for catalogue in "SDSS-FP"; do
