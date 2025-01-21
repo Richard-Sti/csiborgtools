@@ -125,7 +125,7 @@ class Paths:
                 fdir = join(fdir, "2MPP_MULTIBIN_N128_DES_V1", "R512")
                 files = glob(join(fdir, "mcmc_*"))
                 files = [int(search(r'mcmc_(\d+)', f).group(1)) for f in files]
-            elif simname == "2MPP_MULTIBIN_N128_DES_V2":
+            elif simname == "manticore_2MPP_MULTIBIN_N128_DES_V2":
                 fdir = join(fdir, "2MPP_MULTIBIN_N128_DES_V2", "R1024")
                 files = glob(join(fdir, "mcmc_*"))
                 files = [int(search(r'mcmc_(\d+)', f).group(1)) for f in files]
@@ -440,6 +440,11 @@ class Paths:
         if simname == "manticore_2MPP_MULTIBIN_N128_DES_V1":
             basedir = join(self.manticore_dir, "2MPP_MULTIBIN_N128_DES_V1",
                            "fields", "R512")
+            return join(basedir, f"SPH_{nsim}.hdf5")
+
+        if simname == "manticore_2MPP_MULTIBIN_N128_DES_V2":
+            basedir = join(self.manticore_dir, "2MPP_MULTIBIN_N128_DES_V2",
+                           "fields")
             return join(basedir, f"SPH_{nsim}.hdf5")
 
         if simname == "Carrick2015":
