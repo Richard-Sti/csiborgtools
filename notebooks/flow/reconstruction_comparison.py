@@ -93,18 +93,18 @@ def names_to_latex(names, for_corner=False):
             names[i] = names[i].replace("CF4_TFR_i", "CF4,TFR")
 
     for cat in ["2MTF", "SFI", "CF4,TFR"]:
-        ltx[f"aTFR_{cat}"] = f"a_{{\\rm TF}}^{{\\rm {cat}}}"
-        ltx[f"bTFR_{cat}"] = f"b_{{\\rm TF}}^{{\\rm {cat}}}"
-        ltx[f"cTFR_{cat}"] = f"c_{{\\rm TF}}^{{\\rm {cat}}}"
+        ltx[f"aTFR_{cat}"] = f"a_{{\\rm TFR}}^{{\\rm {cat}}}"
+        ltx[f"bTFR_{cat}"] = f"b_{{\\rm TFR}}^{{\\rm {cat}}}"
+        ltx[f"cTFR_{cat}"] = f"c_{{\\rm TFR}}^{{\\rm {cat}}}"
         ltx[f"corr_mag_eta_{cat}"] = f"\\rho_{{m,\\eta}}^{{\\rm {cat}}}"
         ltx[f"eta_mean_{cat}"] = f"\\widehat{{\\eta}}^{{\\rm {cat}}}"
         ltx[f"eta_std_{cat}"] = f"\\widehat{{\\sigma}}_\\eta^{{\\rm {cat}}}"
         ltx[f"mag_mean_{cat}"] = f"\\widehat{{m}}^{{\\rm {cat}}}"
         ltx[f"mag_std_{cat}"] = f"\\widehat{{\\sigma}}_m^{{\\rm {cat}}}"
 
-        ltx_corner[f"aTFR_{cat}"] = rf"$a_{{\rm TF}}^{{\rm {cat}}}$"
-        ltx_corner[f"bTFR_{cat}"] = rf"$b_{{\rm TF}}^{{\rm {cat}}}$"
-        ltx_corner[f"cTFR_{cat}"] = rf"$c_{{\rm TF}}^{{\rm {cat}}}$"
+        ltx_corner[f"aTFR_{cat}"] = rf"$a_{{\rm TFR}}^{{\rm {cat}}}$"
+        ltx_corner[f"bTFR_{cat}"] = rf"$b_{{\rm TFR}}^{{\rm {cat}}}$"
+        ltx_corner[f"cTFR_{cat}"] = rf"$c_{{\rm TFR}}^{{\rm {cat}}}$"
         ltx_corner[f"corr_mag_eta_{cat}"] = rf"$\rho_{{m,\eta}}^{{\rm {cat}}}$"
         ltx_corner[f"eta_mean_{cat}"] = rf"$\widehat{{\eta}}^{{\rm {cat}}}$"
         ltx_corner[f"eta_std_{cat}"] = rf"$\widehat{{\sigma}}_\eta^{{\rm {cat}}}$"  # noqa
