@@ -129,6 +129,10 @@ class Paths:
                 fdir = join(fdir, "2MPP_MULTIBIN_N128_DES_V2", "R1024")
                 files = glob(join(fdir, "mcmc_*"))
                 files = [int(search(r'mcmc_(\d+)', f).group(1)) for f in files]
+            elif simname == "manticore_2MPP_MULTIBIN_N256_DES_V2":
+                fdir = join(fdir, "2MPP_MULTIBIN_N256_DES_V2", "sph_fields")
+                files = glob(join(fdir, "mcmc_*"))
+                files = [int(search(r'mcmc_(\d+)', f).group(1)) for f in files]
             else:
                 raise ValueError(f"Unknown MANTICORE simulation `{simname}`.")
         elif simname == "csiborg2X":
@@ -446,6 +450,11 @@ class Paths:
             basedir = join(self.manticore_dir, "2MPP_MULTIBIN_N128_DES_V2",
                            "fields")
             return join(basedir, f"SPH_{nsim}.hdf5")
+
+        if simname == "manticore_2MPP_MULTIBIN_N256_DES_V2":
+            basedir = join(self.manticore_dir, "2MPP_MULTIBIN_N256_DES_V2",
+                           "sph_fields")
+            return join(basedir, f"mcmc_{nsim}.hdf5")
 
         if simname == "Carrick2015":
             basedir = "/mnt/extraspace/rstiskalek/catalogs"
