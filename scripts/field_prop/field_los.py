@@ -176,6 +176,8 @@ def get_field(simname, nsim, kind, MAS, grid):
         field_reader = csiborgtools.read.CSiBORG2XField(nsim, version=2)
     elif simname == "manticore_2MPP_MULTIBIN_N128_DES_V2":
         field_reader = csiborgtools.read.CSiBORG2XField(nsim, version=3)
+    elif simname == "manticore_2MPP_MULTIBIN_N256_DES_V2":
+        field_reader = csiborgtools.read.CSiBORG2XField(nsim, version=4)
     elif simname == "CLONES":
         field_reader = csiborgtools.read.CLONESField(nsim)
     elif simname == "Carrick2015":
@@ -454,6 +456,7 @@ if __name__ == "__main__":
     comm = MPI.COMM_WORLD
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsims = get_nsims(args, paths, subsample=True)
+    print(f"We have {len(nsims)} IC realisations.")
 
     out_folder = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_los"
     # Create the dumping folder.
