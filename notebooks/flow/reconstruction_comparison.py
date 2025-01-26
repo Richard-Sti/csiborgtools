@@ -166,6 +166,7 @@ def simname_to_pretty(simname):
            "manticore_2MPP_N128_DES_V1": "N128_DES_V1",
            "manticore_2MPP_MULTIBIN_N128_DES_V1": "MULTIBIN_N128_DES_V1",
            "manticore_2MPP_MULTIBIN_N128_DES_V2": "MULTIBIN_N128_DES_V2",
+           "manticore_2MPP_MULTIBIN_N256_DES_V2": "MULTIBIN_N256_DES_V2",
            "CF4": "Courtois+23",
            "CF4gp": "CF4group",
            "CLONES": "Sorce+2018",
