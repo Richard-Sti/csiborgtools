@@ -38,12 +38,13 @@ fi
 
 # for simname in "IndranilVoid_gauss"; do
 # for simname in "IndranilVoidSizeVar_exp"; do
-for simname in "csiborg2_main"; do
+for simname in "CF4"; do
 # for simname in "csiborg2_main"; do
 # for simname in "Carrick2015" "Lilow2024" "csiborg1" "csiborg2_main" "CF4" "CLONES"; do
 # for simname in "manticore_2MPP_MULTIBIN_N128_DES_V1"; do
-    for catalogue in "LOSS" "Foundation" "2MTF" "SFI_gals" "CF4_TFR_i" "CF4_TFR_w1"; do
+    # for catalogue in "LOSS" "Foundation" "2MTF" "SFI_gals" "CF4_TFR_i" "CF4_TFR_w1"; do
     # for catalogue in "2MTF"; do
+    for catalogue in "CF4_TFR_i,CF4_TFR_notSDSS_w1"; do
     # for catalogue in "CF4_TFR_w1"; do
     # for catalogue in "Carrick2MTFmock_0"; do
         for ksim in "none"; do
