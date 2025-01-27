@@ -24,6 +24,7 @@ nwarm, nsamp = 1500, 3000
 
 ngal = 300
 add_malmquist = False
+numerical_distance_marginalisation = True
 
 a_FP_true = 0.5
 b_FP_true = 0.1
@@ -48,6 +49,11 @@ if add_malmquist:
     print("We are using the Malmquist bias.")
 else:
     print("We are not using Malmquist bias")
+
+if numerical_distance_marginalisation:
+    print("We are using numerical distance marginalisation.")
+else:
+    print("We are not using numerical distance marginalisation.")
 
 
 ###############################################################################
@@ -87,6 +93,7 @@ print(f"Mean and std of zcosmo: {np.mean(zcosmo_gt)}, {np.std(zcosmo_gt)}")
 
 d_range = np.linspace(1, 2 * 10**np.max(logd_FP_gt), 400)
 log_d_range = np.log10(d_range)
+zcosmo_range = 100 * d_range / SPEED_OF_LIGHT
 print(f"The distance range goes {d_range.min()} to {d_range.max()} in "
       f"{len(d_range)} steps.")
 
@@ -147,31 +154,11 @@ def model():
     else:
         c_FP = 0.
 
-    # Sample the intrinsic scatter.
+    # Sample the intrinsic scatter and the velocity scatter
     sigma_FP = sample("sigma_FP", Uniform(0, 0.3))
+    sigmav = sample("sigmav", Uniform(0, 5000))
 
-    # Calculate the esimated log-distance and sample the true distance.
-    log_d_FP_estimate = a_FP * sig_true + b_FP * I_true + c_FP
-    with plate("plate_log_d", ngal):
-        log_d_FP_true = sample(
-            "log_d_FP_true", Normal(log_d_FP_estimate, sigma_FP))
-
-    # If adding the Malmquist bias term, then must add the r^2 term and then
-    # the normalisation term. There is a Jacobian to convert the Malmquist
-    # bias p(r) to p(log r).
-    if add_malmquist:
-        d_FP_true = 10**log_d_FP_true
-
-        jac = np.log(10) * d_FP_true
-        norm = d_range**2 * jnp.exp(-0.5 * (log_d_FP_estimate[:, None] - log_d_range[None, :])**2 / sigma_FP**2) / (jnp.sqrt(2 * np.pi) * sigma_FP)  # noqa
-        norm = simpson(norm, x=d_range, axis=-1)
-        norm = jnp.log(jac) + 2 * jnp.log(d_FP_true) - jnp.log(norm)
-
-        factor("ll_Malmquist", norm)
-
-    # Assume Hubble law to convert the log-distance to redshift.
-    zcosmo = 100 * 10**log_d_FP_true / SPEED_OF_LIGHT
-
+    # Sample the (radially constant) peculiar velocity.
     Vpec = 0
 
     # Sample the monopole velocity if it is non-zero.
@@ -188,19 +175,60 @@ def model():
             + jnp.sin(D_theta) * jnp.sin(theta) * jnp.cos(D_ra - phi)
             + jnp.cos(D_theta) * jnp.cos(theta))
 
-    # Calculate the predicted redshift and the redshift likelihood.
-    czpred = SPEED_OF_LIGHT * ((1 + zcosmo) * (1 + Vpec / SPEED_OF_LIGHT) - 1)
+    # Calculate the esimated log-distance and sample the true distance.
+    log_d_FP_estimate = a_FP * sig_true + b_FP * I_true + c_FP
 
-    sigmav = sample("sigmav", Uniform(0, 5000))
-    with plate("plate_ll_cz", ngal):
-        sample("czobs", Normal(czpred, sigmav), obs=czobs)
+    if numerical_distance_marginalisation:
+        # Calculate the log-probability of shape `(ngal, len(d_range))`
+        log_prob_dist = -0.5 * (log_d_FP_estimate[:, None] - log_d_range[None, :])**2 / sigma_FP**2 - 0.5 * jnp.log(2 * jnp.pi) - jnp.log(sigma_FP)  # noqa
+
+        if add_malmquist:
+            log_prob_dist += 2 * log_d_range[None, :]
+
+            # Calculate the normalisation and finally turn to a log
+            norm = jnp.log(simpson(jnp.exp(log_prob_dist), x=d_range, axis=-1))
+            log_prob_dist -= norm[:, None]
+
+        # Redshift log-likelihood still of shape `(ngal, len(d_range))`
+        czpred = SPEED_OF_LIGHT * ((1 + zcosmo_range[None, :]) * (1 + Vpec[:, None] / SPEED_OF_LIGHT) - 1)                 # noqa
+        log_prob_redshift = -0.5 * (czpred - czobs[:, None])**2 / sigmav**2 - 0.5 * jnp.log(2 * jnp.pi) - jnp.log(sigmav)  # noqa
+
+        # Add the log-likelihoods and integrate over the distance
+        ll = log_prob_dist + log_prob_redshift
+        factor("ll", jnp.log(simpson(jnp.exp(ll), axis=-1)))
+    else:
+        with plate("plate_log_d", ngal):
+            log_d_FP_true = sample(
+                "log_d_FP_true", Normal(log_d_FP_estimate, sigma_FP))
+
+        # If adding the Malmquist bias term, then must add the r^2 term and
+        # then the normalisation term. There is a Jacobian to convert the
+        # Malmquist bias p(r) to p(log r).
+        if add_malmquist:
+            d_FP_true = 10**log_d_FP_true
+
+            jac = np.log(10) * d_FP_true
+            norm = d_range**2 * jnp.exp(-0.5 * (log_d_FP_estimate[:, None] - log_d_range[None, :])**2 / sigma_FP**2) / (jnp.sqrt(2 * np.pi) * sigma_FP)  # noqa
+            norm = simpson(norm, x=d_range, axis=-1)
+            norm = jnp.log(jac) + 2 * jnp.log(d_FP_true) - jnp.log(norm)
+
+            factor("ll_Malmquist", norm)
+
+        # Assume Hubble law to convert the log-distance to redshift.
+        zcosmo = 100 * 10**log_d_FP_true / SPEED_OF_LIGHT
+
+        # Calculate the predicted redshift and the redshift likelihood.
+        czpred = SPEED_OF_LIGHT * ((1 + zcosmo) * (1 + Vpec / SPEED_OF_LIGHT) - 1)  # noqa
+
+        with plate("plate_ll_cz", ngal):
+            sample("czobs", Normal(czpred, sigmav), obs=czobs)
 
 
 ###############################################################################
 #                              MCMC Inference                                 #
 ###############################################################################
 
-kernel = NUTS(model, init_strategy=init_to_median(num_samples=100))
+kernel = NUTS(model, init_strategy=init_to_median(num_samples=1000))
 mcmc = MCMC(kernel, num_warmup=nwarm, num_samples=nsamp)
 mcmc.run(rng_key)
 
