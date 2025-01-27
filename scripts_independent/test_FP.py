@@ -3,29 +3,19 @@ import sys
 import corner
 import matplotlib.pyplot as plt
 import numpy as np
-# from h5py import File
-from jax import random
 from jax import numpy as jnp
-from numpyro import factor, sample, plate
+from jax import random
+from numpyro import factor, plate, sample
 from numpyro.distributions import Normal, Uniform
 from numpyro.infer import MCMC, NUTS
 from numpyro.infer.initialization import init_to_median
-
 from quadax import simpson
-
-add_malmquist = False
-
-if add_malmquist:
-    print("Using Malmquist bias")
-else:
-    print("Not using Malmquist bias")
 
 run_num = int(sys.argv[1])
 gen = np.random.default_rng(1 + run_num)
 rng_key = random.PRNGKey(run_num)
 
 SPEED_OF_LIGHT = 299_792.458
-
 nwarm, nsamp = 1500, 3000
 
 ###############################################################################
@@ -33,6 +23,7 @@ nwarm, nsamp = 1500, 3000
 ###############################################################################
 
 ngal = 300
+add_malmquist = False
 
 a_FP_true = 0.5
 b_FP_true = 0.1
@@ -52,6 +43,12 @@ I_mean_true, I_std_true = 1.5, 0.2
 e_I = 0.02
 
 print(f"We have {ngal} galaxies.")
+
+if add_malmquist:
+    print("We are using the Malmquist bias.")
+else:
+    print("We are not using Malmquist bias")
+
 
 ###############################################################################
 #                           Mock data generation                              #
@@ -85,17 +82,13 @@ I_mean_true -= I_mean
 logd_FP = a_FP_true * sig_gt + b_FP_true * I_gt + c_FP_true
 logd_FP_gt = gen.normal(logd_FP, sigma_FP_gt)
 zcosmo_gt = 100 * 10**logd_FP_gt / SPEED_OF_LIGHT
+print(f"Mean and std of zcosmo: {np.mean(zcosmo_gt)}, {np.std(zcosmo_gt)}")
 
 
 d_range = np.linspace(1, 2 * 10**np.max(logd_FP_gt), 400)
-# d_range = np.linspace(1, 500, 300)
 log_d_range = np.log10(d_range)
 print(f"The distance range goes {d_range.min()} to {d_range.max()} in "
       f"{len(d_range)} steps.")
-
-print("logd:", np.min(logd_FP_gt), np.median(logd_FP_gt),
-      np.mean(logd_FP_gt), np.max(logd_FP_gt))
-print(f"Mean and std of zcosmo: {np.mean(zcosmo_gt)}, {np.std(zcosmo_gt)}")
 
 Vrad = D_mag_true * (
     + np.sin(D_theta_true) * np.sin(theta) * np.cos(D_ra_true - phi)
@@ -112,10 +105,12 @@ plt.hist(zcosmo_gt, bins="auto", histtype="step", label="ztrue")
 plt.legend()
 plt.xlabel("Redshift")
 plt.tight_layout()
-plt.savefig("Plots_FP/czobs_hist.png", dpi=450)
-plt.show()
 
-print("Saved the redshift distribution.")
+fname = "Plots_FP/czobs_hist.png"
+print(f"Saving the redshift distribution to `{fname}`.")
+plt.savefig("Plots_FP/czobs_hist.png", dpi=450)
+plt.close()
+
 
 ###############################################################################
 #                              Forward model                                  #
@@ -123,6 +118,7 @@ print("Saved the redshift distribution.")
 
 
 def model():
+    # Sample the velocity dispersion parameters.
     a_FP = sample("a_FP", Uniform(a_FP_true - 0.4, a_FP_true + 0.4))
     sig_mean = sample(
         "sig_mean", Uniform(sig_mean_true - 2, sig_mean_true + 2))
@@ -132,6 +128,7 @@ def model():
 
     factor('ll_sig', Normal(sig_true, e_sig).log_prob(sig))
 
+    # Sample the surface brightness parameters if non-zero.
     if b_FP_true != 0:
         b_FP = sample("b_FP", Uniform(b_FP_true - 0.4, b_FP_true + 0.4))
         I_mean = sample("I_mean", Uniform(I_mean_true - 2, I_mean_true + 2))
@@ -144,18 +141,24 @@ def model():
         b_FP = 0.
         I_true = 0.
 
+    # Sample the intercept if non-zero.
     if c_FP_true != 0:
         c_FP = sample("c_FP", Uniform(c_FP_true - 0.4, c_FP_true + 0.4))
     else:
         c_FP = 0.
 
+    # Sample the intrinsic scatter.
     sigma_FP = sample("sigma_FP", Uniform(0, 0.3))
-    log_d_FP_estimate = a_FP * sig_true + b_FP * I_true + c_FP
 
+    # Calculate the esimated log-distance and sample the true distance.
+    log_d_FP_estimate = a_FP * sig_true + b_FP * I_true + c_FP
     with plate("plate_log_d", ngal):
         log_d_FP_true = sample(
             "log_d_FP_true", Normal(log_d_FP_estimate, sigma_FP))
 
+    # If adding the Malmquist bias term, then must add the r^2 term and then
+    # the normalisation term. There is a Jacobian to convert the Malmquist
+    # bias p(r) to p(log r).
     if add_malmquist:
         d_FP_true = 10**log_d_FP_true
 
@@ -166,9 +169,16 @@ def model():
 
         factor("ll_Malmquist", norm)
 
+    # Assume Hubble law to convert the log-distance to redshift.
     zcosmo = 100 * 10**log_d_FP_true / SPEED_OF_LIGHT
 
     Vpec = 0
+
+    # Sample the monopole velocity if it is non-zero.
+    if Vmono_true != 0:
+        Vpec += sample("Vmono", Uniform(-10000, 10000))
+
+    # Sample the dipole velocity if it is non-zero.
     if D_mag_true > 0:
         D_mag = sample("D_mag", Uniform(0, 10 * D_mag_true))
         D_ra = sample("D_ra", Uniform(0, 2 * np.pi))
@@ -178,9 +188,7 @@ def model():
             + jnp.sin(D_theta) * jnp.sin(theta) * jnp.cos(D_ra - phi)
             + jnp.cos(D_theta) * jnp.cos(theta))
 
-    if Vmono_true != 0:
-        Vpec += sample("Vmono", Uniform(-10000, 10000))
-
+    # Calculate the predicted redshift and the redshift likelihood.
     czpred = SPEED_OF_LIGHT * ((1 + zcosmo) * (1 + Vpec / SPEED_OF_LIGHT) - 1)
 
     sigmav = sample("sigmav", Uniform(0, 5000))
@@ -199,16 +207,13 @@ mcmc.run(rng_key)
 mcmc.print_summary()
 samples = mcmc.get_samples()
 
-# fname = f"samples_FP_{run_num}.h5"
-# print(f"Saving samples to `{fname}`.")
-# with File(fname, "w") as f:
-#     grp = f.create_group("samples")
-#     for key in samples.keys():
-#         grp.create_dataset(key, data=samples[key])
 
+###############################################################################
+#                           Diagnostic plots                                  #
+###############################################################################
+
+labels = []
 keys = list(samples.keys())
-
-labels = []             # Get labels and length of vector for each parameter
 nparam = np.zeros(len(keys), dtype=int)
 for i in range(len(keys)):
     if len(samples[keys[i]].shape) == 1:
@@ -262,11 +267,6 @@ if Vmono_true != 0:
 
 labels_keep = np.array(labels_keep)
 truths = np.array(truths)
-
-# truths = [a_TF_true, b_TF_true, sigma_TF_true, D_mag_true, D_ra_true,
-# np.cos(D_theta_true), Vmono_true, sigmav_true, m_mean_true, eta_mean_true,
-# m_std_true, eta_std_true]        # True values of the parameters
-
 labels = np.array(labels)
 
 mask = np.zeros(len(labels))
@@ -294,4 +294,8 @@ corner.corner(
     samples_mask_1, labels=labels_keep, truths=truths,
     show_titles=True, title_fmt='.3f', smooth=1)
 
-plt.savefig("Plots_FP/corner_"+str(run_num)+".png")
+fname = f"Plots_FP/corner_{run_num}.png"
+if add_malmquist:
+    fname = f"Plots_FP/corner_{run_num}_Malmquist.png"
+
+plt.savefig(fname)
