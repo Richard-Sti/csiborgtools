@@ -1,7 +1,7 @@
 nthreads=1
 memory=48
-on_login=0
-queue="berg"
+on_login=1
+queue="cmb"
 env="/mnt/zfsusers/rstiskalek/csiborgtools/venv_csiborg/bin/python"
 file="field_bulk.py"
 
