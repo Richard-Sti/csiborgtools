@@ -31,7 +31,7 @@ b_FP_true = 0.1
 c_FP_true = 2.0
 sigma_FP_gt = 0.05
 
-Vmono_true = 250
+Vmono_true = 0.1
 D_mag_true = 300
 D_ra_true = 5 / 4 * np.pi
 cos_D_theta_true = 0.3
@@ -91,7 +91,7 @@ zcosmo_gt = 100 * 10**logd_FP_gt / SPEED_OF_LIGHT
 print(f"Mean and std of zcosmo: {np.mean(zcosmo_gt)}, {np.std(zcosmo_gt)}")
 
 
-d_range = np.linspace(1, 2 * 10**np.max(logd_FP_gt), 400)
+d_range = np.linspace(1, 3 * 10**np.max(logd_FP_gt), 800)
 log_d_range = np.log10(d_range)
 zcosmo_range = 100 * d_range / SPEED_OF_LIGHT
 print(f"The distance range goes {d_range.min()} to {d_range.max()} in "
@@ -151,6 +151,7 @@ def model():
     # Sample the intercept if non-zero.
     if c_FP_true != 0:
         c_FP = sample("c_FP", Uniform(c_FP_true - 0.4, c_FP_true + 0.4))
+        # c_FP = c_FP_true
     else:
         c_FP = 0.
 
@@ -163,7 +164,8 @@ def model():
 
     # Sample the monopole velocity if it is non-zero.
     if Vmono_true != 0:
-        Vpec += sample("Vmono", Uniform(-10000, 10000))
+        Vmono = sample("Vmono", Uniform(-3500, 3500))
+        Vpec += Vmono
 
     # Sample the dipole velocity if it is non-zero.
     if D_mag_true > 0:
@@ -270,14 +272,18 @@ samps_like = np.transpose(np.vstack([np.transpose(all_samples)]))
 # As listed in the summary table and corner plot; see below
 labels_like = np.array(list(labels))
 
-labels_keep = ["a_FP", "sigmav", "sig_mean", "sig_std"]
-truths = [a_FP_true, sigmav_true, sig_mean_true, sig_std_true]
+labels_keep = ["a_FP", "sig_mean", "sig_std"]
+truths = [a_FP_true, sig_mean_true, sig_std_true]
+
+if "sigmav" in samples.keys():
+    labels_keep += ["sigmav"]
+    truths += [sigmav_true]
 
 if b_FP_true != 0:
     labels_keep += ["b_FP", "I_mean", "I_std"]
     truths += [b_FP_true, I_mean_true, I_std_true]
 
-if c_FP_true != 0:
+if c_FP_true != 0 and "c_FP" in samples.keys():
     labels_keep += ["c_FP"]
     truths += [c_FP_true]
 
@@ -285,7 +291,7 @@ if D_mag_true > 0:
     labels_keep += ["D_mag", "D_ra", "cos_D_theta"]
     truths += [D_mag_true, D_ra_true, cos_D_theta_true]
 
-if sigma_FP_gt > 0:
+if sigma_FP_gt > 0 and "sigma_FP" in samples.keys():
     labels_keep += ["sigma_FP"]
     truths += [sigma_FP_gt]
 
@@ -326,4 +332,5 @@ fname = f"Plots_FP/corner_{run_num}.png"
 if add_malmquist:
     fname = f"Plots_FP/corner_{run_num}_Malmquist.png"
 
+print(f"Saving the corner plot to `{fname}`.")
 plt.savefig(fname)
