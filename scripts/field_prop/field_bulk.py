@@ -59,6 +59,8 @@ def get_reader(simname, paths, nsim):
             version = 1
         elif simname == "manticore_2MPP_MULTIBIN_N128_DES_V1":
             version = 2
+        elif simname == "manticore_2MPP_MULTIBIN_N256_DES_V2":
+            version = 4
         else:
             raise ValueError(f"Unknown Manticore version: `{simname}`.")
 
@@ -216,6 +218,10 @@ def main_from_field(args, folder):
         if args.simname == "csiborg2X":
             reader = csiborgtools.read.CSiBORG2XField(nsim, paths)
             kwargs = {}
+        elif args.simname == "manticore_2MPP_MULTIBIN_N256_DES_V2":
+            reader = csiborgtools.read.CSiBORG2XField(
+                nsim, version=4, paths=paths)
+            kwargs = {"MAS": "SPH", "grid": 1024}
         elif args.simname == "CF4":
             reader = csiborgtools.read.CF4Field(nsim, paths)
             kwargs = {}
@@ -309,12 +315,14 @@ if __name__ == "__main__":
                         choices=["csiborg1", "csiborg2_main", "csiborg2_varysmall", "csiborg2_random",  # noqa
                                  "borg1", "borg2", "borg2_all", "csiborg2X", "Carrick2015",             # noqa
                                  "Lilow2024", "CLONES", "CF4", "manticore_2MPP_N128_DES_V1",            # noqa
-                                 "manticore_2MPP_MULTIBIN_N128_DES_V1"])                                # noqa
+                                 "manticore_2MPP_MULTIBIN_N128_DES_V1",                                 # noqa
+                                 "manticore_2MPP_MULTIBIN_N256_DES_V2"])                                # noqa
     args = parser.parse_args()
 
     folder = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_shells"
     if args.simname in ["csiborg2X", "Carrick2015", "Lilow2024",
-                        "CLONES", "CF4"]:
+                        "CLONES", "CF4",
+                        "manticore_2MPP_MULTIBIN_N256_DES_V2"]:
         main_from_field(args, folder)
     elif "csiborg" in args.simname or "manticore_" in args.simname:
         main_csiborg(args, folder)
