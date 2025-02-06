@@ -335,7 +335,7 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 10_000
+    nsteps = 1500
     nburn = 1500
     zcmb_min = None
     zcmb_max = 0.05
@@ -484,8 +484,7 @@ if __name__ == "__main__":
                                "sample_void_size": "IndranilVoidSizeVar" in ARGS.simname,  # noqa
                                "void_size_min": void_size_min,
                                "void_size_max": void_size_max,
-                               "rLG_min": 0.0, "rLG_max": 50,
-                               # TODO: Update this offset to negative values.
+                               "rLG_min": -50, "rLG_max": 50,
                                }
     print_variables(
         calibration_hyperparams.keys(), calibration_hyperparams.values())
