@@ -350,6 +350,7 @@ if __name__ == "__main__":
     sample_Vmono = False
     sample_mag_dipole = False
     dust_model = None
+    Rdust_fixed = None
     wo_num_dist_marginalisation = False
     absolute_calibration = None
     calculate_harmonic = (False if (inference_method == "bayes") else True) and (not wo_num_dist_marginalisation)  # noqa
@@ -384,6 +385,8 @@ if __name__ == "__main__":
                     "absolute_calibration": absolute_calibration,
                     "sample_h_e_int": sample_h_e_int,
                     "which_void_size_run": which_void_size_run,
+                    "dust_model": dust_model,
+                    "Rdust_fixed": Rdust_fixed,
                     }
 
     main_params = {"nsteps": nsteps, "nburn": nburn,
@@ -398,6 +401,8 @@ if __name__ == "__main__":
                    "wo_dist_marg": wo_num_dist_marginalisation,
                    "absolute_calibration": absolute_calibration,
                    "sample_h": sample_h,
+                   "dust_model": dust_model,
+                   "Rdust_fixed": Rdust_fixed,
                    }
     print_variables(main_params.keys(), main_params.values())
 
@@ -486,6 +491,10 @@ if __name__ == "__main__":
                                "void_size_min": void_size_min,
                                "void_size_max": void_size_max,
                                "rLG_min": -50, "rLG_max": 50,
+                               "sample_dust": dust_model is not None,
+                               "Rdust_min": 0,
+                               "Rdust_max": 3.0,
+                               "Rdust_fixed": Rdust_fixed,
                                }
     print_variables(
         calibration_hyperparams.keys(), calibration_hyperparams.values())
