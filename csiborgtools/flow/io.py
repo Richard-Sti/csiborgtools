@@ -14,6 +14,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 import numpy as np
+from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
 from h5py import File
 
@@ -431,7 +432,7 @@ def mask_fields(density, velocity, mask, return_none):
 
 def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
               wo_num_dist_marginalisation=False, absolute_calibration=None,
-              calibration_fpath=None, void_kwargs=None):
+              calibration_fpath=None, void_kwargs=None, dust_model=None):
     """
     Get a model and extract the relevant data from the loader.
 
@@ -453,6 +454,11 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         Whether to add an absolute calibration for CF4 TFRs.
     calibration_fpath : str, optional
         Path to the file containing the absolute calibration of CF4 TFR.
+    void_kwargs : dict, optional
+        Keyword arguments for the void model.
+    dust_model : str, optional
+        Choice of a dust model, currently only supported for CF4 TFR WISE
+        bands. Overwrites the default dust model.
 
     Returns
     -------
@@ -486,6 +492,10 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
     if absolute_calibration is not None and not ("CF4_TFR_" in kind or "Carrick2MTFmock" in kind):  # noqa
         raise ValueError("Absolute calibration supported only for either "
                          "the CF4 TFR sample or Carrick 2MTF mocks.")
+
+    if "CF4_TFR_w" not in kind and dust_model is not None:
+        raise ValueError("Changes to the dust model are supported only for "
+                         "CF4 TFR WISE samples.")
 
     if kind in ["LOSS", "Foundation"]:
         keys = ["RA", "DEC", "z_CMB", "mB", "x1", "c", "e_mB", "e_x1", "e_c"]
@@ -597,7 +607,6 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             with_homogeneous_malmquist=with_homogeneous_malmquist,
             with_inhomogeneous_malmquist=with_inhomogeneous_malmquist)
     elif "CF4_TFR_" in kind:
-        cosmo = FlatLambdaCDM(H0=100, Om0=loader._Omega_m)
         # The full name can be e.g. "CF4_TFR_not2MTForSFI_i" or "CF4_TFR_i".
         band = kind.split("_")[-1]
         if band not in ['g', 'r', 'i', 'z', 'w1', 'w2']:
@@ -609,7 +618,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             loader.cat[k] for k in keys)
         l, b = radec_to_galactic(RA, dec)
 
-        # NOTE: fiducial uncertainty until we can get the actual values.
+        # Fiducial values set after asking Rhsan Kourkchi.
         e_mag = 0.05 * np.ones_like(mag)
 
         z_obs /= SPEED_OF_LIGHT
@@ -621,25 +630,17 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         mask &= np.abs(b) > 7.5
         mask &= (z_obs < zcmb_max) & (z_obs > zcmb_min)
 
-        # A couple of specific selection cuts for testing.
-        if zcmb_max == 0.049991:
-            fprint("selecting only galaxies with below mean inclination errors.")  # noqa
-            mask &= e_inc < np.mean(e_inc[mask])
+        if band in ["w1", "w2"] and dust_model is not None:
+            fprint(f"switching the dust model to `{dust_model}`.")
+            # See Kourkchi+2019
+            R = 0.186 if band == 'w1' else 0.123
+            # Read off the correction that was applied to the magnitudes.
+            Ab_default = loader.cat[f"A_{band}"]
+            ebv = read_dustmap(RA, dec, dust_model)
+            Ab_new = R * ebv
 
-        if zcmb_max == 0.049992:
-            fprint("selecting only galaxies with above mean inclination errors.")  # noqa
-            mask &= e_inc > np.mean(e_inc[mask])
-
-        if zcmb_max == 0.049993:
-            absmag = mag - cosmo.distmod(z_obs).value
-            fprint(r"selecting only the 25% of brightest galaxies.")
-            mask &= absmag < np.percentile(absmag[mask], 25)
-
-        if zcmb_max == 0.049994:
-            absmag = mag - cosmo.distmod(z_obs).value
-            fprint(r"selecting only the 25% of faintest galaxies.")
-            mask &= absmag > np.percentile(absmag[mask], 75)
-
+            # Remove the original dust correction and replace it
+            mag += Ab_default - Ab_new
         if "not2MTForSFI" in kind or "2MTForSFI" in kind:
             raise NotImplementedError("Unmatching the 2MTF and SFI samples "
                                       "is not supported.")
@@ -652,6 +653,10 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             mask &= Qw == 5
         else:
             mask &= Qs == 5
+
+        m = np.isfinite(mag[mask])
+        if not np.all(m):
+            raise ValueError(f"Some magnitudes are not finite, {np.sum(~m)}.")
 
         calibration_params = {"mag": mag[mask], "eta": eta[mask],
                               "e_mag": e_mag[mask], "e_eta": e_eta[mask]}
@@ -778,6 +783,22 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
     fprint(f"selected {np.sum(mask)}/{len(mask)} galaxies in catalogue `{kind}`")  # noqa
 
     return model
+
+
+def read_dustmap(RA, dec, model):
+    """Read off `E(B-V)` at `RA` and `dec` for a given `model`."""
+    coords = SkyCoord(RA, dec, unit="deg", frame="icrs")
+
+    if model == "SFD":
+        try:
+            from dustmaps.sfd import SFDQuery
+        except ImportError:
+            raise ImportError("Cannot import `dustmaps`. Please install it.")
+        query = SFDQuery()
+    else:
+        raise ValueError(f"Unsupported model: `{model}`.")
+
+    return query(coords)
 
 
 ###############################################################################
