@@ -79,8 +79,7 @@ import numpy as np                                                              
 from csiborgtools import fprint                                                 # noqa
 from h5py import File                                                           # noqa
 from interpax import Interpolator1D                                             # noqa
-from numpyro.infer import (MCMC, NUTS, init_to_sample, init_to_feasible,        # noqa
-                           init_to_median)                                      # noqa
+from numpyro.infer import (MCMC, NUTS, init_to_median)                          # noqa
 
 
 def print_variables(names, variables):

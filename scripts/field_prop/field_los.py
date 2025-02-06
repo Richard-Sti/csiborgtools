@@ -174,6 +174,10 @@ def get_field(simname, nsim, kind, MAS, grid):
         field_reader = csiborgtools.read.CSiBORG2XField(nsim, version=1)
     elif simname == "manticore_2MPP_MULTIBIN_N128_DES_V1":
         field_reader = csiborgtools.read.CSiBORG2XField(nsim, version=2)
+    elif simname == "manticore_2MPP_MULTIBIN_N128_DES_V2":
+        field_reader = csiborgtools.read.CSiBORG2XField(nsim, version=3)
+    elif simname == "manticore_2MPP_MULTIBIN_N256_DES_V2":
+        field_reader = csiborgtools.read.CSiBORG2XField(nsim, version=4)
     elif simname == "CLONES":
         field_reader = csiborgtools.read.CLONESField(nsim)
     elif simname == "Carrick2015":
@@ -442,7 +446,8 @@ if __name__ == "__main__":
     sigma_smooth = max((sigma_target**2 - sigma_original**2), 0)**0.5
     # print(f"Secondary smoothing is {sigma_smooth} Mpc / h.")
 
-    smooth_scales = [0, sigma_smooth] + [2 * n for n in range(1, 33)]
+    # smooth_scales = [0, sigma_smooth] + [2 * n for n in range(1, 33)]
+    smooth_scales = [0, sigma_smooth]
     print(f"Actually, the smooth scales are: {smooth_scales} Mpc / h.")
 
     print(f"Running catalogue {args.catalogue} for simulation {args.simname} "
@@ -451,6 +456,7 @@ if __name__ == "__main__":
     comm = MPI.COMM_WORLD
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
     nsims = get_nsims(args, paths, subsample=True)
+    print(f"We have {len(nsims)} IC realisations.")
 
     out_folder = "/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_los"
     # Create the dumping folder.

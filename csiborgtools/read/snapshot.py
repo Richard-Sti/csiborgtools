@@ -876,6 +876,10 @@ class CSiBORG2XField(BaseField):
             self.nametag = "manticore_2MPP_N128_DES_V1"
         elif version == 2:
             self.nametag = "manticore_2MPP_MULTIBIN_N128_DES_V1"
+        elif version == 3:
+            self.nametag = "manticore_2MPP_MULTIBIN_N128_DES_V2"
+        elif version == 4:
+            self.nametag = "manticore_2MPP_MULTIBIN_N256_DES_V2"
         else:
             raise ValueError("Invalid Manticore version.")
 
@@ -900,7 +904,7 @@ class CSiBORG2XField(BaseField):
             rho_mean = omega0 * 277.53662724583074  # Msun / kpc^3
             field += 1
             field *= rho_mean
-        elif self.version in [1, 2]:
+        elif self.version in [1, 2, 3, 4]:
             MAS = kwargs["MAS"]
             grid = kwargs["grid"]
             fpath = self.paths.field(
@@ -928,7 +932,7 @@ class CSiBORG2XField(BaseField):
                 v1 = f["v_1"][...]
                 v2 = f["v_2"][...]
                 field = np.array([v0, v1, v2])
-        elif self.version in [1, 2]:
+        elif self.version in [1, 2, 3, 4]:
             MAS = kwargs["MAS"]
             grid = kwargs["grid"]
             fpath = self.paths.field(
