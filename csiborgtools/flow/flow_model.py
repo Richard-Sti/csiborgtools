@@ -393,7 +393,8 @@ def e2_distmod_TFR(e2_mag, e2_eta, eta, b, c, e_mu_intrinsic):
 def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
                c_mean, c_std, alpha_min, alpha_max, sample_alpha,
                a_dipole_mean, a_dipole_std, sample_a_dipole,
-               sample_curvature, h, name):
+               sample_curvature, sample_dust, Rdust_min, Rdust_max,
+               Rdust_fixed, h, name):
     """Sample Tully-Fisher calibration parameters."""
     e_mu = sample(f"e_mu_{name}", Uniform(e_mu_min, e_mu_max))
     factor(f"ll_e_mu_{name}", -jnp.log(e_mu))
@@ -421,6 +422,14 @@ def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
 
     alpha = sample_alpha_bias(name, alpha_min, alpha_max, sample_alpha)
 
+    if sample_dust:
+        if Rdust_fixed is None:
+            R = sample(f"Rdust_{name}", Uniform(Rdust_min, Rdust_max))
+        else:
+            R = Rdust_fixed
+    else:
+        R = None
+
     return {"e_mu": e_mu,
             "a": a,
             "ax": ax, "ay": ay, "az": az,
@@ -428,6 +437,7 @@ def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
             "c": c,
             "alpha": alpha,
             "sample_a_dipole": sample_a_dipole,
+            "R": R,
             }
 
 
@@ -652,13 +662,16 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         Whether to include the homogeneous Malmquist bias. By default `True`.
     with_inhomogeneous_malmquist : bool, optional
         Whether to include the inhomogeneous Malmquist bias. By default `True`.
+    dust_model : str, optional
+        Dust model choice from `dustmaps`, typically to replace the default
+        dust correction.
     """
 
     def __init__(self, los_density, los_velocity, RA, dec, z_obs, e_zobs,
                  calibration_params, selection, r_xrange, Omega_m, kind,
                  name, void_kwargs=None, wo_num_dist_marginalisation=False,
                  with_homogeneous_malmquist=True,
-                 with_inhomogeneous_malmquist=True):
+                 with_inhomogeneous_malmquist=True, dust_model=None):
         if e_zobs is not None:
             e2_cz_obs = jnp.asarray((SPEED_OF_LIGHT * e_zobs)**2)
         else:
@@ -722,6 +735,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         self.wo_num_dist_marginalisation = wo_num_dist_marginalisation
         self.with_homogeneous_malmquist = with_homogeneous_malmquist
         self.with_inhomogeneous_malmquist = with_inhomogeneous_malmquist
+        self.dust_model = dust_model
         self.norm = - jnp.log(self.num_sims)
 
         if selection is not None and kind != "TFR":
@@ -857,6 +871,11 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             b = distmod_params["b"]
             c = distmod_params["c"]
 
+            if self.dust_model is not None:
+                Ab = distmod_params["R"] * self.ebv
+            else:
+                Ab = 0
+
             if distmod_params["sample_a_dipole"]:
                 ax, ay, az = (distmod_params[k] for k in ["ax", "ay", "az"])
                 a = a + project_Vext(ax, ay, az, self.RA, self.dec)
@@ -884,6 +903,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                         f"x_TFR_{self.name}", MultivariateNormal(loc, cov))
 
                     mag_true, eta_true = x_true[..., 0], x_true[..., 1]
+                    mag_true -= Ab
                     # Log-likelihood of the observed magnitudes.
                     if self.mag_selection_kind == "hard":
                         ll_mag = upper_truncated_normal_logpdf(
@@ -933,9 +953,9 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                 e2_mu = jnp.ones_like(mag_true) * e_mu**2
             else:
                 eta_true = self.eta
-                mag_true = self.mag
+                mag_true = self.mag - Ab
                 if inference_method == "mike":
-                    e2_mu = 0.1**2 + e2_distmod_TFR(
+                    e2_mu = e2_distmod_TFR(
                         self.e2_mag, self.e2_eta, eta_true, b, c, e_mu)
                 else:
                     e2_mu = jnp.ones_like(mag_true) * e_mu**2
