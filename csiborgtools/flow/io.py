@@ -632,8 +632,6 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
 
         if band in ["w1", "w2"] and dust_model is not None:
             fprint(f"switching the dust model to `{dust_model}`.")
-            # See Kourkchi+2019
-            R = 0.186 if band == 'w1' else 0.123
             # Read off the correction that was applied to the magnitudes.
             Ab_default = loader.cat[f"A_{band}"]
             ebv = read_dustmap(RA, dec, dust_model)
@@ -800,10 +798,28 @@ def read_dustmap(RA, dec, model):
         except ImportError:
             raise ImportError("Cannot import `dustmaps`. Please install it.")
         query = SFDQuery()
+    elif model == "CSFD":
+        try:
+            from dustmaps.csfd import CSFDQuery
+        except ImportError:
+            raise ImportError("Cannot import `dustmaps`. Please install it.")
+        query = CSFDQuery()
+    elif model == "Planck2013":
+        try:
+            from dustmaps.planck import PlanckQuery
+        except ImportError:
+            raise ImportError("Cannot import `dustmaps`. Please install it.")
+        query = PlanckQuery()
+    elif model == "Planck2016":
+        try:
+            from dustmaps.planck import PlanckGNILCQuery
+        except ImportError:
+            raise ImportError("Cannot import `dustmaps`. Please install it.")
+        query = PlanckGNILCQuery()
     else:
         raise ValueError(f"Unsupported model: `{model}`.")
 
-    return query(coords)
+    return np.asarray(query(coords), dtype=np.float32)
 
 
 ###############################################################################
