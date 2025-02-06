@@ -343,8 +343,11 @@ def interpolate_fiducial_void(void_size, rLG, h_void, r, phi, data,
     """
     nLG, nphi, nrad = data.shape
 
+    rLG_sign = jnp.sign(rLG)
+    rLG_is_positive = rLG > 0
+
     # Normalize rLG to the grid scale
-    rLG_normalized = (rLG - rLG_min) / (rLG_max - rLG_min) * (nLG - 1)
+    rLG_normalized = (jnp.abs(rLG) - rLG_min) / (rLG_max - rLG_min) * (nLG - 1)
     rLG_normalized = jnp.repeat(rLG_normalized, r.size)
     r_normalized = (r / h_void - rgrid_min) / (rgrid_max - rgrid_min) * (nrad - 1)  # noqa
 
@@ -363,7 +366,8 @@ def interpolate_fiducial_void(void_size, rLG, h_void, r, phi, data,
         # occur.
         return map_coordinates(data, X, order=order, mode='nearest')
 
-    return vmap(interpolate_single_phi)(phi)
+    return vmap(interpolate_single_phi)(
+        rLG_is_positive * jnp.pi + rLG_sign * phi)
 
 
 def interpolate_size_var_void(void_size, rLG, h_void, r, phi, data,
@@ -405,6 +409,9 @@ def interpolate_size_var_void(void_size, rLG, h_void, r, phi, data,
     """
     nsize, nLG, nphi, nrad = data.shape
 
+    rLG_sign = jnp.sign(rLG)
+    rLG_is_positive = rLG > 0
+
     # Normalize the void size and rLG to the grid scale
     void_size_normalized = ((void_size - void_size_min)
                             / (void_size_max - void_size_min) * (nsize - 1))
@@ -431,7 +438,8 @@ def interpolate_size_var_void(void_size, rLG, h_void, r, phi, data,
         # occur.
         return map_coordinates(data, X, order=order, mode='nearest')
 
-    return vmap(interpolate_single_phi)(phi)
+    return vmap(interpolate_single_phi)(
+        rLG_is_positive * jnp.pi + rLG_sign * phi)
 
 
 ###############################################################################

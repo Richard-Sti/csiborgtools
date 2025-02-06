@@ -14,7 +14,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 from .cosmography import distmod2redshift, log_dA_to_distmod                    # noqa
 from .io import (DataLoader, get_model, read_absolute_calibration,              # noqa
-                 radial_velocity_los)                                           # noqa
+                 radial_velocity_los, read_dustmap)                             # noqa
 from .flow_model import (PV_LogLikelihood, PV_validation_model, dist2redshift,  # noqa
                          Observed2CosmologicalRedshift, predict_zobs,           # noqa
                          project_Vext, stack_pzosmo_over_realizations)          # noqa

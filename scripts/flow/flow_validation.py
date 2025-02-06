@@ -242,7 +242,8 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
 #                        Command line interface                               #
 ###############################################################################
 
-def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole):
+def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole,
+                            dust_model, Rdust_fixed):
     alpha_min = -10 if "IndranilVoid" in ARGS.simname else -1.0
     alpha_max = 10.0
 
@@ -270,6 +271,10 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole):
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
                 "sample_alpha": sample_alpha,
                 "sample_curvature": False if "Carrick2MTFmock" in catalogue else True,  # noqa
+                "sample_dust": dust_model is not None,
+                "Rdust_min": 0,
+                "Rdust_max": 1.0,
+                "Rdust_fixed": Rdust_fixed,
                 }
     elif catalogue in ["CF4_GroupAll"]:
         return {"e_mu_min": 0.005, "e_mu_max": 1.0,
@@ -335,7 +340,7 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 10_000
+    nsteps = 1500
     nburn = 1500
     zcmb_min = None
     zcmb_max = 0.05
@@ -349,6 +354,8 @@ if __name__ == "__main__":
     no_Vext = None
     sample_Vmono = False
     sample_mag_dipole = False
+    dust_model = None
+    Rdust_fixed = None  # Default for W1 is 0.186 and for W2 = 0.123
     wo_num_dist_marginalisation = False
     absolute_calibration = None
     calculate_harmonic = (False if (inference_method == "bayes") else True) and (not wo_num_dist_marginalisation)  # noqa
@@ -383,6 +390,8 @@ if __name__ == "__main__":
                     "absolute_calibration": absolute_calibration,
                     "sample_h_e_int": sample_h_e_int,
                     "which_void_size_run": which_void_size_run,
+                    "dust_model": dust_model,
+                    "Rdust_fixed": Rdust_fixed,
                     }
 
     main_params = {"nsteps": nsteps, "nburn": nburn,
@@ -397,6 +406,8 @@ if __name__ == "__main__":
                    "wo_dist_marg": wo_num_dist_marginalisation,
                    "absolute_calibration": absolute_calibration,
                    "sample_h": sample_h,
+                   "dust_model": dust_model,
+                   "Rdust_fixed": Rdust_fixed,
                    }
     print_variables(main_params.keys(), main_params.values())
 
@@ -484,14 +495,15 @@ if __name__ == "__main__":
                                "sample_void_size": "IndranilVoidSizeVar" in ARGS.simname,  # noqa
                                "void_size_min": void_size_min,
                                "void_size_max": void_size_max,
-                               "rLG_min": 0.0, "rLG_max": 50,
+                               "rLG_min": -50, "rLG_max": 50,
                                }
     print_variables(
         calibration_hyperparams.keys(), calibration_hyperparams.values())
 
     distmod_hyperparams_per_catalogue = []
     for cat in ARGS.catalogue:
-        x = get_distmod_hyperparams(cat, sample_alpha, sample_mag_dipole)
+        x = get_distmod_hyperparams(
+            cat, sample_alpha, sample_mag_dipole, dust_model, Rdust_fixed)
         print(f"\n{cat} hyperparameters:")
         print_variables(x.keys(), x.values())
         distmod_hyperparams_per_catalogue.append(x)
@@ -506,6 +518,7 @@ if __name__ == "__main__":
         "zcmb_max": zcmb_max,
         "absolute_calibration": absolute_calibration,
         "calibration_fpath": "/mnt/extraspace/rstiskalek/catalogs/PV/CF4/CF4_TF_calibration.hdf5",  # noqa
+        "dust_model": dust_model,
         }
 
     # In case we want to run multiple simulations independently.
