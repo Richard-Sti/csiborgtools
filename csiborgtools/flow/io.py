@@ -637,10 +637,13 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             # Read off the correction that was applied to the magnitudes.
             Ab_default = loader.cat[f"A_{band}"]
             ebv = read_dustmap(RA, dec, dust_model)
-            Ab_new = R * ebv
 
-            # Remove the original dust correction and replace it
-            mag += Ab_default - Ab_new
+            # Remove the original dust correction, the new one is applied on
+            # the fly.
+            mag += Ab_default
+        else:
+            ebv = np.full_like(mag, np.nan)
+
         if "not2MTForSFI" in kind or "2MTForSFI" in kind:
             raise NotImplementedError("Unmatching the 2MTF and SFI samples "
                                       "is not supported.")
@@ -659,7 +662,8 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             raise ValueError(f"Some magnitudes are not finite, {np.sum(~m)}.")
 
         calibration_params = {"mag": mag[mask], "eta": eta[mask],
-                              "e_mag": e_mag[mask], "e_eta": e_eta[mask]}
+                              "e_mag": e_mag[mask], "e_eta": e_eta[mask],
+                              "ebv": ebv[mask]}
 
         # Read the absolute calibration
         if absolute_calibration is not None:
@@ -693,7 +697,8 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             mag_selection, loader.rdist, loader._Omega_m, "TFR", name=kind,
             void_kwargs=void_kwargs,
             with_inhomogeneous_malmquist=with_inhomogeneous_malmquist,
-            wo_num_dist_marginalisation=wo_num_dist_marginalisation)
+            wo_num_dist_marginalisation=wo_num_dist_marginalisation,
+            dust_model=dust_model)
     elif kind in ["CF4_GroupAll"]:
         # Note, this for some reason works terribly.
         keys = ["RA", "DE", "Vcmb", "DMzp", "eDM"]
