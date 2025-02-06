@@ -349,6 +349,7 @@ if __name__ == "__main__":
     no_Vext = None
     sample_Vmono = False
     sample_mag_dipole = False
+    dust_model = None
     wo_num_dist_marginalisation = False
     absolute_calibration = None
     calculate_harmonic = (False if (inference_method == "bayes") else True) and (not wo_num_dist_marginalisation)  # noqa
@@ -506,6 +507,7 @@ if __name__ == "__main__":
         "zcmb_max": zcmb_max,
         "absolute_calibration": absolute_calibration,
         "calibration_fpath": "/mnt/extraspace/rstiskalek/catalogs/PV/CF4/CF4_TF_calibration.hdf5",  # noqa
+        "dust_model": dust_model,
         }
 
     # In case we want to run multiple simulations independently.
