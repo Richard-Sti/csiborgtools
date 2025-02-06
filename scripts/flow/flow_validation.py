@@ -350,7 +350,7 @@ if __name__ == "__main__":
     sample_Vmono = False
     sample_mag_dipole = False
     dust_model = None
-    Rdust_fixed = None
+    Rdust_fixed = None  # Default for W1 is 0.186 and for W2 = 0.123
     wo_num_dist_marginalisation = False
     absolute_calibration = None
     calculate_harmonic = (False if (inference_method == "bayes") else True) and (not wo_num_dist_marginalisation)  # noqa
