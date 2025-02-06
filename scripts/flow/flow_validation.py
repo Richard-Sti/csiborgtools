@@ -485,6 +485,7 @@ if __name__ == "__main__":
                                "void_size_min": void_size_min,
                                "void_size_max": void_size_max,
                                "rLG_min": 0.0, "rLG_max": 50,
+                               # TODO: Update this offset to negative values.
                                }
     print_variables(
         calibration_hyperparams.keys(), calibration_hyperparams.values())
