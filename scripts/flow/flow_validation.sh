@@ -37,7 +37,7 @@ else
 fi
 
 
-aux_str_name=""
+aux_str_name="dust_model"
 
 # for simname in "IndranilVoid_gauss"; do
 # for simname in "IndranilVoidSizeVar_exp"; do
@@ -53,7 +53,7 @@ for simname in "Carrick2015"; do
         # for ksim in {0..500}; do
             for ksmooth in 0; do
             # for ksmooth in $(seq 0 1 33); do
-                for aux_str_arg in ""; do
+                for aux_str_arg in "Planck2013"; do
                     pythoncm="$env $file --catalogue $catalogue --simname $simname --ksim $ksim --ksmooth $ksmooth --ndevice $ndevice --device $device --aux_str_name $aux_str_name --aux_str_arg $aux_str_arg"
 
                     if [ "$on_login" == "1" ]; then
