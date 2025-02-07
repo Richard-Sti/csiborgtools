@@ -57,11 +57,14 @@ def parse_args():
     parser.add_argument("--device", type=str, default="cpu",
                         help="Device to use.")
     parser.add_argument(
-        "--aux_str_name", type=str, default="",
-        help="Auxiliary string argument name to overwrite any choices.")
+        "--aux_name", type=str, default="",
+        help="Auxiliary argument name to overwrite any choices.")
     parser.add_argument(
-        "--aux_str_arg", type=str, default="",
-        help="Auxiliary string argument to overwrite any choices.")
+        "--aux_arg", type=str, default="",
+        help="Auxiliary argument to overwrite any choices.")
+    parser.add_argument(
+        "--aux_type", type=str, default="str", choices=["str", "int", "float"],
+        help="Auxiliary argument type to overwrite any choices.")
 
     args = parser.parse_args()
 
@@ -376,9 +379,16 @@ if __name__ == "__main__":
     sample_h = True if absolute_calibration is not None else False
     which_void_size_run = "zoom"
 
-    if ARGS.aux_str_name != "":
-        fprint(f"setting {ARGS.aux_str_name} to {ARGS.aux_str_arg}")
-        globals()[ARGS.aux_str_name] = ARGS.aux_str_arg
+    if ARGS.aux_name != "":
+        if ARGS.aux_type == "int":
+            ARGS.aux_arg = int(ARGS.aux_arg)
+        elif ARGS.aux_type == "float":
+            ARGS.aux_arg = float(ARGS.aux_arg)
+        elif ARGS.aux_type != "str":
+            raise ValueError(f"Unsupported auxiliary type: `{ARGS.aux_type}`.")
+
+        fprint(f"setting {ARGS.aux_name} to {ARGS.aux_arg}")
+        globals()[ARGS.aux_name] = ARGS.aux_arg
 
     # Overwrite if if not running a varying void size simulation.
     if "IndranilVoidSizeVar_" not in ARGS.simname:
