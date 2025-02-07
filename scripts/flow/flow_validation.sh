@@ -55,7 +55,7 @@ for simname in "Carrick2015"; do
             for ksmooth in 0; do
             # for ksmooth in $(seq 0 1 33); do
                 for aux_arg in "Planck2013"; do
-                    pythoncm="$env $file --catalogue $catalogue --simname $simname --ksim $ksim --ksmooth $ksmooth --ndevice $ndevice --device $device --aux_name $aux_name --aux_arg $aux_arg"
+                    pythoncm="$env $file --catalogue $catalogue --simname $simname --ksim $ksim --ksmooth $ksmooth --ndevice $ndevice --device $device --aux_name $aux_name --aux_arg $aux_arg --aux_type $aux_type"
 
                     if [ "$on_login" == "1" ]; then
                         echo $pythoncm
