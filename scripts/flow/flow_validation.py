@@ -55,6 +55,13 @@ def parse_args():
                         help="Number of devices to request.")
     parser.add_argument("--device", type=str, default="cpu",
                         help="Device to use.")
+    parser.add_argument(
+        "--aux_str_name", type=str, default="",
+        help="Auxiliary string argument name to overwrite any choices.")
+    parser.add_argument(
+        "--aux_str_arg", type=str, default="",
+        help="Auxiliary string argument to overwrite any choices.")
+
     args = parser.parse_args()
 
     # Convert the catalogue to a list of catalogues
@@ -313,6 +320,12 @@ def get_toy_selection(catalogue):
         mag_coeffs = [10.921, 13.471, -0.118]
         eta_kind = "lower_hard"
         eta_coeffs = [-0.3, None]
+    elif "CF4_TFR" in catalogue and "w2" in catalogue:
+        raise RuntimeError("Need to calculate W2 coefficients.")
+        # mag_kind = "soft"
+        # mag_coeffs = [10.921, 13.471, -0.118]
+        # eta_kind = "lower_hard"
+        # eta_coeffs = [-0.3, None]
     elif catalogue == "2MTF":
         mag_kind = "hard"
         mag_coeffs = 11.25
@@ -361,6 +374,10 @@ if __name__ == "__main__":
     calculate_harmonic = (False if (inference_method == "bayes") else True) and (not wo_num_dist_marginalisation)  # noqa
     sample_h = True if absolute_calibration is not None else False
     which_void_size_run = "zoom"
+
+    if ARGS.aux_str_name != "":
+        fprint(f"setting {ARGS.aux_str_name} to {ARGS.aux_str_arg}")
+        globals()[ARGS.aux_str_name] = ARGS.aux_str_arg
 
     # Overwrite if if not running a varying void size simulation.
     if "IndranilVoidSizeVar_" not in ARGS.simname:
