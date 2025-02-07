@@ -49,8 +49,9 @@ def parse_args():
                         help="PV catalogues.")
     parser.add_argument("--ksmooth", type=int, default=0,
                         help="Smoothing index.")
-    parser.add_argument("--ksim", type=none_or_int, default=None,
-                        help="IC iteration number. If 'None', all IC realizations are used.")  # noqa
+    parser.add_argument(
+        "--ksim", type=none_or_int, default=None,
+        help="IC iteration number. If 'None', all IC realizations are used.")
     parser.add_argument("--ndevice", type=int, default=1,
                         help="Number of devices to request.")
     parser.add_argument("--device", type=str, default="cpu",
