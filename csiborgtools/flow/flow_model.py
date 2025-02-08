@@ -412,7 +412,9 @@ def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
         a = sample(f"aTFR_{name}", Normal(a_mean, a_std))
 
     if sample_a_dipole:
-        ax, ay, az = sample(f"a_dipole_{name}", Normal(a_dipole_mean, a_dipole_std).expand([3]))  # noqa
+        with plate(f"plate_a_dipole_{name}", 3):
+            ax, ay, az = sample(
+                f"a_dipole_{name}", Normal(a_dipole_mean, a_dipole_std))
     else:
         ax, ay, az = 0.0, 0.0, 0.0
 
