@@ -18,7 +18,7 @@ imports.
 """
 from numba import jit
 import numpy as np
-import healpy
+import healpy as hp
 
 
 def force_single_precision(x):
@@ -46,8 +46,8 @@ def nside2radec(nside):
     Generate RA [0, 360] deg and declination [-90, 90] deg for HEALPix pixel
     centres at a given nside.
     """
-    pixs = np.arange(healpy.nside2npix(nside))
-    theta, phi = healpy.pix2ang(nside, pixs)
+    pixs = np.arange(hp.nside2npix(nside))
+    theta, phi = hp.pix2ang(nside, pixs)
 
     ra = 180 / np.pi * phi
     dec = 90 - 180 / np.pi * theta
