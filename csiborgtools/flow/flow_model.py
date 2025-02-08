@@ -822,8 +822,8 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                 factor(f"ll_SN_MNR_std_{self.name}",
                        - jnp.log(mag_std) - jnp.log(x1_std) - jnp.log(c_std))
 
-                # NOTE: that the true variables are currently uncorrelated.
                 with plate(f"true_SN_{self.name}", self.ndata):
+                    # TODO: Add the correlation coefficient of the variables.
                     mag_true = sample(
                         f"mag_true_{self.name}", Normal(mag_mean, mag_std))
                     x1_true = sample(
