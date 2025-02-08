@@ -29,11 +29,11 @@ from astropy.cosmology import FlatLambdaCDM, z_at_value
 from interpax import interp1d
 from jax import jit
 from jax import numpy as jnp
-from jax.debug import print as jprint                                           # noqa
 from jax import vmap
 from jax.scipy.special import erf, erfc, logsumexp
 from numpyro import deterministic, factor, plate, sample
-from numpyro.distributions import MultivariateNormal, Normal, Uniform
+from numpyro.distributions import (Categorical, MultivariateNormal, Normal,
+                                   Uniform)
 from quadax import simpson
 from tqdm import trange
 
@@ -393,8 +393,8 @@ def e2_distmod_TFR(e2_mag, e2_eta, eta, b, c, e_mu_intrinsic):
 def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
                c_mean, c_std, alpha_min, alpha_max, sample_alpha,
                a_dipole_mean, a_dipole_std, sample_a_dipole,
-               sample_curvature, sample_dust, Rdust_min, Rdust_max,
-               Rdust_fixed, h, name):
+               sample_curvature, h, sample_dust, Rdust_min, Rdust_max,
+               Rdust_fixed, num_dust_models, name):
     """Sample Tully-Fisher calibration parameters."""
     e_mu = sample(f"e_mu_{name}", Uniform(e_mu_min, e_mu_max))
     factor(f"ll_e_mu_{name}", -jnp.log(e_mu))
@@ -424,9 +424,10 @@ def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
 
     if sample_dust:
         if Rdust_fixed is None:
-            R = sample(f"Rdust_{name}", Uniform(Rdust_min, Rdust_max))
+            with plate(f"plate_Rdust_{name}", num_dust_models):
+                R = sample(f"Rdust_{name}", Uniform(Rdust_min, Rdust_max))
         else:
-            R = Rdust_fixed
+            R = jnp.ones(num_dust_models) * Rdust_fixed
     else:
         R = None
 
@@ -872,7 +873,8 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             c = distmod_params["c"]
 
             if self.dust_model is not None:
-                Ab = distmod_params["R"] * self.ebv
+                k_dust = field_calibration_params["k_dust"]
+                Ab = distmod_params["R"][k_dust] * self.ebv[k_dust]
             else:
                 Ab = 0
 
@@ -1188,14 +1190,28 @@ def PV_validation_model(models, distmod_hyperparams_per_model,
         **field_calibration_hyperparams)
     h = field_calibration_params["h"]
 
+    # Sample the dust map index.
+    if field_calibration_hyperparams["sample_dust"]:
+        n = field_calibration_hyperparams["num_dust_maps"]
+        if n > 1:
+            k_dust = sample("dust_map_choice", Categorical(jnp.ones(n) / n))
+        else:
+            k_dust = 0
+    else:
+        k_dust = None
+
+    field_calibration_params["k_dust"] = k_dust
+
     for n in range(len(models)):
         model = models[n]
         name = model.name
         distmod_hyperparams = distmod_hyperparams_per_model[n]
 
         if model.kind == "TFR":
-            distmod_params = sample_TFR(**distmod_hyperparams, h=h,
-                                        name=name)
+            distmod_params = sample_TFR(
+                **distmod_hyperparams, h=h,
+                num_dust_models=field_calibration_params["num_dust_maps"],
+                name=name)
         elif model.kind == "SN":
             # TODO: Add the `h` here.
             distmod_params = sample_SN(**distmod_hyperparams, name=name)
