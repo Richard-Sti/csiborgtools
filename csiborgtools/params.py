@@ -142,8 +142,8 @@ def simname2icresolution(simname):
          "borg2": 676.6 / 256,
          "borg2_all": 676.6 / 256,
          "Carrick2015": 400. / 256,
-         "CF4": 1000. / 128,  # These need to be checked with Helene Courtois.
-         "CF4gp": 1000. / 128,
+         "CF4": 1000. / 256,  # These need to be checked with Helene Courtois.
+         "CF4gp": 1000. / 256,
          "Lilow2024": 400. / 128,
          "CLONES": 500. / 128,
          }
