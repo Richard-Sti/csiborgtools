@@ -197,7 +197,9 @@ def model():
 
         # Add the log-likelihoods and integrate over the distance
         ll = log_prob_dist + log_prob_redshift
-        factor("ll", jnp.log(simpson(jnp.exp(ll), axis=-1)))
+        # TODO: changed the line from this, Will this fix it?
+        # factor("ll", jnp.log(simpson(jnp.exp(ll), axis=-1)))
+        factor("ll", jnp.log(simpson(jnp.exp(ll), x=d_range, axis=-1)))
     else:
         with plate("plate_log_d", ngal):
             log_d_FP_true = sample(
