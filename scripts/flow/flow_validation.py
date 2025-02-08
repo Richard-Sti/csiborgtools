@@ -282,7 +282,6 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole,
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
                 "sample_alpha": sample_alpha,
                 "sample_curvature": False if "Carrick2MTFmock" in catalogue else True,  # noqa
-                "sample_dust": dust_model is not None,
                 "Rdust_min": 0,
                 "Rdust_max": 1.0,
                 "Rdust_fixed": Rdust_fixed,
@@ -508,6 +507,8 @@ if __name__ == "__main__":
             "The number of steps must be divisible by the number of chains.")
 
     Vext_i_lim = 1000
+    num_dust_maps = len(dust_model.split(",")) if dust_model is not None else 0
+    sample_void_size = "IndranilVoidSizeVar" in ARGS.simname
     calibration_hyperparams = {"Vext_i_min": -Vext_i_lim,
                                "Vext_i_max": Vext_i_lim,
                                "Vmono_min": -1000, "Vmono_max": 1000,
@@ -518,12 +519,14 @@ if __name__ == "__main__":
                                "sample_Vmono": sample_Vmono,
                                "sample_beta": sample_beta,
                                "sample_h": sample_h,
-                               "sample_h_e_int": sample_h_e_int,  # noqa
+                               "sample_h_e_int": sample_h_e_int,
                                "sample_rLG": "IndranilVoid" in ARGS.simname,
-                               "sample_void_size": "IndranilVoidSizeVar" in ARGS.simname,  # noqa
+                               "sample_void_size": sample_void_size,
                                "void_size_min": void_size_min,
                                "void_size_max": void_size_max,
                                "rLG_min": -50, "rLG_max": 50,
+                               "sample_dust": dust_model is not None,
+                               "num_dust_maps": num_dust_maps,
                                }
     print_variables(
         calibration_hyperparams.keys(), calibration_hyperparams.values())
