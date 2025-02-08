@@ -338,11 +338,11 @@ class PotentialField(BaseField):
         Parameters
         ----------
         overdensity_field : 3-dimensional array of shape `(grid, grid, grid)`
-            The overdensity field.
+            Overdensity field.
         omega_m : float
-            TODO
+            Matter density parameter.
         aexp : float
-            TODO
+            Simulation scale factor.
 
         Returns
         -------
