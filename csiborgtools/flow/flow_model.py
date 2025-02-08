@@ -54,12 +54,15 @@ ARCSEC2RAD = 4.84813681109536e-06
 #                       Various flow utilities                                #
 ###############################################################################
 
-def project_Vext(Vext_x, Vext_y, Vext_z, RA_radians, dec_radians):
-    """Project the external velocity vector onto the line of sight."""
+def project_vector(Vx, Vy, Vz, RA_radians, dec_radians):
+    """
+    Project a vector along a line of sight specified by `RA_radians` and
+    `dec_radians`.
+    """
     cos_dec = jnp.cos(dec_radians)
-    return (Vext_x * jnp.cos(RA_radians) * cos_dec
-            + Vext_y * jnp.sin(RA_radians) * cos_dec
-            + Vext_z * jnp.sin(dec_radians))
+    return (+ Vx * jnp.cos(RA_radians) * cos_dec
+            + Vy * jnp.sin(RA_radians) * cos_dec
+            + Vz * jnp.sin(dec_radians))
 
 
 def predict_zobs(dist, beta, Vext_radial, vpec_radial, Omega_m):
@@ -793,7 +796,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
 
         Vext = field_calibration_params["Vext"]
         Vmono = field_calibration_params["Vmono"]
-        Vext_rad = project_Vext(Vext[0], Vext[1], Vext[2], self.RA, self.dec)
+        Vext_rad = project_vector(Vext[0], Vext[1], Vext[2], self.RA, self.dec)
 
         e_mu = distmod_params["e_mu"]
 
@@ -880,7 +883,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
 
             if distmod_params["sample_a_dipole"]:
                 ax, ay, az = (distmod_params[k] for k in ["ax", "ay", "az"])
-                a = a + project_Vext(ax, ay, az, self.RA, self.dec)
+                a = a + project_vector(ax, ay, az, self.RA, self.dec)
 
             if inference_method == "bayes":
                 # Sample the true TFR parameters.
@@ -969,7 +972,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             if distmod_params["sample_dmu_dipole"]:
                 dmux, dmuy, dmuz = (
                     distmod_params[k] for k in ["dmux", "dmuy", "dmuz"])
-                dmu = dmu + project_Vext(dmux, dmuy, dmuz, self.RA, self.dec)
+                dmu = dmu + project_vector(dmux, dmuy, dmuz, self.RA, self.dec)
 
             if inference_method == "bayes":
                 raise NotImplementedError("Bayes for simple not implemented.")
@@ -1378,7 +1381,7 @@ class Observed2CosmologicalRedshift(BaseObserved2CosmologicalRedshift):
             Posterior PDF.
         """
         Vext = self.get_calibration_samples("Vext")
-        Vext_radial = project_Vext(*[Vext[:, i] for i in range(3)], RA, dec)
+        Vext_radial = project_vector(*[Vext[:, i] for i in range(3)], RA, dec)
 
         alpha = self.get_calibration_samples("alpha")
         beta = self.get_calibration_samples("beta")
