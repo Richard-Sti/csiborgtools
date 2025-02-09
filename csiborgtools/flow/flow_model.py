@@ -1139,15 +1139,14 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             else:
                 ll = 0.
 
-            # Calculate z_obs at the true distance. Shape: (nsims, ndata)
+            # Calculate z_obs at the true distance, `(nsims, ndata)``
             vrad = field_calibration_params["beta"] * los_velocity
             vrad += (Vext_rad[None, :] + Vmono)
             zobs = 1 + z_true[None, :]
             zobs *= 1 + vrad / SPEED_OF_LIGHT
             zobs -= 1.
 
-            # Log-likelihood of observed redshifts. Shape remains
-            # `(nsims, ndata)`
+            # Log-likelihood of observed redshifts, `(nsims, ndata)`
             ll += log_likelihood_zobs(
                 self.z_obs[None, :], zobs, e2_cz[None, :])
 
