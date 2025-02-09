@@ -30,15 +30,15 @@ elif [ "$queue" == "cmbgpu" ]
 then
     device="gpu"
     gputype="rtx3090with24gb"
-    env="/mnt/users/rstiskalek/csiborgtools/venv_gpu_csiborgtools/bin/python"
+env="/mnt/users/rstiskalek/csiborgtools/venv_gpu_csiborgtools/bin/python"
 else
     device="cpu"
     env="/mnt/users/rstiskalek/csiborgtools/venv_csiborg/bin/python"
 fi
 
 
-aux_name="dust_model"
-aux_type="string"
+aux_name="none"
+aux_type="str"
 
 # for simname in "IndranilVoid_gauss"; do
 # for simname in "IndranilVoidSizeVar_exp"; do
