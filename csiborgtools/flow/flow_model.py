@@ -561,7 +561,7 @@ def sample_calibration(Vext_i_min, Vext_i_max, Vmono_min, Vmono_max,
                        beta_min, beta_max, sigma_v_min, sigma_v_max, h_min,
                        h_max, rLG_min, rLG_max, no_Vext, sample_Vmono,
                        sample_beta, sample_h, sample_rLG, sample_void_size,
-                       void_size_min, void_size_max, sample_h_e_int):
+                       void_size_min, void_size_max, sample_h_e_int, **kwargs):
     """Sample the flow calibration."""
     sigma_v = sample("sigma_v", Uniform(sigma_v_min, sigma_v_max))
     factor("ll_sigma_v", -jnp.log(sigma_v))
@@ -999,7 +999,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                     "Sampling of 'h' is not supported if numerically "
                     "marginalising the true distance.")
 
-            # Calculate p(r) (Malmquist bias). Shape is (ndata, nxrange)
+            # Calculate p(r) (Malmquist bias), `(ndata, nxrange)`
             if self.with_homogeneous_malmquist:
                 log_ptilde = log_ptilde_wo_bias(
                     self.mu_xrange[None, :], mu[:, None], e2_mu[:, None],
@@ -1195,6 +1195,8 @@ def PV_validation_model(models, distmod_hyperparams_per_model,
     if field_calibration_hyperparams["sample_dust"]:
         n = field_calibration_hyperparams["num_dust_maps"]
         if n > 1:
+            raise RuntimeError("Only one dust map supported, this code should "
+                               "not be reached.")
             k_dust = sample("dust_map_choice", Categorical(jnp.ones(n) / n))
         else:
             k_dust = 0
@@ -1211,7 +1213,8 @@ def PV_validation_model(models, distmod_hyperparams_per_model,
         if model.kind == "TFR":
             distmod_params = sample_TFR(
                 **distmod_hyperparams, h=h,
-                num_dust_models=field_calibration_params["num_dust_maps"],
+                num_dust_models=field_calibration_hyperparams["num_dust_maps"],
+                sample_dust=field_calibration_hyperparams["sample_dust"],
                 name=name)
         elif model.kind == "SN":
             # TODO: Add the `h` here.
