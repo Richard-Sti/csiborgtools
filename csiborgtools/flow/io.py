@@ -642,6 +642,13 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             fprint(f"adding the following dust models: `{dust_model}`.")
             ebv = np.full((len(dust_model), len(mag)), np.nan)
 
+            if len(dust_model) > 1:
+                raise RuntimeError(
+                    "Multiple dust models are not supported. NumPyro raises "
+                    "error when sampling a discrete variable, the "
+                    "log-likelihood will need to be rewritten to numerically "
+                    "marginalise instead.")
+
             for i, dust_model_i in enumerate(dust_model):
                 if dust_model_i == "default":
                     ebv[i] = Ab_default / (0.186 if band == "w1" else 0.123)
@@ -677,7 +684,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
 
         calibration_params = {"mag": mag[mask], "eta": eta[mask],
                               "e_mag": e_mag[mask], "e_eta": e_eta[mask],
-                              "ebv": ebv[mask]}
+                              "ebv": ebv[..., mask]}
 
         # Read the absolute calibration
         if absolute_calibration is not None:
