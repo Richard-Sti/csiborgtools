@@ -180,7 +180,7 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
         raise AttributeError("The models must have an attribute `ndata` "
                              "indicating the number of data points.") from e
 
-    nuts_kernel = NUTS(model, init_strategy=init_to_median(num_samples=1000),)
+    nuts_kernel = NUTS(model, init_strategy=init_to_median(num_samples=500),)
     mcmc = MCMC(nuts_kernel, num_warmup=nburn, num_samples=nsteps)
     rng_key = jax.random.PRNGKey(42)
 
@@ -275,7 +275,7 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole,
                 "a_mean": -22.0, "a_std": 5.0,
                 "b_mean": -7.0, "b_std": 4.0,
                 "c_mean": 0., "c_std": 20.0,
-                "a_dipole_mean": 0., "a_dipole_std": 1.0,
+                "a_dipole_mag_min": 0.0, "a_dipole_mag_max": 0.25,
                 "sample_a_dipole": sample_mag_dipole,
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
                 "sample_alpha": sample_alpha,
@@ -354,8 +354,8 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 1500
-    nburn = 1500
+    nsteps = 1_500
+    nburn = 2_500
     zcmb_min = None
     zcmb_max = 0.05
     nchains_harmonic = 10
@@ -367,7 +367,7 @@ if __name__ == "__main__":
     sample_h_e_int = False
     no_Vext = None
     sample_Vmono = False
-    sample_mag_dipole = False
+    sample_mag_dipole = True
     dust_model = None
     Rdust_fixed = None  # Default for W1 is 0.186 and for W2 = 0.123
     wo_num_dist_marginalisation = False
@@ -376,7 +376,7 @@ if __name__ == "__main__":
     sample_h = True if absolute_calibration is not None else False
     which_void_size_run = "zoom"
 
-    if ARGS.aux_name != "":
+    if ARGS.aux_name != "none":
         if ARGS.aux_type == "int":
             ARGS.aux_arg = int(ARGS.aux_arg)
         elif ARGS.aux_type == "float":
@@ -504,12 +504,12 @@ if __name__ == "__main__":
         raise ValueError(
             "The number of steps must be divisible by the number of chains.")
 
-    Vext_i_lim = 1000
     num_dust_maps = len(dust_model.split(",")) if dust_model is not None else 0
     sample_void_size = "IndranilVoidSizeVar" in ARGS.simname
-    calibration_hyperparams = {"Vext_i_min": -Vext_i_lim,
-                               "Vext_i_max": Vext_i_lim,
+    calibration_hyperparams = {"Vext_mag_min": 0,
+                               "Vext_mag_max": 2000,
                                "Vmono_min": -1000, "Vmono_max": 1000,
+                               "e_mu_h_min": 0.001, "e_mu_h_max": 1.0,
                                "beta_min": -10.0, "beta_max": 10.0,
                                "sigma_v_min": 10., "sigma_v_max": 750.,
                                "h_min": 0.25, "h_max": 5.,
