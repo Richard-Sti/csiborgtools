@@ -313,20 +313,19 @@ def get_toy_selection(catalogue):
         eta_kind = None
     elif "CF4_TFR" in catalogue and "_i" in catalogue:
         mag_kind = "soft"
-        mag_coeffs = [12.010, 13.879, -0.158]
+        mag_coeffs = [12.243, 13.898, -0.173]
         eta_coeffs = [-0.3, None]
         eta_kind = "lower_hard"
     elif "CF4_TFR" in catalogue and "w1" in catalogue:
         mag_kind = "soft"
-        mag_coeffs = [10.921, 13.471, -0.118]
+        mag_coeffs = [11.206, 13.203, -0.152]
         eta_kind = "lower_hard"
         eta_coeffs = [-0.3, None]
     elif "CF4_TFR" in catalogue and "w2" in catalogue:
-        raise RuntimeError("Need to calculate W2 coefficients.")
-        # mag_kind = "soft"
-        # mag_coeffs = [10.921, 13.471, -0.118]
-        # eta_kind = "lower_hard"
-        # eta_coeffs = [-0.3, None]
+        mag_kind = "soft"
+        mag_coeffs = [11.752, 13.772, -0.150]
+        eta_kind = "lower_hard"
+        eta_coeffs = [-0.3, None]
     elif catalogue == "2MTF":
         mag_kind = "hard"
         mag_coeffs = 11.25
@@ -355,7 +354,7 @@ if __name__ == "__main__":
 
     # `None` means default behaviour
     nsteps = 1_500
-    nburn = 10_000
+    nburn = 5_000
     zcmb_min = None
     zcmb_max = 0.05
     nchains_harmonic = 10
