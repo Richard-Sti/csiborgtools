@@ -256,8 +256,9 @@ class BaseFlowValidationModel(ABC):
         rLG_grid = jnp.asarray(rLG_grid, dtype=jnp.float32)
 
         rLG_min, rLG_max = rLG_grid.min(), rLG_grid.max()
-        rgrid_min, rgrid_max = 0, 250
-        fprint(f"setting the observer radial grid from {rLG_min} to {rLG_max} Mpc.")  # noqa
+        fprint(f"setting the R_offset grid from {rLG_min} to {rLG_max} Mpc, though allowing for negative values.")  # noqa
+        rgrid_min, rgrid_max = 0, void_grid.shape[-1] - 1
+        fprint(f"setting the radial grid from {rgrid_min} to {rgrid_max} Mpc.")
 
         # Get angular separation of each object from the model axis.
         phi = angular_distance_from_void_axis(RA, dec)
