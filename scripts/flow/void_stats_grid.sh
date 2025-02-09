@@ -13,8 +13,7 @@ then
 fi
 
 
-for profile in "exp"; do
-
+for profile in "exp" "gauss"; do
     pythoncm="$env $file $profile"
     if [ $on_login -eq 1 ]; then
         echo $pythoncm

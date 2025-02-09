@@ -29,7 +29,7 @@ def main(profile):
     print(f"Calculating void stats for profile `{profile}`.")
 
     ngrid = 64
-    fname_out = f"/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/SizeVariation_new/void_stats_{profile}.hdf5"  # noqa
+    fname_out = f"/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/SizeVariation_newDecember/void_stats_{profile}.hdf5"  # noqa
 
     # Load the data
     sizes, rLG, vx = load_void_size_variation(profile, "vx")
@@ -38,7 +38,7 @@ def main(profile):
     sizes, rLG, rho = load_void_size_variation(profile, "density")
 
     # The void grids
-    r_grid = np.arange(0, 251).astype(np.float32)
+    r_grid = np.arange(0, 401).astype(np.float32)
     phi_grid = np.arange(0, 181).astype(np.float32)
     # Compute over 100 steps
     r = np.linspace(0, r_grid.max(), 100)
