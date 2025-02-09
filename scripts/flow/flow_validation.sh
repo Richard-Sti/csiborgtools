@@ -42,7 +42,8 @@ aux_type="str"
 
 # for simname in "IndranilVoid_gauss"; do
 # for simname in "IndranilVoidSizeVar_exp"; do
-for simname in "Carrick2015"; do
+for simname in "manticore_2MPP_MULTIBIN_N256_DES_V2"; do
+# for simname in "Carrick2015"; do
 # for simname in "Carrick2015" "Lilow2024" "csiborg1" "csiborg2_main" "CF4" "CLONES"; do
 # for simname in "manticore_2MPP_MULTIBIN_N128_DES_V1"; do
     # for catalogue in "LOSS" "Foundation" "2MTF" "SFI_gals" "CF4_TFR_i" "CF4_TFR_w1"; do
