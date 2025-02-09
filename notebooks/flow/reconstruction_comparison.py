@@ -290,8 +290,17 @@ def get_some_samples(fname, labels):
         for label in labels:
             if "Vext" in label:
                 continue
+
             for key in grp.keys():
-                if label in key:
+                if "aTFR_dipole" in key and label in key:
+                    if "skipZ" not in key:
+                        adip = grp[key][...]
+                        samples[f"{key}_mag"] = np.linalg.norm(adip, axis=1)
+                        a_dipole = csiborgtools.cartesian_to_radec(adip)
+                        ldir, bdir = csiborgtools.radec_to_galactic(
+                            a_dipole[:, 1], a_dipole[:, 2])
+                        samples[f"{key}_l"], samples[f"{key}_b"] = ldir, bdir
+                elif label in key:
                     x = grp[key][...]
                     if x.ndim > 1:
                         raise ValueError("All samples must be 1D arrays.")
