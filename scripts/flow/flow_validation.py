@@ -366,7 +366,7 @@ if __name__ == "__main__":
     sample_h_e_int = False
     no_Vext = None
     sample_Vmono = False
-    sample_mag_dipole = True
+    sample_mag_dipole = False
     dust_model = None
     Rdust_fixed = None  # Default for W1 is 0.186 and for W2 = 0.123
     wo_num_dist_marginalisation = False
@@ -460,8 +460,8 @@ if __name__ == "__main__":
         profile = ARGS.simname.split("_")[-1]
 
         # This is the radial distance over which to intergrate along the LOS.
-        # 165 Mpc / h should be sufficient
-        rdist = np.arange(0, 165, 0.5)
+        # 250 Mpc / h should be sufficient
+        rdist = np.arange(0, 250, 0.5)
 
         # Create the interpolator of void size to void Hubble parameter
         void_size, h_void = csiborgtools.flow.select_void_h(
