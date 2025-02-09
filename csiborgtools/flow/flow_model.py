@@ -33,7 +33,10 @@ from jax import vmap
 from jax.scipy.special import erf, erfc, logsumexp
 from numpyro import deterministic, factor, plate, sample
 from numpyro.distributions import (Categorical, MultivariateNormal, Normal,
-                                   Uniform)
+                                   Uniform, ProjectedNormal)
+from numpyro.infer.reparam import ProjectedNormalReparam
+from jax.lax import cond
+from numpyro.handlers import reparam
 from quadax import simpson
 from tqdm import trange
 
@@ -63,6 +66,27 @@ def project_vector(Vx, Vy, Vz, RA_radians, dec_radians):
     return (+ Vx * jnp.cos(RA_radians) * cos_dec
             + Vy * jnp.sin(RA_radians) * cos_dec
             + Vz * jnp.sin(dec_radians))
+
+
+def sample_vector(name, mag_min, mag_max):
+    """Sample a 3D vector uniformly in magnitude and direction."""
+    with reparam(config={f"xdir_{name}_skipZ": ProjectedNormalReparam()}):
+        xdir = sample(f"xdir_{name}_skipZ",  ProjectedNormal(jnp.zeros(3)))
+
+    cos_theta = deterministic(f"{name}_cos_theta_skipZ", xdir[2])
+    sin_theta = jnp.sqrt(1 - cos_theta**2)
+
+    phi = jnp.arctan2(xdir[1], xdir[0])
+    phi = cond(phi < 0, lambda x: x + 2 * jnp.pi, lambda x: x, phi)
+    phi = deterministic(f"{name}_phi_skipZ", phi)
+
+    mag = sample(f"{name}_mag_skipZ", Uniform(mag_min, mag_max))
+
+    vec = mag * jnp.array([sin_theta * jnp.cos(phi),
+                           sin_theta * jnp.sin(phi),
+                           cos_theta])
+    deterministic(name, vec)
+    return vec
 
 
 def predict_zobs(dist, beta, Vext_radial, vpec_radial, Omega_m):
@@ -395,7 +419,7 @@ def e2_distmod_TFR(e2_mag, e2_eta, eta, b, c, e_mu_intrinsic):
 
 def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
                c_mean, c_std, alpha_min, alpha_max, sample_alpha,
-               a_dipole_mean, a_dipole_std, sample_a_dipole,
+               a_dipole_mag_min, a_dipole_mag_max, sample_a_dipole,
                sample_curvature, h, sample_dust, Rdust_min, Rdust_max,
                Rdust_fixed, num_dust_models, name):
     """Sample Tully-Fisher calibration parameters."""
@@ -412,11 +436,10 @@ def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
         a = sample(f"aTFR_{name}", Normal(a_mean, a_std))
 
     if sample_a_dipole:
-        with plate(f"plate_a_dipole_{name}", 3):
-            ax, ay, az = sample(
-                f"a_dipole_{name}", Normal(a_dipole_mean, a_dipole_std))
+        a_dipole = sample_vector(
+            f"aTFR_dipole_{name}", a_dipole_mag_min, a_dipole_mag_max)
     else:
-        ax, ay, az = 0.0, 0.0, 0.0
+        a_dipole = jnp.zeros(3)
 
     b = sample(f"bTFR_{name}", Normal(b_mean, b_std))
 
@@ -438,10 +461,10 @@ def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
 
     return {"e_mu": e_mu,
             "a": a,
-            "ax": ax, "ay": ay, "az": az,
             "b": b,
             "c": c,
             "alpha": alpha,
+            "a_dipole": a_dipole,
             "sample_a_dipole": sample_a_dipole,
             "R": R,
             }
@@ -557,8 +580,9 @@ def sample_simple(e_mu_min, e_mu_max, dmu_min, dmu_max, alpha_min, alpha_max,
 ###############################################################################
 
 
-def sample_calibration(Vext_i_min, Vext_i_max, Vmono_min, Vmono_max,
-                       beta_min, beta_max, sigma_v_min, sigma_v_max, h_min,
+def sample_calibration(Vext_mag_min, Vext_mag_max, Vmono_min, Vmono_max,
+                       beta_min, beta_max, sigma_v_min, sigma_v_max,
+                       e_mu_h_min, e_mu_h_max, h_min,
                        h_max, rLG_min, rLG_max, no_Vext, sample_Vmono,
                        sample_beta, sample_h, sample_rLG, sample_void_size,
                        void_size_min, void_size_max, sample_h_e_int, **kwargs):
@@ -574,9 +598,7 @@ def sample_calibration(Vext_i_min, Vext_i_max, Vmono_min, Vmono_max,
     if no_Vext:
         Vext = jnp.zeros(3)
     else:
-        with plate("Vext_plate", 3):
-            Vext = sample("Vext", Uniform(Vext_i_min, Vext_i_max))
-        factor("Vext_ll", -jnp.log(jnp.sum(Vext**2)))
+        Vext = sample_vector("Vext", Vext_mag_min, Vext_mag_max)
 
     if sample_Vmono:
         Vmono = sample("Vmono", Uniform(Vmono_min, Vmono_max))
@@ -587,7 +609,7 @@ def sample_calibration(Vext_i_min, Vext_i_max, Vmono_min, Vmono_max,
         h = sample("hubble", Uniform(h_min, h_max))
 
         if sample_h_e_int:
-            e_mu_h = sample("e_mu_h", Uniform(0.001, 1.0))
+            e_mu_h = sample("e_mu_h", Uniform(e_mu_h_min, e_mu_h_max))
             factor("ll_e_mu_h", -jnp.log(e_mu_h))
         else:
             e_mu_h = 0.
@@ -878,14 +900,16 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             c = distmod_params["c"]
 
             if self.dust_model is not None:
+                # NOTE that this sampling of a discrete variable will not work
+                # with multiple dust maps.
                 k_dust = field_calibration_params["k_dust"]
                 Ab = distmod_params["R"][k_dust] * self.ebv[k_dust]
             else:
                 Ab = 0
 
             if distmod_params["sample_a_dipole"]:
-                ax, ay, az = (distmod_params[k] for k in ["ax", "ay", "az"])
-                a = a + project_vector(ax, ay, az, self.RA, self.dec)
+                a += project_vector(
+                    *distmod_params["a_dipole"], self.RA, self.dec)
 
             if inference_method == "bayes":
                 # Sample the true TFR parameters.
