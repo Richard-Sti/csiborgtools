@@ -53,7 +53,7 @@ def angular_distance_from_void_axis(RA, dec):
 
 def select_void_h(void_size_percent, profile, fname=None, return_all=False):
     if fname is None:
-        fname = "/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/SizeVariation_new/H0_of_voids.dat"  # noqa
+        fname = "/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/SizeVariation_newDecember/H0_of_voids.dat"  # noqa
 
     profiles = ["mb", "gauss", "exp"]
 
@@ -115,7 +115,7 @@ def load_void_fiducial(profile, kind, size_indx=None, try_load_from_hdf5=True,
         raise ValueError(
             "`kind` must be one of 'density', 'vrad', 'vx', 'vy'.")
 
-    fdir_base = "/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/SizeVariation_new"  # noqa
+    fdir_base = "/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/SizeVariation_newDecember"  # noqa
 
     if size_indx is None:
         size_indx = 100
@@ -227,7 +227,7 @@ def load_void_size_variation(profile, kind, which_run="all",
         raise ValueError("`kind` must be one of 'density', 'vrad'")
 
 
-    base_dir = "/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/SizeVariation_new"  # noqa
+    base_dir = "/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/SizeVariation_newDecember"  # noqa
     fname_scratch = join(base_dir, f"processed_{profile}_{kind}.hdf5")
 
     if try_load_from_hdf5 and exists(fname_scratch):
