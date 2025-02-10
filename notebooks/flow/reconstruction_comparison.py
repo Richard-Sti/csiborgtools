@@ -100,6 +100,9 @@ def names_to_latex(names, for_corner=False):
         if "CF4_TFR_w2" in name:
             names[i] = names[i].replace("CF4_TFR_w2", "CF4,W2")
 
+        if "CF4_TFR_notSDSS_w1" in name:
+            names[i] = names[i].replace("CF4_TFR_notSDSS_w1", "CF4,W1")
+
     for cat in ["2MTF", "SFI", "CF4,i", "CF4,W2", "CF4,W1"]:
         ltx[f"aTFR_{cat}"] = f"a_{{\\rm TFR}}^{{\\rm {cat}}}"
         ltx[f"bTFR_{cat}"] = f"b_{{\\rm TFR}}^{{\\rm {cat}}}"
