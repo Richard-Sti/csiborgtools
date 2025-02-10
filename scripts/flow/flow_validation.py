@@ -356,8 +356,8 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 1500
-    nburn = 10_000
+    nsteps = 10_000
+    nburn = 1500
     zcmb_min = None
     zcmb_max = 0.05
     nchains_harmonic = 10
@@ -374,8 +374,6 @@ if __name__ == "__main__":
     Rdust_fixed = None  # Default for W1 is 0.186 and for W2 = 0.123
     wo_num_dist_marginalisation = False
     absolute_calibration = None
-    calculate_harmonic = (False if (inference_method == "bayes") else True) and (not wo_num_dist_marginalisation)  # noqa
-    sample_h = True if absolute_calibration is not None else False
     which_void_size_run = "zoom"
 
     if ARGS.aux_name != "none":
@@ -386,8 +384,11 @@ if __name__ == "__main__":
         elif ARGS.aux_type != "str":
             raise ValueError(f"Unsupported auxiliary type: `{ARGS.aux_type}`.")
 
-        fprint(f"setting {ARGS.aux_name} to {ARGS.aux_arg}")
+        fprint(f"setting `{ARGS.aux_name}` to `{ARGS.aux_arg}`.")
         globals()[ARGS.aux_name] = ARGS.aux_arg
+
+    calculate_harmonic = (False if (inference_method == "bayes") else True) and (not wo_num_dist_marginalisation)  # noqa
+    sample_h = True if absolute_calibration is not None else False
 
     # Overwrite if if not running a varying void size simulation.
     if "IndranilVoidSizeVar_" not in ARGS.simname:
