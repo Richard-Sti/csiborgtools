@@ -1,6 +1,6 @@
 nthreads=1
 on_login=${1}
-memory=12
+memory=18
 queue="berg"
 env="/mnt/zfsusers/rstiskalek/csiborgtools/venv_csiborg/bin/python"
 file="void_stats_grid.py"
@@ -13,7 +13,7 @@ then
 fi
 
 
-for profile in "exp" "gauss"; do
+for profile in "exp" "gauss" "mb"; do
     pythoncm="$env $file $profile"
     if [ $on_login -eq 1 ]; then
         echo $pythoncm
