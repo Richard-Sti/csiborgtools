@@ -30,14 +30,14 @@ from interpax import interp1d
 from jax import jit
 from jax import numpy as jnp
 from jax import vmap
+from jax.lax import cond
 from jax.scipy.special import erf, erfc, logsumexp
 from numpyro import deterministic, factor, plate, sample
 from numpyro.distributions import (Categorical, MultivariateNormal, Normal,
-                                   Uniform, ProjectedNormal)
+                                   ProjectedNormal, Uniform)
+from numpyro.handlers import reparam
 from numpyro.infer.reparam import ProjectedNormalReparam
 from numpyro.infer.util import log_density
-from jax.lax import cond
-from numpyro.handlers import reparam
 from quadax import simpson
 from tqdm import trange
 
@@ -1257,14 +1257,31 @@ def PV_validation_model(models, distmod_hyperparams_per_model,
         model(field_calibration_params, distmod_params, inference_method)
 
 
-def PV_validation_model_log_density(samples, model, model_kwargs):
-    """Compute the constrained space log-density of the flow model samples."""
+def PV_validation_model_log_density(samples, model, model_kwargs,
+                                    batch_size=5):
+    """
+    Compute the log density of the peculiar velocity validation model.
 
+    The batch size cannot be much larger to prevent exhausting the memory.
+    """
     def f(sample):
         return log_density(model, (), model_kwargs, sample)[0]
 
-    return vmap(f)({k: v for k, v in samples.items()})
+    f_vmap = vmap(f)
+    f_vmap = jit(f_vmap)
 
+    samples = {k: jnp.array(v) for k, v in samples.items()}
+    num_samples = len(samples[next(iter(samples))])
+    log_densities = jnp.zeros((num_samples,))
+
+    for i in trange(0, num_samples, batch_size, desc="Batched log densities"):
+        batch = {k: v[i:i+batch_size] for k, v in samples.items()}
+        batch_log_densities = f_vmap(batch)
+
+        log_densities = log_densities.at[i:i+batch_size].set(
+            batch_log_densities)
+
+    return log_densities
 
 ###############################################################################
 #                     Predicting z_cosmo from z_obs                           #
