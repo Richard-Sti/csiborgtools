@@ -187,10 +187,13 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
     mcmc.run(rng_key, extra_fields=("potential_energy",), **model_kwargs)
     samples = mcmc.get_samples()
 
-    log_posterior = -mcmc.get_extra_fields()["potential_energy"]
+    fprint("recomputing the log-density in the constrained space")
+    log_posterior = csiborgtools.flow.PV_validation_model_log_density(
+        samples, model, model_kwargs)
+
     BIC, AIC = csiborgtools.BIC_AIC(samples, log_posterior, ndata)
-    print(f"{'BIC':<20} {BIC}")
-    print(f"{'AIC':<20} {AIC}")
+    fprint(f"{'BIC':<20} {BIC}")
+    fprint(f"{'AIC':<20} {AIC}")
     mcmc.print_summary(exclude_deterministic=False)
 
     if calculate_harmonic:
@@ -353,8 +356,8 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 1_500
-    nburn = 5_000
+    nsteps = 1500
+    nburn = 10_000
     zcmb_min = None
     zcmb_max = 0.05
     nchains_harmonic = 10

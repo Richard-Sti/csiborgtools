@@ -17,7 +17,8 @@ from .io import (DataLoader, get_model, read_absolute_calibration,              
                  radial_velocity_los, read_dustmap)                             # noqa
 from .flow_model import (PV_LogLikelihood, PV_validation_model, dist2redshift,  # noqa
                          Observed2CosmologicalRedshift, predict_zobs,           # noqa
-                         project_vector, stack_pzosmo_over_realizations)        # noqa
+                         project_vector, stack_pzosmo_over_realizations,        # noqa
+                         PV_validation_model_log_density)                       # noqa
 from .mocks import mock_Carrick2MTF                                             # noqa
 from .selection import ToyMagnitudeSelection                                    # noqa
 from .void_model import (load_void_fiducial, load_void_size_variation,          # noqa

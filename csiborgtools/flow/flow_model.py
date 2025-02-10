@@ -35,6 +35,7 @@ from numpyro import deterministic, factor, plate, sample
 from numpyro.distributions import (Categorical, MultivariateNormal, Normal,
                                    Uniform, ProjectedNormal)
 from numpyro.infer.reparam import ProjectedNormalReparam
+from numpyro.infer.util import log_density
 from jax.lax import cond
 from numpyro.handlers import reparam
 from quadax import simpson
@@ -1254,6 +1255,15 @@ def PV_validation_model(models, distmod_hyperparams_per_model,
             raise ValueError(f"Unknown kind: `{model.kind}`.")
 
         model(field_calibration_params, distmod_params, inference_method)
+
+
+def PV_validation_model_log_density(samples, model, model_kwargs):
+    """Compute the constrained space log-density of the flow model samples."""
+
+    def f(sample):
+        return log_density(model, (), model_kwargs, sample)[0]
+
+    return vmap(f)({k: v for k, v in samples.items()})
 
 
 ###############################################################################
