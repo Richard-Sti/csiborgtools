@@ -344,7 +344,7 @@ def interpolate_fiducial_void(void_size, rLG, h_void, r, phi, data,
     nLG, nphi, nrad = data.shape
 
     rLG_sign = jnp.sign(rLG)
-    rLG_is_positive = rLG > 0
+    rLG_is_negative = rLG < 0
 
     # Normalize rLG to the grid scale
     rLG_normalized = (jnp.abs(rLG) - rLG_min) / (rLG_max - rLG_min) * (nLG - 1)
@@ -367,7 +367,7 @@ def interpolate_fiducial_void(void_size, rLG, h_void, r, phi, data,
         return map_coordinates(data, X, order=order, mode='nearest')
 
     return vmap(interpolate_single_phi)(
-        rLG_is_positive * jnp.pi + rLG_sign * phi)
+        rLG_is_negative * 180 + rLG_sign * phi)
 
 
 def interpolate_size_var_void(void_size, rLG, h_void, r, phi, data,
@@ -410,14 +410,14 @@ def interpolate_size_var_void(void_size, rLG, h_void, r, phi, data,
     nsize, nLG, nphi, nrad = data.shape
 
     rLG_sign = jnp.sign(rLG)
-    rLG_is_positive = rLG > 0
+    rLG_is_negative = rLG < 0
 
     # Normalize the void size and rLG to the grid scale
     void_size_normalized = ((void_size - void_size_min)
                             / (void_size_max - void_size_min) * (nsize - 1))
     void_size_normalized = jnp.repeat(void_size_normalized, r.size)
 
-    rLG_normalized = (rLG - rLG_min) / (rLG_max - rLG_min) * (nLG - 1)
+    rLG_normalized = (jnp.abs(rLG) - rLG_min) / (rLG_max - rLG_min) * (nLG - 1)
     rLG_normalized = jnp.repeat(rLG_normalized, r.size)
 
     r_normalized = (r / h_void - rgrid_min) / (rgrid_max - rgrid_min) * (nrad - 1)  # noqa
@@ -439,7 +439,7 @@ def interpolate_size_var_void(void_size, rLG, h_void, r, phi, data,
         return map_coordinates(data, X, order=order, mode='nearest')
 
     return vmap(interpolate_single_phi)(
-        rLG_is_positive * jnp.pi + rLG_sign * phi)
+        rLG_is_negative * 180 + rLG_sign * phi)
 
 
 ###############################################################################
@@ -548,7 +548,7 @@ def mock_void(vrad_data, rLG_index, h_void,
 
 
 def void_velocity_vector(X_cartesian, vx_grid, vy_grid, r_grid, phi_grid,
-                         return_icrs=True):
+                         is_negative_Roffset=False, return_icrs=True):
     """
     Calculate the 3D velocity of each galaxy in ICRS.
 
@@ -560,6 +560,9 @@ def void_velocity_vector(X_cartesian, vx_grid, vy_grid, r_grid, phi_grid,
         Grids of void velocities.
     r_grid, phi_grid : 1-dimensional array
         Radial and angular grid of the void model.
+    is_negative_Roffset : bool, optional
+        Whether the observer offset is negative, in which case flips the
+        sign of `cos(phi)`.
     return_icrs : bool, optional
         Whether to return the velocity in ICRS coordinates, otherwise in
         the void frame.
@@ -581,6 +584,8 @@ def void_velocity_vector(X_cartesian, vx_grid, vy_grid, r_grid, phi_grid,
 
     # Angular separation of each point from the void axis.
     cos_phi = np.sum(r_hat * n_hat[None, :], axis=1)
+    if is_negative_Roffset:
+        cos_phi *= -1
 
     # We use grid-like interpolation, it is faster.
     rgrid_min, rgrid_max = r_grid.min(), r_grid.max()
@@ -682,7 +687,7 @@ def make_grid(ngrid, rmax, boxsize, reshape_to_3d=True):
 
 
 def void_bulk_flow(r, vx, vy, ngrid, r_grid, phi_grid, in_icrs=True,
-                   verbose=True):
+                   is_negative_Roffset=False, verbose=True):
     """
     Calculate the bulk flow of the void velocity field.
 
@@ -699,6 +704,9 @@ def void_bulk_flow(r, vx, vy, ngrid, r_grid, phi_grid, in_icrs=True,
     in_icrs : bool, optional
         Whether to return the bulk flow in ICRS coordinates or in the void
         coordinates.
+    is_negative_Roffset : bool, optional
+        Whether the observer offset is negative, in which case flips the
+        sign of `cos(phi)`.
     verbose : bool, optional
         Verbosity flag.
 
@@ -711,8 +719,9 @@ def void_bulk_flow(r, vx, vy, ngrid, r_grid, phi_grid, in_icrs=True,
     boxsize = 2 * rmax
     X = make_grid(ngrid, rmax, boxsize, reshape_to_3d=False)
 
-    vel = void_velocity_vector(X, vx, vy, r_grid, phi_grid,
-                               return_icrs=in_icrs)
+    vel = void_velocity_vector(
+        X, vx, vy, r_grid, phi_grid, is_negative_Roffset=is_negative_Roffset,
+        return_icrs=in_icrs)
 
     ndim = 3 if in_icrs else 2
     bulk_flow = np.full((len(r), ndim), np.nan)
@@ -728,7 +737,8 @@ def void_bulk_flow(r, vx, vy, ngrid, r_grid, phi_grid, in_icrs=True,
     return bulk_flow
 
 
-def void_monopole(r, vr, ngrid, r_grid, phi_grid, verbose):
+def void_monopole(r, vr, ngrid, r_grid, phi_grid, is_negative_Roffset=False,
+                  verbose=True):
     """
     Calculate the monopole of the void velocity field.
 
@@ -742,6 +752,9 @@ def void_monopole(r, vr, ngrid, r_grid, phi_grid, verbose):
         Number of grid points in each dimension.
     r_grid, phi_grid : 1-dimensional array
         Void radial and angular grid.
+    is_negative_Roffset : bool, optional
+        Whether the observer offset is negative, in which case flips the
+        sign of `cos(phi)`.
     verbose : bool, optional
         Verbosity flag.
 
@@ -755,6 +768,7 @@ def void_monopole(r, vr, ngrid, r_grid, phi_grid, verbose):
     X = make_grid(ngrid, rmax, boxsize, reshape_to_3d=False)
 
     vel = void_velocity_vector(X, vr, np.zeros_like(vr), r_grid, phi_grid,
+                               is_negative_Roffset=is_negative_Roffset,
                                return_icrs=False)
     vel_rad = vel[:, 0]
 
