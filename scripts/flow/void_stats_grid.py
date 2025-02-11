@@ -51,15 +51,29 @@ def main(profile):
     monopole = np.zeros((num_sizes, num_rLG, len(r)))
     bulk_flow = np.zeros((num_sizes, num_rLG, len(r), 3))
 
+    enclosed_density_negrLG = np.zeros_like(enclosed_density)
+    monopole_negrLG = np.zeros_like(monopole)
+    bulk_flow_negrLG = np.zeros_like(bulk_flow)
+
     for i in trange(num_sizes, desc="Sizes"):
-        for j in range(num_sizes):
-            enclosed_density[i, j, ...] = void_monopole(
+        for j in range(num_rLG):
+            enclosed_density[i, j] = void_monopole(
                 r, rho[i, j], ngrid, r_grid, phi_grid, verbose=False)
-            monopole[i, j, ...] = void_monopole(
+            monopole[i, j] = void_monopole(
                 r, vrad[i, j], ngrid, r_grid, phi_grid, verbose=False)
-            bulk_flow[i, j, ...] = void_bulk_flow(
+            bulk_flow[i, j] = void_bulk_flow(
                 r, vx[i, j], vy[i, j], ngrid, r_grid, phi_grid, in_icrs=True,
                 verbose=False)
+
+            enclosed_density_negrLG[i, j] = void_monopole(
+                r, rho[i, j], ngrid, r_grid, phi_grid,
+                is_negative_Roffset=True, verbose=False)
+            monopole[i, j] = void_monopole(
+                r, vrad[i, j], ngrid, r_grid, phi_grid,
+                is_negative_Roffset=True, verbose=False)
+            bulk_flow_negrLG[i, j] = void_bulk_flow(
+                r, vx[i, j], vy[i, j], ngrid, r_grid, phi_grid,
+                is_negative_Roffset=True, in_icrs=True, verbose=False)
 
     with File(fname_out, "w") as f:
         # Write down the grid
@@ -75,6 +89,10 @@ def main(profile):
         grp.create_dataset("enclosed_density", data=enclosed_density)
         grp.create_dataset("monopole", data=monopole)
         grp.create_dataset("bulk_flow", data=bulk_flow)
+
+        grp.create_dataset("enclosed_density_negrLG", data=enclosed_density_negrLG)  # noqa
+        grp.create_dataset("monopole_negrLG", data=monopole_negrLG)
+        grp.create_dataset("bulk_flow_negrLG", data=bulk_flow_negrLG)
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ fi
 
 
 for profile in "exp" "gauss" "mb"; do
+# for profile in "gauss"; do
     pythoncm="$env $file $profile"
     if [ $on_login -eq 1 ]; then
         echo $pythoncm
