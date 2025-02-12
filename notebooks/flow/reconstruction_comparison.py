@@ -426,7 +426,7 @@ def samples_for_corner(samples):
     return data, labels, keys
 
 
-def samples_to_getdist(samples, label, ranges=None):
+def samples_to_getdist(samples, label, ranges=None, settings={}):
     data, __, keys = samples_for_corner(samples)
 
     return MCSamples(
@@ -434,4 +434,5 @@ def samples_to_getdist(samples, label, ranges=None):
         labels=names_to_latex(keys, for_corner=False),
         label=label,
         ranges=ranges,
+        settings=settings,
         )
