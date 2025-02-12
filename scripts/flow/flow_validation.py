@@ -63,7 +63,8 @@ def parse_args():
         "--aux_arg", type=str, default="",
         help="Auxiliary argument to overwrite any choices.")
     parser.add_argument(
-        "--aux_type", type=str, default="str", choices=["str", "int", "float"],
+        "--aux_type", type=str, default="str",
+        choices=["str", "int", "float", "bool"],
         help="Auxiliary argument type to overwrite any choices.")
 
     args = parser.parse_args()
@@ -381,6 +382,11 @@ if __name__ == "__main__":
             ARGS.aux_arg = int(ARGS.aux_arg)
         elif ARGS.aux_type == "float":
             ARGS.aux_arg = float(ARGS.aux_arg)
+        elif ARGS.aux_type == "bool":
+            ARGS.aux_arg = int(ARGS.aux_arg)
+            if ARGS.aux_arg not in [0, 1]:
+                raise ValueError(f"Unsupported boolean value: `{ARGS.aux_arg}`.")  # noqa
+            ARGS.aux_arg = bool(ARGS.aux_arg)
         elif ARGS.aux_type != "str":
             raise ValueError(f"Unsupported auxiliary type: `{ARGS.aux_type}`.")
 
