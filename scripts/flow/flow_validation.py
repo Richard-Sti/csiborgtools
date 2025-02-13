@@ -404,11 +404,10 @@ if __name__ == "__main__":
         calculate_harmonic = False
 
     # These mocks are generated without a density field, so there is no
-    # inhomogeneous Malmquist and we also do not need evidences.
+    # inhomogeneous Malmquist.
     for catalogue in ARGS.catalogue:
         if "Carrick2MTFmock" in catalogue:
             sample_alpha = False
-            calculate_harmonic = False
 
     fname_kwargs = {"inference_method": inference_method,
                     "smooth": ARGS.ksmooth,
