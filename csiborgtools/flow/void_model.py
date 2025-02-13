@@ -38,7 +38,7 @@ from .cosmography import distmod2dist, distmod2redshift
 ###############################################################################
 
 
-def angular_distance_from_void_axis(RA, dec):
+def angular_distance_from_void_axis_fiducial(RA, dec):
     """
     Calculate the angular distance of a galaxy from the void axis, all in
     degrees.
@@ -49,6 +49,16 @@ def angular_distance_from_void_axis(RA, dec):
     return angular_separation(
         coords.ra.rad, coords.dec.rad,
         model_axis.ra.rad, model_axis.dec.rad) * 180 / np.pi
+
+
+def angular_distance_from_void_axis(rhat, Vext):
+    """
+    Calculate the angular distance (in degrees) of unit vectors `rhat` of shape
+    `(ngal, 3)` from the void axis which is opposite to `Vext` of shape `(3,)`.
+    """
+    cos_phi = -jnp.sum(rhat * Vext[None, :], axis=1) / jnp.linalg.norm(Vext)
+    cos_phi = jnp.clip(cos_phi, -1, 1,)
+    return jnp.arccos(cos_phi) * 180 / jnp.pi
 
 
 def select_void_h(void_size_percent, profile, fname=None, return_all=False):
@@ -301,7 +311,7 @@ def load_void_size_variation(profile, kind, which_run="all",
 ###############################################################################
 
 
-def interpolate_fiducial_void(void_size, rLG, h_void, r, phi, data,
+def interpolate_fiducial_void(void_size, rLG, h_void, Vext, r, rhat, data,
                               void_size_min, void_size_max, rgrid_min,
                               rgrid_max, rLG_min, rLG_max, order=1):
     """
@@ -320,11 +330,12 @@ def interpolate_fiducial_void(void_size, rLG, h_void, r, phi, data,
         The observer's distance from the center of the void in Mpc.
     h_void : float
         The void Hubble parameter to convert from Mpc / h to Mpc.
+    Vext : 1-dimensional array of shape `(3,)`
+        The void external velocity used to define the void axis.
     r : 1-dimensional array of shape `(nsteps,)
         The radial distances at which to interpolate the velocities in Mpc / h.
-    phi : 1-dimensional array of shape `(ngal,)`
-        The angles at which to interpolate the velocities, in degrees,
-        defining the galaxy position.
+    rhat : 2-dimensional array of shape `(ngal, 3)`
+        The unit vectors defining the galaxy positions on the sky.
     data : 3-dimensional array of shape (nLG, nrad, nphi)
         The void velocities for different observers, radial distances, and
         angles.
@@ -366,11 +377,13 @@ def interpolate_fiducial_void(void_size, rLG, h_void, r, phi, data,
         # occur.
         return map_coordinates(data, X, order=order, mode='nearest')
 
+    phi = angular_distance_from_void_axis(rhat, Vext)
+
     return vmap(interpolate_single_phi)(
         rLG_is_negative * 180 + rLG_sign * phi)
 
 
-def interpolate_size_var_void(void_size, rLG, h_void, r, phi, data,
+def interpolate_size_var_void(void_size, rLG, h_void, Vext, r, rhat, data,
                               void_size_min, void_size_max, rgrid_min,
                               rgrid_max, rLG_min, rLG_max, order=1):
     """
@@ -386,11 +399,12 @@ def interpolate_size_var_void(void_size, rLG, h_void, r, phi, data,
         The observer's distance from the center of the void in Mpc.
     h_void : float
         The void Hubble parameter to convert from Mpc / h to Mpc.
+    Vext : 1-dimensional array of shape `(3,)`
+        The void external velocity used to define the void axis.
     r : 1-dimensional array of shape `(nsteps,)
         The radial distances at which to interpolate the velocities in Mpc / h.
-    phi : 1-dimensional array of shape `(ngal,)`
-        The angles at which to interpolate the velocities, in degrees,
-        defining the galaxy position.
+    rhat : 2-dimensional array of shape `(ngal, 3)`
+        The unit vectors defining the galaxy positions on the sky.
     data : 3-dimensional array of shape (nLG, nrad, nphi)
         The void velocities for different observers, radial distances, and
         angles.
@@ -438,6 +452,8 @@ def interpolate_size_var_void(void_size, rLG, h_void, r, phi, data,
         # occur.
         return map_coordinates(data, X, order=order, mode='nearest')
 
+    phi = angular_distance_from_void_axis(rhat, Vext)
+
     return vmap(interpolate_single_phi)(
         rLG_is_negative * 180 + rLG_sign * phi)
 
@@ -475,7 +491,7 @@ def mock_void(vrad_data, rLG_index, h_void,
 
     RA, DEC = galactic_to_radec(l, b)
     # Calculate the angular separation from the void axis, in degrees.
-    phi = angular_distance_from_void_axis(RA, DEC)
+    phi = angular_distance_from_void_axis_fiducial(RA, DEC)
 
     # Sample the linewidth of each galaxy from a Gaussian distribution to mimic
     # the MNR procedure.
@@ -509,7 +525,7 @@ def mock_void(vrad_data, rLG_index, h_void,
     # index.
     vrad_data_rLG = vrad_data[rLG_index]
 
-    r_grid = np.arange(0, 251) * h_void
+    r_grid = np.arange(0, 400) * h_void
     phi_grid = np.arange(0, 181)
     Vr = RegularGridInterpolator((phi_grid, r_grid), vrad_data_rLG,
                                  fill_value=np.nan, bounds_error=False,

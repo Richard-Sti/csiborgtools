@@ -42,12 +42,11 @@ from quadax import simpson
 from tqdm import trange
 
 from ..params import SPEED_OF_LIGHT
-from ..utils import fprint
+from ..utils import fprint, radec_to_cartesian
 from .cosmography import (dist2redshift, distmod2dist, distmod2dist_gradient,
                           distmod2redshift, gradient_redshift2dist)
 from .selection import toy_log_magnitude_selection
-from .void_model import (angular_distance_from_void_axis,
-                         interpolate_fiducial_void, interpolate_size_var_void,
+from .void_model import (interpolate_fiducial_void, interpolate_size_var_void,
                          load_void_fiducial, load_void_size_variation)
 
 H0 = 100  # km / s / Mpc
@@ -261,27 +260,28 @@ class BaseFlowValidationModel(ABC):
         rgrid_min, rgrid_max = 0, void_grid.shape[-1] - 1
         fprint(f"setting the radial grid from {rgrid_min} to {rgrid_max} Mpc.")
 
-        # Get angular separation of each object from the model axis.
-        phi = angular_distance_from_void_axis(RA, dec)
-        phi = jnp.asarray(phi, dtype=jnp.float32)
+        # Convert the RA/dec of galaxies to Cartesian unit vectors.
+        rhat = jnp.asarray(
+            radec_to_cartesian(np.asarray([np.ones_like(RA), RA, dec]).T),
+            dtype=jnp.float32)
 
         if kind == "density":
             void_grid = jnp.log(void_grid)
 
-        args = (self.r_xrange, phi, void_grid, size_min, size_max,
+        args = (self.r_xrange, rhat, void_grid, size_min, size_max,
                 rgrid_min, rgrid_max, rLG_min, rLG_max, order)
 
         if kind == "density":
             if is_fiducial:
-                f = lambda void_size, rLG, h_void: interpolate_fiducial_void(None, rLG, h_void, *args)          # noqa
+                f = lambda void_size, rLG, h_void, Vext: interpolate_fiducial_void(None, rLG, h_void, Vext, *args)          # noqa
             else:
-                f = lambda void_size, rLG, h_void: interpolate_size_var_void(void_size, rLG, h_void, *args)     # noqa
+                f = lambda void_size, rLG, h_void, Vext: interpolate_size_var_void(void_size, rLG, h_void, Vext, *args)     # noqa
             self.void_log_rho_interpolator = f
         elif kind == "vrad":
             if is_fiducial:
-                f = lambda void_size, rLG, h_void: interpolate_fiducial_void(None, rLG, h_void, *args)          # noqa
+                f = lambda void_size, rLG, h_void, Vext: interpolate_fiducial_void(None, rLG, h_void, Vext, *args)          # noqa
             else:
-                f = lambda void_size, rLG, h_void: interpolate_size_var_void(void_size, rLG, h_void, *args)     # noqa
+                f = lambda void_size, rLG, h_void, Vext: interpolate_size_var_void(void_size, rLG, h_void, Vext, *args)     # noqa
             self.void_vrad_interpolator = f
         else:
             raise ValueError(f"Unknown kind: `{kind}`.")
@@ -311,8 +311,8 @@ class BaseFlowValidationModel(ABC):
         if self.is_void_data:
             # We want the shape to be `(1, n_objects, n_radial_steps)``.
             return self.void_log_rho_interpolator(
-                kwargs["void_size"], kwargs["rLG"],
-                kwargs["h_void"])[None, ...]
+                kwargs["void_size"], kwargs["rLG"], kwargs["h_void"],
+                kwargs["Vext"])[None, ...]
 
         return self._log_los_density
 
@@ -320,8 +320,8 @@ class BaseFlowValidationModel(ABC):
         if self.is_void_data:
             # We want the shape to be `(1, n_objects, n_radial_steps)``.
             return self.void_vrad_interpolator(
-                kwargs["void_size"], kwargs["rLG"],
-                kwargs["h_void"])[None, ...]
+                kwargs["void_size"], kwargs["rLG"], kwargs["h_void"],
+                kwargs["Vext"])[None, ...]
 
         return self._los_velocity
 
@@ -1045,9 +1045,9 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                     h_void = self._void_size_to_h_void(void_size)
 
                 log_los_density = self.log_los_density(
-                    void_size=void_size, rLG=rLG, h_void=h_void)
+                    void_size=void_size, rLG=rLG, h_void=h_void, Vext=Vext)
                 los_velocity = self.los_velocity(
-                    void_size=void_size, rLG=rLG, h_void=h_void)
+                    void_size=void_size, rLG=rLG, h_void=h_void, Vext=Vext)
             else:
                 log_los_density = self.log_los_density()
                 los_velocity = self.los_velocity()
