@@ -40,8 +40,8 @@ fi
 aux_name="inference_method"
 aux_type="str"
 
-# for simname in "IndranilVoid_exp" "IndranilVoid_gauss"; do
-for simname in "IndranilVoidSizeVar_exp" "IndranilVoidSizeVar_gauss"; do
+for simname in "IndranilVoid_exp" "IndranilVoid_gauss"; do
+# for simname in "IndranilVoidSizeVar_exp" "IndranilVoidSizeVar_gauss"; do
 # for simname in "IndranilVoid_exp"; do
 # for simname in "Carrick2015"; do
 # for simname in "IndranilVoidSizeVar_exp" "IndranilVoidSizeVar_gauss"; do
@@ -57,7 +57,7 @@ for simname in "IndranilVoidSizeVar_exp" "IndranilVoidSizeVar_gauss"; do
         # for ksim in $(seq 0 5 500); do
         # for ksim in "0_100_5" "100_200_5" "200_300_5" "300_400_5" "400_500_5"; do
         # for ksim in {0..500}; do
-            for ksmooth in 0; do
+            # for ksmooth in 0; do
             # for ksmooth in $(seq 0 1 33); do
                 for aux_arg in "mike" "bayes"; do
                     pythoncm="$env $file --catalogue $catalogue --simname $simname --ksim $ksim --ksmooth $ksmooth --ndevice $ndevice --device $device --aux_name $aux_name --aux_arg $aux_arg --aux_type $aux_type"
@@ -91,30 +91,32 @@ done
 
 
 # ksim="none"
-# catalogue="LOSS,Foundation,CF4_TFR_i,CF4_TFR_notSDSS_w1"
+# catalogue="CF4_TFR_i,CF4_TFR_notSDSS_w1"
 # ksmooth=0
 
-# # for i in {10..300..10}; do
-# for i in {1..20..1}; do
-#     simname="IndranilVoid${i}_gauss"
-#     echo "$simname"
+# for kind in "exp" "gauss"; do
+#     for i in {20..300..10}; do
+#     # for i in {1..20..1}; do
+#         simname="IndranilVoid${i}_${kind}"
+#         echo "$simname"
 
-#     pythoncm="$env $file --catalogue $catalogue --simname $simname --ksim $ksim --ksmooth $ksmooth --ndevice $ndevice --device $device"
+#         pythoncm="$env $file --catalogue $catalogue --simname $simname --ksim $ksim --ksmooth $ksmooth --ndevice $ndevice --device $device"
 
-#     if [ "$on_login" == "1" ]; then
-#         echo $pythoncm
-#         eval $pythoncm
-#     else
-#         if [ "$device" == "gpu" ]; then
-#             cm="addqueue -q $queue -s -m $memory --gpus 1 --gputype $gputype $pythoncm"
+#         if [ "$on_login" == "1" ]; then
+#             echo $pythoncm
+#             eval $pythoncm
 #         else
-#             cm="addqueue -s -q $queue -n 1 -m $memory $pythoncm"
+#             if [ "$device" == "gpu" ]; then
+#                 cm="addqueue -q $queue -s -m $memory --gpus 1 --gputype $gputype $pythoncm"
+#             else
+#                 cm="addqueue -s -q $queue -n 1 -m $memory $pythoncm"
+#             fi
+#             echo "Submitting:"
+#             echo $cm
+#             eval $cm
 #         fi
-#         echo "Submitting:"
-#         echo $cm
-#         eval $cm
-#     fi
 
-#     echo
-#     sleep 0.001
+#         echo
+#         sleep 0.001
+#     done
 # done
