@@ -178,9 +178,9 @@ def simname_to_pretty(simname):
            "IndranilVoid_exp": "Exponential",
            "IndranilVoid_gauss": "Gaussian",
            "IndranilVoid_mb": "Maxwell-Boltzmann",
-           "IndranilVoidSizeVar_exp": "Extended Exponential",
-           "IndranilVoidSizeVar_gauss": "Extended Gaussian",
-           "IndranilVoidSizeVar_mb": "Extended Maxwell-Boltzmann",
+           "IndranilVoidSizeVar_exp": "Exponential",
+           "IndranilVoidSizeVar_gauss": "Gaussian",
+           "IndranilVoidSizeVar_mb": "Maxwell-Boltzmann",
            "no_field": r"$\mathbf{V}_{\rm ext}$ only"
            }
 
