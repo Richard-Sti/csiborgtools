@@ -361,6 +361,7 @@ if __name__ == "__main__":
     nburn = 1500
     zcmb_min = None
     zcmb_max = 0.05
+    # zcmb_max = 0.0500021
     nchains_harmonic = 10
     num_epochs = 50
     inference_method = "mike"
