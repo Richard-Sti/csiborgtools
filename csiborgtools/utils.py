@@ -467,7 +467,7 @@ def BIC_AIC(samples, log_likelihood, ndata):
     # How many parameters?
     nparam = 0
     for key, val in samples.items():
-        if "_deterministic" in key:
+        if "_deterministic" in key or "_skipZ" in key:
             continue
 
         if val.ndim == 1:

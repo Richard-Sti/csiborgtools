@@ -58,6 +58,8 @@ def names_to_latex(names, for_corner=False):
            "alpha_cal": "\\mathcal{A}",
            "beta_cal": "\\mathcal{B}",
            "mag_cal": "\\mathcal{M}",
+           # "l": "V_{\\rm ext}^{\\ell} ~ [\\mathrm{deg}]",
+           # "b": "V_{\\rm ext}^{b} ~ [\\mathrm{deg}]",
            "l": "\\ell ~ [\\mathrm{deg}]",
            "b": "b ~ [\\mathrm{deg}]",
            "rLG": "R_{\\rm offset} ~ [\\mathrm{Mpc}]",
@@ -70,9 +72,9 @@ def names_to_latex(names, for_corner=False):
 
     ltx_corner = {"alpha": r"$\alpha$",
                   "beta": r"$\beta$",
-                  "Vmag": r"$V_{\rm ext}$",
-                  "l": r"$\ell$",
-                  "b": r"$b$",
+                  "Vmag": r"$V_{\mathrm{ext},\mathrm{mag}}$",
+                  "l": r"$V_{\mathrm{ext},\ell}$",
+                  "b": r"$V_{\mathrm{ext},b}$",
                   "sigma_v": r"$\sigma_v$",
                   "alpha_cal": r"$\mathcal{A}$",
                   "beta_cal": r"$\mathcal{B}$",
@@ -90,9 +92,18 @@ def names_to_latex(names, for_corner=False):
             names[i] = names[i].replace("CF4_GroupAll", "CF4Group")
 
         if "CF4_TFR_i" in name:
-            names[i] = names[i].replace("CF4_TFR_i", "CF4,TFR")
+            names[i] = names[i].replace("CF4_TFR_i", "CF4,i")
 
-    for cat in ["2MTF", "SFI", "CF4,TFR"]:
+        if "CF4_TFR_w1" in name:
+            names[i] = names[i].replace("CF4_TFR_w1", "CF4,W1")
+
+        if "CF4_TFR_w2" in name:
+            names[i] = names[i].replace("CF4_TFR_w2", "CF4,W2")
+
+        if "CF4_TFR_notSDSS_w1" in name:
+            names[i] = names[i].replace("CF4_TFR_notSDSS_w1", "CF4,W1")
+
+    for cat in ["2MTF", "SFI", "CF4,i", "CF4,W2", "CF4,W1"]:
         ltx[f"aTFR_{cat}"] = f"a_{{\\rm TFR}}^{{\\rm {cat}}}"
         ltx[f"bTFR_{cat}"] = f"b_{{\\rm TFR}}^{{\\rm {cat}}}"
         ltx[f"cTFR_{cat}"] = f"c_{{\\rm TFR}}^{{\\rm {cat}}}"
@@ -110,23 +121,17 @@ def names_to_latex(names, for_corner=False):
         ltx_corner[f"eta_std_{cat}"] = rf"$\widehat{{\sigma}}_\eta^{{\rm {cat}}}$"  # noqa
         ltx_corner[f"mag_mean_{cat}"] = rf"$\widehat{{m}}^{{\rm {cat}}}$"
         ltx_corner[f"mag_std_{cat}"] = rf"$\widehat{{\sigma}}_m^{{\rm {cat}}}$"
+        ltx_corner[f"aTFR_dipole_{cat}_mag"] = fr"$\tilde{{a}}_{{\rm mag}}^{{\rm {cat}}}$"    # noqa
+        ltx_corner[f"aTFR_dipole_{cat}_l"] = fr"$\tilde{{a}}_{{\ell}}^{{\rm {cat}}}$"         # noqa
+        ltx_corner[f"aTFR_dipole_{cat}_b"] = fr"$\tilde{{a}}_{{b}}^{{\rm {cat}}}$"            # noqa
 
-    for cat in ["2MTF", "SFI", "Foundation", "LOSS", "CF4Group", "CF4,TFR"]:
+    for cat in ["2MTF", "SFI", "Foundation", "LOSS", "CF4Group", "CF4_TFR_w1",
+                "CF4_TFR_w2"]:
         ltx[f"alpha_{cat}"] = f"\\alpha^{{\\rm {cat}}}"
         ltx[f"e_mu_{cat}"] = f"\\sigma_{{\\mu}}^{{\\rm {cat}}}"
-        ltx[f"a_dipole_mag_{cat}"] = f"\\epsilon_{{\\rm mag}}^{{\\rm {cat}}}"
-        ltx[f"a_dipole_l_{cat}"] = f"\\epsilon_{{\\ell}}^{{\\rm {cat}}} ~ [\\mathrm{{deg}}]"  # noqa
-        ltx[f"a_dipole_b_{cat}"] = f"\\epsilon_{{b}}^{{\\rm {cat}}} ~ [\\mathrm{{deg}}]"      # noqa
-
-        ltx["a_dipole_mag"] = "\\epsilon_{{\\rm mag}}"
-        ltx["a_dipole_l"] = "\\epsilon_{{\\ell}} ~ [\\mathrm{{deg}}]"
-        ltx["a_dipole_b"] = "\\epsilon_{{b}} ~ [\\mathrm{{deg}}]"
 
         ltx_corner[f"alpha_{cat}"] = rf"$\alpha^{{\rm {cat}}}$"
         ltx_corner[f"e_mu_{cat}"] = rf"$\sigma_{{\mu}}^{{\rm {cat}}}$"
-        ltx_corner[f"a_dipole_mag_{cat}"] = rf"$\epsilon_{{\rm mag}}^{{\rm {cat}}}$"  # noqa
-        ltx_corner[f"a_dipole_l_{cat}"] = rf"$\epsilon_{{\ell}}^{{\rm {cat}}}$"
-        ltx_corner[f"a_dipole_b_{cat}"] = rf"$\epsilon_{{b}}^{{\rm {cat}}}$"
 
     for cat in ["Foundation", "LOSS"]:
         ltx[f"alpha_cal_{cat}"] = f"\\mathcal{{A}}^{{\\rm {cat}}}"
@@ -173,9 +178,9 @@ def simname_to_pretty(simname):
            "IndranilVoid_exp": "Exponential",
            "IndranilVoid_gauss": "Gaussian",
            "IndranilVoid_mb": "Maxwell-Boltzmann",
-           "IndranilVoidSizeVar_exp": "Extended Exponential",
-           "IndranilVoidSizeVar_gauss": "Extended Gaussian",
-           "IndranilVoidSizeVar_mb": "Extended Maxwell-Boltzmann",
+           "IndranilVoidSizeVar_exp": "Exponential",
+           "IndranilVoidSizeVar_gauss": "Gaussian",
+           "IndranilVoidSizeVar_mb": "Maxwell-Boltzmann",
            "no_field": r"$\mathbf{V}_{\rm ext}$ only"
            }
 
@@ -290,8 +295,17 @@ def get_some_samples(fname, labels):
         for label in labels:
             if "Vext" in label:
                 continue
+
             for key in grp.keys():
-                if label in key:
+                if "aTFR_dipole" in key and label in key:
+                    if "skipZ" not in key:
+                        adip = grp[key][...]
+                        samples[f"{key}_mag"] = np.linalg.norm(adip, axis=1)
+                        a_dipole = csiborgtools.cartesian_to_radec(adip)
+                        ldir, bdir = csiborgtools.radec_to_galactic(
+                            a_dipole[:, 1], a_dipole[:, 2])
+                        samples[f"{key}_l"], samples[f"{key}_b"] = ldir, bdir
+                elif label in key:
                     x = grp[key][...]
                     if x.ndim > 1:
                         raise ValueError("All samples must be 1D arrays.")
@@ -412,7 +426,7 @@ def samples_for_corner(samples):
     return data, labels, keys
 
 
-def samples_to_getdist(samples, label, ranges=None):
+def samples_to_getdist(samples, label, ranges=None, settings={}):
     data, __, keys = samples_for_corner(samples)
 
     return MCSamples(
@@ -420,4 +434,5 @@ def samples_to_getdist(samples, label, ranges=None):
         labels=names_to_latex(keys, for_corner=False),
         label=label,
         ranges=ranges,
+        settings=settings,
         )

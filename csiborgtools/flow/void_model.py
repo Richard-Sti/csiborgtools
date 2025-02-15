@@ -38,7 +38,7 @@ from .cosmography import distmod2dist, distmod2redshift
 ###############################################################################
 
 
-def angular_distance_from_void_axis(RA, dec):
+def angular_distance_from_void_axis_fiducial(RA, dec):
     """
     Calculate the angular distance of a galaxy from the void axis, all in
     degrees.
@@ -51,9 +51,21 @@ def angular_distance_from_void_axis(RA, dec):
         model_axis.ra.rad, model_axis.dec.rad) * 180 / np.pi
 
 
+def angular_distance_from_void_axis(rhat, Vext):
+    """
+    Calculate the angular distance (in degrees) of unit vectors `rhat` of shape
+    `(ngal, 3)` from the void axis which is opposite to `Vext` of shape `(3,)`.
+    """
+    # Fiducial Vext direction, pointing towards (l, b) = (297, -4) in degrees.
+    # Vext = jnp.asarray([-0.4035093, 0.01363162, -0.91487399])
+    cos_phi = -jnp.sum(rhat * Vext[None, :], axis=1) / jnp.linalg.norm(Vext)
+    cos_phi = jnp.clip(cos_phi, -1, 1,)
+    return jnp.arccos(cos_phi) * 180 / jnp.pi
+
+
 def select_void_h(void_size_percent, profile, fname=None, return_all=False):
     if fname is None:
-        fname = "/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/SizeVariation_new/H0_of_voids.dat"  # noqa
+        fname = "/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/SizeVariation_newDecember/H0_of_voids.dat"  # noqa
 
     profiles = ["mb", "gauss", "exp"]
 
@@ -115,7 +127,7 @@ def load_void_fiducial(profile, kind, size_indx=None, try_load_from_hdf5=True,
         raise ValueError(
             "`kind` must be one of 'density', 'vrad', 'vx', 'vy'.")
 
-    fdir_base = "/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/SizeVariation_new"  # noqa
+    fdir_base = "/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/SizeVariation_newDecember"  # noqa
 
     if size_indx is None:
         size_indx = 100
@@ -227,7 +239,7 @@ def load_void_size_variation(profile, kind, which_run="all",
         raise ValueError("`kind` must be one of 'density', 'vrad'")
 
 
-    base_dir = "/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/SizeVariation_new"  # noqa
+    base_dir = "/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/SizeVariation_newDecember"  # noqa
     fname_scratch = join(base_dir, f"processed_{profile}_{kind}.hdf5")
 
     if try_load_from_hdf5 and exists(fname_scratch):
@@ -301,7 +313,7 @@ def load_void_size_variation(profile, kind, which_run="all",
 ###############################################################################
 
 
-def interpolate_fiducial_void(void_size, rLG, h_void, r, phi, data,
+def interpolate_fiducial_void(void_size, rLG, h_void, Vext, r, rhat, data,
                               void_size_min, void_size_max, rgrid_min,
                               rgrid_max, rLG_min, rLG_max, order=1):
     """
@@ -320,11 +332,12 @@ def interpolate_fiducial_void(void_size, rLG, h_void, r, phi, data,
         The observer's distance from the center of the void in Mpc.
     h_void : float
         The void Hubble parameter to convert from Mpc / h to Mpc.
+    Vext : 1-dimensional array of shape `(3,)`
+        The void external velocity used to define the void axis.
     r : 1-dimensional array of shape `(nsteps,)
         The radial distances at which to interpolate the velocities in Mpc / h.
-    phi : 1-dimensional array of shape `(ngal,)`
-        The angles at which to interpolate the velocities, in degrees,
-        defining the galaxy position.
+    rhat : 2-dimensional array of shape `(ngal, 3)`
+        The unit vectors defining the galaxy positions on the sky.
     data : 3-dimensional array of shape (nLG, nrad, nphi)
         The void velocities for different observers, radial distances, and
         angles.
@@ -344,7 +357,7 @@ def interpolate_fiducial_void(void_size, rLG, h_void, r, phi, data,
     nLG, nphi, nrad = data.shape
 
     rLG_sign = jnp.sign(rLG)
-    rLG_is_positive = rLG > 0
+    rLG_is_negative = rLG < 0
 
     # Normalize rLG to the grid scale
     rLG_normalized = (jnp.abs(rLG) - rLG_min) / (rLG_max - rLG_min) * (nLG - 1)
@@ -366,11 +379,13 @@ def interpolate_fiducial_void(void_size, rLG, h_void, r, phi, data,
         # occur.
         return map_coordinates(data, X, order=order, mode='nearest')
 
+    phi = angular_distance_from_void_axis(rhat, Vext)
+
     return vmap(interpolate_single_phi)(
-        rLG_is_positive * jnp.pi + rLG_sign * phi)
+        rLG_is_negative * 180 + rLG_sign * phi)
 
 
-def interpolate_size_var_void(void_size, rLG, h_void, r, phi, data,
+def interpolate_size_var_void(void_size, rLG, h_void, Vext, r, rhat, data,
                               void_size_min, void_size_max, rgrid_min,
                               rgrid_max, rLG_min, rLG_max, order=1):
     """
@@ -386,11 +401,12 @@ def interpolate_size_var_void(void_size, rLG, h_void, r, phi, data,
         The observer's distance from the center of the void in Mpc.
     h_void : float
         The void Hubble parameter to convert from Mpc / h to Mpc.
+    Vext : 1-dimensional array of shape `(3,)`
+        The void external velocity used to define the void axis.
     r : 1-dimensional array of shape `(nsteps,)
         The radial distances at which to interpolate the velocities in Mpc / h.
-    phi : 1-dimensional array of shape `(ngal,)`
-        The angles at which to interpolate the velocities, in degrees,
-        defining the galaxy position.
+    rhat : 2-dimensional array of shape `(ngal, 3)`
+        The unit vectors defining the galaxy positions on the sky.
     data : 3-dimensional array of shape (nLG, nrad, nphi)
         The void velocities for different observers, radial distances, and
         angles.
@@ -410,14 +426,14 @@ def interpolate_size_var_void(void_size, rLG, h_void, r, phi, data,
     nsize, nLG, nphi, nrad = data.shape
 
     rLG_sign = jnp.sign(rLG)
-    rLG_is_positive = rLG > 0
+    rLG_is_negative = rLG < 0
 
     # Normalize the void size and rLG to the grid scale
     void_size_normalized = ((void_size - void_size_min)
                             / (void_size_max - void_size_min) * (nsize - 1))
     void_size_normalized = jnp.repeat(void_size_normalized, r.size)
 
-    rLG_normalized = (rLG - rLG_min) / (rLG_max - rLG_min) * (nLG - 1)
+    rLG_normalized = (jnp.abs(rLG) - rLG_min) / (rLG_max - rLG_min) * (nLG - 1)
     rLG_normalized = jnp.repeat(rLG_normalized, r.size)
 
     r_normalized = (r / h_void - rgrid_min) / (rgrid_max - rgrid_min) * (nrad - 1)  # noqa
@@ -438,8 +454,10 @@ def interpolate_size_var_void(void_size, rLG, h_void, r, phi, data,
         # occur.
         return map_coordinates(data, X, order=order, mode='nearest')
 
+    phi = angular_distance_from_void_axis(rhat, Vext)
+
     return vmap(interpolate_single_phi)(
-        rLG_is_positive * jnp.pi + rLG_sign * phi)
+        rLG_is_negative * 180 + rLG_sign * phi)
 
 
 ###############################################################################
@@ -475,7 +493,7 @@ def mock_void(vrad_data, rLG_index, h_void,
 
     RA, DEC = galactic_to_radec(l, b)
     # Calculate the angular separation from the void axis, in degrees.
-    phi = angular_distance_from_void_axis(RA, DEC)
+    phi = angular_distance_from_void_axis_fiducial(RA, DEC)
 
     # Sample the linewidth of each galaxy from a Gaussian distribution to mimic
     # the MNR procedure.
@@ -509,7 +527,7 @@ def mock_void(vrad_data, rLG_index, h_void,
     # index.
     vrad_data_rLG = vrad_data[rLG_index]
 
-    r_grid = np.arange(0, 251) * h_void
+    r_grid = np.arange(0, 400) * h_void
     phi_grid = np.arange(0, 181)
     Vr = RegularGridInterpolator((phi_grid, r_grid), vrad_data_rLG,
                                  fill_value=np.nan, bounds_error=False,
@@ -548,7 +566,7 @@ def mock_void(vrad_data, rLG_index, h_void,
 
 
 def void_velocity_vector(X_cartesian, vx_grid, vy_grid, r_grid, phi_grid,
-                         return_icrs=True):
+                         is_negative_Roffset=False, return_icrs=True):
     """
     Calculate the 3D velocity of each galaxy in ICRS.
 
@@ -560,6 +578,9 @@ def void_velocity_vector(X_cartesian, vx_grid, vy_grid, r_grid, phi_grid,
         Grids of void velocities.
     r_grid, phi_grid : 1-dimensional array
         Radial and angular grid of the void model.
+    is_negative_Roffset : bool, optional
+        Whether the observer offset is negative, in which case flips the
+        sign of `cos(phi)`.
     return_icrs : bool, optional
         Whether to return the velocity in ICRS coordinates, otherwise in
         the void frame.
@@ -581,6 +602,8 @@ def void_velocity_vector(X_cartesian, vx_grid, vy_grid, r_grid, phi_grid,
 
     # Angular separation of each point from the void axis.
     cos_phi = np.sum(r_hat * n_hat[None, :], axis=1)
+    if is_negative_Roffset:
+        cos_phi *= -1
 
     # We use grid-like interpolation, it is faster.
     rgrid_min, rgrid_max = r_grid.min(), r_grid.max()
@@ -682,7 +705,7 @@ def make_grid(ngrid, rmax, boxsize, reshape_to_3d=True):
 
 
 def void_bulk_flow(r, vx, vy, ngrid, r_grid, phi_grid, in_icrs=True,
-                   verbose=True):
+                   is_negative_Roffset=False, verbose=True):
     """
     Calculate the bulk flow of the void velocity field.
 
@@ -699,6 +722,9 @@ def void_bulk_flow(r, vx, vy, ngrid, r_grid, phi_grid, in_icrs=True,
     in_icrs : bool, optional
         Whether to return the bulk flow in ICRS coordinates or in the void
         coordinates.
+    is_negative_Roffset : bool, optional
+        Whether the observer offset is negative, in which case flips the
+        sign of `cos(phi)`.
     verbose : bool, optional
         Verbosity flag.
 
@@ -711,8 +737,9 @@ def void_bulk_flow(r, vx, vy, ngrid, r_grid, phi_grid, in_icrs=True,
     boxsize = 2 * rmax
     X = make_grid(ngrid, rmax, boxsize, reshape_to_3d=False)
 
-    vel = void_velocity_vector(X, vx, vy, r_grid, phi_grid,
-                               return_icrs=in_icrs)
+    vel = void_velocity_vector(
+        X, vx, vy, r_grid, phi_grid, is_negative_Roffset=is_negative_Roffset,
+        return_icrs=in_icrs)
 
     ndim = 3 if in_icrs else 2
     bulk_flow = np.full((len(r), ndim), np.nan)
@@ -728,7 +755,8 @@ def void_bulk_flow(r, vx, vy, ngrid, r_grid, phi_grid, in_icrs=True,
     return bulk_flow
 
 
-def void_monopole(r, vr, ngrid, r_grid, phi_grid, verbose):
+def void_monopole(r, vr, ngrid, r_grid, phi_grid, is_negative_Roffset=False,
+                  verbose=True):
     """
     Calculate the monopole of the void velocity field.
 
@@ -742,6 +770,9 @@ def void_monopole(r, vr, ngrid, r_grid, phi_grid, verbose):
         Number of grid points in each dimension.
     r_grid, phi_grid : 1-dimensional array
         Void radial and angular grid.
+    is_negative_Roffset : bool, optional
+        Whether the observer offset is negative, in which case flips the
+        sign of `cos(phi)`.
     verbose : bool, optional
         Verbosity flag.
 
@@ -755,6 +786,7 @@ def void_monopole(r, vr, ngrid, r_grid, phi_grid, verbose):
     X = make_grid(ngrid, rmax, boxsize, reshape_to_3d=False)
 
     vel = void_velocity_vector(X, vr, np.zeros_like(vr), r_grid, phi_grid,
+                               is_negative_Roffset=is_negative_Roffset,
                                return_icrs=False)
     vel_rad = vel[:, 0]
 

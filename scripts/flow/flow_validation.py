@@ -49,12 +49,24 @@ def parse_args():
                         help="PV catalogues.")
     parser.add_argument("--ksmooth", type=int, default=0,
                         help="Smoothing index.")
-    parser.add_argument("--ksim", type=none_or_int, default=None,
-                        help="IC iteration number. If 'None', all IC realizations are used.")  # noqa
+    parser.add_argument(
+        "--ksim", type=none_or_int, default=None,
+        help="IC iteration number. If 'None', all IC realizations are used.")
     parser.add_argument("--ndevice", type=int, default=1,
                         help="Number of devices to request.")
     parser.add_argument("--device", type=str, default="cpu",
                         help="Device to use.")
+    parser.add_argument(
+        "--aux_name", type=str, default="",
+        help="Auxiliary argument name to overwrite any choices.")
+    parser.add_argument(
+        "--aux_arg", type=str, default="",
+        help="Auxiliary argument to overwrite any choices.")
+    parser.add_argument(
+        "--aux_type", type=str, default="str",
+        choices=["str", "int", "float", "bool"],
+        help="Auxiliary argument type to overwrite any choices.")
+
     args = parser.parse_args()
 
     # Convert the catalogue to a list of catalogues
@@ -169,19 +181,20 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
         raise AttributeError("The models must have an attribute `ndata` "
                              "indicating the number of data points.") from e
 
-    nuts_kernel = NUTS(model,
-                       init_strategy=init_to_median(num_samples=1000),
-                       )
+    nuts_kernel = NUTS(model, init_strategy=init_to_median(num_samples=500),)
     mcmc = MCMC(nuts_kernel, num_warmup=nburn, num_samples=nsteps)
     rng_key = jax.random.PRNGKey(42)
 
     mcmc.run(rng_key, extra_fields=("potential_energy",), **model_kwargs)
     samples = mcmc.get_samples()
 
-    log_posterior = -mcmc.get_extra_fields()["potential_energy"]
+    fprint("recomputing the log-density in the constrained space")
+    log_posterior = csiborgtools.flow.PV_validation_model_log_density(
+        samples, model, model_kwargs)
+
     BIC, AIC = csiborgtools.BIC_AIC(samples, log_posterior, ndata)
-    print(f"{'BIC':<20} {BIC}")
-    print(f"{'AIC':<20} {AIC}")
+    fprint(f"{'BIC':<20} {BIC}")
+    fprint(f"{'AIC':<20} {AIC}")
     mcmc.print_summary(exclude_deterministic=False)
 
     if calculate_harmonic:
@@ -266,12 +279,11 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole,
                 "a_mean": -22.0, "a_std": 5.0,
                 "b_mean": -7.0, "b_std": 4.0,
                 "c_mean": 0., "c_std": 20.0,
-                "a_dipole_mean": 0., "a_dipole_std": 1.0,
+                "a_dipole_mag_min": 0.0, "a_dipole_mag_max": 0.25,
                 "sample_a_dipole": sample_mag_dipole,
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
                 "sample_alpha": sample_alpha,
                 "sample_curvature": False if "Carrick2MTFmock" in catalogue else True,  # noqa
-                "sample_dust": dust_model is not None,
                 "Rdust_min": 0,
                 "Rdust_max": 1.0,
                 "Rdust_fixed": Rdust_fixed,
@@ -305,12 +317,17 @@ def get_toy_selection(catalogue):
         eta_kind = None
     elif "CF4_TFR" in catalogue and "_i" in catalogue:
         mag_kind = "soft"
-        mag_coeffs = [12.010, 13.879, -0.158]
+        mag_coeffs = [12.243, 13.898, -0.173]
         eta_coeffs = [-0.3, None]
         eta_kind = "lower_hard"
     elif "CF4_TFR" in catalogue and "w1" in catalogue:
         mag_kind = "soft"
-        mag_coeffs = [10.921, 13.471, -0.118]
+        mag_coeffs = [11.206, 13.203, -0.152]
+        eta_kind = "lower_hard"
+        eta_coeffs = [-0.3, None]
+    elif "CF4_TFR" in catalogue and "w2" in catalogue:
+        mag_kind = "soft"
+        mag_coeffs = [11.752, 13.772, -0.150]
         eta_kind = "lower_hard"
         eta_coeffs = [-0.3, None]
     elif catalogue == "2MTF":
@@ -340,10 +357,11 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 1500
+    nsteps = 10_000
     nburn = 1500
     zcmb_min = None
     zcmb_max = 0.05
+    # zcmb_max = 0.0500021
     nchains_harmonic = 10
     num_epochs = 50
     inference_method = "mike"
@@ -358,9 +376,26 @@ if __name__ == "__main__":
     Rdust_fixed = None  # Default for W1 is 0.186 and for W2 = 0.123
     wo_num_dist_marginalisation = False
     absolute_calibration = None
+    which_void_size_run = "zoom"
+
+    if ARGS.aux_name != "none":
+        if ARGS.aux_type == "int":
+            ARGS.aux_arg = int(ARGS.aux_arg)
+        elif ARGS.aux_type == "float":
+            ARGS.aux_arg = float(ARGS.aux_arg)
+        elif ARGS.aux_type == "bool":
+            ARGS.aux_arg = int(ARGS.aux_arg)
+            if ARGS.aux_arg not in [0, 1]:
+                raise ValueError(f"Unsupported boolean value: `{ARGS.aux_arg}`.")  # noqa
+            ARGS.aux_arg = bool(ARGS.aux_arg)
+        elif ARGS.aux_type != "str":
+            raise ValueError(f"Unsupported auxiliary type: `{ARGS.aux_type}`.")
+
+        fprint(f"setting `{ARGS.aux_name}` to `{ARGS.aux_arg}`.")
+        globals()[ARGS.aux_name] = ARGS.aux_arg
+
     calculate_harmonic = (False if (inference_method == "bayes") else True) and (not wo_num_dist_marginalisation)  # noqa
     sample_h = True if absolute_calibration is not None else False
-    which_void_size_run = "zoom"
 
     # Overwrite if if not running a varying void size simulation.
     if "IndranilVoidSizeVar_" not in ARGS.simname:
@@ -370,11 +405,10 @@ if __name__ == "__main__":
         calculate_harmonic = False
 
     # These mocks are generated without a density field, so there is no
-    # inhomogeneous Malmquist and we also do not need evidences.
+    # inhomogeneous Malmquist.
     for catalogue in ARGS.catalogue:
         if "Carrick2MTFmock" in catalogue:
             sample_alpha = False
-            calculate_harmonic = False
 
     fname_kwargs = {"inference_method": inference_method,
                     "smooth": ARGS.ksmooth,
@@ -436,8 +470,8 @@ if __name__ == "__main__":
         profile = ARGS.simname.split("_")[-1]
 
         # This is the radial distance over which to intergrate along the LOS.
-        # 165 Mpc / h should be sufficient
-        rdist = np.arange(0, 165, 0.5)
+        # 250 Mpc / h should be sufficient
+        rdist = np.arange(0, 250, 0.5)
 
         # Create the interpolator of void size to void Hubble parameter
         void_size, h_void = csiborgtools.flow.select_void_h(
@@ -479,10 +513,12 @@ if __name__ == "__main__":
         raise ValueError(
             "The number of steps must be divisible by the number of chains.")
 
-    Vext_i_lim = 1000
-    calibration_hyperparams = {"Vext_i_min": -Vext_i_lim,
-                               "Vext_i_max": Vext_i_lim,
+    num_dust_maps = len(dust_model.split(",")) if dust_model is not None else 0
+    sample_void_size = "IndranilVoidSizeVar" in ARGS.simname
+    calibration_hyperparams = {"Vext_mag_min": 0,
+                               "Vext_mag_max": 2000,
                                "Vmono_min": -1000, "Vmono_max": 1000,
+                               "e_mu_h_min": 0.001, "e_mu_h_max": 1.0,
                                "beta_min": -10.0, "beta_max": 10.0,
                                "sigma_v_min": 10., "sigma_v_max": 750.,
                                "h_min": 0.25, "h_max": 5.,
@@ -490,12 +526,14 @@ if __name__ == "__main__":
                                "sample_Vmono": sample_Vmono,
                                "sample_beta": sample_beta,
                                "sample_h": sample_h,
-                               "sample_h_e_int": sample_h_e_int,  # noqa
+                               "sample_h_e_int": sample_h_e_int,
                                "sample_rLG": "IndranilVoid" in ARGS.simname,
-                               "sample_void_size": "IndranilVoidSizeVar" in ARGS.simname,  # noqa
+                               "sample_void_size": sample_void_size,
                                "void_size_min": void_size_min,
                                "void_size_max": void_size_max,
                                "rLG_min": -50, "rLG_max": 50,
+                               "sample_dust": dust_model is not None,
+                               "num_dust_maps": num_dust_maps,
                                }
     print_variables(
         calibration_hyperparams.keys(), calibration_hyperparams.values())

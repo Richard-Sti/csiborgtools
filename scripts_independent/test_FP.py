@@ -23,15 +23,16 @@ nwarm, nsamp = 1500, 3000
 ###############################################################################
 
 ngal = 300
-add_malmquist = False
+add_malmquist = True
 numerical_distance_marginalisation = True
+zcmb_max = 0.062
 
 a_FP_true = 0.5
 b_FP_true = 0.1
 c_FP_true = 2.0
 sigma_FP_gt = 0.05
 
-Vmono_true = 0.1
+Vmono_true = 0.01
 D_mag_true = 300
 D_ra_true = 5 / 4 * np.pi
 cos_D_theta_true = 0.3
@@ -105,6 +106,14 @@ Vrad += Vmono_true
 
 ztrue = (1 + zcosmo_gt) * (1 + Vrad / SPEED_OF_LIGHT) - 1
 czobs = gen.normal(SPEED_OF_LIGHT * ztrue, sigmav_true)
+
+if zcmb_max is not None:
+    mask = ztrue <= zcmb_max
+    print(f"Removing {np.sum(~mask)} galaxies with zcmb > {zcmb_max}")
+    czobs, zcosmo_gt = czobs[mask], zcosmo_gt[mask]
+    phi, theta = phi[mask], theta[mask]
+    sig, I = sig[mask], I[mask]  # noqa
+    ngal = len(czobs)
 
 plt.figure()
 plt.hist(czobs / SPEED_OF_LIGHT, bins="auto", histtype="step", label="czobs")
@@ -197,7 +206,9 @@ def model():
 
         # Add the log-likelihoods and integrate over the distance
         ll = log_prob_dist + log_prob_redshift
-        factor("ll", jnp.log(simpson(jnp.exp(ll), axis=-1)))
+        # TODO: changed the line from this, Will this fix it?
+        # factor("ll", jnp.log(simpson(jnp.exp(ll), axis=-1)))
+        factor("ll", jnp.log(simpson(jnp.exp(ll), x=d_range, axis=-1)))
     else:
         with plate("plate_log_d", ngal):
             log_d_FP_true = sample(

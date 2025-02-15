@@ -458,7 +458,8 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         Keyword arguments for the void model.
     dust_model : str, optional
         Choice of a dust model, currently only supported for CF4 TFR WISE
-        bands. Overwrites the default dust model.
+        bands. Can provide comma-separeted dust maps, in which case they dust
+        map choise is marginalised over. Overwrites the default dust model
 
     Returns
     -------
@@ -632,9 +633,31 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
 
         if band in ["w1", "w2"] and dust_model is not None:
             fprint(f"switching the dust model to `{dust_model}`.")
+
             # Read off the correction that was applied to the magnitudes.
             Ab_default = loader.cat[f"A_{band}"]
-            ebv = read_dustmap(RA, dec, dust_model)
+
+            # Check if we have multiple dust maps to marginalise over.
+            dust_model = dust_model.split(",")
+            fprint(f"adding the following dust models: `{dust_model}`.")
+            ebv = np.full((len(dust_model), len(mag)), np.nan)
+
+            if len(dust_model) > 1:
+                raise RuntimeError(
+                    "Multiple dust models are not supported. NumPyro raises "
+                    "error when sampling a discrete variable, the "
+                    "log-likelihood will need to be rewritten to numerically "
+                    "marginalise instead.")
+
+            for i, dust_model_i in enumerate(dust_model):
+                if dust_model_i == "default":
+                    ebv[i] = Ab_default / (0.186 if band == "w1" else 0.123)
+                else:
+                    ebv[i] = read_dustmap(RA, dec, dust_model_i)
+
+                if not np.all(np.isfinite(ebv[i])):
+                    raise ValueError("Found non-finite E(B-V) values for the "
+                                     f"dust map `{dust_model_i}`.")
 
             # Remove the original dust correction, the new one is applied on
             # the fly.
@@ -661,7 +684,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
 
         calibration_params = {"mag": mag[mask], "eta": eta[mask],
                               "e_mag": e_mag[mask], "e_eta": e_eta[mask],
-                              "ebv": ebv[mask]}
+                              "ebv": ebv[..., mask]}
 
         # Read the absolute calibration
         if absolute_calibration is not None:

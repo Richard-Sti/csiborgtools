@@ -29,21 +29,24 @@ from astropy.cosmology import FlatLambdaCDM, z_at_value
 from interpax import interp1d
 from jax import jit
 from jax import numpy as jnp
-from jax.debug import print as jprint                                           # noqa
 from jax import vmap
+from jax.lax import cond
 from jax.scipy.special import erf, erfc, logsumexp
 from numpyro import deterministic, factor, plate, sample
-from numpyro.distributions import MultivariateNormal, Normal, Uniform
+from numpyro.distributions import (Categorical, MultivariateNormal, Normal,
+                                   ProjectedNormal, Uniform)
+from numpyro.handlers import reparam
+from numpyro.infer.reparam import ProjectedNormalReparam
+from numpyro.infer.util import log_density
 from quadax import simpson
 from tqdm import trange
 
 from ..params import SPEED_OF_LIGHT
-from ..utils import fprint
+from ..utils import fprint, radec_to_cartesian
 from .cosmography import (dist2redshift, distmod2dist, distmod2dist_gradient,
                           distmod2redshift, gradient_redshift2dist)
 from .selection import toy_log_magnitude_selection
-from .void_model import (angular_distance_from_void_axis,
-                         interpolate_fiducial_void, interpolate_size_var_void,
+from .void_model import (interpolate_fiducial_void, interpolate_size_var_void,
                          load_void_fiducial, load_void_size_variation)
 
 H0 = 100  # km / s / Mpc
@@ -54,12 +57,36 @@ ARCSEC2RAD = 4.84813681109536e-06
 #                       Various flow utilities                                #
 ###############################################################################
 
-def project_Vext(Vext_x, Vext_y, Vext_z, RA_radians, dec_radians):
-    """Project the external velocity vector onto the line of sight."""
+def project_vector(Vx, Vy, Vz, RA_radians, dec_radians):
+    """
+    Project a vector along a line of sight specified by `RA_radians` and
+    `dec_radians`.
+    """
     cos_dec = jnp.cos(dec_radians)
-    return (Vext_x * jnp.cos(RA_radians) * cos_dec
-            + Vext_y * jnp.sin(RA_radians) * cos_dec
-            + Vext_z * jnp.sin(dec_radians))
+    return (+ Vx * jnp.cos(RA_radians) * cos_dec
+            + Vy * jnp.sin(RA_radians) * cos_dec
+            + Vz * jnp.sin(dec_radians))
+
+
+def sample_vector(name, mag_min, mag_max):
+    """Sample a 3D vector uniformly in magnitude and direction."""
+    with reparam(config={f"xdir_{name}_skipZ": ProjectedNormalReparam()}):
+        xdir = sample(f"xdir_{name}_skipZ",  ProjectedNormal(jnp.zeros(3)))
+
+    cos_theta = deterministic(f"{name}_cos_theta_skipZ", xdir[2])
+    sin_theta = jnp.sqrt(1 - cos_theta**2)
+
+    phi = jnp.arctan2(xdir[1], xdir[0])
+    phi = cond(phi < 0, lambda x: x + 2 * jnp.pi, lambda x: x, phi)
+    phi = deterministic(f"{name}_phi_skipZ", phi)
+
+    mag = sample(f"{name}_mag_skipZ", Uniform(mag_min, mag_max))
+
+    vec = mag * jnp.array([sin_theta * jnp.cos(phi),
+                           sin_theta * jnp.sin(phi),
+                           cos_theta])
+    deterministic(name, vec)
+    return vec
 
 
 def predict_zobs(dist, beta, Vext_radial, vpec_radial, Omega_m):
@@ -229,30 +256,32 @@ class BaseFlowValidationModel(ABC):
         rLG_grid = jnp.asarray(rLG_grid, dtype=jnp.float32)
 
         rLG_min, rLG_max = rLG_grid.min(), rLG_grid.max()
-        rgrid_min, rgrid_max = 0, 250
-        fprint(f"setting the observer radial grid from {rLG_min} to {rLG_max} Mpc.")  # noqa
+        fprint(f"setting the R_offset grid from {rLG_min} to {rLG_max} Mpc, though allowing for negative values.")  # noqa
+        rgrid_min, rgrid_max = 0, void_grid.shape[-1] - 1
+        fprint(f"setting the radial grid from {rgrid_min} to {rgrid_max} Mpc.")
 
-        # Get angular separation of each object from the model axis.
-        phi = angular_distance_from_void_axis(RA, dec)
-        phi = jnp.asarray(phi, dtype=jnp.float32)
+        # Convert the RA/dec of galaxies to Cartesian unit vectors.
+        rhat = jnp.asarray(
+            radec_to_cartesian(np.asarray([np.ones_like(RA), RA, dec]).T),
+            dtype=jnp.float32)
 
         if kind == "density":
             void_grid = jnp.log(void_grid)
 
-        args = (self.r_xrange, phi, void_grid, size_min, size_max,
+        args = (self.r_xrange, rhat, void_grid, size_min, size_max,
                 rgrid_min, rgrid_max, rLG_min, rLG_max, order)
 
         if kind == "density":
             if is_fiducial:
-                f = lambda void_size, rLG, h_void: interpolate_fiducial_void(None, rLG, h_void, *args)          # noqa
+                f = lambda void_size, rLG, h_void, Vext: interpolate_fiducial_void(None, rLG, h_void, Vext, *args)          # noqa
             else:
-                f = lambda void_size, rLG, h_void: interpolate_size_var_void(void_size, rLG, h_void, *args)     # noqa
+                f = lambda void_size, rLG, h_void, Vext: interpolate_size_var_void(void_size, rLG, h_void, Vext, *args)     # noqa
             self.void_log_rho_interpolator = f
         elif kind == "vrad":
             if is_fiducial:
-                f = lambda void_size, rLG, h_void: interpolate_fiducial_void(None, rLG, h_void, *args)          # noqa
+                f = lambda void_size, rLG, h_void, Vext: interpolate_fiducial_void(None, rLG, h_void, Vext, *args)          # noqa
             else:
-                f = lambda void_size, rLG, h_void: interpolate_size_var_void(void_size, rLG, h_void, *args)     # noqa
+                f = lambda void_size, rLG, h_void, Vext: interpolate_size_var_void(void_size, rLG, h_void, Vext, *args)     # noqa
             self.void_vrad_interpolator = f
         else:
             raise ValueError(f"Unknown kind: `{kind}`.")
@@ -282,8 +311,8 @@ class BaseFlowValidationModel(ABC):
         if self.is_void_data:
             # We want the shape to be `(1, n_objects, n_radial_steps)``.
             return self.void_log_rho_interpolator(
-                kwargs["void_size"], kwargs["rLG"],
-                kwargs["h_void"])[None, ...]
+                kwargs["void_size"], kwargs["rLG"], kwargs["h_void"],
+                kwargs["Vext"])[None, ...]
 
         return self._log_los_density
 
@@ -291,8 +320,8 @@ class BaseFlowValidationModel(ABC):
         if self.is_void_data:
             # We want the shape to be `(1, n_objects, n_radial_steps)``.
             return self.void_vrad_interpolator(
-                kwargs["void_size"], kwargs["rLG"],
-                kwargs["h_void"])[None, ...]
+                kwargs["void_size"], kwargs["rLG"], kwargs["h_void"],
+                kwargs["Vext"])[None, ...]
 
         return self._los_velocity
 
@@ -392,9 +421,9 @@ def e2_distmod_TFR(e2_mag, e2_eta, eta, b, c, e_mu_intrinsic):
 
 def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
                c_mean, c_std, alpha_min, alpha_max, sample_alpha,
-               a_dipole_mean, a_dipole_std, sample_a_dipole,
-               sample_curvature, sample_dust, Rdust_min, Rdust_max,
-               Rdust_fixed, h, name):
+               a_dipole_mag_min, a_dipole_mag_max, sample_a_dipole,
+               sample_curvature, h, sample_dust, Rdust_min, Rdust_max,
+               Rdust_fixed, num_dust_models, name):
     """Sample Tully-Fisher calibration parameters."""
     e_mu = sample(f"e_mu_{name}", Uniform(e_mu_min, e_mu_max))
     factor(f"ll_e_mu_{name}", -jnp.log(e_mu))
@@ -409,9 +438,10 @@ def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
         a = sample(f"aTFR_{name}", Normal(a_mean, a_std))
 
     if sample_a_dipole:
-        ax, ay, az = sample(f"a_dipole_{name}", Normal(a_dipole_mean, a_dipole_std).expand([3]))  # noqa
+        a_dipole = sample_vector(
+            f"aTFR_dipole_{name}", a_dipole_mag_min, a_dipole_mag_max)
     else:
-        ax, ay, az = 0.0, 0.0, 0.0
+        a_dipole = jnp.zeros(3)
 
     b = sample(f"bTFR_{name}", Normal(b_mean, b_std))
 
@@ -424,18 +454,19 @@ def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
 
     if sample_dust:
         if Rdust_fixed is None:
-            R = sample(f"Rdust_{name}", Uniform(Rdust_min, Rdust_max))
+            with plate(f"plate_Rdust_{name}", num_dust_models):
+                R = sample(f"Rdust_{name}", Uniform(Rdust_min, Rdust_max))
         else:
-            R = Rdust_fixed
+            R = jnp.ones(num_dust_models) * Rdust_fixed
     else:
         R = None
 
     return {"e_mu": e_mu,
             "a": a,
-            "ax": ax, "ay": ay, "az": az,
             "b": b,
             "c": c,
             "alpha": alpha,
+            "a_dipole": a_dipole,
             "sample_a_dipole": sample_a_dipole,
             "R": R,
             }
@@ -551,11 +582,12 @@ def sample_simple(e_mu_min, e_mu_max, dmu_min, dmu_max, alpha_min, alpha_max,
 ###############################################################################
 
 
-def sample_calibration(Vext_i_min, Vext_i_max, Vmono_min, Vmono_max,
-                       beta_min, beta_max, sigma_v_min, sigma_v_max, h_min,
+def sample_calibration(Vext_mag_min, Vext_mag_max, Vmono_min, Vmono_max,
+                       beta_min, beta_max, sigma_v_min, sigma_v_max,
+                       e_mu_h_min, e_mu_h_max, h_min,
                        h_max, rLG_min, rLG_max, no_Vext, sample_Vmono,
                        sample_beta, sample_h, sample_rLG, sample_void_size,
-                       void_size_min, void_size_max, sample_h_e_int):
+                       void_size_min, void_size_max, sample_h_e_int, **kwargs):
     """Sample the flow calibration."""
     sigma_v = sample("sigma_v", Uniform(sigma_v_min, sigma_v_max))
     factor("ll_sigma_v", -jnp.log(sigma_v))
@@ -568,9 +600,7 @@ def sample_calibration(Vext_i_min, Vext_i_max, Vmono_min, Vmono_max,
     if no_Vext:
         Vext = jnp.zeros(3)
     else:
-        with plate("Vext_plate", 3):
-            Vext = sample("Vext", Uniform(Vext_i_min, Vext_i_max))
-        factor("Vext_ll", -jnp.log(jnp.sum(Vext**2)))
+        Vext = sample_vector("Vext", Vext_mag_min, Vext_mag_max)
 
     if sample_Vmono:
         Vmono = sample("Vmono", Uniform(Vmono_min, Vmono_max))
@@ -581,7 +611,7 @@ def sample_calibration(Vext_i_min, Vext_i_max, Vmono_min, Vmono_max,
         h = sample("hubble", Uniform(h_min, h_max))
 
         if sample_h_e_int:
-            e_mu_h = sample("e_mu_h", Uniform(0.001, 1.0))
+            e_mu_h = sample("e_mu_h", Uniform(e_mu_h_min, e_mu_h_max))
             factor("ll_e_mu_h", -jnp.log(e_mu_h))
         else:
             e_mu_h = 0.
@@ -792,7 +822,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
 
         Vext = field_calibration_params["Vext"]
         Vmono = field_calibration_params["Vmono"]
-        Vext_rad = project_Vext(Vext[0], Vext[1], Vext[2], self.RA, self.dec)
+        Vext_rad = project_vector(Vext[0], Vext[1], Vext[2], self.RA, self.dec)
 
         e_mu = distmod_params["e_mu"]
 
@@ -816,8 +846,8 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                 factor(f"ll_SN_MNR_std_{self.name}",
                        - jnp.log(mag_std) - jnp.log(x1_std) - jnp.log(c_std))
 
-                # NOTE: that the true variables are currently uncorrelated.
                 with plate(f"true_SN_{self.name}", self.ndata):
+                    # TODO: Add the correlation coefficient of the variables.
                     mag_true = sample(
                         f"mag_true_{self.name}", Normal(mag_mean, mag_std))
                     x1_true = sample(
@@ -872,13 +902,16 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             c = distmod_params["c"]
 
             if self.dust_model is not None:
-                Ab = distmod_params["R"] * self.ebv
+                # NOTE that this sampling of a discrete variable will not work
+                # with multiple dust maps.
+                k_dust = field_calibration_params["k_dust"]
+                Ab = distmod_params["R"][k_dust] * self.ebv[k_dust]
             else:
                 Ab = 0
 
             if distmod_params["sample_a_dipole"]:
-                ax, ay, az = (distmod_params[k] for k in ["ax", "ay", "az"])
-                a = a + project_Vext(ax, ay, az, self.RA, self.dec)
+                a += project_vector(
+                    *distmod_params["a_dipole"], self.RA, self.dec)
 
             if inference_method == "bayes":
                 # Sample the true TFR parameters.
@@ -967,7 +1000,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             if distmod_params["sample_dmu_dipole"]:
                 dmux, dmuy, dmuz = (
                     distmod_params[k] for k in ["dmux", "dmuy", "dmuz"])
-                dmu = dmu + project_Vext(dmux, dmuy, dmuz, self.RA, self.dec)
+                dmu = dmu + project_vector(dmux, dmuy, dmuz, self.RA, self.dec)
 
             if inference_method == "bayes":
                 raise NotImplementedError("Bayes for simple not implemented.")
@@ -992,7 +1025,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                     "Sampling of 'h' is not supported if numerically "
                     "marginalising the true distance.")
 
-            # Calculate p(r) (Malmquist bias). Shape is (ndata, nxrange)
+            # Calculate p(r) (Malmquist bias), `(ndata, nxrange)`
             if self.with_homogeneous_malmquist:
                 log_ptilde = log_ptilde_wo_bias(
                     self.mu_xrange[None, :], mu[:, None], e2_mu[:, None],
@@ -1012,9 +1045,9 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                     h_void = self._void_size_to_h_void(void_size)
 
                 log_los_density = self.log_los_density(
-                    void_size=void_size, rLG=rLG, h_void=h_void)
+                    void_size=void_size, rLG=rLG, h_void=h_void, Vext=Vext)
                 los_velocity = self.los_velocity(
-                    void_size=void_size, rLG=rLG, h_void=h_void)
+                    void_size=void_size, rLG=rLG, h_void=h_void, Vext=Vext)
             else:
                 log_los_density = self.log_los_density()
                 los_velocity = self.los_velocity()
@@ -1132,23 +1165,19 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             else:
                 ll = 0.
 
-            # Calculate z_obs at the true distance. Shape: (nsims, ndata)
+            # Calculate z_obs at the true distance, `(nsims, ndata)``
             vrad = field_calibration_params["beta"] * los_velocity
             vrad += (Vext_rad[None, :] + Vmono)
             zobs = 1 + z_true[None, :]
             zobs *= 1 + vrad / SPEED_OF_LIGHT
             zobs -= 1.
 
-            # Log-likelihood of observed redshifts. Shape remains
-            # `(nsims, ndata)`
+            # Log-likelihood of observed redshifts, `(nsims, ndata)`
             ll += log_likelihood_zobs(
                 self.z_obs[None, :], zobs, e2_cz[None, :])
 
             ll_per_galaxy = logsumexp(ll, axis=0) + self.norm
 
-        # Save the log-likelihoods per galaxy for the deltaL analysis.
-        # deterministic(
-        #     # f"ll_per_galaxy_{self.name}_deterministic", ll_per_galaxy)
         factor(f"ll_per_galaxy_{self.name}", ll_per_galaxy)
 
     def __call__(self, field_calibration_params, distmod_params,
@@ -1188,14 +1217,31 @@ def PV_validation_model(models, distmod_hyperparams_per_model,
         **field_calibration_hyperparams)
     h = field_calibration_params["h"]
 
+    # Sample the dust map index.
+    if field_calibration_hyperparams["sample_dust"]:
+        n = field_calibration_hyperparams["num_dust_maps"]
+        if n > 1:
+            raise RuntimeError("Only one dust map supported, this code should "
+                               "not be reached.")
+            k_dust = sample("dust_map_choice", Categorical(jnp.ones(n) / n))
+        else:
+            k_dust = 0
+    else:
+        k_dust = None
+
+    field_calibration_params["k_dust"] = k_dust
+
     for n in range(len(models)):
         model = models[n]
         name = model.name
         distmod_hyperparams = distmod_hyperparams_per_model[n]
 
         if model.kind == "TFR":
-            distmod_params = sample_TFR(**distmod_hyperparams, h=h,
-                                        name=name)
+            distmod_params = sample_TFR(
+                **distmod_hyperparams, h=h,
+                num_dust_models=field_calibration_hyperparams["num_dust_maps"],
+                sample_dust=field_calibration_hyperparams["sample_dust"],
+                name=name)
         elif model.kind == "SN":
             # TODO: Add the `h` here.
             distmod_params = sample_SN(**distmod_hyperparams, name=name)
@@ -1210,6 +1256,32 @@ def PV_validation_model(models, distmod_hyperparams_per_model,
 
         model(field_calibration_params, distmod_params, inference_method)
 
+
+def PV_validation_model_log_density(samples, model, model_kwargs,
+                                    batch_size=5):
+    """
+    Compute the log density of the peculiar velocity validation model.
+
+    The batch size cannot be much larger to prevent exhausting the memory.
+    """
+    def f(sample):
+        return log_density(model, (), model_kwargs, sample)[0]
+
+    f_vmap = vmap(f)
+    f_vmap = jit(f_vmap)
+
+    samples = {k: jnp.array(v) for k, v in samples.items()}
+    num_samples = len(samples[next(iter(samples))])
+    log_densities = jnp.zeros((num_samples,))
+
+    for i in trange(0, num_samples, batch_size, desc="Batched log densities"):
+        batch = {k: v[i:i+batch_size] for k, v in samples.items()}
+        batch_log_densities = f_vmap(batch)
+
+        log_densities = log_densities.at[i:i+batch_size].set(
+            batch_log_densities)
+
+    return log_densities
 
 ###############################################################################
 #                     Predicting z_cosmo from z_obs                           #
@@ -1362,7 +1434,7 @@ class Observed2CosmologicalRedshift(BaseObserved2CosmologicalRedshift):
             Posterior PDF.
         """
         Vext = self.get_calibration_samples("Vext")
-        Vext_radial = project_Vext(*[Vext[:, i] for i in range(3)], RA, dec)
+        Vext_radial = project_vector(*[Vext[:, i] for i in range(3)], RA, dec)
 
         alpha = self.get_calibration_samples("alpha")
         beta = self.get_calibration_samples("beta")
