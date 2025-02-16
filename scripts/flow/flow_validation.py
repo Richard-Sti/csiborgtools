@@ -159,6 +159,7 @@ def get_harmonic_evidence(samples, log_posterior, nchains_harmonic, epoch_num):
     """Compute evidence using the `harmonic` package."""
     data, names = csiborgtools.dict_samples_to_array(
         samples, exclude_deterministic=True)
+    fprint(f"computing evidence from {len(names)} parameters: {names}")
     data = data.reshape(nchains_harmonic, -1, len(names))
     log_posterior = log_posterior.reshape(nchains_harmonic, -1)
 
@@ -256,7 +257,7 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
 ###############################################################################
 
 def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole,
-                            dust_model, Rdust_fixed):
+                            dust_model, Rdust_fixed, mag_dipole_prior_kind):
     alpha_min = -10 if "IndranilVoid" in ARGS.simname else -1.0
     alpha_max = 10.0
 
@@ -266,13 +267,15 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole,
                 "alpha_cal_mean": 0.148, "alpha_cal_std": 1.0,
                 "beta_cal_mean": 3.112, "beta_cal_std": 2.0,
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
-                "sample_alpha": sample_alpha
+                "sample_alpha": sample_alpha,
+                "mag_dipole_prior_kind": mag_dipole_prior_kind,
                 }
     elif catalogue in ["Pantheon+", "Pantheon+_groups", "Pantheon+_zSN"]:
         return {"e_mu_min": 0.001, "e_mu_max": 1.0,
                 "mag_cal_mean": -18.5, "mag_cal_std": 2.0,
                 "alpha_mean": 1.0, "alpha_std": 0.5,
-                "sample_alpha": sample_alpha
+                "sample_alpha": sample_alpha,
+                "mag_dipole_prior_kind": mag_dipole_prior_kind,
                 }
     elif catalogue in ["SFI_gals", "2MTF"] or "CF4_TFR" in catalogue or "IndranilVoidTFRMock" in catalogue or "Carrick2MTFmock" in catalogue:  # noqa
         return {"e_mu_min": 0.005, "e_mu_max": 1.0,
@@ -287,6 +290,7 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole,
                 "Rdust_min": 0,
                 "Rdust_max": 1.0,
                 "Rdust_fixed": Rdust_fixed,
+                "mag_dipole_prior_kind": mag_dipole_prior_kind,
                 }
     elif catalogue in ["CF4_GroupAll"]:
         return {"e_mu_min": 0.005, "e_mu_max": 1.0,
@@ -295,6 +299,8 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole,
                 "sample_dmu_dipole": sample_mag_dipole,
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
                 "sample_alpha": sample_alpha,
+                "mag_dipole_prior_kind": mag_dipole_prior_kind,
+
                 }
     elif catalogue in ["SDSS-FP"]:
         return {"e_mu_min": 0.005, "e_mu_max": 10.0,
@@ -302,7 +308,9 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole,
                 "b_mean": 0.0, "b_std": 2.0,
                 "c_mean": 0.0, "c_std": 2.0,
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
-                "sample_alpha": sample_alpha}
+                "sample_alpha": sample_alpha,
+                "mag_dipole_prior_kind": mag_dipole_prior_kind,
+                }
     else:
         raise ValueError(f"Unsupported catalogue: `{ARGS.catalogue}`.")
 
@@ -369,7 +377,7 @@ if __name__ == "__main__":
     sample_alpha = False if ("no_field" in ARGS.simname or "IndranilVoid" in ARGS.simname) else True  # noqa
     sample_beta = None
     sample_h_e_int = False
-    no_Vext = True
+    no_Vext = None
     sample_Vmono = False
     sample_mag_dipole = False
     dust_model = None
@@ -377,6 +385,8 @@ if __name__ == "__main__":
     wo_num_dist_marginalisation = False
     absolute_calibration = None
     which_void_size_run = "zoom"
+    Vext_prior_kind = None
+    mag_dipole_prior_kind = "fixed"
 
     if ARGS.aux_name != "none":
         if ARGS.aux_type == "int":
@@ -396,6 +406,12 @@ if __name__ == "__main__":
 
     calculate_harmonic = (False if (inference_method == "bayes") else True) and (not wo_num_dist_marginalisation)  # noqa
     sample_h = True if absolute_calibration is not None else False
+
+    if Vext_prior_kind not in [None, "fixed"]:
+        raise ValueError(f"Unsupported Vext prior kind: `{Vext_prior_kind}`.")
+
+    if mag_dipole_prior_kind not in [None, "fixed"]:
+        raise ValueError(f"Unsupported mag dipole prior kind: `{mag_dipole_prior_kind}`.")  # noqa
 
     # Overwrite if if not running a varying void size simulation.
     if "IndranilVoidSizeVar_" not in ARGS.simname:
@@ -426,6 +442,8 @@ if __name__ == "__main__":
                     "which_void_size_run": which_void_size_run,
                     "dust_model": dust_model,
                     "Rdust_fixed": Rdust_fixed,
+                    "Vext_prior_kind": Vext_prior_kind,
+                    "mag_dipole_prior_kind": mag_dipole_prior_kind,
                     }
 
     main_params = {"nsteps": nsteps, "nburn": nburn,
@@ -534,6 +552,7 @@ if __name__ == "__main__":
                                "rLG_min": -50, "rLG_max": 50,
                                "sample_dust": dust_model is not None,
                                "num_dust_maps": num_dust_maps,
+                               "Vext_prior_kind": Vext_prior_kind,
                                }
     print_variables(
         calibration_hyperparams.keys(), calibration_hyperparams.values())
@@ -541,7 +560,8 @@ if __name__ == "__main__":
     distmod_hyperparams_per_catalogue = []
     for cat in ARGS.catalogue:
         x = get_distmod_hyperparams(
-            cat, sample_alpha, sample_mag_dipole, dust_model, Rdust_fixed)
+            cat, sample_alpha, sample_mag_dipole, dust_model, Rdust_fixed,
+            mag_dipole_prior_kind)
         print(f"\n{cat} hyperparameters:")
         print_variables(x.keys(), x.values())
         distmod_hyperparams_per_catalogue.append(x)
