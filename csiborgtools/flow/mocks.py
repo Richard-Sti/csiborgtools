@@ -27,16 +27,20 @@ from .cosmography import distmod2dist, distmod2redshift
 
 def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
                      a_TF=-22.8, b_TF=-7.2, sigma_TF=0.35, sigma_v=100.,
-                     Vext=[150.0, 50.0, -10.0], h=1.0, beta=0.4,
+                     Vext=[-80., 0., -180.], h=1.0, beta=0.4,
                      mean_eta=0.069, std_eta=0.078, mean_e_eta=0.012,
                      mean_mag=10.31, std_mag=0.83, mean_e_mag=0.044,
                      add_calibration=False, sigma_calibration=0.05,
+                     a_TF_dipole=None,
                      calibration_max_percentile=10,
                      calibration_rand_fraction=0.5, nrepeat_calibration=1,
                      seed=42, Om0=0.3, verbose=True, **kwargs):
     """
     Mock TFR catalogue build against the Carrick velocity field and the
     2MTF sky distribution to avoid recomputing the LOS velocities.
+
+    Unit vector towards (ell, b) = (142, 52):
+        >>> [-0.46982067, 0.099052, 0.87718712]
     """
     nsamples = len(RA_2MTF)
 
@@ -48,7 +52,7 @@ def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
     Vext = radec_to_cartesian(Vext_galactic).reshape(-1, )
 
     truths = {"a": a_TF, "b": b_TF, "e_mu": sigma_TF, "sigma_v": sigma_v,
-              "Vext": Vext,
+              "Vext": Vext, "a_TF_dipole": a_TF_dipole,
               "mean_eta": mean_eta, "std_eta": std_eta,
               "mean_mag": mean_mag, "std_mag": std_mag,
               "h": h, "beta": beta,
@@ -79,6 +83,13 @@ def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
     mag_obs = gen.normal(mag_true, mean_e_mag)
 
     # Calculate the 'true' distance modulus and redshift from the TFR distance.
+
+    if a_TF_dipole is not None:
+        rhat = radec_to_cartesian(
+            np.vstack([np.ones_like(RA_2MTF), RA_2MTF, DEC_2MTF]).T)
+
+        a_TF_dipole = np.asarray(a_TF_dipole)
+        a_TF = a_TF + np.sum(rhat * a_TF_dipole[None, :], axis=1)
 
     # If h != 1, then these distance modulii are in physical units.
     mu_TFR = mag_true - (a_TF + b_TF * eta_true)
