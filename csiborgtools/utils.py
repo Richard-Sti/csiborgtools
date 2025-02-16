@@ -488,7 +488,7 @@ def dict_samples_to_array(samples, exclude_deterministic=False):
     names = []
 
     for key, value in samples.items():
-        if exclude_deterministic and "_deterministic" in key:
+        if exclude_deterministic and ("_deterministic" in key or "_skipZ" in key):  # noqa
             continue
 
         if value.ndim == 1:
