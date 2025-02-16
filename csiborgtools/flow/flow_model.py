@@ -69,23 +69,47 @@ def project_vector(Vx, Vy, Vz, RA_radians, dec_radians):
 
 
 def sample_vector(name, mag_min, mag_max):
-    """Sample a 3D vector uniformly in magnitude and direction."""
+    """
+    Sample a 3D vector uniformly in magnitude and direction.
+
+    NOTE: Careful if computing evidences! See `sample_vector_fixed`.
+    """
     with reparam(config={f"xdir_{name}_skipZ": ProjectedNormalReparam()}):
         xdir = sample(f"xdir_{name}_skipZ",  ProjectedNormal(jnp.zeros(3)))
 
-    cos_theta = deterministic(f"{name}_cos_theta_skipZ", xdir[2])
+    cos_theta = deterministic(f"{name}_cos_theta", xdir[2])
     sin_theta = jnp.sqrt(1 - cos_theta**2)
 
     phi = jnp.arctan2(xdir[1], xdir[0])
     phi = cond(phi < 0, lambda x: x + 2 * jnp.pi, lambda x: x, phi)
-    phi = deterministic(f"{name}_phi_skipZ", phi)
+    phi = deterministic(f"{name}_phi", phi)
 
-    mag = sample(f"{name}_mag_skipZ", Uniform(mag_min, mag_max))
+    mag = sample(f"{name}_mag", Uniform(mag_min, mag_max))
 
     vec = mag * jnp.array([sin_theta * jnp.cos(phi),
                            sin_theta * jnp.sin(phi),
                            cos_theta])
-    deterministic(name, vec)
+    return vec
+
+
+def sample_vector_fixed(name, mag_min, mag_max):
+    """
+    Sample a 3D vector but without accounting for continuity and poles.
+
+    This enforces that all sampled points have the same contribution to
+    `log_density` which is not the case for the `sample_vector` function
+    because the unit vectors are drawn.
+    """
+    phi = sample(f"phi_{name}", Uniform(0, 2 * jnp.pi))
+
+    cos_theta = sample(f"cos_theta_{name}", Uniform(-1, 1))
+    sin_theta = jnp.sqrt(1 - cos_theta**2)
+
+    mag = sample(f"{name}_mag", Uniform(mag_min, mag_max))
+
+    vec = mag * jnp.array([sin_theta * jnp.cos(phi),
+                           sin_theta * jnp.sin(phi),
+                           cos_theta])
     return vec
 
 
@@ -423,7 +447,8 @@ def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
                c_mean, c_std, alpha_min, alpha_max, sample_alpha,
                a_dipole_mag_min, a_dipole_mag_max, sample_a_dipole,
                sample_curvature, h, sample_dust, Rdust_min, Rdust_max,
-               Rdust_fixed, num_dust_models, name):
+               Rdust_fixed, num_dust_models, mag_dipole_prior_kind,
+               name):
     """Sample Tully-Fisher calibration parameters."""
     e_mu = sample(f"e_mu_{name}", Uniform(e_mu_min, e_mu_max))
     factor(f"ll_e_mu_{name}", -jnp.log(e_mu))
@@ -438,8 +463,12 @@ def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
         a = sample(f"aTFR_{name}", Normal(a_mean, a_std))
 
     if sample_a_dipole:
-        a_dipole = sample_vector(
-            f"aTFR_dipole_{name}", a_dipole_mag_min, a_dipole_mag_max)
+        if mag_dipole_prior_kind == "fixed":
+            a_dipole = sample_vector_fixed(
+                f"aTFR_dipole_{name}", a_dipole_mag_min, a_dipole_mag_max)
+        else:
+            a_dipole = sample_vector(
+                f"aTFR_dipole_{name}", a_dipole_mag_min, a_dipole_mag_max)
     else:
         a_dipole = jnp.zeros(3)
 
@@ -587,7 +616,8 @@ def sample_calibration(Vext_mag_min, Vext_mag_max, Vmono_min, Vmono_max,
                        e_mu_h_min, e_mu_h_max, h_min,
                        h_max, rLG_min, rLG_max, no_Vext, sample_Vmono,
                        sample_beta, sample_h, sample_rLG, sample_void_size,
-                       void_size_min, void_size_max, sample_h_e_int, **kwargs):
+                       void_size_min, void_size_max, sample_h_e_int,
+                       Vext_prior_kind, **kwargs):
     """Sample the flow calibration."""
     sigma_v = sample("sigma_v", Uniform(sigma_v_min, sigma_v_max))
     factor("ll_sigma_v", -jnp.log(sigma_v))
@@ -600,7 +630,10 @@ def sample_calibration(Vext_mag_min, Vext_mag_max, Vmono_min, Vmono_max,
     if no_Vext:
         Vext = jnp.zeros(3)
     else:
-        Vext = sample_vector("Vext", Vext_mag_min, Vext_mag_max)
+        if Vext_prior_kind == "fixed":
+            Vext = sample_vector_fixed("Vext", Vext_mag_min, Vext_mag_max)
+        else:
+            Vext = sample_vector("Vext", Vext_mag_min, Vext_mag_max)
 
     if sample_Vmono:
         Vmono = sample("Vmono", Uniform(Vmono_min, Vmono_max))
