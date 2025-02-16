@@ -154,8 +154,10 @@ class Paths:
 
             if subsample:
                 files = files[::5]
-        elif simname in ["Carrick2015", "Lilow2024", "no_field", "CLONES"]:
+        elif simname in ["Carrick2015", "Lilow2024", "CLONES"]:
             files = [0]
+        elif "no_field" in simname:
+            files = []
         elif "IndranilVoid" in simname:
             files = [0]
         else:

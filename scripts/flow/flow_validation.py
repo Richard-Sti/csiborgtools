@@ -357,19 +357,19 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 10_000
-    nburn = 1500
+    nsteps = 3000
+    nburn = 500
     zcmb_min = None
-    zcmb_max = 0.05
-    # zcmb_max = 0.0500021
+    # zcmb_max = 0.05
+    zcmb_max = 0.0500021
     nchains_harmonic = 10
     num_epochs = 50
     inference_method = "mike"
     mag_selection = None
-    sample_alpha = False if (ARGS.simname == "no_field" or "IndranilVoid" in ARGS.simname) else True  # noqa
+    sample_alpha = False if ("no_field" in ARGS.simname or "IndranilVoid" in ARGS.simname) else True  # noqa
     sample_beta = None
     sample_h_e_int = False
-    no_Vext = None
+    no_Vext = True
     sample_Vmono = False
     sample_mag_dipole = False
     dust_model = None

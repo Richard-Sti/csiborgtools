@@ -59,7 +59,7 @@ class DataLoader:
     """
     def __init__(self, simname, ksim, catalogue, catalogue_fpath, paths,
                  ksmooth=None, store_full_velocity=False, verbose=True):
-        self._is_no_field = simname == "no_field"
+        self._is_no_field = "no_field" in simname
 
         fprint("reading the catalogue,", verbose)
         self._cat, self._absmag_calibration = self._read_catalogue(
@@ -185,15 +185,22 @@ class DataLoader:
         if "IndranilVoid" in simname:
             return None, None, None
 
+        if "no_field" in simname:
+            ngal = len(self._cat)
+            dr = 0.25
+            if len(simname.split("_")) != 3:
+                raise ValueError(f"Invalid simulation name: `{simname}`.")
+            rmax = float(simname.split("_")[-1])
+            rdist = np.arange(1, rmax, dr)
+            fprint(f"setting the `no_field` radial distances from {rdist.min()} to {rmax} Mpc/h in {len(rdist)} steps.")  # noqa
+
+            los_density = np.ones((1, ngal, len(rdist)))
+            los_velocity = np.zeros((1, 3, ngal, len(rdist)))
+            return rdist, los_density, los_velocity
+
         nsims = paths.get_ics(simname, subsample=True)
         if isinstance(ksims, int):
             ksims = [ksims]
-
-        # For no-field read in Carrick+2015 but then zero it.
-        if simname == "no_field":
-            simname = "Carrick2015"
-
-        to_wipe = self._is_no_field
 
         if not all(0 <= ksim < len(nsims) for ksim in ksims):
             raise ValueError(f"Invalid simulation index: `{ksims}`")
@@ -226,10 +233,6 @@ class DataLoader:
 
         los_density = np.stack(los_density)
         los_velocity = np.stack(los_velocity)
-
-        if to_wipe:
-            los_density = np.ones_like(los_density)
-            los_velocity = np.zeros_like(los_velocity)
 
         return rdist, los_density, los_velocity
 
