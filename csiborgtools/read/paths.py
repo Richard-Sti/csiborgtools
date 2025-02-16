@@ -744,7 +744,9 @@ class Paths:
                         sample_Vmono=False, sample_mag_dipole=False,
                         sample_curvature=False, absolute_calibration=None,
                         sample_h_e_int=False, which_void_size_run=None,
-                        dust_model=None, Rdust_fixed=None, verbose_print=True):
+                        dust_model=None, Rdust_fixed=None,
+                        Vext_prior_kind=None, mag_dipole_prior_kind=None,
+                        verbose_print=True):
         """Flow validation file path."""
         if isinstance(catalogue, list) and len(catalogue) == 1:
             catalogue = catalogue[0]
@@ -761,11 +763,13 @@ class Paths:
                 "sample_alpha", "sample_beta", "no_Vext", "sample_Vmono",
                 "sample_mag_dipole", "sample_curvature",
                 "absolute_calibration", "sample_h_e_int",
-                "which_void_size_run", "dust_model", "Rdust_fixed"]
+                "which_void_size_run", "dust_model", "Rdust_fixed",
+                "Vext_prior_kind", "mag_dipole_prior_kind"]
         values = [smooth, nsim, zcmb_min, zcmb_max, mag_selection,
                   sample_alpha, sample_beta, no_Vext, sample_Vmono,
                   sample_mag_dipole, sample_curvature, absolute_calibration,
-                  sample_h_e_int, which_void_size_run, dust_model, Rdust_fixed]
+                  sample_h_e_int, which_void_size_run, dust_model, Rdust_fixed,
+                  Vext_prior_kind, mag_dipole_prior_kind]
 
         for key, value in zip(keys, values):
 
