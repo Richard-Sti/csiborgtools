@@ -84,6 +84,10 @@ def names_to_latex(names, for_corner=False):
                   "Vvoid": r"$V_{\rm void}$",
                   "hubble": r"$h$",
                   "rLG": r"$R_{\rm offset}$",
+                  "void_size": r"$r_{\rm void}$",
+                  "aTFR": r"$a_{\rm TFR}$",
+                  "bTFR": r"$b_{\rm TFR}$",
+                  "cTFR": r"$c_{\rm TFR}$",
                   }
 
     names = copy(names)
@@ -105,6 +109,12 @@ def names_to_latex(names, for_corner=False):
 
         if "CF4_TFR_notSDSS_w1" in name:
             names[i] = names[i].replace("CF4_TFR_notSDSS_w1", "CF4,W1")
+
+        if "IndranilVoidTFRMock_" in name:
+            for n in range(20):
+                name_test = f"_IndranilVoidTFRMock_{n}"
+                if name_test in name:
+                    names[i] = names[i].replace(name_test, "")
 
     for cat in ["2MTF", "SFI", "CF4,i", "CF4,W2", "CF4,W1"]:
         ltx[f"aTFR_{cat}"] = f"a_{{\\rm TFR}}^{{\\rm {cat}}}"
