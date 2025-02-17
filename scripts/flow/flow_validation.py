@@ -540,7 +540,7 @@ if __name__ == "__main__":
                                "beta_min": -10.0, "beta_max": 10.0,
                                "sigma_v_min": 10., "sigma_v_max": 750.,
                                "h_min": 0.25, "h_max": 5.,
-                               "no_Vext": no_Vext is not None,
+                               "no_Vext": False if no_Vext is None else no_Vext,  # noqa
                                "sample_Vmono": sample_Vmono,
                                "sample_beta": sample_beta,
                                "sample_h": sample_h,
