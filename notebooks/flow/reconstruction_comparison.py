@@ -73,14 +73,17 @@ def names_to_latex(names, for_corner=False):
     ltx_corner = {"alpha": r"$\alpha$",
                   "beta": r"$\beta$",
                   "Vmag": r"$V_{\mathrm{ext},\mathrm{mag}}$",
-                  "l": r"$V_{\mathrm{ext},\ell}$",
-                  "b": r"$V_{\mathrm{ext},b}$",
+                  # "l": r"$V_{\mathrm{ext},\ell}$",
+                  # "b": r"$V_{\mathrm{ext},b}$",
+                  "l": r"$\ell$",
+                  "b": r"$b$",
                   "sigma_v": r"$\sigma_v$",
                   "alpha_cal": r"$\mathcal{A}$",
                   "beta_cal": r"$\mathcal{B}$",
                   "mag_cal": r"$\mathcal{M}$",
                   "Vvoid": r"$V_{\rm void}$",
                   "hubble": r"$h$",
+                  "rLG": r"$R_{\rm offset}$",
                   }
 
     names = copy(names)
@@ -286,11 +289,11 @@ def get_some_samples(fname, labels):
         grp = f["samples"]
 
         if "Vext" in labels:
-            Vext = grp["Vext"][...]
-            samples["Vmag"] = np.linalg.norm(Vext, axis=1)
-            Vext = csiborgtools.cartesian_to_radec(Vext)
+            samples["Vmag"] = grp["Vext_mag"][...]
+
             samples["l"], samples["b"] = csiborgtools.radec_to_galactic(
-                Vext[:, 1], Vext[:, 2])
+                np.rad2deg(grp["Vext_phi"][...]),
+                np.rad2deg(np.pi / 2 - np.arccos(grp["Vext_cos_theta"][...])))
 
         for label in labels:
             if "Vext" in label:
