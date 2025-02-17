@@ -14,15 +14,54 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """Mock data generators."""
 import numpy as np
+from astropy.cosmology import FlatLambdaCDM
 
 from ..field.interp import evaluate_cartesian_regular
 from ..params import SPEED_OF_LIGHT
 from ..utils import cartesian_to_radec, radec_to_cartesian, radec_to_galactic
-from .cosmography import distmod2dist, distmod2redshift
 
 ###############################################################################
-#                        Mock Carrickobservations                            #
+#                        Mock Carrick observations                            #
 ###############################################################################
+
+
+def interp_distmod2redshift(distmod, Om0=0.3, zmin_interp=1e-4,
+                            zmax_interp=0.5, npoints_interp=1000):
+    """
+    Convert distance modulus to redshift. Calls `astropy` to generate a grid
+    of redshifts and distance moduli and then interpolates between distance
+    modulus and log(redshift). Assumes `h = 1`.
+
+    With the default settings, the mapping is accurate to better than 10 m / s
+    over the entire range.
+    """
+    cosmo = FlatLambdaCDM(H0=100, Om0=Om0)
+    z_grid = np.linspace(zmin_interp, zmax_interp, npoints_interp)
+    distmod_grid = cosmo.distmod(z_grid).value
+    print(z_grid)
+
+    return np.exp(np.interp(distmod, distmod_grid, np.log(z_grid),
+                            left=np.nan, right=np.nan))
+
+
+def interp_distmod2dist(distmod, Om0=0.3, zmin_interp=1e-4,
+                        zmax_interp=0.5, npoints_interp=1000):
+    """
+    Convert distance modulus to redshift. Calls `astropy` to generate a grid
+    of redshifts and distance moduli and then interpolates between distance
+    modulus and log(redshift). Assumes `h = 1`.
+
+    With the default settings, the mapping is accurate to better than 1 kpc / h
+    over the entire range.
+    """
+    cosmo = FlatLambdaCDM(H0=100, Om0=Om0)
+    z_grid = np.linspace(zmin_interp, zmax_interp, npoints_interp)
+
+    distmod_grid = cosmo.distmod(z_grid).value
+    dist_grid = cosmo.comoving_distance(z_grid).value
+    print(dist_grid)
+
+    return np.exp(np.interp(distmod, distmod_grid, np.log(dist_grid)))
 
 
 def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
@@ -99,8 +138,12 @@ def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
 
     # Convert the true distance modulus to true distance and cosmological
     # redshift. The distance is in Mpc/h because the box is in Mpc / h.
-    r = distmod2dist(mu_true_h, Om0)
-    zcosmo = distmod2redshift(mu_true_h, Om0)
+    zcosmo = interp_distmod2redshift(mu_true_h, Om0)
+    r = interp_distmod2dist(mu_true_h, Om0)
+
+    if not np.all(np.isfinite(r)) or not np.all(np.isfinite(zcosmo)):
+        raise ValueError("Some distance moduli are outside the interpolation "
+                         "range.")
 
     # Calculate the Cartesian coordinates of each galaxy. This is initially
     # centered at (0, 0, 0).
