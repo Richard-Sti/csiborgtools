@@ -574,3 +574,33 @@ def harmonic_evidence(samples, log_posterior, temperature=0.8, epochs_num=20,
         return ln_inv_evidence, err_ln_inv_evidence, flow_samples
 
     return ln_inv_evidence, err_ln_inv_evidence
+
+
+def laplace_evidence(samples, log_posterior):
+    """
+    Calculate the evidence using the Laplace approximation. Calculates
+    the mean and error of the log evidence estimated from the chains.
+
+    Parameters
+    ----------
+    samples: 3-dimensional array
+        MCMC samples of shape `(nchains, nsamples, ndim)`.
+    log_posterior: 2-dimensional array
+        Log posterior values of shape `(nchains, nsamples)`.
+
+    Returns
+    -------
+    mean_ln_inv_evidence, err_ln_inv_evidence: two floats
+    """
+    nchains = len(samples)
+    ndim = samples.shape[-1]
+    logZ = np.full(nchains, np.nan)
+
+    for n in range(nchains):
+        C = np.cov(samples[0], rowvar=False)
+        lp_max = np.max(log_posterior[n])
+
+        logZ[n] = (lp_max + 0.5 * (np.sum(np.log(np.linalg.eigvalsh(C)))
+                                   + ndim * np.log(2 * np.pi)))
+
+    return np.mean(logZ), np.std(logZ)
