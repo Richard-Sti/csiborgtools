@@ -72,7 +72,7 @@ def names_to_latex(names, for_corner=False):
 
     ltx_corner = {"alpha": r"$\alpha$",
                   "beta": r"$\beta$",
-                  "Vmag": r"$V_{\mathrm{ext},\mathrm{mag}}$",
+                  "Vmag": r"$V_{\mathrm{ext}}$",
                   # "l": r"$V_{\mathrm{ext},\ell}$",
                   # "b": r"$V_{\mathrm{ext},b}$",
                   "l": r"$\ell$",
@@ -225,7 +225,7 @@ def get_gof(kind, fname):
 #                           Read in samples                                   #
 ###############################################################################
 
-def get_samples(fname, convert_Vext_to_galactic=True):
+def get_samples(fname):
     """Read in the samples from the HDF5 file."""
     samples = {}
     with File(fname, 'r') as f:
@@ -234,17 +234,14 @@ def get_samples(fname, convert_Vext_to_galactic=True):
             samples[key] = grp[key][...]
 
     if "Vext" in samples:
-        if convert_Vext_to_galactic:
-            Vext = samples.pop("Vext")
-            samples["Vmag"] = np.linalg.norm(Vext, axis=1)
-            Vext = csiborgtools.cartesian_to_radec(Vext)
-            samples["l"], samples["b"] = csiborgtools.radec_to_galactic(
-                Vext[:, 1], Vext[:, 2])
-        else:
-            Vext = samples.pop("Vext")
-            samples["Vx"] = Vext[:, 0]
-            samples["Vy"] = Vext[:, 1]
-            samples["Vz"] = Vext[:, 2]
+        Vext_mag = samples.pop("Vext_mag")
+        Vext_phi = samples.pop("Vext_phi")
+        Vext_cos_theta = samples.pop("Vext_cos_theta")
+
+        samples["Vmag"] = Vext_mag
+        samples["l"], samples["b"] = csiborgtools.radec_to_galactic(
+            np.rad2deg(Vext_phi),
+            np.rad2deg(np.pi / 2 - np.arccos(Vext_cos_theta)))
 
     keys = list(samples.keys())
     for key in keys:
@@ -270,13 +267,6 @@ def get_samples(fname, convert_Vext_to_galactic=True):
             samples[key.replace("a_dipole", "a_dipole_b")] = b
 
     return samples
-
-
-def get_Vext_only(fname):
-    with File(fname, 'r') as f:
-        Vext = f["samples/Vext"][...]
-
-    return Vext
 
 
 def get_some_samples(fname, labels):
@@ -338,13 +328,20 @@ def get_bulkflow(fname, simname, convert_to_galactic=True, downsample=1,
                  Rmax=125):
     # Read in the samples
     with File(fname, "r") as f:
-        Vext = f["samples/Vext"][...]
+        grp = f["samples"]
+
+        # This should still be double-checked.
+        Vext = csiborgtools.radec_to_cartesian(np.asarray([
+            grp["Vext_mag"][...],
+            grp["Vext_phi"][...],
+            np.rad2deg(np.pi / 2 - np.arccos(grp["Vext_cos_theta"][...]))]).T)
+
         try:
-            beta = f["samples/beta"][...]
+            beta = grp["beta"][...]
         except KeyError:
             beta = jnp.ones(len(Vext))
 
-        sigma_v = f["samples/sigma_v"][...]
+        sigma_v = grp["sigma_v"][...]
 
     # Read in the bulk flow
     f = np.load(f"/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_shells/enclosed_mass_{simname}.npz")  # noqa
