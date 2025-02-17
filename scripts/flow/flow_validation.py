@@ -382,8 +382,8 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 2000
-    nburn = 500
+    nsteps = 10_000
+    nburn = 1500
     zcmb_min = None
     zcmb_max = 0.05
     # zcmb_max = 0.0500021
@@ -403,7 +403,7 @@ if __name__ == "__main__":
     Rdust_fixed = None  # Default for W1 is 0.186 and for W2 = 0.123
     wo_num_dist_marginalisation = False
     absolute_calibration = None
-    which_void_size_run = "coarse"
+    which_void_size_run = "zoom"
 
     if ARGS.aux_name != "none":
         if ARGS.aux_type == "int":
@@ -434,6 +434,10 @@ if __name__ == "__main__":
     # Overwrite if if not running a varying void size simulation.
     if "IndranilVoidSizeVar_" not in ARGS.simname:
         which_void_size_run = None
+
+    if "IndranilVoid" in ARGS.simname and no_Vext:
+        raise ValueError("`Vext` must be sampled for the void, as it is "
+                         "needed to define the void axis.")
 
     if any("Pantheon+" in cat for cat in ARGS.catalogue):
         calculate_harmonic = False
