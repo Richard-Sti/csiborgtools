@@ -73,6 +73,9 @@ def sample_vector(name, mag_min, mag_max):
     Sample a 3D vector uniformly in magnitude and direction.
 
     NOTE: Careful if computing evidences! See `sample_vector_fixed`.
+    Particularly when comparing a model that containts this vector variable
+    to a model that does not contain it, in which case *must* use the
+    `sample_vector_fixed`. function.
     """
     with reparam(config={f"xdir_{name}_skipZ": ProjectedNormalReparam()}):
         xdir = sample(f"xdir_{name}_skipZ",  ProjectedNormal(jnp.zeros(3)))
