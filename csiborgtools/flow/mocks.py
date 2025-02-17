@@ -38,7 +38,6 @@ def interp_distmod2redshift(distmod, Om0=0.3, zmin_interp=1e-4,
     cosmo = FlatLambdaCDM(H0=100, Om0=Om0)
     z_grid = np.linspace(zmin_interp, zmax_interp, npoints_interp)
     distmod_grid = cosmo.distmod(z_grid).value
-    print(z_grid)
 
     return np.exp(np.interp(distmod, distmod_grid, np.log(z_grid),
                             left=np.nan, right=np.nan))
@@ -59,7 +58,6 @@ def interp_distmod2dist(distmod, Om0=0.3, zmin_interp=1e-4,
 
     distmod_grid = cosmo.distmod(z_grid).value
     dist_grid = cosmo.comoving_distance(z_grid).value
-    print(dist_grid)
 
     return np.exp(np.interp(distmod, distmod_grid, np.log(dist_grid)))
 
