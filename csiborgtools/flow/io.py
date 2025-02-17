@@ -21,7 +21,7 @@ from h5py import File
 from ..params import SPEED_OF_LIGHT, simname2Omega_m
 from ..utils import fprint, radec_to_galactic, radec_to_supergalactic
 from .flow_model import PV_LogLikelihood
-from .void_model import load_void_fiducial, mock_void, select_void_h
+# from .void_model import load_void_size_variation, mock_void, select_void_h
 from ..read import read_pantheonplus_data
 
 H0 = 100  # km / s / Mpc
@@ -271,24 +271,11 @@ class DataLoader:
                 for key in f.keys():
                     arr[key] = f[key][:]
         elif "IndranilVoidTFRMock" in catalogue:
-            # The name can be e.g. "IndranilVoidTFRMock_exp_34_0", where the
-            # first and second number are the LG observer index and random
-            # seed.
-            profile, rLG_index, seed = catalogue.split("_")[1:]
-            rLG_index = int(rLG_index)
-            seed = int(seed)
-            rLG, vrad_data = load_void_fiducial(profile, "vrad")
-            h = select_void_h(profile)
-            print(f"Mock observed galaxies for LG observer with index "
-                  f"{rLG_index} at {rLG[rLG_index] * h} Mpc / h and "
-                  f"seed {seed}.")
-            mock_data = mock_void(vrad_data, rLG_index, profile, seed=seed)[0]
-
-            # Convert the dictionary to a structured array
-            dtype = [(key, np.float32) for key in mock_data.keys()]
-            arr = np.empty(len(mock_data["RA"]), dtype=dtype)
-            for key in mock_data.keys():
-                arr[key] = mock_data[key]
+            with File(catalogue_fpath, 'r') as f:
+                dtype = [(key, np.float32) for key in f.keys()]
+                arr = np.empty(len(f["RA"]), dtype=dtype)
+                for key in f.keys():
+                    arr[key] = f[key][:]
         elif "Carrick2MTFmock" in catalogue:
             with File(catalogue_fpath, 'r') as f:
                 keys_skip = ["mu_calibration", "e_mu_calibration"]
