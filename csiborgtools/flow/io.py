@@ -552,6 +552,9 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             fprint("disabling homogeneous and inhomogeneous Malmquist bias for the mock.")  # noqa
             with_homogeneous_malmquist = False
             with_inhomogeneous_malmquist &= False
+        elif "IndranilVoidTFRMock" in kind:
+            fprint("disabling homogeneous bias for the mock.")  # noqa
+            with_homogeneous_malmquist = True
         else:
             with_homogeneous_malmquist = True
             with_inhomogeneous_malmquist &= True
