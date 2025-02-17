@@ -137,7 +137,8 @@ def get_models(ksim, get_model_kwargs, mag_selection, void_kwargs,
         elif cat in ["CF4_GroupAll"]:
             fpath = join(folder, "PV/CF4/CF4_GroupAll.hdf5")
         elif "IndranilVoidTFRMock" in cat:
-            fpath = None
+            ki = cat.split("_")[-1]
+            fpath = f"/mnt/extraspace/rstiskalek/csiborg_postprocessing/flow_mock/void_mock_seed{ki}.hdf5"  # noqa
         elif cat in ["SDSS-FP"]:
             fpath = join(folder, "PV/CF4/SDSS-FP-LOWZ.hdf5")
         else:
@@ -278,7 +279,7 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
 ###############################################################################
 
 def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole,
-                            dust_model, Rdust_fixed, mag_dipole_prior_kind):
+                            Rdust_fixed, mag_dipole_prior_kind):
     alpha_min = -10 if "IndranilVoid" in ARGS.simname else -1.0
     alpha_max = 10.0
 
@@ -381,7 +382,7 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 3500
+    nsteps = 2000
     nburn = 500
     zcmb_min = None
     zcmb_max = 0.05
@@ -394,15 +395,15 @@ if __name__ == "__main__":
     sample_beta = None
     sample_h_e_int = False
     no_Vext = None
+    Vext_prior_kind = None
     sample_Vmono = False
     sample_mag_dipole = False
+    mag_dipole_prior_kind = None
     dust_model = None
     Rdust_fixed = None  # Default for W1 is 0.186 and for W2 = 0.123
     wo_num_dist_marginalisation = False
     absolute_calibration = None
-    which_void_size_run = "zoom"
-    Vext_prior_kind = None
-    mag_dipole_prior_kind = "fixed"
+    which_void_size_run = "coarse"
 
     if ARGS.aux_name != "none":
         if ARGS.aux_type == "int":
@@ -507,7 +508,8 @@ if __name__ == "__main__":
         profile = ARGS.simname.split("_")[-1]
 
         # This is the radial distance over which to intergrate along the LOS.
-        # 250 Mpc / h should be sufficient
+        # 250 Mpc / h should be sufficient (plus the grid only extends to
+        # 400 Mpc)
         rdist = np.arange(0, 250, 0.5)
 
         # Create the interpolator of void size to void Hubble parameter
@@ -579,7 +581,7 @@ if __name__ == "__main__":
     distmod_hyperparams_per_catalogue = []
     for cat in ARGS.catalogue:
         x = get_distmod_hyperparams(
-            cat, sample_alpha, sample_mag_dipole, dust_model, Rdust_fixed,
+            cat, sample_alpha, sample_mag_dipole, Rdust_fixed,
             mag_dipole_prior_kind)
         print(f"\n{cat} hyperparameters:")
         print_variables(x.keys(), x.values())
