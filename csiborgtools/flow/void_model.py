@@ -30,7 +30,7 @@ from scipy.ndimage import map_coordinates as map_coordinates_np
 from tqdm import tqdm
 
 from ..params import SPEED_OF_LIGHT
-from ..utils import fprint, galactic_to_radec
+from ..utils import fprint, galactic_to_radec, radec_to_cartesian
 from .mocks import interp_distmod2dist, interp_distmod2redshift
 
 ###############################################################################
@@ -466,9 +466,9 @@ def interpolate_size_var_void(void_size, rLG, h_void, Vext, r, rhat, data,
 
 
 def mock_void(vrad_data, h_void, a_TF=-22.8, b_TF=-7.2, sigma_TF=0.1,
-              sigma_v=100., mean_eta=0.069, std_eta=0.078, mean_e_eta=0.012,
-              mean_mag=10.31, std_mag=0.83, mean_e_mag=0.044, beta=1.,
-              bmin=None, add_malmquist=False, nsamples=2000, seed=42,
+              sigma_v=100., Vext_mag=0., mean_eta=0.069, std_eta=0.078,
+              mean_e_eta=0.012, mean_mag=10.31, std_mag=0.83, mean_e_mag=0.044,
+              beta=1., bmin=None, add_malmquist=False, nsamples=2000, seed=42,
               Om0=0.3, verbose=False, **kwargs):
     """Mock 2MTF-like TFR data with void velocities."""
     truths = {"a": a_TF, "b": b_TF, "e_mu": sigma_TF, "sigma_v": sigma_v,
@@ -541,6 +541,12 @@ def mock_void(vrad_data, h_void, a_TF=-22.8, b_TF=-7.2, sigma_TF=0.1,
         raise ValueError("Some void velocities are outside the interpolation "
                          "range.")
     Vr *= beta
+
+    if Vext_mag > 0:
+        rhat = radec_to_cartesian(np.vstack([np.ones_like(RA), RA, DEC]).T)
+        Vext = Vext_mag * jnp.asarray([-0.4035093, 0.01363162, -0.91487399])
+
+        Vr += np.sum(rhat * Vext[None, :], axis=1)
 
     # The true redshift of the source.
     zCMB_true = (1 + zcosmo) * (1 + Vr / SPEED_OF_LIGHT) - 1
