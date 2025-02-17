@@ -57,7 +57,8 @@ def angular_distance_from_void_axis(rhat, Vext):
     `(ngal, 3)` from the void axis which is opposite to `Vext` of shape `(3,)`.
     """
     # Fiducial Vext direction, pointing towards (l, b) = (297, -4) in degrees.
-    # Vext = jnp.asarray([-0.4035093, 0.01363162, -0.91487399])
+    # Vext = jnp.asarray([-0.4035093, 0.01363162, -0.91487399]) but here we
+    # want to infer it!
     cos_phi = -jnp.sum(rhat * Vext[None, :], axis=1) / jnp.linalg.norm(Vext)
     cos_phi = jnp.clip(cos_phi, -1, 1,)
     return jnp.arccos(cos_phi) * 180 / jnp.pi
@@ -469,7 +470,7 @@ def mock_void(vrad_data, h_void, a_TF=-22.8, b_TF=-7.2, sigma_TF=0.1,
               sigma_v=100., Vext_mag=0., mean_eta=0.069, std_eta=0.078,
               mean_e_eta=0.012, mean_mag=10.31, std_mag=0.83, mean_e_mag=0.044,
               beta=1., bmin=None, add_malmquist=False, nsamples=2000, seed=42,
-              Om0=0.3, verbose=False, **kwargs):
+              negative_Roffset=False, Om0=0.3, verbose=False, **kwargs):
     """Mock 2MTF-like TFR data with void velocities."""
     truths = {"a": a_TF, "b": b_TF, "e_mu": sigma_TF, "sigma_v": sigma_v,
               "mean_eta": mean_eta, "std_eta": std_eta,
@@ -494,6 +495,8 @@ def mock_void(vrad_data, h_void, a_TF=-22.8, b_TF=-7.2, sigma_TF=0.1,
 
     # Calculate the angular separation from the void axis, in degrees.
     phi = angular_distance_from_void_axis_fiducial(RA, DEC)
+    if negative_Roffset:
+        phi = 180 - phi
 
     # Sample the linewidth of each galaxy from a Gaussian distribution to mimic
     # the MNR procedure.
