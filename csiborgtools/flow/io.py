@@ -559,7 +559,8 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         if "Carrick2MTFmock" in kind:
             # For the mock we only want to select objects with the '2M++'
             # volume.
-            mask &= loader.cat["r"] < 150
+            if not loader._is_no_field:
+                mask &= loader.cat["r"] < 150
             # The mocks are generated without Malmquist.
             fprint("disabling homogeneous and inhomogeneous Malmquist bias for the mock.")  # noqa
             with_homogeneous_malmquist = False
