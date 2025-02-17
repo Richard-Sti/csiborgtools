@@ -159,7 +159,7 @@ def get_harmonic_evidence(samples, log_posterior, nchains_harmonic, epoch_num):
     """Compute evidence using the `harmonic` package."""
     data, names = csiborgtools.dict_samples_to_array(
         samples, exclude_deterministic=True)
-    fprint(f"computing evidence from {len(names)} parameters: {names}")
+    fprint(f"computing harmonic evidence from {len(names)} parameters: {names}")  # noqa
     data = data.reshape(nchains_harmonic, -1, len(names))
     log_posterior = log_posterior.reshape(nchains_harmonic, -1)
 
@@ -167,9 +167,19 @@ def get_harmonic_evidence(samples, log_posterior, nchains_harmonic, epoch_num):
         data, log_posterior, return_flow_samples=False, epochs_num=epoch_num)
 
 
+def get_laplace_evidence(samples, log_posterior):
+    data, names = csiborgtools.dict_samples_to_array(
+        samples, exclude_deterministic=True)
+    fprint(f"computing Laplace evidence from {len(names)} parameters: {names}")
+    data = data.reshape(nchains_harmonic, -1, len(names))
+    log_posterior = log_posterior.reshape(nchains_harmonic, -1)
+
+    return csiborgtools.laplace_evidence(data, log_posterior)
+
+
 def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
-              calculate_harmonic, nchains_harmonic, epoch_num, kwargs_print,
-              fname_kwargs):
+              calculate_harmonic, calculate_laplace, nchains_harmonic,
+              epoch_num, kwargs_print, fname_kwargs):
     """Run the NumPyro model and save output to a file."""
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 
@@ -208,6 +218,15 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
         neg_ln_evidence = jax.numpy.nan
         neg_ln_evidence_err = (jax.numpy.nan, jax.numpy.nan)
 
+    if calculate_laplace:
+        ln_evidence_laplace, ln_evidence_laplace_err = get_laplace_evidence(
+            samples, log_posterior)
+        print(f"{'-ln(Z_l)':<20} {-ln_evidence_laplace}")
+        print(f"{'-ln(Z_l) error':<20} {ln_evidence_laplace_err}")
+    else:
+        ln_evidence_laplace = jax.numpy.nan
+        ln_evidence_laplace_err = jax.numpy.nan
+
     fname = join(out_folder, fname)
     print(f"Saving results: `{fname}`.")
     with File(fname, "w") as f:
@@ -225,6 +244,8 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
         grp.create_dataset("AIC", data=AIC)
         grp.create_dataset("neg_lnZ_harmonic", data=neg_ln_evidence)
         grp.create_dataset("neg_lnZ_harmonic_err", data=neg_ln_evidence_err)
+        grp.create_dataset("lnZ_laplace", data=ln_evidence_laplace)
+        grp.create_dataset("lnZ_laplace_err", data=ln_evidence_laplace_err)
 
     fname_config = fname.replace(".hdf5", "_config.txt")
     print(f"Saving configuration: `{fname_config}`.")
@@ -268,14 +289,12 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole,
                 "beta_cal_mean": 3.112, "beta_cal_std": 2.0,
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
                 "sample_alpha": sample_alpha,
-                "mag_dipole_prior_kind": mag_dipole_prior_kind,
                 }
     elif catalogue in ["Pantheon+", "Pantheon+_groups", "Pantheon+_zSN"]:
         return {"e_mu_min": 0.001, "e_mu_max": 1.0,
                 "mag_cal_mean": -18.5, "mag_cal_std": 2.0,
                 "alpha_mean": 1.0, "alpha_std": 0.5,
                 "sample_alpha": sample_alpha,
-                "mag_dipole_prior_kind": mag_dipole_prior_kind,
                 }
     elif catalogue in ["SFI_gals", "2MTF"] or "CF4_TFR" in catalogue or "IndranilVoidTFRMock" in catalogue or "Carrick2MTFmock" in catalogue:  # noqa
         return {"e_mu_min": 0.005, "e_mu_max": 1.0,
@@ -299,8 +318,6 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole,
                 "sample_dmu_dipole": sample_mag_dipole,
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
                 "sample_alpha": sample_alpha,
-                "mag_dipole_prior_kind": mag_dipole_prior_kind,
-
                 }
     elif catalogue in ["SDSS-FP"]:
         return {"e_mu_min": 0.005, "e_mu_max": 10.0,
@@ -309,7 +326,6 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole,
                 "c_mean": 0.0, "c_std": 2.0,
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
                 "sample_alpha": sample_alpha,
-                "mag_dipole_prior_kind": mag_dipole_prior_kind,
                 }
     else:
         raise ValueError(f"Unsupported catalogue: `{ARGS.catalogue}`.")
@@ -365,11 +381,11 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 3000
+    nsteps = 3500
     nburn = 500
     zcmb_min = None
-    # zcmb_max = 0.05
-    zcmb_max = 0.0500021
+    zcmb_max = 0.05
+    # zcmb_max = 0.0500021
     nchains_harmonic = 10
     num_epochs = 50
     inference_method = "mike"
@@ -405,6 +421,7 @@ if __name__ == "__main__":
         globals()[ARGS.aux_name] = ARGS.aux_arg
 
     calculate_harmonic = (False if (inference_method == "bayes") else True) and (not wo_num_dist_marginalisation)  # noqa
+    calculate_laplace = (False if (inference_method == "bayes") else True) and (not wo_num_dist_marginalisation)  # noqa
     sample_h = True if absolute_calibration is not None else False
 
     if Vext_prior_kind not in [None, "fixed"]:
@@ -419,6 +436,7 @@ if __name__ == "__main__":
 
     if any("Pantheon+" in cat for cat in ARGS.catalogue):
         calculate_harmonic = False
+        calculate_laplace = False
 
     # These mocks are generated without a density field, so there is no
     # inhomogeneous Malmquist.
@@ -451,6 +469,7 @@ if __name__ == "__main__":
                    "zcmb_max": zcmb_max,
                    "mag_selection": mag_selection,
                    "calculate_harmonic": calculate_harmonic,
+                   "calculate_laplace": calculate_laplace,
                    "nchains_harmonic": nchains_harmonic,
                    "num_epochs": num_epochs,
                    "inference_method": inference_method,
@@ -602,5 +621,5 @@ if __name__ == "__main__":
         model = csiborgtools.flow.PV_validation_model
 
         run_model(model, nsteps, nburn, model_kwargs, out_folder,
-                  calculate_harmonic, nchains_harmonic, num_epochs,
-                  kwargs_print, fname_kwargs)
+                  calculate_harmonic, calculate_laplace, nchains_harmonic,
+                  num_epochs, kwargs_print, fname_kwargs)
