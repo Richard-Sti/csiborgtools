@@ -31,7 +31,7 @@ from tqdm import tqdm
 
 from ..params import SPEED_OF_LIGHT
 from ..utils import fprint, galactic_to_radec
-from .cosmography import distmod2dist, distmod2redshift
+from .mocks import interp_distmod2dist, interp_distmod2redshift
 
 ###############################################################################
 #                         Basic void computations                             #
@@ -465,12 +465,11 @@ def interpolate_size_var_void(void_size, rLG, h_void, Vext, r, rhat, data,
 ###############################################################################
 
 
-def mock_void(vrad_data, rLG_index, h_void,
-              a_TF=-22.8, b_TF=-7.2, sigma_TF=0.1, sigma_v=100.,
-              mean_eta=0.069, std_eta=0.078, mean_e_eta=0.012,
-              mean_mag=10.31, std_mag=0.83, mean_e_mag=0.044,
+def mock_void(vrad_data, h_void, a_TF=-22.8, b_TF=-7.2, sigma_TF=0.1,
+              sigma_v=100., mean_eta=0.069, std_eta=0.078, mean_e_eta=0.012,
+              mean_mag=10.31, std_mag=0.83, mean_e_mag=0.044, beta=1.,
               bmin=None, add_malmquist=False, nsamples=2000, seed=42,
-              Om0=0.3175, verbose=False, **kwargs):
+              Om0=0.3, verbose=False, **kwargs):
     """Mock 2MTF-like TFR data with void velocities."""
     truths = {"a": a_TF, "b": b_TF, "e_mu": sigma_TF, "sigma_v": sigma_v,
               "mean_eta": mean_eta, "std_eta": std_eta,
@@ -492,6 +491,7 @@ def mock_void(vrad_data, rLG_index, h_void,
     b = np.rad2deg(b)
 
     RA, DEC = galactic_to_radec(l, b)
+
     # Calculate the angular separation from the void axis, in degrees.
     phi = angular_distance_from_void_axis_fiducial(RA, DEC)
 
@@ -520,18 +520,27 @@ def mock_void(vrad_data, rLG_index, h_void,
 
     # Convert the true distance modulus to true distance and cosmological
     # redshift.
-    r = distmod2dist(mu_true, Om0)
-    zcosmo = distmod2redshift(mu_true, Om0)
+    zcosmo = interp_distmod2redshift(mu_true, Om0)
+    r = interp_distmod2dist(mu_true, Om0)
+
+    if not np.all(np.isfinite(r)) or not np.all(np.isfinite(zcosmo)):
+        raise ValueError("Some distance moduli are outside the interpolation "
+                         "range.")
 
     # Extract the velocities for the galaxies from the grid for this LG
     # index.
-    vrad_data_rLG = vrad_data[rLG_index]
-
-    r_grid = np.arange(0, 400) * h_void
-    phi_grid = np.arange(0, 181)
-    Vr = RegularGridInterpolator((phi_grid, r_grid), vrad_data_rLG,
+    len_phi, len_r = vrad_data.shape
+    r_grid = np.arange(0, len_r) * h_void
+    phi_grid = np.arange(0, len_phi)
+    print(f"Assuming grid of {len_phi} points in phi and "
+          f"{len_r} points in r.")
+    Vr = RegularGridInterpolator((phi_grid, r_grid), vrad_data,
                                  fill_value=np.nan, bounds_error=False,
-                                 method="cubic")(np.vstack([r, phi]).T)
+                                 method="cubic")(np.vstack([phi, r]).T)
+    if np.any(~np.isfinite(Vr)):
+        raise ValueError("Some void velocities are outside the interpolation "
+                         "range.")
+    Vr *= beta
 
     # The true redshift of the source.
     zCMB_true = (1 + zcosmo) * (1 + Vr / SPEED_OF_LIGHT) - 1
