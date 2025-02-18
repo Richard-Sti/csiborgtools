@@ -584,7 +584,8 @@ def mock_void(vrad_data, h_void, a_TF=-22.8, b_TF=-7.2, sigma_TF=0.1,
 
 
 def void_velocity_vector(X_cartesian, vx_grid, vy_grid, r_grid, phi_grid,
-                         is_negative_Roffset=False, return_icrs=True):
+                         Vext=None, is_negative_Roffset=False,
+                         return_icrs=True):
     """
     Calculate the 3D velocity of each galaxy in ICRS.
 
@@ -596,6 +597,9 @@ def void_velocity_vector(X_cartesian, vx_grid, vy_grid, r_grid, phi_grid,
         Grids of void velocities.
     r_grid, phi_grid : 1-dimensional array
         Radial and angular grid of the void model.
+    Vext : 1-dimensional array of shape `(3,)`, optional
+        External velocity of the void in ICRS coordinates, its opposite
+        defines the void axis.
     is_negative_Roffset : bool, optional
         Whether the observer offset is negative, in which case flips the
         sign of `cos(phi)`.
@@ -611,8 +615,12 @@ def void_velocity_vector(X_cartesian, vx_grid, vy_grid, r_grid, phi_grid,
     if not vx_grid.ndim == vy_grid.ndim == 2:
         raise ValueError("`vx_grid` and `vy_grid` must be 2-dimensional.")
 
-    # Unit vector pointing towards (l, b) = (117, 4) in degrees.
-    n_hat = np.asarray([0.4035093, -0.01363162, 0.91487399])
+    if Vext is None:
+        # Unit vector pointing towards (l, b) = (117, 4) in degrees.
+        n_hat = -np.asarray([0.4035093, -0.01363162, 0.91487399])
+    else:
+        # Note the negative sign, the void axis is opposite to Vext.
+        n_hat = -Vext / np.linalg.norm(Vext)
 
     # Unit vector pointing towards each galaxy.
     r = np.linalg.norm(X_cartesian, axis=1)
@@ -622,6 +630,9 @@ def void_velocity_vector(X_cartesian, vx_grid, vy_grid, r_grid, phi_grid,
     cos_phi = np.sum(r_hat * n_hat[None, :], axis=1)
     if is_negative_Roffset:
         cos_phi *= -1
+        n_hat *= -1
+    # Clip in case of small numerical errors.
+    cos_phi = np.clip(cos_phi, -1, 1)
 
     # We use grid-like interpolation, it is faster.
     rgrid_min, rgrid_max = r_grid.min(), r_grid.max()
@@ -722,8 +733,8 @@ def make_grid(ngrid, rmax, boxsize, reshape_to_3d=True):
     return X
 
 
-def void_bulk_flow(r, vx, vy, ngrid, r_grid, phi_grid, in_icrs=True,
-                   is_negative_Roffset=False, verbose=True):
+def void_bulk_flow(r, vx, vy, ngrid, r_grid, phi_grid, Vext=None,
+                   is_negative_Roffset=False, in_icrs=True, verbose=True):
     """
     Calculate the bulk flow of the void velocity field.
 
@@ -737,12 +748,14 @@ def void_bulk_flow(r, vx, vy, ngrid, r_grid, phi_grid, in_icrs=True,
         Number of grid points in each dimension.
     r_grid, phi_grid : 1-dimensional array
         Void radial and angular grid.
-    in_icrs : bool, optional
-        Whether to return the bulk flow in ICRS coordinates or in the void
-        coordinates.
+    Vext : 1-dimensional array of shape `(3,)`, optional
+        External velocity of the void in ICRS coordinates.
     is_negative_Roffset : bool, optional
         Whether the observer offset is negative, in which case flips the
         sign of `cos(phi)`.
+    in_icrs : bool, optional
+        Whether to return the bulk flow in ICRS coordinates or in the void
+        coordinates.
     verbose : bool, optional
         Verbosity flag.
 
@@ -756,8 +769,8 @@ def void_bulk_flow(r, vx, vy, ngrid, r_grid, phi_grid, in_icrs=True,
     X = make_grid(ngrid, rmax, boxsize, reshape_to_3d=False)
 
     vel = void_velocity_vector(
-        X, vx, vy, r_grid, phi_grid, is_negative_Roffset=is_negative_Roffset,
-        return_icrs=in_icrs)
+        X, vx, vy, r_grid, phi_grid, Vext=Vext,
+        is_negative_Roffset=is_negative_Roffset, return_icrs=in_icrs)
 
     ndim = 3 if in_icrs else 2
     bulk_flow = np.full((len(r), ndim), np.nan)
@@ -773,8 +786,8 @@ def void_bulk_flow(r, vx, vy, ngrid, r_grid, phi_grid, in_icrs=True,
     return bulk_flow
 
 
-def void_monopole(r, vr, ngrid, r_grid, phi_grid, is_negative_Roffset=False,
-                  verbose=True):
+def void_monopole(r, vr, ngrid, r_grid, phi_grid, Vext=None,
+                  is_negative_Roffset=False, verbose=True):
     """
     Calculate the monopole of the void velocity field.
 
@@ -788,6 +801,8 @@ def void_monopole(r, vr, ngrid, r_grid, phi_grid, is_negative_Roffset=False,
         Number of grid points in each dimension.
     r_grid, phi_grid : 1-dimensional array
         Void radial and angular grid.
+    Vext : 1-dimensional array of shape `(3,)`, optional
+        External velocity of the void in ICRS coordinates.
     is_negative_Roffset : bool, optional
         Whether the observer offset is negative, in which case flips the
         sign of `cos(phi)`.
@@ -803,9 +818,10 @@ def void_monopole(r, vr, ngrid, r_grid, phi_grid, is_negative_Roffset=False,
     boxsize = 2 * rmax
     X = make_grid(ngrid, rmax, boxsize, reshape_to_3d=False)
 
-    vel = void_velocity_vector(X, vr, np.zeros_like(vr), r_grid, phi_grid,
-                               is_negative_Roffset=is_negative_Roffset,
-                               return_icrs=False)
+    vel = void_velocity_vector(
+        X, vr, np.zeros_like(vr), r_grid, phi_grid,
+        Vext=Vext, is_negative_Roffset=is_negative_Roffset,
+        return_icrs=False)
     vel_rad = vel[:, 0]
 
     enclosed_vel, enclosed_vol = field_enclosed(
