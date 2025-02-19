@@ -18,7 +18,8 @@ from astropy.cosmology import FlatLambdaCDM
 
 from ..field.interp import evaluate_cartesian_regular
 from ..params import SPEED_OF_LIGHT
-from ..utils import cartesian_to_radec, radec_to_cartesian, radec_to_galactic
+from ..utils import (galactic_to_radec_cartesian, radec_to_cartesian,
+                     radec_to_galactic)
 
 ###############################################################################
 #                        Mock Carrick observations                            #
@@ -64,29 +65,24 @@ def interp_distmod2dist(distmod, Om0=0.3, zmin_interp=1e-4,
 
 def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
                      a_TF=-22.8, b_TF=-7.2, sigma_TF=0.35, sigma_v=100.,
-                     Vext=[-80., 0., -180.], h=1.0, beta=0.4,
+                     Vext_mag=150, Vext_l=300, Vext_b=-4, h=1.0, beta=0.4,
                      mean_eta=0.069, std_eta=0.078, mean_e_eta=0.012,
                      mean_mag=10.31, std_mag=0.83, mean_e_mag=0.044,
                      add_calibration=False, sigma_calibration=0.05,
-                     a_TF_dipole=None,
+                     a_TF_dipole_mag=0, a_TF_dipole_l=140, a_TF_dipole_b=30,
                      calibration_max_percentile=10,
                      calibration_rand_fraction=0.5, nrepeat_calibration=1,
                      seed=42, Om0=0.3, verbose=True, **kwargs):
     """
     Mock TFR catalogue build against the Carrick velocity field and the
     2MTF sky distribution to avoid recomputing the LOS velocities.
-
-    Unit vector towards (ell, b) = (142, 52):
-        >>> [-0.46982067, 0.099052, 0.87718712]
     """
     nsamples = len(RA_2MTF)
 
     # Convert Vext from ICRS to Galactic coordinates.
-    Vext = np.asarray(Vext).reshape(1, 3)
-    Vext_mag, Vext_RA, Vext_DEC = cartesian_to_radec(Vext).reshape(-1, )
-    Vext_l, Vext_b = radec_to_galactic(Vext_RA, Vext_DEC)
-    Vext_galactic = np.asanyarray([Vext_mag, Vext_l, Vext_b]).reshape(1, 3)
-    Vext = radec_to_cartesian(Vext_galactic).reshape(-1, )
+    Vext = Vext_mag * galactic_to_radec_cartesian(Vext_l, Vext_b)
+    a_TF_dipole = a_TF_dipole_mag * galactic_to_radec_cartesian(
+        a_TF_dipole_l, a_TF_dipole_b)
 
     truths = {"a": a_TF, "b": b_TF, "e_mu": sigma_TF, "sigma_v": sigma_v,
               "Vext": Vext, "a_TF_dipole": a_TF_dipole,
@@ -94,6 +90,8 @@ def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
               "mean_mag": mean_mag, "std_mag": std_mag,
               "h": h, "beta": beta,
               "Vmag": Vext_mag, "Vl": Vext_l, "Vb": Vext_b,
+              "a_TF_dipole_mag": a_TF_dipole_mag,
+              "a_TF_dipole_l": a_TF_dipole_l, "a_TF_dipole_b": a_TF_dipole_b
               }
 
     gen = np.random.default_rng(seed)
@@ -120,8 +118,7 @@ def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
     mag_obs = gen.normal(mag_true, mean_e_mag)
 
     # Calculate the 'true' distance modulus and redshift from the TFR distance.
-
-    if a_TF_dipole is not None:
+    if a_TF_dipole_mag > 0:
         rhat = radec_to_cartesian(
             np.vstack([np.ones_like(RA_2MTF), RA_2MTF, DEC_2MTF]).T)
 
