@@ -278,8 +278,7 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
 #                        Command line interface                               #
 ###############################################################################
 
-def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole,
-                            Rdust_fixed, mag_dipole_prior_kind):
+def get_distmod_hyperparams(catalogue, sample_alpha, Rdust_fixed):
     alpha_min = -10 if "IndranilVoid" in ARGS.simname else -1.0
     alpha_max = 10.0
 
@@ -302,21 +301,16 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole,
                 "a_mean": -22.0, "a_std": 5.0,
                 "b_mean": -7.0, "b_std": 4.0,
                 "c_mean": 0., "c_std": 20.0,
-                "a_dipole_mag_min": 0.0, "a_dipole_mag_max": 0.25,
-                "sample_a_dipole": sample_mag_dipole,
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
                 "sample_alpha": sample_alpha,
                 "sample_curvature": False if "Carrick2MTFmock" in catalogue else True,  # noqa
                 "Rdust_min": 0,
                 "Rdust_max": 1.0,
                 "Rdust_fixed": Rdust_fixed,
-                "mag_dipole_prior_kind": mag_dipole_prior_kind,
                 }
     elif catalogue in ["CF4_GroupAll"]:
         return {"e_mu_min": 0.005, "e_mu_max": 1.0,
                 "dmu_min": -3.0, "dmu_max": 3.0,
-                "dmu_dipole_mean": 0., "dmu_dipole_std": 1.0,
-                "sample_dmu_dipole": sample_mag_dipole,
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
                 "sample_alpha": sample_alpha,
                 }
@@ -584,15 +578,16 @@ if __name__ == "__main__":
                                "sample_dust": dust_model is not None,
                                "num_dust_maps": num_dust_maps,
                                "Vext_prior_kind": Vext_prior_kind,
+                               "mag_dipole_min": 0.0, "mag_dipole_max": 0.25,
+                               "sample_mag_dipole": sample_mag_dipole,
+                               "mag_dipole_prior_kind": mag_dipole_prior_kind,
                                }
     print_variables(
         calibration_hyperparams.keys(), calibration_hyperparams.values())
 
     distmod_hyperparams_per_catalogue = []
     for cat in ARGS.catalogue:
-        x = get_distmod_hyperparams(
-            cat, sample_alpha, sample_mag_dipole, Rdust_fixed,
-            mag_dipole_prior_kind)
+        x = get_distmod_hyperparams(cat, sample_alpha, Rdust_fixed,)
         print(f"\n{cat} hyperparameters:")
         print_variables(x.keys(), x.values())
         distmod_hyperparams_per_catalogue.append(x)
