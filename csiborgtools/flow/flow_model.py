@@ -108,7 +108,7 @@ def sample_vector_fixed(name, mag_min, mag_max):
     cos_theta = sample(f"cos_theta_{name}", Uniform(-1, 1))
     sin_theta = jnp.sqrt(1 - cos_theta**2)
 
-    mag = sample(f"{name}_mag", Uniform(mag_min, mag_max))
+    mag = sample(f"mag_{name}", Uniform(mag_min, mag_max))
 
     vec = mag * jnp.array([sin_theta * jnp.cos(phi),
                            sin_theta * jnp.sin(phi),
@@ -448,10 +448,8 @@ def e2_distmod_TFR(e2_mag, e2_eta, eta, b, c, e_mu_intrinsic):
 
 def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
                c_mean, c_std, alpha_min, alpha_max, sample_alpha,
-               a_dipole_mag_min, a_dipole_mag_max, sample_a_dipole,
                sample_curvature, h, sample_dust, Rdust_min, Rdust_max,
-               Rdust_fixed, num_dust_models, mag_dipole_prior_kind,
-               name):
+               Rdust_fixed, num_dust_models, name):
     """Sample Tully-Fisher calibration parameters."""
     e_mu = sample(f"e_mu_{name}", Uniform(e_mu_min, e_mu_max))
     factor(f"ll_e_mu_{name}", -jnp.log(e_mu))
@@ -464,16 +462,6 @@ def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
         deterministic(f"aTFR_{name}_deterministic", a + 5 * jnp.log10(h))
     else:
         a = sample(f"aTFR_{name}", Normal(a_mean, a_std))
-
-    if sample_a_dipole:
-        if mag_dipole_prior_kind == "fixed":
-            a_dipole = sample_vector_fixed(
-                f"aTFR_dipole_{name}", a_dipole_mag_min, a_dipole_mag_max)
-        else:
-            a_dipole = sample_vector(
-                f"aTFR_dipole_{name}", a_dipole_mag_min, a_dipole_mag_max)
-    else:
-        a_dipole = jnp.zeros(3)
 
     b = sample(f"bTFR_{name}", Normal(b_mean, b_std))
 
@@ -498,8 +486,6 @@ def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
             "b": b,
             "c": c,
             "alpha": alpha,
-            "a_dipole": a_dipole,
-            "sample_a_dipole": sample_a_dipole,
             "R": R,
             }
 
@@ -586,8 +572,7 @@ def apparent_magnitude_from_FP(a, b, c, log_theta_eff, sig0, K, log_da,
 
 
 def sample_simple(e_mu_min, e_mu_max, dmu_min, dmu_max, alpha_min, alpha_max,
-                  dmu_dipole_mean, dmu_dipole_std, sample_alpha,
-                  sample_dmu_dipole, name):
+                  sample_alpha, name):
     """Sample simple calibration parameters."""
     e_mu = sample(f"e_mu_{name}", Uniform(e_mu_min, e_mu_max))
     factor(f"ll_e_mu_{name}", -jnp.log(e_mu))
@@ -595,18 +580,9 @@ def sample_simple(e_mu_min, e_mu_max, dmu_min, dmu_max, alpha_min, alpha_max,
     dmu = sample(f"dmu_{name}", Uniform(dmu_min, dmu_max))
     alpha = sample_alpha_bias(name, alpha_min, alpha_max, sample_alpha)
 
-    if sample_dmu_dipole:
-        dmux, dmuy, dmuz = sample(
-            f"dmu_dipole_{name}",
-            Normal(dmu_dipole_mean, dmu_dipole_std).expand([3]))
-    else:
-        dmux, dmuy, dmuz = 0.0, 0.0, 0.0
-
     return {"e_mu": e_mu,
             "dmu": dmu,
-            "dmux": dmux, "dmuy": dmuy, "dmuz": dmuz,
             "alpha": alpha,
-            "sample_dmu_dipole": sample_dmu_dipole,
             }
 
 ###############################################################################
@@ -620,7 +596,10 @@ def sample_calibration(Vext_mag_min, Vext_mag_max, Vmono_min, Vmono_max,
                        h_max, rLG_min, rLG_max, no_Vext, sample_Vmono,
                        sample_beta, sample_h, sample_rLG, sample_void_size,
                        void_size_min, void_size_max, sample_h_e_int,
-                       Vext_prior_kind, **kwargs):
+                       Vext_prior_kind,
+                       sample_mag_dipole, mag_dipole_min, mag_dipole_max,
+                       mag_dipole_prior_kind,
+                       **kwargs):
     """Sample the flow calibration."""
     sigma_v = sample("sigma_v", Uniform(sigma_v_min, sigma_v_max))
     factor("ll_sigma_v", -jnp.log(sigma_v))
@@ -642,6 +621,16 @@ def sample_calibration(Vext_mag_min, Vext_mag_max, Vmono_min, Vmono_max,
         Vmono = sample("Vmono", Uniform(Vmono_min, Vmono_max))
     else:
         Vmono = 0.0
+
+    if sample_mag_dipole:
+        if mag_dipole_prior_kind == "fixed":
+            mag_dipole = sample_vector_fixed(
+                "mag_dipole", mag_dipole_min, mag_dipole_max)
+        else:
+            mag_dipole = sample_vector(
+                "mag_dipole", mag_dipole_min, mag_dipole_max)
+    else:
+        mag_dipole = jnp.zeros(3)
 
     if sample_h:
         h = sample("hubble", Uniform(h_min, h_max))
@@ -674,6 +663,8 @@ def sample_calibration(Vext_mag_min, Vext_mag_max, Vmono_min, Vmono_max,
             "sample_h": sample_h,
             "rLG": r_LG,
             "void_size": void_size,
+            "mag_dipole": mag_dipole,
+            "sample_mag_dipole": sample_mag_dipole,
             }
 
 
@@ -860,6 +851,9 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         Vmono = field_calibration_params["Vmono"]
         Vext_rad = project_vector(Vext[0], Vext[1], Vext[2], self.RA, self.dec)
 
+        sample_mag_dipole = field_calibration_params["sample_mag_dipole"]
+        mag_dipole = field_calibration_params["mag_dipole"]
+
         e_mu = distmod_params["e_mu"]
 
         # ------------------------------------------------------------
@@ -945,9 +939,8 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             else:
                 Ab = 0
 
-            if distmod_params["sample_a_dipole"]:
-                a += project_vector(
-                    *distmod_params["a_dipole"], self.RA, self.dec)
+            if sample_mag_dipole:
+                a += project_vector(*mag_dipole, self.RA, self.dec)
 
             if inference_method == "bayes":
                 # Sample the true TFR parameters.
@@ -1032,11 +1025,6 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             mu = distmod_TFR(mag_true, eta_true, a, b, c)
         elif self.kind == "simple":
             dmu = distmod_params["dmu"]
-
-            if distmod_params["sample_dmu_dipole"]:
-                dmux, dmuy, dmuz = (
-                    distmod_params[k] for k in ["dmux", "dmuy", "dmuz"])
-                dmu = dmu + project_vector(dmux, dmuy, dmuz, self.RA, self.dec)
 
             if inference_method == "bayes":
                 raise NotImplementedError("Bayes for simple not implemented.")
