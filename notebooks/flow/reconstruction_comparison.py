@@ -68,6 +68,9 @@ def names_to_latex(names, for_corner=False):
            "Vvoid": "V_{\\rm void} ~ [\\mathrm{km} / \\mathrm{s}]",
            "void_size": "r_{\\rm void}",
            "hubble": "h",
+           "mag_dipole_mag": "\\Delta m",
+           "mag_dipole_l": "\\ell_{\\Delta m} ~ [\\mathrm{deg}]",
+           "mag_dipole_b": "b_{\\Delta m} ~ [\\mathrm{deg}]",
            }
 
     ltx_corner = {"alpha": r"$\alpha$",
@@ -88,6 +91,9 @@ def names_to_latex(names, for_corner=False):
                   "aTFR": r"$a_{\rm TFR}$",
                   "bTFR": r"$b_{\rm TFR}$",
                   "cTFR": r"$c_{\rm TFR}$",
+                  "mag_dipole_mag": r"$\Delta m$",
+                  "mag_dipole_l": r"$\ell_{\Delta m}$",
+                  "mag_dipole_b": r"$b_{\Delta m}$",
                   }
 
     names = copy(names)
@@ -176,6 +182,9 @@ def names_to_latex(names, for_corner=False):
 
 
 def simname_to_pretty(simname):
+    if "no_field" in simname:
+        return "No field"
+
     ltx = {"Carrick2015": "Carrick+15",
            "Lilow2024": "Lilow+24",
            "csiborg1": r"\texttt{CSiBORG}1",
@@ -209,6 +218,7 @@ def catalogue_to_pretty(catalogue):
            "CF4_TFR_not2MTForSFI_i": r"CF4 $i$-band",
            "CF4_TFR_i": r"CF4 TFR $i$",
            "CF4_TFR_w1": r"CF4 TFR W1",
+           "CF4_TFR_w2": r"CF4 TFR W2",
            }
 
     if isinstance(catalogue, list):
@@ -224,10 +234,15 @@ def catalogue_to_pretty(catalogue):
 
 def get_gof(kind, fname):
     """Read in the goodness-of-fit statistics `kind`."""
-    if kind not in ["BIC", "AIC", "neg_lnZ_harmonic"]:
-        raise ValueError("`kind` must be one of 'BIC', 'AIC', 'neg_lnZ_harmonic'.")  # noqa
+    if kind not in ["BIC", "AIC", "neg_lnZ_harmonic", "logZ_harmonic"]:
+        raise ValueError("`kind` must be one of 'BIC', 'AIC', "
+                         "'neg_lnZ_harmonic', 'logZ_harmonic'. "
+                         f"Received: `{kind}`.")
 
     with File(fname, 'r') as f:
+        if kind == "logZ_harmonic":
+            return -f["gof/neg_lnZ_harmonic"][()] / np.log(10)
+
         return f[f"gof/{kind}"][()]
 
 
@@ -295,8 +310,24 @@ def get_some_samples(fname, labels):
                 np.rad2deg(grp["Vext_phi"][...]),
                 np.rad2deg(np.pi / 2 - np.arccos(grp["Vext_cos_theta"][...])))
 
+        if "aTFR_dipole" in labels:
+            keys_test = [key for key in grp.keys()
+                         if ("aTFR_dipole" in key and "_mag" in key)]
+            if len(keys_test) != 1:
+                raise ValueError("Cannot read more than one TFR zero-point "
+                                 "dipole.")
+            survey = keys_test[0].replace("aTFR_dipole_", "").replace("_mag", "")  # noqa
+
+            samples["aTFR_dipole_mag"] = grp[f"aTFR_dipole_{survey}_mag"][...]
+            samples["aTFR_dipole_l"], samples["aTFR_dipole_b"] = csiborgtools.radec_to_galactic(  # noqa
+                np.rad2deg(grp[f"phi_aTFR_dipole_{survey}"][...]),
+                np.rad2deg(np.pi / 2 - np.arccos(grp[f"cos_theta_aTFR_dipole_{survey}"][...])))   # noqa
+
         for label in labels:
             if "Vext" in label:
+                continue
+            
+            if "aTFR_dipole" in label:
                 continue
 
             for key in grp.keys():
