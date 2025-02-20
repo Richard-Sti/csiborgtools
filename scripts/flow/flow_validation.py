@@ -385,8 +385,14 @@ if __name__ == "__main__":
     nsteps = 10_000
     nburn = 1500
     zcmb_min = None
-    zcmb_max = 0.05
-    # zcmb_max = 0.0500021
+    # zcmb_max = 0.05
+    zcmb_max = 0.0500021
+
+    if "no_field" in ARGS.simname:
+        # For the purpose of the H0 anisotropy paper, if there is no field
+        # then may as well go above 0.05
+        zcmb_max = 0.0750001
+
     nchains_harmonic = 10
     num_epochs = 50
     inference_method = "mike"
@@ -398,7 +404,7 @@ if __name__ == "__main__":
     Vext_prior_kind = None
     sample_Vmono = False
     sample_mag_dipole = False
-    mag_dipole_prior_kind = None
+    mag_dipole_prior_kind = "fixed"
     dust_model = None
     Rdust_fixed = None  # Default for W1 is 0.186 and for W2 = 0.123
     wo_num_dist_marginalisation = False
@@ -422,7 +428,7 @@ if __name__ == "__main__":
         globals()[ARGS.aux_name] = ARGS.aux_arg
 
     calculate_harmonic = (False if (inference_method == "bayes") else True) and (not wo_num_dist_marginalisation)  # noqa
-    calculate_laplace = (False if (inference_method == "bayes") else True) and (not wo_num_dist_marginalisation)  # noqa
+    calculate_laplace = calculate_harmonic
     sample_h = True if absolute_calibration is not None else False
 
     if Vext_prior_kind not in [None, "fixed"]:
