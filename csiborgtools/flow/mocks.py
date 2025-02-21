@@ -64,7 +64,7 @@ def interp_distmod2dist(distmod, Om0=0.3, zmin_interp=1e-4,
 
 
 def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
-                     a_TF=-22.8, b_TF=-7.2, sigma_TF=0.35, sigma_v=100.,
+                     a_TF=-22.8, b_TF=-7.2, c_TF=0, sigma_TF=0.35, sigma_v=100,
                      Vext_mag=150, Vext_l=300, Vext_b=-4, h=1.0, beta=0.4,
                      mean_eta=0.069, std_eta=0.078, mean_e_eta=0.012,
                      mean_mag=10.31, std_mag=0.83, mean_e_mag=0.044,
@@ -84,8 +84,8 @@ def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
     a_TF_dipole = a_TF_dipole_mag * galactic_to_radec_cartesian(
         a_TF_dipole_l, a_TF_dipole_b)
 
-    truths = {"a": a_TF, "b": b_TF, "e_mu": sigma_TF, "sigma_v": sigma_v,
-              "Vext": Vext, "a_TF_dipole": a_TF_dipole,
+    truths = {"a": a_TF, "b": b_TF, "c": c_TF, "e_mu": sigma_TF,
+              "sigma_v": sigma_v, "Vext": Vext, "a_TF_dipole": a_TF_dipole,
               "mean_eta": mean_eta, "std_eta": std_eta,
               "mean_mag": mean_mag, "std_mag": std_mag,
               "h": h, "beta": beta,
@@ -126,7 +126,7 @@ def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
         a_TF = a_TF + np.sum(rhat * a_TF_dipole[None, :], axis=1)
 
     # If h != 1, then these distance modulii are in physical units.
-    mu_TFR = mag_true - (a_TF + b_TF * eta_true)
+    mu_TFR = mag_true - (a_TF + b_TF * eta_true + c_TF * eta_true**2)
     mu_true = gen.normal(mu_TFR, sigma_TF)
     # This is the distance modulus in units of little h.
     mu_true_h = mu_true + 5 * np.log10(h)
