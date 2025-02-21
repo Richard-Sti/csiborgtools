@@ -310,24 +310,17 @@ def get_some_samples(fname, labels):
                 np.rad2deg(grp["Vext_phi"][...]),
                 np.rad2deg(np.pi / 2 - np.arccos(grp["Vext_cos_theta"][...])))
 
-        if "aTFR_dipole" in labels:
-            keys_test = [key for key in grp.keys()
-                         if ("aTFR_dipole" in key and "_mag" in key)]
-            if len(keys_test) != 1:
-                raise ValueError("Cannot read more than one TFR zero-point "
-                                 "dipole.")
-            survey = keys_test[0].replace("aTFR_dipole_", "").replace("_mag", "")  # noqa
-
-            samples["aTFR_dipole_mag"] = grp[f"aTFR_dipole_{survey}_mag"][...]
-            samples["aTFR_dipole_l"], samples["aTFR_dipole_b"] = csiborgtools.radec_to_galactic(  # noqa
-                np.rad2deg(grp[f"phi_aTFR_dipole_{survey}"][...]),
-                np.rad2deg(np.pi / 2 - np.arccos(grp[f"cos_theta_aTFR_dipole_{survey}"][...])))   # noqa
+        if "mag_dipole" in labels:
+            samples["mag_dipole_mag"] = grp["mag_mag_dipole"][...]
+            samples["mag_dipole_l"], samples["mag_dipole_b"] = csiborgtools.radec_to_galactic(  # noqa
+                np.rad2deg(grp["phi_mag_dipole"][...]),
+                np.rad2deg(np.pi / 2 - np.arccos(grp[f"cos_theta_mag_dipole"][...])))           # noqa
 
         for label in labels:
             if "Vext" in label:
                 continue
-            
-            if "aTFR_dipole" in label:
+
+            if "mag_dipole" in label:
                 continue
 
             for key in grp.keys():
