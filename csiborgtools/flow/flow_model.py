@@ -48,6 +48,8 @@ from .cosmography import (dist2redshift, distmod2dist, distmod2dist_gradient,
 from .selection import toy_log_magnitude_selection
 from .void_model import (interpolate_fiducial_void, interpolate_size_var_void,
                          load_void_fiducial, load_void_size_variation)
+from .simpson import ln_simpson
+
 
 H0 = 100  # km / s / Mpc
 ARCSEC2RAD = 4.84813681109536e-06
@@ -987,8 +989,9 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                         norm = norm + normal_logpdf(
                             mu_xrange, mag_true[:, None], self.e_mag[:, None])
                         # Now integrate over the magnitude range.
-                        norm = simpson(jnp.exp(norm), x=mu_xrange, axis=-1)
-                        ll_mag -= jnp.log(norm)
+                        norm = ln_simpson(norm, x=mu_xrange[None, :], axis=-1)
+
+                        ll_mag -= norm
                     else:
                         ll_mag = normal_logpdf(self.mag, mag_true, self.e_mag)
 
@@ -1082,9 +1085,9 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             if self.with_inhomogeneous_malmquist:
                 log_ptilde += alpha * log_los_density
 
-            ptilde = jnp.exp(log_ptilde)
-            # Normalization of p(r). Shape: (nsims, ndata)
-            pnorm = simpson(ptilde, x=self.r_xrange, axis=-1)
+            # # Normalization of p(r). Shape: (nsims, ndata)
+            log_ptilde_norm = ln_simpson(
+                log_ptilde, x=self.r_xrange[None, None, :], axis=-1)
 
             # Calculate z_obs at each distance. Shape: (nsims, ndata, nxrange)
             vrad = field_calibration_params["beta"] * los_velocity
@@ -1094,12 +1097,13 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             zobs -= 1.
 
             # Shape remains (nsims, ndata, nxrange)
-            ptilde *= likelihood_zobs(
+            log_ptilde += log_likelihood_zobs(
                 self.z_obs[None, :, None], zobs, e2_cz[None, :, None])
 
             # Integrate over the radial distance. Shape: (nsims, ndata)
-            ll = jnp.log(simpson(ptilde, x=self.r_xrange, axis=-1))
-            ll -= jnp.log(pnorm)
+            ll = ln_simpson(
+                log_ptilde, x=self.r_xrange[None, None, :], axis=-1)
+            ll -= log_ptilde_norm
 
             ll_per_galaxy = logsumexp(ll, axis=0) + self.norm
         else:
@@ -1182,10 +1186,11 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                 # Now integrate over the radial steps.
                 # Shape is `(nsims, ndata)`. No Jacobian here because I
                 # integrate over distance, not the distance modulus.
-                pnorm = simpson(jnp.exp(pnorm), x=self.r_xrange, axis=-1)
+                log_pnorm = ln_simpson(
+                    pnorm, x=self.r_xrange[None, :], axis=-1)
 
                 # Subtract the normalisation from the log-likelihood
-                ll -= jnp.log(pnorm)
+                ll -= log_pnorm
             else:
                 ll = 0.
 
