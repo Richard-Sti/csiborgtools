@@ -989,7 +989,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                         norm = norm + normal_logpdf(
                             mu_xrange, mag_true[:, None], self.e_mag[:, None])
                         # Now integrate over the magnitude range.
-                        norm = ln_simpson(norm, x=mu_xrange[None, :], axis=-1)
+                        norm = ln_simpson(norm, x=mu_xrange, axis=-1)
 
                         ll_mag -= norm
                     else:
