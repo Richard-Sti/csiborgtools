@@ -14,8 +14,6 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """2PCF calculation."""
 import numpy
-from Corrfunc.theory.DD import DD
-from Corrfunc.utils import convert_3d_counts_to_cf
 
 from .utils import BaseRVS
 
@@ -49,6 +47,13 @@ class Mock2PCF:
             The auto-2PCF.
         """
         assert isinstance(rvs_gen, BaseRVS)
+
+        try:
+            from Corrfunc.theory.DD import DD
+            from Corrfunc.utils import convert_3d_counts_to_cf
+        except ImportError:
+            raise ImportError("`Corrfunc` not installed. Please install.")
+
         pos = pos.astype(numpy.float64)
         rand_pos = rvs_gen(nrandom, random_state=random_state,
                            dtype=numpy.float64)
