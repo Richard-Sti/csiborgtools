@@ -17,6 +17,7 @@ import numpy as np
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
 from h5py import File
+from warnings import warn
 
 from ..params import SPEED_OF_LIGHT, simname2Omega_m
 from ..utils import fprint, radec_to_galactic, radec_to_supergalactic
@@ -422,7 +423,8 @@ def mask_fields(density, velocity, mask, return_none):
 
 def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
               wo_num_dist_marginalisation=False, absolute_calibration=None,
-              calibration_fpath=None, void_kwargs=None, dust_model=None):
+              calibration_fpath=None, void_kwargs=None, dust_model=None,
+              remove_CF4_outliers=None):
     """
     Get a model and extract the relevant data from the loader.
 
@@ -450,6 +452,8 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         Choice of a dust model, currently only supported for CF4 TFR WISE
         bands. Can provide comma-separeted dust maps, in which case they dust
         map choise is marginalised over. Overwrites the default dust model
+    remove_CF4_outliers : bool, optional
+        Whether to remove the CF4 outlier.
 
     Returns
     -------
@@ -608,8 +612,8 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             raise ValueError(f"Band `{band}` not recognized.")
 
         keys = ["RA", "DEC", "Vcmb", f"{band}", "lgWmxi", "elgWi", "Qs", "Qw",
-                "inc_e"]
-        RA, dec, z_obs, mag, eta, e_eta, Qs, Qw, e_inc = (
+                "inc_e", "pgc"]
+        RA, dec, z_obs, mag, eta, e_eta, Qs, Qw, e_inc, pgc = (
             loader.cat[k] for k in keys)
         l, b = radec_to_galactic(RA, dec)
 
@@ -624,6 +628,20 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         fprint("selecting only galaxies with |b| > 7.5.")
         mask &= np.abs(b) > 7.5
         mask &= (z_obs < zcmb_max) & (z_obs > zcmb_min)
+
+        if remove_CF4_outliers:
+            warn("Using local paths to retrieve the outlier files.",
+                 RuntimeWarning)
+            fprint("removing the CF4 outliers.")
+            i_outliers = np.genfromtxt(
+                "/mnt/extraspace/rstiskalek/catalogs/PV/CF4_i_outliers.csv",
+                skip_header=1, delimiter=",", usecols=[0], dtype=int)
+            w1_outliers = np.genfromtxt(
+                "/mnt/extraspace/rstiskalek/catalogs/PV/CF4_W1_outliers.csv",
+                skip_header=1, delimiter=",", usecols=[0], dtype=int)
+            outliers = np.concatenate([i_outliers, w1_outliers])
+            is_outlier = np.isin(pgc, outliers)
+            mask &= ~is_outlier
 
         if band in ["w1", "w2"] and dust_model is not None:
             fprint(f"switching the dust model to `{dust_model}`.")
