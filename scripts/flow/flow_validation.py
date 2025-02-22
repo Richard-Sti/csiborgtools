@@ -303,7 +303,7 @@ def get_distmod_hyperparams(catalogue, sample_alpha, Rdust_fixed):
                 "c_mean": 0., "c_std": 20.0,
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
                 "sample_alpha": sample_alpha,
-                "sample_curvature": False if "Carrick2MTFmock" in catalogue else True,  # noqa
+                "sample_curvature": True,
                 "Rdust_min": 0,
                 "Rdust_max": 1.0,
                 "Rdust_fixed": Rdust_fixed,
@@ -376,20 +376,17 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 15_000
-    nburn = 1500
+    nsteps = 10_000
+    nburn = 1000
     zcmb_min = None
     # zcmb_max = 0.05
-    zcmb_max = 0.0500021
-
-    if "no_field" in ARGS.simname:
-        # For the purpose of the H0 anisotropy paper, if there is no field
-        # then may as well go above 0.05
-        zcmb_max = 0.0750001
+    zcmb_max = 0.0501
+    # zcmb_max = 0.0500021
+    # zcmb_max = 0.055001
 
     nchains_harmonic = 10
     num_epochs = 50
-    inference_method = "mike"
+    inference_method = "bayes"
     mag_selection = None
     sample_alpha = False if ("no_field" in ARGS.simname or "IndranilVoid" in ARGS.simname) else True  # noqa
     sample_beta = None
@@ -404,6 +401,7 @@ if __name__ == "__main__":
     wo_num_dist_marginalisation = False
     absolute_calibration = None
     which_void_size_run = "zoom"
+    remove_CF4_outliers = False
 
     if ARGS.aux_name != "none":
         if ARGS.aux_type == "int":
@@ -424,6 +422,9 @@ if __name__ == "__main__":
     calculate_harmonic = (False if (inference_method == "bayes") else True) and (not wo_num_dist_marginalisation)  # noqa
     calculate_laplace = calculate_harmonic
     sample_h = True if absolute_calibration is not None else False
+
+    if not sample_mag_dipole:
+        mag_dipole_prior_kind = None
 
     if Vext_prior_kind not in [None, "fixed"]:
         raise ValueError(f"Unsupported Vext prior kind: `{Vext_prior_kind}`.")
@@ -467,6 +468,7 @@ if __name__ == "__main__":
                     "Rdust_fixed": Rdust_fixed,
                     "Vext_prior_kind": Vext_prior_kind,
                     "mag_dipole_prior_kind": mag_dipole_prior_kind,
+                    "remove_CF4_outliers": remove_CF4_outliers,
                     }
 
     main_params = {"nsteps": nsteps, "nburn": nburn,
@@ -603,6 +605,7 @@ if __name__ == "__main__":
         "absolute_calibration": absolute_calibration,
         "calibration_fpath": "/mnt/extraspace/rstiskalek/catalogs/PV/CF4/CF4_TF_calibration.hdf5",  # noqa
         "dust_model": dust_model,
+        "remove_CF4_outliers": remove_CF4_outliers,
         }
 
     # In case we want to run multiple simulations independently.
