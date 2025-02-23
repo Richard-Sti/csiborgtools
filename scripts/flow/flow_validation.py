@@ -278,7 +278,8 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
 #                        Command line interface                               #
 ###############################################################################
 
-def get_distmod_hyperparams(catalogue, sample_alpha, Rdust_fixed):
+def get_distmod_hyperparams(catalogue, sample_alpha, Rdust_fixed,
+                            sample_sigma_TFR_linear):
     alpha_min = -10 if "IndranilVoid" in ARGS.simname else -1.0
     alpha_max = 10.0
 
@@ -299,14 +300,15 @@ def get_distmod_hyperparams(catalogue, sample_alpha, Rdust_fixed):
     elif catalogue in ["SFI_gals", "2MTF"] or "CF4_TFR" in catalogue or "IndranilVoidTFRMock" in catalogue or "Carrick2MTFmock" in catalogue:  # noqa
         return {"e_mu_min": 0.005, "e_mu_max": 1.0,
                 "a_mean": -22.0, "a_std": 5.0,
-                "b_mean": -7.0, "b_std": 4.0,
-                "c_mean": 0., "c_std": 20.0,
+                "b_mean": -7.0, "b_std": 5.0,
+                "c_mean": 10., "c_std": 20.0,
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
                 "sample_alpha": sample_alpha,
                 "sample_curvature": True,
                 "Rdust_min": 0,
                 "Rdust_max": 1.0,
                 "Rdust_fixed": Rdust_fixed,
+                "sample_sigma_TFR_linear": sample_sigma_TFR_linear,
                 }
     elif catalogue in ["CF4_GroupAll"]:
         return {"e_mu_min": 0.005, "e_mu_max": 1.0,
@@ -376,17 +378,16 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 10_000
-    nburn = 1000
+    nsteps = 2500
+    nburn = 500
     zcmb_min = None
     # zcmb_max = 0.05
-    zcmb_max = 0.0501
-    # zcmb_max = 0.0500021
+    zcmb_max = 0.0500021
     # zcmb_max = 0.055001
 
     nchains_harmonic = 10
     num_epochs = 50
-    inference_method = "bayes"
+    inference_method = "mike"
     mag_selection = None
     sample_alpha = False if ("no_field" in ARGS.simname or "IndranilVoid" in ARGS.simname) else True  # noqa
     sample_beta = None
@@ -395,7 +396,8 @@ if __name__ == "__main__":
     Vext_prior_kind = None
     sample_Vmono = False
     sample_mag_dipole = False
-    mag_dipole_prior_kind = "fixed"
+    mag_dipole_prior_kind = "fixed"  # Defaults to `None` if not sampled.
+    sample_sigma_TFR_linear = False
     dust_model = None
     Rdust_fixed = None  # Default for W1 is 0.186 and for W2 = 0.123
     wo_num_dist_marginalisation = False
@@ -469,6 +471,7 @@ if __name__ == "__main__":
                     "Vext_prior_kind": Vext_prior_kind,
                     "mag_dipole_prior_kind": mag_dipole_prior_kind,
                     "remove_CF4_outliers": remove_CF4_outliers,
+                    "sample_sigma_TFR_linear": sample_sigma_TFR_linear,
                     }
 
     main_params = {"nsteps": nsteps, "nburn": nburn,
@@ -589,7 +592,8 @@ if __name__ == "__main__":
 
     distmod_hyperparams_per_catalogue = []
     for cat in ARGS.catalogue:
-        x = get_distmod_hyperparams(cat, sample_alpha, Rdust_fixed,)
+        x = get_distmod_hyperparams(cat, sample_alpha, Rdust_fixed,
+                                    sample_sigma_TFR_linear)
         print(f"\n{cat} hyperparameters:")
         print_variables(x.keys(), x.values())
         distmod_hyperparams_per_catalogue.append(x)
