@@ -435,9 +435,10 @@ def sample_SN_calibrated(e_mu_min, e_mu_max, mag_cal_mean, mag_cal_std,
 #                          Tully-Fisher parameters sampling                   #
 ###############################################################################
 
-def distmod_TFR(mag, eta, a, b, c):
+def distmod_TFR(mag, eta, a, b, c, eta_mean):
     """Distance modulus of a TFR calibration."""
-    return mag - (a + b * eta + c * eta**2)
+    absmag = a + b * eta
+    return mag - jnp.where(eta + eta_mean > 0, absmag + c * eta**2, absmag)
 
 
 def e2_distmod_TFR(e2_mag, e2_eta, eta, b, c, e_mu_intrinsic):
@@ -451,10 +452,16 @@ def e2_distmod_TFR(e2_mag, e2_eta, eta, b, c, e_mu_intrinsic):
 def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
                c_mean, c_std, alpha_min, alpha_max, sample_alpha,
                sample_curvature, h, sample_dust, Rdust_min, Rdust_max,
-               Rdust_fixed, num_dust_models, name):
+               Rdust_fixed, num_dust_models, sample_sigma_TFR_linear,
+               name):
     """Sample Tully-Fisher calibration parameters."""
     e_mu = sample(f"e_mu_{name}", Uniform(e_mu_min, e_mu_max))
     factor(f"ll_e_mu_{name}", -jnp.log(e_mu))
+
+    if sample_sigma_TFR_linear:
+        e_mu_slope = sample(f"e_mu_slope_{name}", Uniform(-1, 0))
+    else:
+        e_mu_slope = None
 
     if h is not None:
         # Sample the zero-point that has the factor of h in it, so that the
@@ -484,6 +491,7 @@ def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
         R = None
 
     return {"e_mu": e_mu,
+            "e_mu_slope": e_mu_slope,
             "a": a,
             "b": b,
             "c": c,
@@ -822,10 +830,20 @@ class PV_LogLikelihood(BaseFlowValidationModel):
 
         if kind == "TFR":
             self.mag_min, self.mag_max = jnp.min(self.mag), jnp.max(self.mag)
-            eta_mu = jnp.mean(self.eta)
-            fprint(f"setting the linewith mean to 0 instead of {eta_mu:.3f}.")
-            self.eta -= eta_mu
+            self.eta_mu = jnp.mean(self.eta)
+            fprint(f"setting the linewith mean to 0 instead of {self.eta_mu:.3f}.")  # noqa
+            self.eta -= self.eta_mu
             self.eta_min, self.eta_max = jnp.min(self.eta), jnp.max(self.eta)
+
+            # If specified move also the selection thresholds since we
+            # subtracted the mean of the linewidth for the purpose of the
+            # inference.
+            if hasattr(self, 'eta_selection_min') and self.eta_selection_min is not None:  # noqa
+                self.eta_selection_min -= self.eta_mu
+
+            if hasattr(self, 'eta_selection_max') and self.eta_selection_max is not None:  # noqa
+                self.eta_selection_max -= self.eta_mu
+
         elif kind == "SN":
             self.mag_min, self.mag_max = jnp.min(self.mag), jnp.max(self.mag)
             self.x1_min, self.x1_max = jnp.min(self.x1), jnp.max(self.x1)
@@ -932,6 +950,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             a = distmod_params["a"]
             b = distmod_params["b"]
             c = distmod_params["c"]
+            e_mu_slope = distmod_params["e_mu_slope"]
 
             if self.dust_model is not None:
                 # NOTE that this sampling of a discrete variable will not work
@@ -1015,17 +1034,32 @@ class PV_LogLikelihood(BaseFlowValidationModel):
 
                     factor(f"ll_eta_{self.name}", ll_eta)
 
+                # Adjust the TFR scatter depending on the linewidth. A clip at
+                # 0.01 is hard-coded here to prevent negative values. TFR
+                # scatter is always much higher than that.
+                if e_mu_slope is not None:
+                    e_mu = jnp.clip(
+                        e_mu + e_mu_slope * (eta_true + self.eta_mu + 2.5),
+                        0.01, None)
+
                 e2_mu = jnp.ones_like(mag_true) * e_mu**2
             else:
                 eta_true = self.eta
                 mag_true = self.mag - Ab
+
+                # Adjust the TFR scatter depending on the linewidth.
+                if e_mu_slope is not None:
+                    e_mu = jnp.clip(
+                        e_mu + e_mu_slope * (eta_true + self.eta_mu + 2.5),
+                        0.01, None)
+
                 if inference_method == "mike":
                     e2_mu = e2_distmod_TFR(
                         self.e2_mag, self.e2_eta, eta_true, b, c, e_mu)
                 else:
                     e2_mu = jnp.ones_like(mag_true) * e_mu**2
 
-            mu = distmod_TFR(mag_true, eta_true, a, b, c)
+            mu = distmod_TFR(mag_true, eta_true, a, b, c, self.eta_mu)
         elif self.kind == "simple":
             dmu = distmod_params["dmu"]
 
