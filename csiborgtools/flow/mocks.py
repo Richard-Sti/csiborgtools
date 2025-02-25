@@ -126,7 +126,9 @@ def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
         a_TF = a_TF + np.sum(rhat * a_TF_dipole[None, :], axis=1)
 
     # If h != 1, then these distance modulii are in physical units.
-    mu_TFR = mag_true - (a_TF + b_TF * eta_true + c_TF * eta_true**2)
+    absmag = a_TF + b_TF * eta_true
+    absmag = np.where(eta_true > 0, absmag + c_TF * eta_true**2, absmag)
+    mu_TFR = mag_true - absmag
     mu_true = gen.normal(mu_TFR, sigma_TF)
     # This is the distance modulus in units of little h.
     mu_true_h = mu_true + 5 * np.log10(h)
