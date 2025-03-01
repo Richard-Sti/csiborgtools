@@ -137,7 +137,8 @@ def get_models(ksim, get_model_kwargs, mag_selection, void_kwargs,
         elif cat in ["CF4_GroupAll"]:
             fpath = join(folder, "PV/CF4/CF4_GroupAll.hdf5")
         elif "IndranilVoidTFRMock" in cat:
-            fpath = None
+            ki = cat.split("_")[-1]
+            fpath = f"/mnt/extraspace/rstiskalek/csiborg_postprocessing/flow_mock/void_mock_seed{ki}.hdf5"  # noqa
         elif cat in ["SDSS-FP"]:
             fpath = join(folder, "PV/CF4/SDSS-FP-LOWZ.hdf5")
         else:
@@ -159,6 +160,7 @@ def get_harmonic_evidence(samples, log_posterior, nchains_harmonic, epoch_num):
     """Compute evidence using the `harmonic` package."""
     data, names = csiborgtools.dict_samples_to_array(
         samples, exclude_deterministic=True)
+    fprint(f"computing harmonic evidence from {len(names)} parameters: {names}")  # noqa
     data = data.reshape(nchains_harmonic, -1, len(names))
     log_posterior = log_posterior.reshape(nchains_harmonic, -1)
 
@@ -166,9 +168,19 @@ def get_harmonic_evidence(samples, log_posterior, nchains_harmonic, epoch_num):
         data, log_posterior, return_flow_samples=False, epochs_num=epoch_num)
 
 
+def get_laplace_evidence(samples, log_posterior):
+    data, names = csiborgtools.dict_samples_to_array(
+        samples, exclude_deterministic=True)
+    fprint(f"computing Laplace evidence from {len(names)} parameters: {names}")
+    data = data.reshape(nchains_harmonic, -1, len(names))
+    log_posterior = log_posterior.reshape(nchains_harmonic, -1)
+
+    return csiborgtools.laplace_evidence(data, log_posterior)
+
+
 def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
-              calculate_harmonic, nchains_harmonic, epoch_num, kwargs_print,
-              fname_kwargs):
+              calculate_harmonic, calculate_laplace, nchains_harmonic,
+              epoch_num, kwargs_print, fname_kwargs):
     """Run the NumPyro model and save output to a file."""
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 
@@ -207,6 +219,15 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
         neg_ln_evidence = jax.numpy.nan
         neg_ln_evidence_err = (jax.numpy.nan, jax.numpy.nan)
 
+    if calculate_laplace:
+        ln_evidence_laplace, ln_evidence_laplace_err = get_laplace_evidence(
+            samples, log_posterior)
+        print(f"{'-ln(Z_l)':<20} {-ln_evidence_laplace}")
+        print(f"{'-ln(Z_l) error':<20} {ln_evidence_laplace_err}")
+    else:
+        ln_evidence_laplace = jax.numpy.nan
+        ln_evidence_laplace_err = jax.numpy.nan
+
     fname = join(out_folder, fname)
     print(f"Saving results: `{fname}`.")
     with File(fname, "w") as f:
@@ -224,6 +245,8 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
         grp.create_dataset("AIC", data=AIC)
         grp.create_dataset("neg_lnZ_harmonic", data=neg_ln_evidence)
         grp.create_dataset("neg_lnZ_harmonic_err", data=neg_ln_evidence_err)
+        grp.create_dataset("lnZ_laplace", data=ln_evidence_laplace)
+        grp.create_dataset("lnZ_laplace_err", data=ln_evidence_laplace_err)
 
     fname_config = fname.replace(".hdf5", "_config.txt")
     print(f"Saving configuration: `{fname_config}`.")
@@ -255,8 +278,8 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
 #                        Command line interface                               #
 ###############################################################################
 
-def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole,
-                            dust_model, Rdust_fixed):
+def get_distmod_hyperparams(catalogue, sample_alpha, Rdust_fixed,
+                            sample_sigma_TFR_linear):
     alpha_min = -10 if "IndranilVoid" in ARGS.simname else -1.0
     alpha_max = 10.0
 
@@ -266,33 +289,30 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole,
                 "alpha_cal_mean": 0.148, "alpha_cal_std": 1.0,
                 "beta_cal_mean": 3.112, "beta_cal_std": 2.0,
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
-                "sample_alpha": sample_alpha
+                "sample_alpha": sample_alpha,
                 }
     elif catalogue in ["Pantheon+", "Pantheon+_groups", "Pantheon+_zSN"]:
         return {"e_mu_min": 0.001, "e_mu_max": 1.0,
                 "mag_cal_mean": -18.5, "mag_cal_std": 2.0,
                 "alpha_mean": 1.0, "alpha_std": 0.5,
-                "sample_alpha": sample_alpha
+                "sample_alpha": sample_alpha,
                 }
     elif catalogue in ["SFI_gals", "2MTF"] or "CF4_TFR" in catalogue or "IndranilVoidTFRMock" in catalogue or "Carrick2MTFmock" in catalogue:  # noqa
         return {"e_mu_min": 0.005, "e_mu_max": 1.0,
                 "a_mean": -22.0, "a_std": 5.0,
-                "b_mean": -7.0, "b_std": 4.0,
-                "c_mean": 0., "c_std": 20.0,
-                "a_dipole_mag_min": 0.0, "a_dipole_mag_max": 0.25,
-                "sample_a_dipole": sample_mag_dipole,
+                "b_mean": -7.0, "b_std": 5.0,
+                "c_mean": 10., "c_std": 20.0,
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
                 "sample_alpha": sample_alpha,
-                "sample_curvature": False if "Carrick2MTFmock" in catalogue else True,  # noqa
+                "sample_curvature": True,
                 "Rdust_min": 0,
                 "Rdust_max": 1.0,
                 "Rdust_fixed": Rdust_fixed,
+                "sample_sigma_TFR_linear": sample_sigma_TFR_linear,
                 }
     elif catalogue in ["CF4_GroupAll"]:
         return {"e_mu_min": 0.005, "e_mu_max": 1.0,
                 "dmu_min": -3.0, "dmu_max": 3.0,
-                "dmu_dipole_mean": 0., "dmu_dipole_std": 1.0,
-                "sample_dmu_dipole": sample_mag_dipole,
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
                 "sample_alpha": sample_alpha,
                 }
@@ -302,7 +322,8 @@ def get_distmod_hyperparams(catalogue, sample_alpha, sample_mag_dipole,
                 "b_mean": 0.0, "b_std": 2.0,
                 "c_mean": 0.0, "c_std": 2.0,
                 "alpha_min": alpha_min, "alpha_max": alpha_max,
-                "sample_alpha": sample_alpha}
+                "sample_alpha": sample_alpha,
+                }
     else:
         raise ValueError(f"Unsupported catalogue: `{ARGS.catalogue}`.")
 
@@ -357,26 +378,32 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 10_000
+    nsteps = 15_000
     nburn = 1500
     zcmb_min = None
-    zcmb_max = 0.05
-    # zcmb_max = 0.0500021
+    # zcmb_max = 0.05
+    zcmb_max = 0.0500021
+    # zcmb_max = 0.055001
+
     nchains_harmonic = 10
     num_epochs = 50
     inference_method = "mike"
     mag_selection = None
-    sample_alpha = False if (ARGS.simname == "no_field" or "IndranilVoid" in ARGS.simname) else True  # noqa
+    sample_alpha = False if ("no_field" in ARGS.simname or "IndranilVoid" in ARGS.simname) else True  # noqa
     sample_beta = None
     sample_h_e_int = False
     no_Vext = None
+    Vext_prior_kind = None
     sample_Vmono = False
     sample_mag_dipole = False
+    mag_dipole_prior_kind = "fixed"  # Defaults to `None` if not sampled.
+    sample_sigma_TFR_linear = False
     dust_model = None
     Rdust_fixed = None  # Default for W1 is 0.186 and for W2 = 0.123
     wo_num_dist_marginalisation = False
     absolute_calibration = None
     which_void_size_run = "zoom"
+    remove_CF4_outliers = False
 
     if ARGS.aux_name != "none":
         if ARGS.aux_type == "int":
@@ -395,14 +422,29 @@ if __name__ == "__main__":
         globals()[ARGS.aux_name] = ARGS.aux_arg
 
     calculate_harmonic = (False if (inference_method == "bayes") else True) and (not wo_num_dist_marginalisation)  # noqa
+    calculate_laplace = calculate_harmonic
     sample_h = True if absolute_calibration is not None else False
+
+    if not sample_mag_dipole:
+        mag_dipole_prior_kind = None
+
+    if Vext_prior_kind not in [None, "fixed"]:
+        raise ValueError(f"Unsupported Vext prior kind: `{Vext_prior_kind}`.")
+
+    if mag_dipole_prior_kind not in [None, "fixed"]:
+        raise ValueError(f"Unsupported mag dipole prior kind: `{mag_dipole_prior_kind}`.")  # noqa
 
     # Overwrite if if not running a varying void size simulation.
     if "IndranilVoidSizeVar_" not in ARGS.simname:
         which_void_size_run = None
 
+    if "IndranilVoid" in ARGS.simname and no_Vext:
+        raise ValueError("`Vext` must be sampled for the void, as it is "
+                         "needed to define the void axis.")
+
     if any("Pantheon+" in cat for cat in ARGS.catalogue):
         calculate_harmonic = False
+        calculate_laplace = False
 
     # These mocks are generated without a density field, so there is no
     # inhomogeneous Malmquist.
@@ -426,6 +468,10 @@ if __name__ == "__main__":
                     "which_void_size_run": which_void_size_run,
                     "dust_model": dust_model,
                     "Rdust_fixed": Rdust_fixed,
+                    "Vext_prior_kind": Vext_prior_kind,
+                    "mag_dipole_prior_kind": mag_dipole_prior_kind,
+                    "remove_CF4_outliers": remove_CF4_outliers,
+                    "sample_sigma_TFR_linear": sample_sigma_TFR_linear,
                     }
 
     main_params = {"nsteps": nsteps, "nburn": nburn,
@@ -433,6 +479,7 @@ if __name__ == "__main__":
                    "zcmb_max": zcmb_max,
                    "mag_selection": mag_selection,
                    "calculate_harmonic": calculate_harmonic,
+                   "calculate_laplace": calculate_laplace,
                    "nchains_harmonic": nchains_harmonic,
                    "num_epochs": num_epochs,
                    "inference_method": inference_method,
@@ -470,7 +517,8 @@ if __name__ == "__main__":
         profile = ARGS.simname.split("_")[-1]
 
         # This is the radial distance over which to intergrate along the LOS.
-        # 250 Mpc / h should be sufficient
+        # 250 Mpc / h should be sufficient (plus the grid only extends to
+        # 400 Mpc)
         rdist = np.arange(0, 250, 0.5)
 
         # Create the interpolator of void size to void Hubble parameter
@@ -522,7 +570,7 @@ if __name__ == "__main__":
                                "beta_min": -10.0, "beta_max": 10.0,
                                "sigma_v_min": 10., "sigma_v_max": 750.,
                                "h_min": 0.25, "h_max": 5.,
-                               "no_Vext": no_Vext is not None,
+                               "no_Vext": False if no_Vext is None else no_Vext,  # noqa
                                "sample_Vmono": sample_Vmono,
                                "sample_beta": sample_beta,
                                "sample_h": sample_h,
@@ -534,14 +582,18 @@ if __name__ == "__main__":
                                "rLG_min": -50, "rLG_max": 50,
                                "sample_dust": dust_model is not None,
                                "num_dust_maps": num_dust_maps,
+                               "Vext_prior_kind": Vext_prior_kind,
+                               "mag_dipole_min": 0.0, "mag_dipole_max": 0.25,
+                               "sample_mag_dipole": sample_mag_dipole,
+                               "mag_dipole_prior_kind": mag_dipole_prior_kind,
                                }
     print_variables(
         calibration_hyperparams.keys(), calibration_hyperparams.values())
 
     distmod_hyperparams_per_catalogue = []
     for cat in ARGS.catalogue:
-        x = get_distmod_hyperparams(
-            cat, sample_alpha, sample_mag_dipole, dust_model, Rdust_fixed)
+        x = get_distmod_hyperparams(cat, sample_alpha, Rdust_fixed,
+                                    sample_sigma_TFR_linear)
         print(f"\n{cat} hyperparameters:")
         print_variables(x.keys(), x.values())
         distmod_hyperparams_per_catalogue.append(x)
@@ -557,6 +609,7 @@ if __name__ == "__main__":
         "absolute_calibration": absolute_calibration,
         "calibration_fpath": "/mnt/extraspace/rstiskalek/catalogs/PV/CF4/CF4_TF_calibration.hdf5",  # noqa
         "dust_model": dust_model,
+        "remove_CF4_outliers": remove_CF4_outliers,
         }
 
     # In case we want to run multiple simulations independently.
@@ -582,5 +635,5 @@ if __name__ == "__main__":
         model = csiborgtools.flow.PV_validation_model
 
         run_model(model, nsteps, nburn, model_kwargs, out_folder,
-                  calculate_harmonic, nchains_harmonic, num_epochs,
-                  kwargs_print, fname_kwargs)
+                  calculate_harmonic, calculate_laplace, nchains_harmonic,
+                  num_epochs, kwargs_print, fname_kwargs)

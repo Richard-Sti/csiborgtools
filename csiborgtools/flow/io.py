@@ -17,11 +17,12 @@ import numpy as np
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
 from h5py import File
+from warnings import warn
 
 from ..params import SPEED_OF_LIGHT, simname2Omega_m
 from ..utils import fprint, radec_to_galactic, radec_to_supergalactic
 from .flow_model import PV_LogLikelihood
-from .void_model import load_void_fiducial, mock_void, select_void_h
+# from .void_model import load_void_size_variation, mock_void, select_void_h
 from ..read import read_pantheonplus_data
 
 H0 = 100  # km / s / Mpc
@@ -59,7 +60,7 @@ class DataLoader:
     """
     def __init__(self, simname, ksim, catalogue, catalogue_fpath, paths,
                  ksmooth=None, store_full_velocity=False, verbose=True):
-        self._is_no_field = simname == "no_field"
+        self._is_no_field = "no_field" in simname
 
         fprint("reading the catalogue,", verbose)
         self._cat, self._absmag_calibration = self._read_catalogue(
@@ -185,15 +186,22 @@ class DataLoader:
         if "IndranilVoid" in simname:
             return None, None, None
 
+        if "no_field" in simname:
+            ngal = len(self._cat)
+            dr = 0.25
+            if len(simname.split("_")) != 3:
+                raise ValueError(f"Invalid simulation name: `{simname}`.")
+            rmax = float(simname.split("_")[-1])
+            rdist = np.arange(1, rmax, dr)
+            fprint(f"setting the `no_field` radial distances from {rdist.min()} to {rmax} Mpc/h in {len(rdist)} steps.")  # noqa
+
+            los_density = np.ones((1, ngal, len(rdist)))
+            los_velocity = np.zeros((1, 3, ngal, len(rdist)))
+            return rdist, los_density, los_velocity
+
         nsims = paths.get_ics(simname, subsample=True)
         if isinstance(ksims, int):
             ksims = [ksims]
-
-        # For no-field read in Carrick+2015 but then zero it.
-        if simname == "no_field":
-            simname = "Carrick2015"
-
-        to_wipe = self._is_no_field
 
         if not all(0 <= ksim < len(nsims) for ksim in ksims):
             raise ValueError(f"Invalid simulation index: `{ksims}`")
@@ -226,10 +234,6 @@ class DataLoader:
 
         los_density = np.stack(los_density)
         los_velocity = np.stack(los_velocity)
-
-        if to_wipe:
-            los_density = np.ones_like(los_density)
-            los_velocity = np.zeros_like(los_velocity)
 
         return rdist, los_density, los_velocity
 
@@ -268,24 +272,11 @@ class DataLoader:
                 for key in f.keys():
                     arr[key] = f[key][:]
         elif "IndranilVoidTFRMock" in catalogue:
-            # The name can be e.g. "IndranilVoidTFRMock_exp_34_0", where the
-            # first and second number are the LG observer index and random
-            # seed.
-            profile, rLG_index, seed = catalogue.split("_")[1:]
-            rLG_index = int(rLG_index)
-            seed = int(seed)
-            rLG, vrad_data = load_void_fiducial(profile, "vrad")
-            h = select_void_h(profile)
-            print(f"Mock observed galaxies for LG observer with index "
-                  f"{rLG_index} at {rLG[rLG_index] * h} Mpc / h and "
-                  f"seed {seed}.")
-            mock_data = mock_void(vrad_data, rLG_index, profile, seed=seed)[0]
-
-            # Convert the dictionary to a structured array
-            dtype = [(key, np.float32) for key in mock_data.keys()]
-            arr = np.empty(len(mock_data["RA"]), dtype=dtype)
-            for key in mock_data.keys():
-                arr[key] = mock_data[key]
+            with File(catalogue_fpath, 'r') as f:
+                dtype = [(key, np.float32) for key in f.keys()]
+                arr = np.empty(len(f["RA"]), dtype=dtype)
+                for key in f.keys():
+                    arr[key] = f[key][:]
         elif "Carrick2MTFmock" in catalogue:
             with File(catalogue_fpath, 'r') as f:
                 keys_skip = ["mu_calibration", "e_mu_calibration"]
@@ -432,7 +423,8 @@ def mask_fields(density, velocity, mask, return_none):
 
 def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
               wo_num_dist_marginalisation=False, absolute_calibration=None,
-              calibration_fpath=None, void_kwargs=None, dust_model=None):
+              calibration_fpath=None, void_kwargs=None, dust_model=None,
+              remove_CF4_outliers=None):
     """
     Get a model and extract the relevant data from the loader.
 
@@ -460,6 +452,8 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         Choice of a dust model, currently only supported for CF4 TFR WISE
         bands. Can provide comma-separeted dust maps, in which case they dust
         map choise is marginalised over. Overwrites the default dust model
+    remove_CF4_outliers : bool, optional
+        Whether to remove the CF4 outlier.
 
     Returns
     -------
@@ -556,11 +550,15 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         if "Carrick2MTFmock" in kind:
             # For the mock we only want to select objects with the '2M++'
             # volume.
-            mask &= loader.cat["r"] < 150
+            if not loader._is_no_field:
+                mask &= loader.cat["r"] < 150
             # The mocks are generated without Malmquist.
             fprint("disabling homogeneous and inhomogeneous Malmquist bias for the mock.")  # noqa
             with_homogeneous_malmquist = False
             with_inhomogeneous_malmquist &= False
+        elif "IndranilVoidTFRMock" in kind:
+            fprint("disabling homogeneous bias for the mock.")  # noqa
+            with_homogeneous_malmquist = True
         else:
             with_homogeneous_malmquist = True
             with_inhomogeneous_malmquist &= True
@@ -614,8 +612,8 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             raise ValueError(f"Band `{band}` not recognized.")
 
         keys = ["RA", "DEC", "Vcmb", f"{band}", "lgWmxi", "elgWi", "Qs", "Qw",
-                "inc_e"]
-        RA, dec, z_obs, mag, eta, e_eta, Qs, Qw, e_inc = (
+                "inc_e", "pgc"]
+        RA, dec, z_obs, mag, eta, e_eta, Qs, Qw, e_inc, pgc = (
             loader.cat[k] for k in keys)
         l, b = radec_to_galactic(RA, dec)
 
@@ -630,6 +628,20 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         fprint("selecting only galaxies with |b| > 7.5.")
         mask &= np.abs(b) > 7.5
         mask &= (z_obs < zcmb_max) & (z_obs > zcmb_min)
+
+        if remove_CF4_outliers:
+            warn("Using local paths to retrieve the outlier files.",
+                 RuntimeWarning)
+            fprint("removing the CF4 outliers.")
+            i_outliers = np.genfromtxt(
+                "/mnt/extraspace/rstiskalek/catalogs/PV/CF4_i_outliers.csv",
+                skip_header=1, delimiter=",", usecols=[0], dtype=int)
+            w1_outliers = np.genfromtxt(
+                "/mnt/extraspace/rstiskalek/catalogs/PV/CF4_W1_outliers.csv",
+                skip_header=1, delimiter=",", usecols=[0], dtype=int)
+            outliers = np.concatenate([i_outliers, w1_outliers])
+            is_outlier = np.isin(pgc, outliers)
+            mask &= ~is_outlier
 
         if band in ["w1", "w2"] and dust_model is not None:
             fprint(f"switching the dust model to `{dust_model}`.")

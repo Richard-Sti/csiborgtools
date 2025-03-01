@@ -112,9 +112,11 @@ def simname2Omega_m(simname):
          "CF4": 0.3,
          "CF4gp": 0.3,
          "Lilow2024": 0.3175,
-         "no_field": 0.3,
          "CLONES": 0.307115,
          }
+
+    if "no_field" in simname:
+        return 0.3
 
     omega_m = d.get(simname, None)
 

@@ -28,3 +28,4 @@ from .void_model import (load_void_fiducial, load_void_size_variation,          
 from .growth_factor import (sigma8_nonlinear_to_linear_juszkiewicz,             # noqa
                             make_nonlinear_to_linear_sigma8,                    # noqa
                             find_linear_sigma8)                                 # noqa
+from .simpson import ln_simpson                                                 # noqa

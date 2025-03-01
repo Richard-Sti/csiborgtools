@@ -163,10 +163,19 @@ def radec_to_galactic(ra, dec):
     return c.galactic.l.degree, c.galactic.b.degree
 
 
-def galactic_to_radec(l, b):  # noqa
+def galactic_to_radec(ell, b):
     """Convert galactic coordinates to right ascension and declination."""
-    c = SkyCoord(l=l*u.degree, b=b*u.degree, frame='galactic')
+    c = SkyCoord(l=ell*u.degree, b=b*u.degree, frame='galactic')
     return c.icrs.ra.degree, c.icrs.dec.degree
+
+
+def galactic_to_radec_cartesian(ell, b):
+    """
+    Convert galactic coordinates to the Cartesian coordinates in the ICRS
+    frame (RA/dec).
+    """
+    c = SkyCoord(l=ell*u.degree, b=b*u.degree, frame='galactic')
+    return c.icrs.cartesian.xyz.value
 
 
 def radec_to_supergalactic(ra, dec):
@@ -488,7 +497,7 @@ def dict_samples_to_array(samples, exclude_deterministic=False):
     names = []
 
     for key, value in samples.items():
-        if exclude_deterministic and "_deterministic" in key:
+        if exclude_deterministic and ("_deterministic" in key or "_skipZ" in key):  # noqa
             continue
 
         if value.ndim == 1:
@@ -574,3 +583,33 @@ def harmonic_evidence(samples, log_posterior, temperature=0.8, epochs_num=20,
         return ln_inv_evidence, err_ln_inv_evidence, flow_samples
 
     return ln_inv_evidence, err_ln_inv_evidence
+
+
+def laplace_evidence(samples, log_posterior):
+    """
+    Calculate the evidence using the Laplace approximation. Calculates
+    the mean and error of the log evidence estimated from the chains.
+
+    Parameters
+    ----------
+    samples: 3-dimensional array
+        MCMC samples of shape `(nchains, nsamples, ndim)`.
+    log_posterior: 2-dimensional array
+        Log posterior values of shape `(nchains, nsamples)`.
+
+    Returns
+    -------
+    mean_ln_inv_evidence, err_ln_inv_evidence: two floats
+    """
+    nchains = len(samples)
+    ndim = samples.shape[-1]
+    logZ = np.full(nchains, np.nan)
+
+    for n in range(nchains):
+        C = np.cov(samples[0], rowvar=False)
+        lp_max = np.max(log_posterior[n])
+
+        logZ[n] = (lp_max + 0.5 * (np.sum(np.log(np.linalg.eigvalsh(C)))
+                                   + ndim * np.log(2 * np.pi)))
+
+    return np.mean(logZ), np.std(logZ)

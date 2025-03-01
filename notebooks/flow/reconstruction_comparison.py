@@ -68,19 +68,32 @@ def names_to_latex(names, for_corner=False):
            "Vvoid": "V_{\\rm void} ~ [\\mathrm{km} / \\mathrm{s}]",
            "void_size": "r_{\\rm void}",
            "hubble": "h",
+           "mag_dipole_mag": "\\Delta m",
+           "mag_dipole_l": "\\ell_{\\Delta m} ~ [\\mathrm{deg}]",
+           "mag_dipole_b": "b_{\\Delta m} ~ [\\mathrm{deg}]",
            }
 
     ltx_corner = {"alpha": r"$\alpha$",
                   "beta": r"$\beta$",
-                  "Vmag": r"$V_{\mathrm{ext},\mathrm{mag}}$",
-                  "l": r"$V_{\mathrm{ext},\ell}$",
-                  "b": r"$V_{\mathrm{ext},b}$",
+                  "Vmag": r"$V_{\mathrm{ext}}$",
+                  # "l": r"$V_{\mathrm{ext},\ell}$",
+                  # "b": r"$V_{\mathrm{ext},b}$",
+                  "l": r"$\ell$",
+                  "b": r"$b$",
                   "sigma_v": r"$\sigma_v$",
                   "alpha_cal": r"$\mathcal{A}$",
                   "beta_cal": r"$\mathcal{B}$",
                   "mag_cal": r"$\mathcal{M}$",
                   "Vvoid": r"$V_{\rm void}$",
                   "hubble": r"$h$",
+                  "rLG": r"$R_{\rm offset}$",
+                  "void_size": r"$r_{\rm void}$",
+                  "aTFR": r"$a_{\rm TFR}$",
+                  "bTFR": r"$b_{\rm TFR}$",
+                  "cTFR": r"$c_{\rm TFR}$",
+                  "mag_dipole_mag": r"$\Delta m$",
+                  "mag_dipole_l": r"$\ell_{\Delta m}$",
+                  "mag_dipole_b": r"$b_{\Delta m}$",
                   }
 
     names = copy(names)
@@ -103,10 +116,17 @@ def names_to_latex(names, for_corner=False):
         if "CF4_TFR_notSDSS_w1" in name:
             names[i] = names[i].replace("CF4_TFR_notSDSS_w1", "CF4,W1")
 
+        if "IndranilVoidTFRMock_" in name:
+            for n in range(20):
+                name_test = f"_IndranilVoidTFRMock_{n}"
+                if name_test in name:
+                    names[i] = names[i].replace(name_test, "")
+
     for cat in ["2MTF", "SFI", "CF4,i", "CF4,W2", "CF4,W1"]:
         ltx[f"aTFR_{cat}"] = f"a_{{\\rm TFR}}^{{\\rm {cat}}}"
         ltx[f"bTFR_{cat}"] = f"b_{{\\rm TFR}}^{{\\rm {cat}}}"
         ltx[f"cTFR_{cat}"] = f"c_{{\\rm TFR}}^{{\\rm {cat}}}"
+        ltx[f"alpha_{cat}"] = f"\\alpha^{{\\rm {cat}}}"
         ltx[f"corr_mag_eta_{cat}"] = f"\\rho_{{m,\\eta}}^{{\\rm {cat}}}"
         ltx[f"eta_mean_{cat}"] = f"\\widehat{{\\eta}}^{{\\rm {cat}}}"
         ltx[f"eta_std_{cat}"] = f"\\widehat{{\\sigma}}_\\eta^{{\\rm {cat}}}"
@@ -116,6 +136,7 @@ def names_to_latex(names, for_corner=False):
         ltx_corner[f"aTFR_{cat}"] = rf"$a_{{\rm TFR}}^{{\rm {cat}}}$"
         ltx_corner[f"bTFR_{cat}"] = rf"$b_{{\rm TFR}}^{{\rm {cat}}}$"
         ltx_corner[f"cTFR_{cat}"] = rf"$c_{{\rm TFR}}^{{\rm {cat}}}$"
+        ltx_corner[f"alpha_{cat}"] = rf"$\alpha^{{\rm {cat}}}$"
         ltx_corner[f"corr_mag_eta_{cat}"] = rf"$\rho_{{m,\eta}}^{{\rm {cat}}}$"
         ltx_corner[f"eta_mean_{cat}"] = rf"$\widehat{{\eta}}^{{\rm {cat}}}$"
         ltx_corner[f"eta_std_{cat}"] = rf"$\widehat{{\sigma}}_\eta^{{\rm {cat}}}$"  # noqa
@@ -163,6 +184,9 @@ def names_to_latex(names, for_corner=False):
 
 
 def simname_to_pretty(simname):
+    if "no_field" in simname:
+        return "No field"
+
     ltx = {"Carrick2015": "Carrick+15",
            "Lilow2024": "Lilow+24",
            "csiborg1": r"\texttt{CSiBORG}1",
@@ -196,6 +220,7 @@ def catalogue_to_pretty(catalogue):
            "CF4_TFR_not2MTForSFI_i": r"CF4 $i$-band",
            "CF4_TFR_i": r"CF4 TFR $i$",
            "CF4_TFR_w1": r"CF4 TFR W1",
+           "CF4_TFR_w2": r"CF4 TFR W2",
            }
 
     if isinstance(catalogue, list):
@@ -211,10 +236,15 @@ def catalogue_to_pretty(catalogue):
 
 def get_gof(kind, fname):
     """Read in the goodness-of-fit statistics `kind`."""
-    if kind not in ["BIC", "AIC", "neg_lnZ_harmonic"]:
-        raise ValueError("`kind` must be one of 'BIC', 'AIC', 'neg_lnZ_harmonic'.")  # noqa
+    if kind not in ["BIC", "AIC", "neg_lnZ_harmonic", "logZ_harmonic"]:
+        raise ValueError("`kind` must be one of 'BIC', 'AIC', "
+                         "'neg_lnZ_harmonic', 'logZ_harmonic'. "
+                         f"Received: `{kind}`.")
 
     with File(fname, 'r') as f:
+        if kind == "logZ_harmonic":
+            return -f["gof/neg_lnZ_harmonic"][()] / np.log(10)
+
         return f[f"gof/{kind}"][()]
 
 
@@ -222,7 +252,7 @@ def get_gof(kind, fname):
 #                           Read in samples                                   #
 ###############################################################################
 
-def get_samples(fname, convert_Vext_to_galactic=True):
+def get_samples(fname):
     """Read in the samples from the HDF5 file."""
     samples = {}
     with File(fname, 'r') as f:
@@ -231,17 +261,14 @@ def get_samples(fname, convert_Vext_to_galactic=True):
             samples[key] = grp[key][...]
 
     if "Vext" in samples:
-        if convert_Vext_to_galactic:
-            Vext = samples.pop("Vext")
-            samples["Vmag"] = np.linalg.norm(Vext, axis=1)
-            Vext = csiborgtools.cartesian_to_radec(Vext)
-            samples["l"], samples["b"] = csiborgtools.radec_to_galactic(
-                Vext[:, 1], Vext[:, 2])
-        else:
-            Vext = samples.pop("Vext")
-            samples["Vx"] = Vext[:, 0]
-            samples["Vy"] = Vext[:, 1]
-            samples["Vz"] = Vext[:, 2]
+        Vext_mag = samples.pop("Vext_mag")
+        Vext_phi = samples.pop("Vext_phi")
+        Vext_cos_theta = samples.pop("Vext_cos_theta")
+
+        samples["Vmag"] = Vext_mag
+        samples["l"], samples["b"] = csiborgtools.radec_to_galactic(
+            np.rad2deg(Vext_phi),
+            np.rad2deg(np.pi / 2 - np.arccos(Vext_cos_theta)))
 
     keys = list(samples.keys())
     for key in keys:
@@ -269,13 +296,6 @@ def get_samples(fname, convert_Vext_to_galactic=True):
     return samples
 
 
-def get_Vext_only(fname):
-    with File(fname, 'r') as f:
-        Vext = f["samples/Vext"][...]
-
-    return Vext
-
-
 def get_some_samples(fname, labels):
     """Read in the samples from the HDF5 file."""
     if not isinstance(labels, list) and all(isinstance(label, str) for label in labels):  # noqa
@@ -286,14 +306,23 @@ def get_some_samples(fname, labels):
         grp = f["samples"]
 
         if "Vext" in labels:
-            Vext = grp["Vext"][...]
-            samples["Vmag"] = np.linalg.norm(Vext, axis=1)
-            Vext = csiborgtools.cartesian_to_radec(Vext)
+            samples["Vmag"] = grp["Vext_mag"][...]
+
             samples["l"], samples["b"] = csiborgtools.radec_to_galactic(
-                Vext[:, 1], Vext[:, 2])
+                np.rad2deg(grp["Vext_phi"][...]),
+                np.rad2deg(np.pi / 2 - np.arccos(grp["Vext_cos_theta"][...])))
+
+        if "mag_dipole" in labels:
+            samples["mag_dipole_mag"] = grp["mag_mag_dipole"][...]
+            samples["mag_dipole_l"], samples["mag_dipole_b"] = csiborgtools.radec_to_galactic(  # noqa
+                np.rad2deg(grp["phi_mag_dipole"][...]),
+                np.rad2deg(np.pi / 2 - np.arccos(grp[f"cos_theta_mag_dipole"][...])))           # noqa
 
         for label in labels:
             if "Vext" in label:
+                continue
+
+            if "mag_dipole" in label:
                 continue
 
             for key in grp.keys():
@@ -335,13 +364,20 @@ def get_bulkflow(fname, simname, convert_to_galactic=True, downsample=1,
                  Rmax=125):
     # Read in the samples
     with File(fname, "r") as f:
-        Vext = f["samples/Vext"][...]
+        grp = f["samples"]
+
+        # This should still be double-checked.
+        Vext = csiborgtools.radec_to_cartesian(np.asarray([
+            grp["Vext_mag"][...],
+            grp["Vext_phi"][...],
+            np.rad2deg(np.pi / 2 - np.arccos(grp["Vext_cos_theta"][...]))]).T)
+
         try:
-            beta = f["samples/beta"][...]
+            beta = grp["beta"][...]
         except KeyError:
             beta = jnp.ones(len(Vext))
 
-        sigma_v = f["samples/sigma_v"][...]
+        sigma_v = grp["sigma_v"][...]
 
     # Read in the bulk flow
     f = np.load(f"/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_shells/enclosed_mass_{simname}.npz")  # noqa

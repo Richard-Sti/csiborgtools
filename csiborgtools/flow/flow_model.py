@@ -48,6 +48,8 @@ from .cosmography import (dist2redshift, distmod2dist, distmod2dist_gradient,
 from .selection import toy_log_magnitude_selection
 from .void_model import (interpolate_fiducial_void, interpolate_size_var_void,
                          load_void_fiducial, load_void_size_variation)
+from .simpson import ln_simpson
+
 
 H0 = 100  # km / s / Mpc
 ARCSEC2RAD = 4.84813681109536e-06
@@ -69,23 +71,50 @@ def project_vector(Vx, Vy, Vz, RA_radians, dec_radians):
 
 
 def sample_vector(name, mag_min, mag_max):
-    """Sample a 3D vector uniformly in magnitude and direction."""
+    """
+    Sample a 3D vector uniformly in magnitude and direction.
+
+    NOTE: Careful if computing evidences! See `sample_vector_fixed`.
+    Particularly when comparing a model that containts this vector variable
+    to a model that does not contain it, in which case *must* use the
+    `sample_vector_fixed`. function.
+    """
     with reparam(config={f"xdir_{name}_skipZ": ProjectedNormalReparam()}):
         xdir = sample(f"xdir_{name}_skipZ",  ProjectedNormal(jnp.zeros(3)))
 
-    cos_theta = deterministic(f"{name}_cos_theta_skipZ", xdir[2])
+    cos_theta = deterministic(f"{name}_cos_theta", xdir[2])
     sin_theta = jnp.sqrt(1 - cos_theta**2)
 
     phi = jnp.arctan2(xdir[1], xdir[0])
     phi = cond(phi < 0, lambda x: x + 2 * jnp.pi, lambda x: x, phi)
-    phi = deterministic(f"{name}_phi_skipZ", phi)
+    phi = deterministic(f"{name}_phi", phi)
 
-    mag = sample(f"{name}_mag_skipZ", Uniform(mag_min, mag_max))
+    mag = sample(f"{name}_mag", Uniform(mag_min, mag_max))
 
     vec = mag * jnp.array([sin_theta * jnp.cos(phi),
                            sin_theta * jnp.sin(phi),
                            cos_theta])
-    deterministic(name, vec)
+    return vec
+
+
+def sample_vector_fixed(name, mag_min, mag_max):
+    """
+    Sample a 3D vector but without accounting for continuity and poles.
+
+    This enforces that all sampled points have the same contribution to
+    `log_density` which is not the case for the `sample_vector` function
+    because the unit vectors are drawn.
+    """
+    phi = sample(f"phi_{name}", Uniform(0, 2 * jnp.pi))
+
+    cos_theta = sample(f"cos_theta_{name}", Uniform(-1, 1))
+    sin_theta = jnp.sqrt(1 - cos_theta**2)
+
+    mag = sample(f"mag_{name}", Uniform(mag_min, mag_max))
+
+    vec = mag * jnp.array([sin_theta * jnp.cos(phi),
+                           sin_theta * jnp.sin(phi),
+                           cos_theta])
     return vec
 
 
@@ -406,9 +435,10 @@ def sample_SN_calibrated(e_mu_min, e_mu_max, mag_cal_mean, mag_cal_std,
 #                          Tully-Fisher parameters sampling                   #
 ###############################################################################
 
-def distmod_TFR(mag, eta, a, b, c):
+def distmod_TFR(mag, eta, a, b, c, eta_mean):
     """Distance modulus of a TFR calibration."""
-    return mag - (a + b * eta + c * eta**2)
+    absmag = a + b * eta
+    return mag - jnp.where(eta + eta_mean > 0, absmag + c * eta**2, absmag)
 
 
 def e2_distmod_TFR(e2_mag, e2_eta, eta, b, c, e_mu_intrinsic):
@@ -421,12 +451,17 @@ def e2_distmod_TFR(e2_mag, e2_eta, eta, b, c, e_mu_intrinsic):
 
 def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
                c_mean, c_std, alpha_min, alpha_max, sample_alpha,
-               a_dipole_mag_min, a_dipole_mag_max, sample_a_dipole,
                sample_curvature, h, sample_dust, Rdust_min, Rdust_max,
-               Rdust_fixed, num_dust_models, name):
+               Rdust_fixed, num_dust_models, sample_sigma_TFR_linear,
+               name):
     """Sample Tully-Fisher calibration parameters."""
     e_mu = sample(f"e_mu_{name}", Uniform(e_mu_min, e_mu_max))
     factor(f"ll_e_mu_{name}", -jnp.log(e_mu))
+
+    if sample_sigma_TFR_linear:
+        e_mu_slope = sample(f"e_mu_slope_{name}", Uniform(-1, 0))
+    else:
+        e_mu_slope = None
 
     if h is not None:
         # Sample the zero-point that has the factor of h in it, so that the
@@ -436,12 +471,6 @@ def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
         deterministic(f"aTFR_{name}_deterministic", a + 5 * jnp.log10(h))
     else:
         a = sample(f"aTFR_{name}", Normal(a_mean, a_std))
-
-    if sample_a_dipole:
-        a_dipole = sample_vector(
-            f"aTFR_dipole_{name}", a_dipole_mag_min, a_dipole_mag_max)
-    else:
-        a_dipole = jnp.zeros(3)
 
     b = sample(f"bTFR_{name}", Normal(b_mean, b_std))
 
@@ -462,12 +491,11 @@ def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
         R = None
 
     return {"e_mu": e_mu,
+            "e_mu_slope": e_mu_slope,
             "a": a,
             "b": b,
             "c": c,
             "alpha": alpha,
-            "a_dipole": a_dipole,
-            "sample_a_dipole": sample_a_dipole,
             "R": R,
             }
 
@@ -554,8 +582,7 @@ def apparent_magnitude_from_FP(a, b, c, log_theta_eff, sig0, K, log_da,
 
 
 def sample_simple(e_mu_min, e_mu_max, dmu_min, dmu_max, alpha_min, alpha_max,
-                  dmu_dipole_mean, dmu_dipole_std, sample_alpha,
-                  sample_dmu_dipole, name):
+                  sample_alpha, name):
     """Sample simple calibration parameters."""
     e_mu = sample(f"e_mu_{name}", Uniform(e_mu_min, e_mu_max))
     factor(f"ll_e_mu_{name}", -jnp.log(e_mu))
@@ -563,18 +590,9 @@ def sample_simple(e_mu_min, e_mu_max, dmu_min, dmu_max, alpha_min, alpha_max,
     dmu = sample(f"dmu_{name}", Uniform(dmu_min, dmu_max))
     alpha = sample_alpha_bias(name, alpha_min, alpha_max, sample_alpha)
 
-    if sample_dmu_dipole:
-        dmux, dmuy, dmuz = sample(
-            f"dmu_dipole_{name}",
-            Normal(dmu_dipole_mean, dmu_dipole_std).expand([3]))
-    else:
-        dmux, dmuy, dmuz = 0.0, 0.0, 0.0
-
     return {"e_mu": e_mu,
             "dmu": dmu,
-            "dmux": dmux, "dmuy": dmuy, "dmuz": dmuz,
             "alpha": alpha,
-            "sample_dmu_dipole": sample_dmu_dipole,
             }
 
 ###############################################################################
@@ -587,7 +605,11 @@ def sample_calibration(Vext_mag_min, Vext_mag_max, Vmono_min, Vmono_max,
                        e_mu_h_min, e_mu_h_max, h_min,
                        h_max, rLG_min, rLG_max, no_Vext, sample_Vmono,
                        sample_beta, sample_h, sample_rLG, sample_void_size,
-                       void_size_min, void_size_max, sample_h_e_int, **kwargs):
+                       void_size_min, void_size_max, sample_h_e_int,
+                       Vext_prior_kind,
+                       sample_mag_dipole, mag_dipole_min, mag_dipole_max,
+                       mag_dipole_prior_kind,
+                       **kwargs):
     """Sample the flow calibration."""
     sigma_v = sample("sigma_v", Uniform(sigma_v_min, sigma_v_max))
     factor("ll_sigma_v", -jnp.log(sigma_v))
@@ -600,12 +622,25 @@ def sample_calibration(Vext_mag_min, Vext_mag_max, Vmono_min, Vmono_max,
     if no_Vext:
         Vext = jnp.zeros(3)
     else:
-        Vext = sample_vector("Vext", Vext_mag_min, Vext_mag_max)
+        if Vext_prior_kind == "fixed":
+            Vext = sample_vector_fixed("Vext", Vext_mag_min, Vext_mag_max)
+        else:
+            Vext = sample_vector("Vext", Vext_mag_min, Vext_mag_max)
 
     if sample_Vmono:
         Vmono = sample("Vmono", Uniform(Vmono_min, Vmono_max))
     else:
         Vmono = 0.0
+
+    if sample_mag_dipole:
+        if mag_dipole_prior_kind == "fixed":
+            mag_dipole = sample_vector_fixed(
+                "mag_dipole", mag_dipole_min, mag_dipole_max)
+        else:
+            mag_dipole = sample_vector(
+                "mag_dipole", mag_dipole_min, mag_dipole_max)
+    else:
+        mag_dipole = jnp.zeros(3)
 
     if sample_h:
         h = sample("hubble", Uniform(h_min, h_max))
@@ -638,6 +673,8 @@ def sample_calibration(Vext_mag_min, Vext_mag_max, Vmono_min, Vmono_max,
             "sample_h": sample_h,
             "rLG": r_LG,
             "void_size": void_size,
+            "mag_dipole": mag_dipole,
+            "sample_mag_dipole": sample_mag_dipole,
             }
 
 
@@ -793,10 +830,20 @@ class PV_LogLikelihood(BaseFlowValidationModel):
 
         if kind == "TFR":
             self.mag_min, self.mag_max = jnp.min(self.mag), jnp.max(self.mag)
-            eta_mu = jnp.mean(self.eta)
-            fprint(f"setting the linewith mean to 0 instead of {eta_mu:.3f}.")
-            self.eta -= eta_mu
+            self.eta_mu = jnp.mean(self.eta)
+            fprint(f"setting the linewith mean to 0 instead of {self.eta_mu:.3f}.")  # noqa
+            self.eta -= self.eta_mu
             self.eta_min, self.eta_max = jnp.min(self.eta), jnp.max(self.eta)
+
+            # If specified move also the selection thresholds since we
+            # subtracted the mean of the linewidth for the purpose of the
+            # inference.
+            if hasattr(self, 'eta_selection_min') and self.eta_selection_min is not None:  # noqa
+                self.eta_selection_min -= self.eta_mu
+
+            if hasattr(self, 'eta_selection_max') and self.eta_selection_max is not None:  # noqa
+                self.eta_selection_max -= self.eta_mu
+
         elif kind == "SN":
             self.mag_min, self.mag_max = jnp.min(self.mag), jnp.max(self.mag)
             self.x1_min, self.x1_max = jnp.min(self.x1), jnp.max(self.x1)
@@ -823,6 +870,9 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         Vext = field_calibration_params["Vext"]
         Vmono = field_calibration_params["Vmono"]
         Vext_rad = project_vector(Vext[0], Vext[1], Vext[2], self.RA, self.dec)
+
+        sample_mag_dipole = field_calibration_params["sample_mag_dipole"]
+        mag_dipole = field_calibration_params["mag_dipole"]
 
         e_mu = distmod_params["e_mu"]
 
@@ -900,6 +950,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             a = distmod_params["a"]
             b = distmod_params["b"]
             c = distmod_params["c"]
+            e_mu_slope = distmod_params["e_mu_slope"]
 
             if self.dust_model is not None:
                 # NOTE that this sampling of a discrete variable will not work
@@ -909,9 +960,8 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             else:
                 Ab = 0
 
-            if distmod_params["sample_a_dipole"]:
-                a += project_vector(
-                    *distmod_params["a_dipole"], self.RA, self.dec)
+            if sample_mag_dipole:
+                a += project_vector(*mag_dipole, self.RA, self.dec)
 
             if inference_method == "bayes":
                 # Sample the true TFR parameters.
@@ -958,8 +1008,9 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                         norm = norm + normal_logpdf(
                             mu_xrange, mag_true[:, None], self.e_mag[:, None])
                         # Now integrate over the magnitude range.
-                        norm = simpson(jnp.exp(norm), x=mu_xrange, axis=-1)
-                        ll_mag -= jnp.log(norm)
+                        norm = ln_simpson(norm, x=mu_xrange, axis=-1)
+
+                        ll_mag -= norm
                     else:
                         ll_mag = normal_logpdf(self.mag, mag_true, self.e_mag)
 
@@ -983,24 +1034,34 @@ class PV_LogLikelihood(BaseFlowValidationModel):
 
                     factor(f"ll_eta_{self.name}", ll_eta)
 
+                # Adjust the TFR scatter depending on the linewidth. A clip at
+                # 0.01 is hard-coded here to prevent negative values. TFR
+                # scatter is always much higher than that.
+                if e_mu_slope is not None:
+                    e_mu = jnp.clip(
+                        e_mu + e_mu_slope * (eta_true + self.eta_mu + 2.5),
+                        0.01, None)
+
                 e2_mu = jnp.ones_like(mag_true) * e_mu**2
             else:
                 eta_true = self.eta
                 mag_true = self.mag - Ab
+
+                # Adjust the TFR scatter depending on the linewidth.
+                if e_mu_slope is not None:
+                    e_mu = jnp.clip(
+                        e_mu + e_mu_slope * (eta_true + self.eta_mu + 2.5),
+                        0.01, None)
+
                 if inference_method == "mike":
                     e2_mu = e2_distmod_TFR(
                         self.e2_mag, self.e2_eta, eta_true, b, c, e_mu)
                 else:
                     e2_mu = jnp.ones_like(mag_true) * e_mu**2
 
-            mu = distmod_TFR(mag_true, eta_true, a, b, c)
+            mu = distmod_TFR(mag_true, eta_true, a, b, c, self.eta_mu)
         elif self.kind == "simple":
             dmu = distmod_params["dmu"]
-
-            if distmod_params["sample_dmu_dipole"]:
-                dmux, dmuy, dmuz = (
-                    distmod_params[k] for k in ["dmux", "dmuy", "dmuz"])
-                dmu = dmu + project_vector(dmux, dmuy, dmuz, self.RA, self.dec)
 
             if inference_method == "bayes":
                 raise NotImplementedError("Bayes for simple not implemented.")
@@ -1058,9 +1119,9 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             if self.with_inhomogeneous_malmquist:
                 log_ptilde += alpha * log_los_density
 
-            ptilde = jnp.exp(log_ptilde)
-            # Normalization of p(r). Shape: (nsims, ndata)
-            pnorm = simpson(ptilde, x=self.r_xrange, axis=-1)
+            # # Normalization of p(r). Shape: (nsims, ndata)
+            log_ptilde_norm = ln_simpson(
+                log_ptilde, x=self.r_xrange[None, None, :], axis=-1)
 
             # Calculate z_obs at each distance. Shape: (nsims, ndata, nxrange)
             vrad = field_calibration_params["beta"] * los_velocity
@@ -1070,12 +1131,13 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             zobs -= 1.
 
             # Shape remains (nsims, ndata, nxrange)
-            ptilde *= likelihood_zobs(
+            log_ptilde += log_likelihood_zobs(
                 self.z_obs[None, :, None], zobs, e2_cz[None, :, None])
 
             # Integrate over the radial distance. Shape: (nsims, ndata)
-            ll = jnp.log(simpson(ptilde, x=self.r_xrange, axis=-1))
-            ll -= jnp.log(pnorm)
+            ll = ln_simpson(
+                log_ptilde, x=self.r_xrange[None, None, :], axis=-1)
+            ll -= log_ptilde_norm
 
             ll_per_galaxy = logsumexp(ll, axis=0) + self.norm
         else:
@@ -1158,10 +1220,11 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                 # Now integrate over the radial steps.
                 # Shape is `(nsims, ndata)`. No Jacobian here because I
                 # integrate over distance, not the distance modulus.
-                pnorm = simpson(jnp.exp(pnorm), x=self.r_xrange, axis=-1)
+                log_pnorm = ln_simpson(
+                    pnorm, x=self.r_xrange[None, :], axis=-1)
 
                 # Subtract the normalisation from the log-likelihood
-                ll -= jnp.log(pnorm)
+                ll -= log_pnorm
             else:
                 ll = 0.
 

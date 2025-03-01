@@ -14,23 +14,62 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """Mock data generators."""
 import numpy as np
+from astropy.cosmology import FlatLambdaCDM
 
 from ..field.interp import evaluate_cartesian_regular
 from ..params import SPEED_OF_LIGHT
-from ..utils import cartesian_to_radec, radec_to_cartesian, radec_to_galactic
-from .cosmography import distmod2dist, distmod2redshift
+from ..utils import (galactic_to_radec_cartesian, radec_to_cartesian,
+                     radec_to_galactic)
 
 ###############################################################################
-#                        Mock Carrickobservations                            #
+#                        Mock Carrick observations                            #
 ###############################################################################
+
+
+def interp_distmod2redshift(distmod, Om0=0.3, zmin_interp=1e-4,
+                            zmax_interp=0.5, npoints_interp=1000):
+    """
+    Convert distance modulus to redshift. Calls `astropy` to generate a grid
+    of redshifts and distance moduli and then interpolates between distance
+    modulus and log(redshift). Assumes `h = 1`.
+
+    With the default settings, the mapping is accurate to better than 10 m / s
+    over the entire range.
+    """
+    cosmo = FlatLambdaCDM(H0=100, Om0=Om0)
+    z_grid = np.linspace(zmin_interp, zmax_interp, npoints_interp)
+    distmod_grid = cosmo.distmod(z_grid).value
+
+    return np.exp(np.interp(distmod, distmod_grid, np.log(z_grid),
+                            left=np.nan, right=np.nan))
+
+
+def interp_distmod2dist(distmod, Om0=0.3, zmin_interp=1e-4,
+                        zmax_interp=0.5, npoints_interp=1000):
+    """
+    Convert distance modulus to redshift. Calls `astropy` to generate a grid
+    of redshifts and distance moduli and then interpolates between distance
+    modulus and log(redshift). Assumes `h = 1`.
+
+    With the default settings, the mapping is accurate to better than 1 kpc / h
+    over the entire range.
+    """
+    cosmo = FlatLambdaCDM(H0=100, Om0=Om0)
+    z_grid = np.linspace(zmin_interp, zmax_interp, npoints_interp)
+
+    distmod_grid = cosmo.distmod(z_grid).value
+    dist_grid = cosmo.comoving_distance(z_grid).value
+
+    return np.exp(np.interp(distmod, distmod_grid, np.log(dist_grid)))
 
 
 def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
-                     a_TF=-22.8, b_TF=-7.2, sigma_TF=0.35, sigma_v=100.,
-                     Vext=[150.0, 50.0, -10.0], h=1.0, beta=0.4,
+                     a_TF=-22.8, b_TF=-7.2, c_TF=0, sigma_TF=0.35, sigma_v=100,
+                     Vext_mag=150, Vext_l=300, Vext_b=-4, h=1.0, beta=0.4,
                      mean_eta=0.069, std_eta=0.078, mean_e_eta=0.012,
                      mean_mag=10.31, std_mag=0.83, mean_e_mag=0.044,
                      add_calibration=False, sigma_calibration=0.05,
+                     a_TF_dipole_mag=0, a_TF_dipole_l=140, a_TF_dipole_b=30,
                      calibration_max_percentile=10,
                      calibration_rand_fraction=0.5, nrepeat_calibration=1,
                      seed=42, Om0=0.3, verbose=True, **kwargs):
@@ -41,18 +80,18 @@ def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
     nsamples = len(RA_2MTF)
 
     # Convert Vext from ICRS to Galactic coordinates.
-    Vext = np.asarray(Vext).reshape(1, 3)
-    Vext_mag, Vext_RA, Vext_DEC = cartesian_to_radec(Vext).reshape(-1, )
-    Vext_l, Vext_b = radec_to_galactic(Vext_RA, Vext_DEC)
-    Vext_galactic = np.asanyarray([Vext_mag, Vext_l, Vext_b]).reshape(1, 3)
-    Vext = radec_to_cartesian(Vext_galactic).reshape(-1, )
+    Vext = Vext_mag * galactic_to_radec_cartesian(Vext_l, Vext_b)
+    a_TF_dipole = a_TF_dipole_mag * galactic_to_radec_cartesian(
+        a_TF_dipole_l, a_TF_dipole_b)
 
-    truths = {"a": a_TF, "b": b_TF, "e_mu": sigma_TF, "sigma_v": sigma_v,
-              "Vext": Vext,
+    truths = {"a": a_TF, "b": b_TF, "c": c_TF, "e_mu": sigma_TF,
+              "sigma_v": sigma_v, "Vext": Vext, "a_TF_dipole": a_TF_dipole,
               "mean_eta": mean_eta, "std_eta": std_eta,
               "mean_mag": mean_mag, "std_mag": std_mag,
               "h": h, "beta": beta,
               "Vmag": Vext_mag, "Vl": Vext_l, "Vb": Vext_b,
+              "a_TF_dipole_mag": a_TF_dipole_mag,
+              "a_TF_dipole_l": a_TF_dipole_l, "a_TF_dipole_b": a_TF_dipole_b
               }
 
     gen = np.random.default_rng(seed)
@@ -79,17 +118,29 @@ def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
     mag_obs = gen.normal(mag_true, mean_e_mag)
 
     # Calculate the 'true' distance modulus and redshift from the TFR distance.
+    if a_TF_dipole_mag > 0:
+        rhat = radec_to_cartesian(
+            np.vstack([np.ones_like(RA_2MTF), RA_2MTF, DEC_2MTF]).T)
+
+        a_TF_dipole = np.asarray(a_TF_dipole)
+        a_TF = a_TF + np.sum(rhat * a_TF_dipole[None, :], axis=1)
 
     # If h != 1, then these distance modulii are in physical units.
-    mu_TFR = mag_true - (a_TF + b_TF * eta_true)
+    absmag = a_TF + b_TF * eta_true
+    absmag = np.where(eta_true > 0, absmag + c_TF * eta_true**2, absmag)
+    mu_TFR = mag_true - absmag
     mu_true = gen.normal(mu_TFR, sigma_TF)
     # This is the distance modulus in units of little h.
     mu_true_h = mu_true + 5 * np.log10(h)
 
     # Convert the true distance modulus to true distance and cosmological
     # redshift. The distance is in Mpc/h because the box is in Mpc / h.
-    r = distmod2dist(mu_true_h, Om0)
-    zcosmo = distmod2redshift(mu_true_h, Om0)
+    zcosmo = interp_distmod2redshift(mu_true_h, Om0)
+    r = interp_distmod2dist(mu_true_h, Om0)
+
+    if not np.all(np.isfinite(r)) or not np.all(np.isfinite(zcosmo)):
+        raise ValueError("Some distance moduli are outside the interpolation "
+                         "range.")
 
     # Calculate the Cartesian coordinates of each galaxy. This is initially
     # centered at (0, 0, 0).
