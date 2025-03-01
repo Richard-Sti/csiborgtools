@@ -13,7 +13,7 @@ then
 fi
 
 
-if [ "$queue" != "redwood" ] && [ "$queue" != "berg" ] && [ "$queue" != "cmb" ] && [ "$queue" != "gpulong" ] && [ "$queue" != "cmbgpu" ]; then
+if [ "$queue" != "redwood" ] && [ "$queue" != "berg" ] && [ "$queue" != "cmb" ] && [ "$queue" != "gpulong" ] && [ "$queue" != "cmbgpu" ] && [ "$queue" != "optgpu" ]; then
   echo "Invalid queue: $queue (2). Please provide one of 'redwood', 'berg', 'cmb', 'gpulong', 'cmbgpu'."
   exit 1
 fi
@@ -22,15 +22,20 @@ fi
 if [ "$queue" == "gpulong" ]
 then
     device="gpu"
-    gputype="rtx2080with12gb"
-    # gputype="rtx3070with8gb"
+    # gputype="rtx2080with12gb"
+    gputype="rtx3070with8gb"
     # gputype="rtxa6000with48gb"
     env="/mnt/users/rstiskalek/csiborgtools/venv_gpu_csiborgtools/bin/python"
 elif [ "$queue" == "cmbgpu" ]
 then
     device="gpu"
     gputype="rtx3090with24gb"
-env="/mnt/users/rstiskalek/csiborgtools/venv_gpu_csiborgtools/bin/python"
+    env="/mnt/users/rstiskalek/csiborgtools/venv_gpu_csiborgtools/bin/python"
+elif [ "$queue" == "optgpu" ]
+then
+    device="gpu"
+    gputype="rtxa6000with48gb"
+    env="/mnt/users/rstiskalek/csiborgtools/venv_gpu_csiborgtools/bin/python"
 else
     device="cpu"
     env="/mnt/users/rstiskalek/csiborgtools/venv_csiborg/bin/python"
@@ -38,7 +43,7 @@ fi
 
 
 aux_name="sample_mag_dipole"
-aux_type="bool"
+aux_type="str"
 
 # Redshift of about 0.1 is ~ 300 Mpc / h
 
@@ -49,18 +54,23 @@ aux_type="bool"
 # for simname in "IndranilVoidSizeVar_exp"; do
 # for simname in "IndranilVoid_exp"; do
 # for simname in "no_field_400"; do
-for simname in "no_field_400" "Carrick2015"; do
+# for simname in "no_field_400"; do
+for simname in "Carrick2015"; do
 # for simname in "IndranilVoidSizeVar_exp" "IndranilVoidSizeVar_gauss"; do
 # for simname in "manticore_2MPP_MULTIBIN_N256_DES_V2"; do
 # for simname in "CF4" "manticore_2MPP_MULTIBIN_N256_DES_V2"; do
 # for simname in "Carrick2015" "Lilow2024" "csiborg1" "csiborg2_main" "CF4" "CLONES"; do
 # for simname in "manticore_2MPP_MULTIBIN_N128_DES_V1"; do
     # for catalogue in "LOSS" "Foundation" "2MTF" "SFI_gals" "CF4_TFR_i" "CF4_TFR_w1"; do
-    # for catalogue in "CF4_TFR_w1"; do
     # for catalogue in "2MTF"; do
-    # for catalogue in "LOSS"; do
-    # for catalogue in "Carrick2MTFmock_0"; do
-    for catalogue in "SFI_gals" "2MTF" "CF4_TFR_w1" "CF4_TFR_w2" "CF4_TFR_i" "CF4_TFR_i,CF4_TFR_notSDSS_w1"; do
+
+    # for catalogue in "Carrick2MTFmock_50"; do
+    # for i in $(seq 0 1 100); do
+    #     catalogue="Carrick2MTFmock_$i"
+
+    for catalogue in "SFI_gals" "2MTF" "CF4_TFR_w1" "CF4_TFR_w2"; do
+    # for catalogue in "CF4_TFR_w1"; do
+    # for catalogue in "CF4_TFR_w1"; do
         for ksim in "none"; do
         # for ksim in $(seq 0 5 500); do
         # for ksim in "0_100_5" "100_200_5" "200_300_5" "300_400_5" "400_500_5"; do
