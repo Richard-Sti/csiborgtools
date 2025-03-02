@@ -175,8 +175,8 @@ def generate_mock_data(injected_parameters, run_num, verbose=True,
     return model_data, all_data
 
 
-def model(obs_data, injected_params, sample_sigmaTFR, sample_sigma_v,
-          sample_TFR):
+def model(model_kind, obs_data, injected_params, sample_sigmaTFR,
+          sample_sigma_v, sample_TFR):
     eta_obs, mag_obs, phi, theta, zobs = obs_data
     ngal = len(eta_obs)
 
@@ -189,13 +189,6 @@ def model(obs_data, injected_params, sample_sigmaTFR, sample_sigma_v,
     eta_mean = sample("eta_mean", Uniform(eta_mean_min, eta_mean_max))
     eta_std = sample("eta_std", Uniform(0, 3 * injected_params["eta_std"]))
     factor("ll_eta_std", -jnp.log(eta_std))
-
-    with plate("plate_eta", ngal):
-        eta_true = sample("eta_true", Normal(eta_mean, eta_std))
-    factor(
-        "ll_eta",
-        Normal(eta_true, injected_params["e_eta"]).log_prob(eta_obs)
-        )
 
     if sample_sigmaTFR:
         sigmaTFR = sample(
@@ -215,22 +208,54 @@ def model(obs_data, injected_params, sample_sigmaTFR, sample_sigma_v,
     else:
         aTFR, bTFR = injected_params["aTFR"], injected_params["bTFR"]
 
-    with plate("plate_M", ngal):
-        M = sample("M", Normal(aTFR + bTFR * eta_true, sigmaTFR))
-
     # It is important that the prior range here matches the range used to
     # generate the mock data.
     with plate("plate_dist", ngal):
         dist = sample(
             "dist",
             Uniform(injected_params["dist_min"], injected_params["dist_max"]))
-
     distmod = dist2distmod(dist)
 
-    with plate("plate_mag", ngal):
-        sample(
-            "mag_true", Normal(M + distmod, injected_params["e_mag"]),
-            obs=mag_obs)
+    if model_kind in ["full", "M_marginalised"]:
+        with plate("plate_eta", ngal):
+            eta_true = sample("eta_true", Normal(eta_mean, eta_std))
+        factor(
+            "ll_eta",
+            Normal(eta_true, injected_params["e_eta"]).log_prob(eta_obs)
+            )
+
+    if model_kind == "full":
+        with plate("plate_M", ngal):
+            M = sample("M", Normal(aTFR + bTFR * eta_true, sigmaTFR))
+
+        with plate("plate_mag", ngal):
+            sample(
+                "mag_true", Normal(M + distmod, injected_params["e_mag"]),
+                obs=mag_obs)
+    elif model_kind == "M_marginalised":
+        M = aTFR + bTFR * eta_true
+        sigma = jnp.sqrt(sigmaTFR**2 + injected_params["e_mag"]**2)
+        with plate("plate_mag", ngal):
+            sample("mag_true", Normal(M + distmod, sigma), obs=mag_obs)
+    elif model_kind == "M_eta_marginalised":
+        Sigma2 = sigmaTFR**2 + injected_params["e_mag"]**2
+        alpha = aTFR - mag_obs + distmod
+        eta_var = eta_std**2
+
+        e2_eta = injected_params["e_eta"]**2
+
+        SigmaTot2 = (
+            Sigma2 * e2_eta + eta_var * (Sigma2 + bTFR**2 * e2_eta))
+
+        ll = - (
+            + eta_var * (alpha + bTFR * eta_obs)**2
+            + Sigma2 * (eta_obs - eta_mean)**2
+            + e2_eta * (alpha + bTFR * eta_mean)**2
+            ) / (2 * SigmaTot2)
+        ll -= 0.5 * jnp.log(SigmaTot2)
+        factor("ll_mag_true", ll)
+    else:
+        raise ValueError(f"Unknown model kind: {model_kind}")
 
     Vdip_mag = sample("Vdip_mag", Uniform(0, 10 * injected_params["Vdip_mag"]))
     Vdip_ra = sample("Vdip_ra", Uniform(0, 2 * np.pi))
@@ -284,7 +309,7 @@ if __name__ == "__main__":
     nwarm, nsamp = 1500, 5000
 
     injected_params = {
-        "ngal": 350,
+        "ngal": 1500,
         "dist_min": 30,
         "dist_max": 150,
 
@@ -304,9 +329,12 @@ if __name__ == "__main__":
         "e_mag": 0.05,
     }
 
+    kind = "M_eta_marginalised"
     sample_sigmaTFR = True
     sample_sigma_v = True
     sample_TFR = True
+
+    print(f"Running the model `{kind}`.")
 
     print()
     if sample_sigmaTFR:
@@ -334,7 +362,7 @@ if __name__ == "__main__":
     rng_key = random.PRNGKey(args.run_num)
     kernel = NUTS(model, init_strategy=init_to_median(num_samples=1000))
     mcmc = MCMC(kernel, num_warmup=nwarm, num_samples=nsamp,)
-    mcmc.run(rng_key, model_data, injected_params, sample_sigmaTFR,
+    mcmc.run(rng_key, kind, model_data, injected_params, sample_sigmaTFR,
              sample_sigma_v, sample_TFR)
 
     mcmc_samples = mcmc.get_samples()
@@ -349,10 +377,12 @@ if __name__ == "__main__":
                 run_num=args.run_num)
 
     plot_diff = {
-        r"$\Delta M / \sigma_M$": (mcmc_samples["M"], all_data["M"], True, 1),
         r"$\Delta d / \sigma_d$": (mcmc_samples["dist"], all_data["dist"], True, 1),  # noqa
         r"$\Delta d$": (mcmc_samples["dist"], all_data["dist"], False, None),
     }
+
+    if kind == "full":
+        plot_diff[r"$\Delta M / \sigma_M$"] = (mcmc_samples["M"], all_data["M"], True, 1)  # noqa
 
     if len(plot_diff) > 0:
         cols = 3
