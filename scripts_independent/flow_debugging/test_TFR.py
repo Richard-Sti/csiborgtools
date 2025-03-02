@@ -278,7 +278,7 @@ def model(model_kind, obs_data, injected_params, sample_sigmaTFR,
         sample("zobs", Normal(zpred, sigma_v / SPEED_OF_LIGHT), obs=zobs)
 
 
-def plot_corner(mcmc_samples, injected_params, params_to_plot, run_num,
+def plot_corner(mcmc_samples, injected_params, params_to_plot, run_num, kind,
                 verbose=True):
     params_to_plot = [p for p in params_to_plot if p in mcmc_samples]
     samples = np.array([mcmc_samples[param] for param in params_to_plot]).T
@@ -290,7 +290,7 @@ def plot_corner(mcmc_samples, injected_params, params_to_plot, run_num,
         samples, labels=labels, show_titles=True, truths=truths,
         truth_color="red", title_kwargs={"fontsize": 12}, smooth=1)
 
-    fname = f"./plots/run_{run_num}.png"
+    fname = f"./plots/run_{run_num}_{kind}_corner.png"
     if verbose:
         print(f"Saving the corner plot to `{fname}`.")
     fig.savefig(fname, dpi=450)
@@ -307,6 +307,7 @@ if __name__ == "__main__":
     Path("./data").mkdir(parents=True, exist_ok=True,)
 
     nwarm, nsamp = 1500, 5000
+    save_samples = False
 
     injected_params = {
         "ngal": 1500,
@@ -329,7 +330,7 @@ if __name__ == "__main__":
         "e_mag": 0.05,
     }
 
-    kind = "M_eta_marginalised"
+    kind = "M_marginalised"
     sample_sigmaTFR = True
     sample_sigma_v = True
     sample_TFR = True
@@ -374,11 +375,11 @@ if __name__ == "__main__":
         print(f"{key:20s}: {x.mean():.6g} ± {x.std():.6g}")
 
     plot_corner(mcmc_samples, injected_params, params_plot,
-                run_num=args.run_num)
+                run_num=args.run_num, kind=kind)
 
     plot_diff = {
-        r"$\Delta d / \sigma_d$": (mcmc_samples["dist"], all_data["dist"], True, 1),  # noqa
-        r"$\Delta d$": (mcmc_samples["dist"], all_data["dist"], False, None),
+        # r"$\Delta d / \sigma_d$": (mcmc_samples["dist"], all_data["dist"], True, 1),  # noqa
+        # r"$\Delta d$": (mcmc_samples["dist"], all_data["dist"], False, None),
     }
 
     if kind == "full":
@@ -412,18 +413,19 @@ if __name__ == "__main__":
             fig.delaxes(axes[j])
 
         fig.tight_layout()
-        fname = f"./plots/run_{args.run_num}_samples_diff.png"
+        fname = f"./plots/run_{args.run_num}_{kind}_diff.png"
         print(f"Saving the mock data plot to `{fname}`.")
         fig.savefig(fname, dpi=450)
         plt.close()
 
-    fname = f"./data/run_{args.run_num}.hdf5"
-    print(f"Saving the data to `{fname}`.")
-    with File(fname, 'w') as f:
-        grp = f.create_group("data")
-        for key, value in all_data.items():
-            grp.create_dataset(key, data=value)
+    if save_samples:
+        fname = f"./data/run_{args.run_num}_{kind}.hdf5"
+        print(f"Saving the data to `{fname}`.")
+        with File(fname, 'w') as f:
+            grp = f.create_group("data")
+            for key, value in all_data.items():
+                grp.create_dataset(key, data=value)
 
-        grp = f.create_group("samples")
-        for key, value in mcmc_samples.items():
-            grp.create_dataset(key, data=value)
+            grp = f.create_group("samples")
+            for key, value in mcmc_samples.items():
+                grp.create_dataset(key, data=value)
