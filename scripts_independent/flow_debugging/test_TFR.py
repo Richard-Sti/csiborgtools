@@ -110,7 +110,7 @@ def generate_mock_data(injected_parameters, run_num, verbose=True,
             r"$\mu$": distmod,
             r"$m_{\rm obs}$": mag_obs,
             r"$z_{\rm obs}$": zobs,
-            r"$c(z_{\rm obs} - z_{\rm true})$": SPEED_OF_LIGHT * (zobs - ztrue),  # noqa
+            r"$c(z_{\rm obs} - z_{\rm true}) ~ [\mathrm{km} / \mathrm{s}]$": SPEED_OF_LIGHT * (zobs - ztrue),  # noqa
         }
 
         num_plots = len(plot_data)
@@ -156,7 +156,8 @@ def generate_mock_data(injected_parameters, run_num, verbose=True,
     return model_data, all_data
 
 
-def model(obs_data, injected_params, sample_sigmaTFR, sample_sigma_v):
+def model(obs_data, injected_params, sample_sigmaTFR, sample_sigma_v,
+          sample_TFR):
     eta_obs, mag_obs, phi, theta, zobs = obs_data
     ngal = len(eta_obs)
 
@@ -184,12 +185,19 @@ def model(obs_data, injected_params, sample_sigmaTFR, sample_sigma_v):
     else:
         sigmaTFR = injected_params["sigmaTFR"]
 
-    # TODO: here assume known TFR parameters
+    if sample_TFR:
+        aTFR_min = injected_params["aTFR"] - 3
+        aTFR_max = injected_params["aTFR"] + 3
+        aTFR = sample("aTFR", Uniform(aTFR_min, aTFR_max))
+
+        bTFR_min = injected_params["bTFR"] - 3
+        bTFR_max = injected_params["bTFR"] + 3
+        bTFR = sample("bTFR", Uniform(bTFR_min, bTFR_max))
+    else:
+        aTFR, bTFR = injected_params["aTFR"], injected_params["bTFR"]
+
     with plate("plate_M", ngal):
-        M = sample(
-            "M", Normal(
-                injected_params["aTFR"] + injected_params["bTFR"] * eta_true,
-                sigmaTFR))
+        M = sample("M", Normal(aTFR + bTFR * eta_true, sigmaTFR))
 
     # It is important that the prior range here matches the range used to
     # generate the mock data.
@@ -256,13 +264,13 @@ if __name__ == "__main__":
     nwarm, nsamp = 1500, 5000
 
     injected_params = {
-        "ngal": 500,
+        "ngal": 1000,
         "dist_min": 30,
         "dist_max": 150,
 
         "aTFR": -20,
         "bTFR": -7,
-        "sigmaTFR": 0.1,
+        "sigmaTFR": 0.2,
 
         "Vdip_mag": 250,
         "Vdip_ra": 5 / 4 * np.pi,
@@ -275,8 +283,10 @@ if __name__ == "__main__":
 
         "e_mag": 0.05,
     }
+
     sample_sigmaTFR = True
     sample_sigma_v = True
+    sample_TFR = True
 
     print()
     if sample_sigmaTFR:
@@ -288,10 +298,16 @@ if __name__ == "__main__":
         print("Sampling sigma_v.")
     else:
         print("Fixing sigma_v to the injected value.")
+
+    if sample_TFR:
+        print("Sampling aTFR, bTFR.")
+    else:
+        print("Fixing aTFR, bTFR to the injected values.")
     print()
 
     params_plot = ["Vdip_mag", "Vdip_ra", "Vdip_cos_theta",
-                   "sigma_v", "eta_mean", "eta_std", "sigmaTFR",]
+                   "sigma_v", "eta_mean", "eta_std", "sigmaTFR",
+                   "aTFR", "bTFR",]
 
     model_data, all_data = generate_mock_data(injected_params, args.run_num)
 
@@ -299,7 +315,7 @@ if __name__ == "__main__":
     kernel = NUTS(model, init_strategy=init_to_median(num_samples=1000))
     mcmc = MCMC(kernel, num_warmup=nwarm, num_samples=nsamp,)
     mcmc.run(rng_key, model_data, injected_params, sample_sigmaTFR,
-             sample_sigma_v)
+             sample_sigma_v, sample_TFR)
 
     mcmc_samples = mcmc.get_samples()
     print(f"Sampled parameters are: {list(mcmc_samples.keys())}")
