@@ -175,8 +175,12 @@ def generate_mock_data(injected_parameters, run_num, verbose=True,
     return model_data, all_data
 
 
-def model(model_kind, obs_data, injected_params, sample_sigmaTFR,
-          sample_sigma_v, sample_TFR):
+###############################################################################
+#                     Forward model including distance sampling               #
+###############################################################################
+
+def model_sample_dist(model_kind, obs_data, injected_params, sample_sigmaTFR,
+                      sample_sigma_v, sample_TFR):
     eta_obs, mag_obs, phi, theta, zobs = obs_data
     ngal = len(eta_obs)
 
@@ -277,6 +281,10 @@ def model(model_kind, obs_data, injected_params, sample_sigmaTFR,
     with plate("plate_zobs", ngal):
         sample("zobs", Normal(zpred, sigma_v / SPEED_OF_LIGHT), obs=zobs)
 
+###############################################################################
+#                     Forward model including distance sampling               #
+###############################################################################
+
 
 def plot_corner(mcmc_samples, injected_params, params_to_plot, run_num, kind,
                 verbose=True):
@@ -308,6 +316,12 @@ if __name__ == "__main__":
 
     nwarm, nsamp = 1500, 5000
     save_samples = False
+    sample_distance = True
+    print(f"Running {nwarm} warmup and {nsamp} sampling steps.")
+    if sample_distance:
+        print("Sampling distances.")
+    else:
+        print("Numerically marginalising over distances.")
 
     injected_params = {
         "ngal": 1500,
@@ -361,6 +375,10 @@ if __name__ == "__main__":
     model_data, all_data = generate_mock_data(injected_params, args.run_num)
 
     rng_key = random.PRNGKey(args.run_num)
+    if sample_distance:
+        model = model_sample_dist
+    else:
+        raise NotImplementedError("Numerical marginalisation not implemented.")
     kernel = NUTS(model, init_strategy=init_to_median(num_samples=1000))
     mcmc = MCMC(kernel, num_warmup=nwarm, num_samples=nsamp,)
     mcmc.run(rng_key, kind, model_data, injected_params, sample_sigmaTFR,
