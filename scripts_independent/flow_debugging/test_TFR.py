@@ -1,3 +1,25 @@
+# Copyright (C) 2023 Richard Stiskalek
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 3 of the License, or (at your
+# option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General
+# Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program; if not, write to the Free Software Foundation, Inc.,
+# 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+"""
+A simple script to generate mock TFR data and forward-model it to assess any
+potential biases.
+
+Assumes a simple Hubble flow `cz = H0 * d`, that the luminosity distance is
+equal to the comoving distance, and that the velocity field is that of a
+constant dipole.
+"""
 from argparse import ArgumentParser
 from math import ceil
 from pathlib import Path
@@ -234,13 +256,13 @@ if __name__ == "__main__":
     nwarm, nsamp = 1500, 5000
 
     injected_params = {
-        "ngal": 2000,
+        "ngal": 500,
         "dist_min": 30,
         "dist_max": 150,
 
         "aTFR": -20,
         "bTFR": -7,
-        "sigmaTFR": 0.3,
+        "sigmaTFR": 0.1,
 
         "Vdip_mag": 250,
         "Vdip_ra": 5 / 4 * np.pi,
@@ -253,8 +275,20 @@ if __name__ == "__main__":
 
         "e_mag": 0.05,
     }
-    sample_sigmaTFR = False
+    sample_sigmaTFR = True
     sample_sigma_v = True
+
+    print()
+    if sample_sigmaTFR:
+        print("Sampling sigma_TFR.")
+    else:
+        print("Fixing sigma_TFR to the injected value.")
+
+    if sample_sigma_v:
+        print("Sampling sigma_v.")
+    else:
+        print("Fixing sigma_v to the injected value.")
+    print()
 
     params_plot = ["Vdip_mag", "Vdip_ra", "Vdip_cos_theta",
                    "sigma_v", "eta_mean", "eta_std", "sigmaTFR",]
