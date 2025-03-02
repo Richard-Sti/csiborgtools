@@ -47,6 +47,25 @@ def dist2redshift(dist):
     H0 = 100
     return H0 * dist / SPEED_OF_LIGHT
 
+
+def key2label(key):
+    x = {
+        "aTFR": r"$a_{\rm TFR}$",
+        "bTFR": r"$b_{\rm TFR}$",
+        "sigmaTFR": r"$\sigma_{\rm TFR}$",
+        "Vdip_mag": r"$V_{\rm dip}$",
+        "Vdip_ra": r"$\phi_{\rm dip}$",
+        "Vdip_cos_theta": r"$\cos \theta_{\rm dip}$",
+        "sigma_v": r"$\sigma_v$",
+        "eta_mean": r"$\mu_{\eta}$",
+        "eta_std": r"$w_{\eta}$",
+        }
+
+    if key in x:
+        return x[key]
+    return key
+
+
 ###############################################################################
 #                           Mock data generation                              #
 ###############################################################################
@@ -239,10 +258,11 @@ def plot_corner(mcmc_samples, injected_params, params_to_plot, run_num,
     params_to_plot = [p for p in params_to_plot if p in mcmc_samples]
     samples = np.array([mcmc_samples[param] for param in params_to_plot]).T
     truths = [injected_params.get(param, None) for param in params_to_plot]
+    labels = [key2label(param) for param in params_to_plot]
 
     # Generate the corner plot with truth values
     fig = corner(
-        samples, labels=params_to_plot, show_titles=True, truths=truths,
+        samples, labels=labels, show_titles=True, truths=truths,
         truth_color="red", title_kwargs={"fontsize": 12}, smooth=1)
 
     fname = f"./plots/run_{run_num}.png"
@@ -264,7 +284,7 @@ if __name__ == "__main__":
     nwarm, nsamp = 1500, 5000
 
     injected_params = {
-        "ngal": 1000,
+        "ngal": 350,
         "dist_min": 30,
         "dist_max": 150,
 
