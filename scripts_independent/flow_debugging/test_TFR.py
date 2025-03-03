@@ -36,6 +36,8 @@ from numpyro.infer import MCMC, NUTS
 from numpyro.infer.initialization import init_to_median
 from scipy.stats import norm
 
+from utils import ln_simpson
+
 SPEED_OF_LIGHT = 299_792.458
 
 
@@ -286,8 +288,123 @@ def model_sample_dist(model_kind, obs_data, injected_params, sample_sigmaTFR,
 ###############################################################################
 
 
+def model_marg_dist(model_kind, obs_data, injected_params, sample_sigmaTFR,
+                    sample_sigma_v, sample_TFR, num_dist_steps):
+    eta_obs, mag_obs, phi, theta, zobs = obs_data
+    ngal = len(eta_obs)
+
+    eta_mean = injected_params["eta_mean"]
+    eta_std = injected_params["eta_std"]
+
+    eta_mean_min = injected_params["eta_mean"] - 1
+    eta_mean_max = injected_params["eta_mean"] + 1
+
+    eta_mean = sample("eta_mean", Uniform(eta_mean_min, eta_mean_max))
+    eta_std = sample("eta_std", Uniform(0, 3 * injected_params["eta_std"]))
+    factor("ll_eta_std", -jnp.log(eta_std))
+
+    if sample_sigmaTFR:
+        sigmaTFR = sample(
+            "sigmaTFR", Uniform(0, 5 * injected_params["sigmaTFR"]))
+        factor("ll_sigma_TFR", -jnp.log(sigmaTFR))
+    else:
+        sigmaTFR = injected_params["sigmaTFR"]
+
+    if sample_TFR:
+        aTFR_min = injected_params["aTFR"] - 3
+        aTFR_max = injected_params["aTFR"] + 3
+        aTFR = sample("aTFR", Uniform(aTFR_min, aTFR_max))
+
+        bTFR_min = injected_params["bTFR"] - 3
+        bTFR_max = injected_params["bTFR"] + 3
+        bTFR = sample("bTFR", Uniform(bTFR_min, bTFR_max))
+    else:
+        aTFR, bTFR = injected_params["aTFR"], injected_params["bTFR"]
+
+    # It is important that the prior range here matches the range used to
+    # generate the mock data.
+    dist_range = jnp.linspace(
+        injected_params["dist_min"], injected_params["dist_max"],
+        num_dist_steps)
+    distmod_range = dist2distmod(dist_range)
+
+    if model_kind in ["full", "M_marginalised"]:
+        with plate("plate_eta", ngal):
+            eta_true = sample("eta_true", Normal(eta_mean, eta_std))
+        factor(
+            "ll_eta",
+            Normal(eta_true, injected_params["e_eta"]).log_prob(eta_obs)
+            )
+
+    if model_kind == "full":
+        with plate("plate_M", ngal):
+            M = sample("M", Normal(aTFR + bTFR * eta_true, sigmaTFR))
+
+        # Log-likelihood of shape `(ngal, num_dist_steps)``
+        ll = Normal(
+            M[:, None] + distmod_range[None, :],
+            injected_params["e_mag"]).log_prob(mag_obs[:, None])
+    elif model_kind == "M_marginalised":
+        M = aTFR + bTFR * eta_true
+        sigma = jnp.sqrt(sigmaTFR**2 + injected_params["e_mag"]**2)
+
+        # Log-likelihood of shape `(ngal, num_dist_steps)``
+        ll = Normal(
+            M[:, None] + distmod_range[None, :],
+            sigma).log_prob(mag_obs[:, None])
+    elif model_kind == "M_eta_marginalised":
+        Sigma2 = sigmaTFR**2 + injected_params["e_mag"]**2
+        alpha = aTFR - mag_obs[:, None] + distmod_range[None, :]
+        eta_var = eta_std**2
+
+        e2_eta = injected_params["e_eta"]**2
+
+        SigmaTot2 = (
+            Sigma2 * e2_eta + eta_var * (Sigma2 + bTFR**2 * e2_eta))
+
+        ll = - (
+            + eta_var * (alpha + bTFR * eta_obs[:, None])**2
+            + Sigma2 * (eta_obs[:, None] - eta_mean)**2
+            + e2_eta * (alpha + bTFR * eta_mean)**2
+            ) / (2 * SigmaTot2)
+        ll -= 0.5 * jnp.log(SigmaTot2)
+    else:
+        raise ValueError(f"Unknown model kind: {model_kind}")
+
+    Vdip_mag = sample("Vdip_mag", Uniform(0, 10 * injected_params["Vdip_mag"]))
+    Vdip_ra = sample("Vdip_ra", Uniform(0, 2 * np.pi))
+    Vdip_cos_theta = sample("Vdip_cos_theta", Uniform(-1, 1))
+    Vdip_theta = jnp.arccos(Vdip_cos_theta)
+
+    Vpec = Vdip_mag * (
+        + jnp.sin(Vdip_theta) * jnp.sin(theta) * jnp.cos(Vdip_ra - phi)
+        + jnp.cos(Vdip_theta) * jnp.cos(theta))
+
+    # Predicted redshift of shape `(ngal, num_dist_steps)`
+    zpred = (1 + dist2redshift(dist_range)[None, :]) * (1 + Vpec[:, None] / SPEED_OF_LIGHT) - 1  # noqa
+
+    if sample_sigma_v:
+        sigma_v = sample("sigma_v", Uniform(0, 5 * injected_params["sigma_v"]))
+        factor("ll_sigma_v", -jnp.log(sigma_v))
+    else:
+        sigma_v = injected_params["sigma_v"]
+
+    # Add the log-likelihood of the observed redshifts, shape remains
+    # `(ngal, num_dist_steps)`
+    ll += Normal(zpred, sigma_v / SPEED_OF_LIGHT).log_prob(zobs[:, None])
+
+    # Marginalise over the distance, shape `(ngal,)`
+    ll = ln_simpson(ll, x=dist_range[None, :], axis=-1)
+    factor("ll_zobs", ll)
+
+
+###############################################################################
+#                           Corner plot                                       #
+###############################################################################
+
+
 def plot_corner(mcmc_samples, injected_params, params_to_plot, run_num, kind,
-                verbose=True):
+                sample_distance, verbose=True):
     params_to_plot = [p for p in params_to_plot if p in mcmc_samples]
     samples = np.array([mcmc_samples[param] for param in params_to_plot]).T
     truths = [injected_params.get(param, None) for param in params_to_plot]
@@ -299,6 +416,8 @@ def plot_corner(mcmc_samples, injected_params, params_to_plot, run_num, kind,
         truth_color="red", title_kwargs={"fontsize": 12}, smooth=1)
 
     fname = f"./plots/run_{run_num}_{kind}_corner.png"
+    if sample_distance:
+        fname = fname.replace(f"{kind}", f"distsample_{kind}")
     if verbose:
         print(f"Saving the corner plot to `{fname}`.")
     fig.savefig(fname, dpi=450)
@@ -316,15 +435,17 @@ if __name__ == "__main__":
 
     nwarm, nsamp = 1500, 5000
     save_samples = False
-    sample_distance = True
+    sample_distance = False
+    dist_spacing = 0.5
     print(f"Running {nwarm} warmup and {nsamp} sampling steps.")
     if sample_distance:
         print("Sampling distances.")
     else:
-        print("Numerically marginalising over distances.")
+        print(f"Numerically marginalising over distances with a step size "
+              f"of {dist_spacing} Mpc / h.")
 
     injected_params = {
-        "ngal": 1500,
+        "ngal": 5000,
         "dist_min": 30,
         "dist_max": 150,
 
@@ -344,10 +465,17 @@ if __name__ == "__main__":
         "e_mag": 0.05,
     }
 
-    kind = "M_marginalised"
+    kind = "M_eta_marginalised"
     sample_sigmaTFR = True
     sample_sigma_v = True
     sample_TFR = True
+    num_dist_steps = int(
+        (injected_params["dist_max"] - injected_params["dist_min"])
+        / dist_spacing
+        )
+
+    if not sample_distance:
+        print(f"We have {num_dist_steps} distance steps.")
 
     print(f"Running the model `{kind}`.")
 
@@ -375,14 +503,16 @@ if __name__ == "__main__":
     model_data, all_data = generate_mock_data(injected_params, args.run_num)
 
     rng_key = random.PRNGKey(args.run_num)
+    model_args = (kind, model_data, injected_params, sample_sigmaTFR,
+                  sample_sigma_v, sample_TFR,)
     if sample_distance:
         model = model_sample_dist
     else:
-        raise NotImplementedError("Numerical marginalisation not implemented.")
+        model_args += (num_dist_steps,)
+        model = model_marg_dist
     kernel = NUTS(model, init_strategy=init_to_median(num_samples=1000))
     mcmc = MCMC(kernel, num_warmup=nwarm, num_samples=nsamp,)
-    mcmc.run(rng_key, kind, model_data, injected_params, sample_sigmaTFR,
-             sample_sigma_v, sample_TFR)
+    mcmc.run(rng_key, *model_args)
 
     mcmc_samples = mcmc.get_samples()
     print(f"Sampled parameters are: {list(mcmc_samples.keys())}")
@@ -393,7 +523,8 @@ if __name__ == "__main__":
         print(f"{key:20s}: {x.mean():.6g} ± {x.std():.6g}")
 
     plot_corner(mcmc_samples, injected_params, params_plot,
-                run_num=args.run_num, kind=kind)
+                run_num=args.run_num, kind=kind,
+                sample_distance=sample_distance)
 
     plot_diff = {
         # r"$\Delta d / \sigma_d$": (mcmc_samples["dist"], all_data["dist"], True, 1),  # noqa
@@ -432,12 +563,17 @@ if __name__ == "__main__":
 
         fig.tight_layout()
         fname = f"./plots/run_{args.run_num}_{kind}_diff.png"
+        if sample_distance:
+            fname = fname.replace(f"{kind}", f"distsample_{kind}")
+
         print(f"Saving the mock data plot to `{fname}`.")
         fig.savefig(fname, dpi=450)
         plt.close()
 
     if save_samples:
         fname = f"./data/run_{args.run_num}_{kind}.hdf5"
+        if sample_distance:
+            fname = fname.replace(f"{kind}", f"distsample_{kind}")
         print(f"Saving the data to `{fname}`.")
         with File(fname, 'w') as f:
             grp = f.create_group("data")
