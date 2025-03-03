@@ -82,6 +82,9 @@ def generate_mock_data(injected_parameters, run_num, verbose=True,
             print(f"{key:15s}: {value:.6g}")
         print()
 
+    if injected_parameters["dist_min"] != 0:
+        raise ValueError("The minimum distance must be set to zero.")
+
     gen = np.random.default_rng(run_num)
     ngal = injected_parameters["ngal"]
 
@@ -95,12 +98,8 @@ def generate_mock_data(injected_parameters, run_num, verbose=True,
         injected_parameters["aTFR"] + injected_parameters["bTFR"] * eta_true,
         injected_parameters["sigmaTFR"])
 
-    # Distance and apparent magnitude
-    dist = gen.uniform(
-        injected_parameters["dist_min"],
-        injected_parameters["dist_max"],
-        ngal)
-
+    # Distance from r^2 distribution and apparent magnitude
+    dist = injected_parameters["dist_max"] * np.cbrt(gen.uniform(0, 1, ngal))
     distmod = dist2distmod(dist)
 
     mag_true = M + distmod
@@ -164,6 +163,7 @@ def generate_mock_data(injected_parameters, run_num, verbose=True,
         "M": M,
         "phi": phi,
         "theta": theta,
+        "mag_true": mag_true,
         "mag_obs": mag_obs,
         "dist": dist,
         "Vrad": Vrad,
@@ -220,6 +220,8 @@ def model_sample_dist(model_kind, obs_data, injected_params, sample_sigmaTFR,
         dist = sample(
             "dist",
             Uniform(injected_params["dist_min"], injected_params["dist_max"]))
+    factor("ll_dist", 2 * jnp.log(dist))
+
     distmod = dist2distmod(dist)
 
     if model_kind in ["full", "M_marginalised"]:
@@ -322,10 +324,12 @@ def model_marg_dist(model_kind, obs_data, injected_params, sample_sigmaTFR,
         aTFR, bTFR = injected_params["aTFR"], injected_params["bTFR"]
 
     # It is important that the prior range here matches the range used to
-    # generate the mock data.
+    # generate the mock data. We add a small number to the minimum distance
+    # to avoid log(0).
     dist_range = jnp.linspace(
-        injected_params["dist_min"], injected_params["dist_max"],
+        injected_params["dist_min"] + 1e-3, injected_params["dist_max"],
         num_dist_steps)
+
     distmod_range = dist2distmod(dist_range)
 
     if model_kind in ["full", "M_marginalised"]:
@@ -370,6 +374,9 @@ def model_marg_dist(model_kind, obs_data, injected_params, sample_sigmaTFR,
         ll -= 0.5 * jnp.log(SigmaTot2)
     else:
         raise ValueError(f"Unknown model kind: {model_kind}")
+
+    # Malmquist bias
+    ll += 2 * jnp.log(dist_range)[None, :]
 
     Vdip_mag = sample("Vdip_mag", Uniform(0, 10 * injected_params["Vdip_mag"]))
     Vdip_ra = sample("Vdip_ra", Uniform(0, 2 * np.pi))
@@ -445,11 +452,11 @@ if __name__ == "__main__":
               f"of {dist_spacing} Mpc / h.")
 
     injected_params = {
-        "ngal": 5000,
-        "dist_min": 30,
+        "ngal": 500,
+        "dist_min": 0,  # DO NOT change from 0 if r^2 sampling!
         "dist_max": 150,
 
-        "aTFR": -20,
+        "aTFR": -21,
         "bTFR": -7,
         "sigmaTFR": 0.2,
 
