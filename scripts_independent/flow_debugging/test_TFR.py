@@ -31,9 +31,10 @@ from h5py import File
 from jax import numpy as jnp
 from jax import random
 from numpyro import factor, plate, sample
-from numpyro.distributions import Normal, Uniform
+from numpyro.distributions import Normal, Uniform, TruncatedNormal
 from numpyro.infer import MCMC, NUTS
 from numpyro.infer.initialization import init_to_median
+from tqdm import tqdm
 from scipy.stats import norm
 
 from utils import ln_simpson
@@ -48,6 +49,45 @@ def dist2distmod(dist):
 def dist2redshift(dist):
     H0 = 100
     return H0 * dist / SPEED_OF_LIGHT
+
+
+def sample_mag_distance_mlim(gen, M, e_mag, mlim, dM=0.2):
+    """
+    Sample the distance and apparent magnitude for a given absolute magnitude
+    and limiting apparent magnitude.
+    """
+    Rmax = 10**((mlim - M.min() - 25 + dM) / 5)
+
+    num_attempts_per_draw = np.zeros_like(M, dtype=int)
+    mobs = np.zeros_like(M)
+    mtrue = np.zeros_like(M)
+    r = np.zeros_like(M)
+
+    print("Sampling the distance and apparent magnitude.")
+    for i, M_i in tqdm(enumerate(M), total=len(M), desc="Sampling"):
+        n = 0
+
+        while True:
+            r_i = Rmax * np.cbrt(gen.uniform(0, 1))
+
+            mtrue_i = M_i + dist2distmod(r_i)
+            mobs_i = gen.normal(mtrue_i, e_mag)
+
+            if mobs_i < mlim:
+                num_attempts_per_draw[i] = n
+                break
+
+            n += 1
+
+        num_attempts_per_draw[i] = n
+        mobs[i] = mobs_i
+        mtrue[i] = mtrue_i
+        r[i] = r_i
+
+    print(f"Finished sampling. Average number of attempts per draw "
+          f"is {num_attempts_per_draw.mean():.2f}.")
+
+    return mobs, mtrue, r
 
 
 def key2label(key):
@@ -82,9 +122,6 @@ def generate_mock_data(injected_parameters, run_num, verbose=True,
             print(f"{key:15s}: {value:.6g}")
         print()
 
-    if injected_parameters["dist_min"] != 0:
-        raise ValueError("The minimum distance must be set to zero.")
-
     gen = np.random.default_rng(run_num)
     ngal = injected_parameters["ngal"]
 
@@ -98,12 +135,10 @@ def generate_mock_data(injected_parameters, run_num, verbose=True,
         injected_parameters["aTFR"] + injected_parameters["bTFR"] * eta_true,
         injected_parameters["sigmaTFR"])
 
-    # Distance from r^2 distribution and apparent magnitude
-    dist = injected_parameters["dist_max"] * np.cbrt(gen.uniform(0, 1, ngal))
+    # Distance from a truncated r^2 distribution and apparent magnitude
+    mag_obs, mag_true, dist = sample_mag_distance_mlim(
+        gen, M, injected_parameters["e_mag"], injected_parameters["mlim"])
     distmod = dist2distmod(dist)
-
-    mag_true = M + distmod
-    mag_obs = gen.normal(mag_true, injected_parameters["e_mag"])
 
     # Sky position and peculiar velocity
     phi = gen.uniform(0, 2 * np.pi, ngal)
@@ -181,6 +216,16 @@ def generate_mock_data(injected_parameters, run_num, verbose=True,
 #                     Forward model including distance sampling               #
 ###############################################################################
 
+
+def sample_distance_mlim(M, mlim, ngal):
+    Rmax = 10**((mlim - M - 25) / 5)
+    with plate("plate_dist", ngal):
+        dist = sample("dist", Uniform(0, Rmax))
+    factor("ll_dist", jnp.log(3) - 3 * jnp.log(Rmax) + 2 * jnp.log(dist))
+
+    return dist
+
+
 def model_sample_dist(model_kind, obs_data, injected_params, sample_sigmaTFR,
                       sample_sigma_v, sample_TFR):
     eta_obs, mag_obs, phi, theta, zobs = obs_data
@@ -214,16 +259,6 @@ def model_sample_dist(model_kind, obs_data, injected_params, sample_sigmaTFR,
     else:
         aTFR, bTFR = injected_params["aTFR"], injected_params["bTFR"]
 
-    # It is important that the prior range here matches the range used to
-    # generate the mock data.
-    with plate("plate_dist", ngal):
-        dist = sample(
-            "dist",
-            Uniform(injected_params["dist_min"], injected_params["dist_max"]))
-    factor("ll_dist", 2 * jnp.log(dist))
-
-    distmod = dist2distmod(dist)
-
     if model_kind in ["full", "M_marginalised"]:
         with plate("plate_eta", ngal):
             eta_true = sample("eta_true", Normal(eta_mean, eta_std))
@@ -236,16 +271,29 @@ def model_sample_dist(model_kind, obs_data, injected_params, sample_sigmaTFR,
         with plate("plate_M", ngal):
             M = sample("M", Normal(aTFR + bTFR * eta_true, sigmaTFR))
 
+        dist = sample_distance_mlim(M, injected_params["mlim"], ngal)
+        distmod = dist2distmod(dist)
+
         with plate("plate_mag", ngal):
             sample(
-                "mag_true", Normal(M + distmod, injected_params["e_mag"]),
-                obs=mag_obs)
+                "mag_obs", TruncatedNormal(
+                    M + distmod, injected_params["e_mag"],
+                    high=injected_params["mlim"]), obs=mag_obs)
+
     elif model_kind == "M_marginalised":
+        raise NotImplementedError("M_marginalised not implemented yet.")
         M = aTFR + bTFR * eta_true
         sigma = jnp.sqrt(sigmaTFR**2 + injected_params["e_mag"]**2)
+        # with plate("plate_mag", ngal):
+        #     sample("mag_true", Normal(M + distmod, sigma), obs=mag_obs)
         with plate("plate_mag", ngal):
-            sample("mag_true", Normal(M + distmod, sigma), obs=mag_obs)
+            sample(
+                "mag_obs", TruncatedNormal(
+                    M + distmod, sigma, low=0, high=injected_params["mlim"]),
+                obs=mag_obs)
+
     elif model_kind == "M_eta_marginalised":
+        raise NotImplementedError("M_eta_marginalised not implemented yet.")
         Sigma2 = sigmaTFR**2 + injected_params["e_mag"]**2
         alpha = aTFR - mag_obs + distmod
         eta_var = eta_std**2
@@ -294,6 +342,7 @@ def model_marg_dist(model_kind, obs_data, injected_params, sample_sigmaTFR,
                     sample_sigma_v, sample_TFR, num_dist_steps):
     eta_obs, mag_obs, phi, theta, zobs = obs_data
     ngal = len(eta_obs)
+    raise NotImplementedError("model_marg_dist not implemented yet.")
 
     eta_mean = injected_params["eta_mean"]
     eta_std = injected_params["eta_std"]
@@ -327,8 +376,7 @@ def model_marg_dist(model_kind, obs_data, injected_params, sample_sigmaTFR,
     # generate the mock data. We add a small number to the minimum distance
     # to avoid log(0).
     dist_range = jnp.linspace(
-        injected_params["dist_min"] + 1e-3, injected_params["dist_max"],
-        num_dist_steps)
+        1e-3, injected_params["dist_max"], num_dist_steps)
 
     distmod_range = dist2distmod(dist_range)
 
@@ -440,9 +488,10 @@ if __name__ == "__main__":
     Path("./plots").mkdir(parents=True, exist_ok=True,)
     Path("./data").mkdir(parents=True, exist_ok=True,)
 
-    nwarm, nsamp = 1500, 5000
-    save_samples = False
-    sample_distance = False
+    nwarm, nsamp = 1500, 4500
+    # nwarm, nsamp = 500, 500
+    save_samples = True
+    sample_distance = True
     dist_spacing = 0.5
     print(f"Running {nwarm} warmup and {nsamp} sampling steps.")
     if sample_distance:
@@ -452,11 +501,11 @@ if __name__ == "__main__":
               f"of {dist_spacing} Mpc / h.")
 
     injected_params = {
-        "ngal": 500,
-        "dist_min": 0,  # DO NOT change from 0 if r^2 sampling!
-        "dist_max": 150,
+        "ngal": 5000,
+        "dist_max": 300,
+        "mlim": 15,
 
-        "aTFR": -21,
+        "aTFR": -20,
         "bTFR": -7,
         "sigmaTFR": 0.2,
 
@@ -472,14 +521,11 @@ if __name__ == "__main__":
         "e_mag": 0.05,
     }
 
-    kind = "M_eta_marginalised"
+    kind = "full"
     sample_sigmaTFR = True
     sample_sigma_v = True
     sample_TFR = True
-    num_dist_steps = int(
-        (injected_params["dist_max"] - injected_params["dist_min"])
-        / dist_spacing
-        )
+    num_dist_steps = int(injected_params["dist_max"] / dist_spacing)
 
     if not sample_distance:
         print(f"We have {num_dist_steps} distance steps.")
@@ -517,8 +563,11 @@ if __name__ == "__main__":
     else:
         model_args += (num_dist_steps,)
         model = model_marg_dist
-    kernel = NUTS(model, init_strategy=init_to_median(num_samples=1000))
+
+    kernel = NUTS(model, init_strategy=init_to_median(num_samples=5))
     mcmc = MCMC(kernel, num_warmup=nwarm, num_samples=nsamp,)
+
+    print(f"Running the MCMC for the model `{kind}`.")
     mcmc.run(rng_key, *model_args)
 
     mcmc_samples = mcmc.get_samples()
@@ -539,7 +588,8 @@ if __name__ == "__main__":
     }
 
     if kind == "full":
-        plot_diff[r"$\Delta M / \sigma_M$"] = (mcmc_samples["M"], all_data["M"], True, 1)  # noqa
+        if "M" in mcmc_samples:
+            plot_diff[r"$\Delta M / \sigma_M$"] = (mcmc_samples["M"], all_data["M"], True, 1)  # noqa
 
     if len(plot_diff) > 0:
         cols = 3
