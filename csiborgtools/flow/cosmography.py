@@ -13,91 +13,92 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """Various cosmography functions for converting between distance indicators."""
+import numpy as np
+from astropy.cosmology import FlatLambdaCDM
+from interpax import Interpolator1D
 from jax import numpy as jnp
-
-from ..params import SPEED_OF_LIGHT
 
 H0 = 100  # km / s / Mpc
 
 
-def dist2redshift(dist, Omega_m, h=1.):
+class ComovingDistance2Redshift:
     """
-    Convert comoving distance to cosmological redshift if the Universe is
-    flat and z << 1.
+    Class to build an interpolator and convert comoving distance in `Mpc / h`
+    to redshift.
+
+    Parameters
+    ----------
+    Om0 : float
+        Matter density parameter.
+    zmin_interp, zmax_interp : float
+        Minimum and maximum redshift for the interpolation grid.
+    npoints_interp : int
+        Number of points in the interpolation grid.
     """
-    eta = 3 * Omega_m / 2
-    return 1 / eta * (1 - (1 - 2 * 100 * h * dist / SPEED_OF_LIGHT * eta)**0.5)
+    def __init__(self, Om0=0.3, zmin_interp=0, zmax_interp=0.5,
+                 npoints_interp=250):
+        cosmo = FlatLambdaCDM(H0=100, Om0=Om0)
+        z_grid = np.linspace(zmin_interp, zmax_interp, npoints_interp)
+        r_grid = cosmo.comoving_distance(z_grid).value
+
+        self._f = Interpolator1D(r_grid, z_grid, extrap=False)
+
+    def __call__(self, r):
+        return self._f(r)
 
 
-def redshift2dist(z, Omega_m):
+class ComovingDistance2Distmod:
     """
-    Convert cosmological redshift to comoving distance if the Universe is
-    flat and z << 1.
+    Class to build an interpolator to convert comoving distance in `Mpc / h`
+    to distance modulus.
+
+    Parameters
+    ----------
+    Om0 : float
+        Matter density parameter.
+    zmin_interp, zmax_interp : float
+        Minimum and maximum redshift for the interpolation grid.
+    npoints_interp : int
+        Number of points in the interpolation grid.
     """
-    q0 = 3 * Omega_m / 2 - 1
-    return SPEED_OF_LIGHT * z / (2 * H0) * (2 - z * (1 + q0))
+    def __init__(self, Om0=0.3, zmin_interp=1e-6, zmax_interp=0.5,
+                 npoints_interp=250):
+        cosmo = FlatLambdaCDM(H0=100, Om0=Om0)
+        z_grid = np.linspace(zmin_interp, zmax_interp, npoints_interp)
+        r_grid = cosmo.comoving_distance(z_grid).value
+        mu_grid = cosmo.distmod(z_grid).value
+
+        self._f = Interpolator1D(jnp.log(r_grid), mu_grid, extrap=False)
+
+    def __call__(self, r):
+        return self._f(jnp.log(r))
 
 
-def gradient_redshift2dist(z, Omega_m):
+class Distmod2Distance:
     """
-    Gradient of the redshift to comoving distance conversion if the Universe is
-    flat and z << 1.
+    Class to build an interpolator to convert distance modulus to comoving
+    distance in `Mpc / h`.
+
+    Parameters
+    ----------
+    Om0 : float
+        Matter density parameter.
+    zmin_interp, zmax_interp : float
+        Minimum and maximum redshift for the interpolation grid.
+    npoints_interp : int
+        Number of points in the interpolation grid.
     """
-    q0 = 3 * Omega_m / 2 - 1
-    return SPEED_OF_LIGHT / H0 * (1 - z * (1 + q0))
+    def __init__(self, Om0=0.3, zmin_interp=1e-6, zmax_interp=0.5,
+                 npoints_interp=250):
+        cosmo = FlatLambdaCDM(H0=100, Om0=Om0)
+        z_grid = np.linspace(zmin_interp, zmax_interp, npoints_interp)
+        r_grid = cosmo.comoving_distance(z_grid).value
+        mu_grid = cosmo.distmod(z_grid).value
 
+        self._f = Interpolator1D(mu_grid, jnp.log(r_grid), extrap=False)
 
-def distmod2dist(mu, Om0):
-    """
-    Convert distance modulus to distance in `Mpc / h`. The expression is valid
-    for a flat universe over the range of 0.00001 < z < 0.1.
-    """
-    term1 = jnp.exp((0.443288 * mu) + (-14.286531))
-    term2 = (0.506973 * mu) + 12.954633
-    term3 = ((0.028134 * mu) ** (
-        ((0.684713 * mu)
-         + ((0.151020 * mu) + (1.235158 * Om0))) - jnp.exp(0.072229 * mu)))
-    term4 = (-0.045160) * mu
-    return (-0.000301) + (term1 * (term2 - (term3 - term4)))
+    def __call__(self, r, return_log=False):
+        if return_log:
+            return self._f(r)
 
-
-def distmod2dist_gradient(mu, Om0):
-    """
-    Calculate the derivative of comoving distance in `Mpc / h` with respect to
-    the distance modulus. The expression is valid for a flat universe over the
-    range of 0.00001 < z < 0.1.
-    """
-    term1 = jnp.exp((0.443288 * mu) + (-14.286531))
-    dterm1 = 0.443288 * term1
-
-    term2 = (0.506973 * mu) + 12.954633
-    dterm2 = 0.506973
-
-    term3 = ((0.028134 * mu)**(((0.684713 * mu) + ((0.151020 * mu) + (1.235158 * Om0))) - jnp.exp(0.072229 * mu)))  # noqa
-    ln_base = jnp.log(0.028134) + jnp.log(mu)
-    exponent = 0.835733 * mu + 1.235158 * Om0 - jnp.exp(0.072229 * mu)
-    exponent_derivative = 0.835733 - 0.072229 * jnp.exp(0.072229 * mu)
-    dterm3 = term3 * ((1 / mu) * exponent + exponent_derivative * ln_base)
-
-    term4 = (-0.045160) * mu
-    dterm4 = -0.045160
-
-    return (dterm1 * (term2 - (term3 - term4))
-            + term1 * (dterm2 - (dterm3 - dterm4)))
-
-
-def distmod2redshift(mu, Om0):
-    """
-    Convert distance modulus to redshift, assuming `h = 1`. The expression is
-    valid for a flat universe over the range of 0.00001 < z < 0.1.
-    """
-    return jnp.exp(((0.461108 * mu) - ((0.022187 * Om0) + (((0.022347 * mu)** (12.631788 - ((-6.708757) * Om0))) + 19.529852))))  # noqa
-
-
-def log_dA_to_distmod(log_dA, Om0):
-    """
-    Convert log10 of the angular diameter distance in Mpc / h to distance
-    modulus. The expression is valid for a flat universe over the range of
-    0.00001 < z < 0.1.
-    """
-    return jnp.exp((-6.542245 + 2.307573 * log_dA) +  jnp.exp(2.708684 * log_dA + (-9.708873 + 1.270249 * Om0))) + 5 * log_dA + 25  # noqa
+        return jnp.exp(self._f(r))
