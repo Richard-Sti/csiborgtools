@@ -36,7 +36,7 @@ from .mocks import (                                                            
     mock_Carrick2MTF_new,                                                       # noqa
     )
 
-from .selection import ToyMagnitudeSelection                                    # noqa
+from .selection import MagnitudeSelection                                    # noqa
 
 from .void_model import (                                                       # noqa
     load_void_fiducial,                                                         # noqa
