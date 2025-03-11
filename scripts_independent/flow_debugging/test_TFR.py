@@ -1,4 +1,4 @@
-# Copyright (C) 2023 Richard Stiskalek
+# Copyright (C) 2025 Richard Stiskalek
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by the
 # Free Software Foundation; either version 3 of the License, or (at your
@@ -36,8 +36,11 @@ from numpyro.infer import MCMC, NUTS
 from numpyro.infer.initialization import init_to_median
 from tqdm import tqdm
 from scipy.stats import norm
+from quadax import cumulative_trapezoid
+from h5py import File
 
 from utils import ln_simpson
+from jax.debug import print as jprint
 
 SPEED_OF_LIGHT = 299_792.458
 
@@ -51,12 +54,19 @@ def dist2redshift(dist):
     return H0 * dist / SPEED_OF_LIGHT
 
 
+def distmod2dist(distmod):
+    return 10**((distmod - 25) / 5)
+
+
 def sample_mag_distance_mlim(gen, M, e_mag, mlim, dM=0.2):
     """
     Sample the distance and apparent magnitude for a given absolute magnitude
     and limiting apparent magnitude.
     """
     Rmax = 10**((mlim - M.min() - 25 + dM) / 5)
+
+    if isinstance(e_mag, (int, float)):
+        e_mag = e_mag * jnp.ones_like(M)
 
     num_attempts_per_draw = np.zeros_like(M, dtype=int)
     mobs = np.zeros_like(M)
@@ -71,7 +81,7 @@ def sample_mag_distance_mlim(gen, M, e_mag, mlim, dM=0.2):
             r_i = Rmax * np.cbrt(gen.uniform(0, 1))
 
             mtrue_i = M_i + dist2distmod(r_i)
-            mobs_i = gen.normal(mtrue_i, e_mag)
+            mobs_i = gen.normal(mtrue_i, e_mag[i])
 
             if mobs_i < mlim:
                 num_attempts_per_draw[i] = n
@@ -90,6 +100,52 @@ def sample_mag_distance_mlim(gen, M, e_mag, mlim, dM=0.2):
     return mobs, mtrue, r
 
 
+def ln_mag_selection(m, m1, m2, a):
+    return jnp.where(
+        m > m1,
+        (a * (m - m2)**2 - a * (m1 - m2)**2 - 0.6 * (m - m1)) * jnp.log(10),
+        0)
+
+
+def sample_mag_distance_msmooth(gen, M, e_mag, m1, m2, a, r_xrange_max=400,
+                                r_xrange_num_points=10_000):
+    """
+    Sample the distance and apparent magnitude for a given absolute magnitude
+    and limiting apparent magnitude, using a smooth selection function. Other
+    than the selection, assumes r^2 distribution for the distance.
+    """
+    mobs = np.zeros_like(M)
+    mtrue = np.zeros_like(M)
+    r = np.zeros_like(M)
+
+    if isinstance(e_mag, (int, float)):
+        e_mag = e_mag * jnp.ones_like(M)
+
+    r_xrange = np.linspace(0.001, r_xrange_max, r_xrange_num_points)
+    log_r_xrange = np.log(r_xrange)
+    mu_xrange = dist2distmod(r_xrange)
+
+    print("Sampling the distance and apparent magnitude.")
+    for i, M_i in tqdm(enumerate(M), total=len(M), desc="Sampling"):
+        ln_prob = ln_mag_selection(mu_xrange + M_i, m1, m2, a)
+        ln_prob += 2 * log_r_xrange
+        ln_prob -= ln_simpson(ln_prob, x=r_xrange)
+
+        if ln_prob[-1] > -8:
+            raise ValueError("Probability density of the last radial point "
+                             f"is too high: {jnp.exp(ln_prob[-1])}.")
+
+        cdf = cumulative_trapezoid(jnp.exp(ln_prob), x=r_xrange, initial=0)
+
+        u = gen.uniform(0, 1)
+        r[i] = jnp.interp(u, cdf, r_xrange)
+
+    mtrue = M + dist2distmod(r)
+    mobs = gen.normal(mtrue, e_mag)
+
+    return mobs, mtrue, r
+
+
 def key2label(key):
     x = {
         "aTFR": r"$a_{\rm TFR}$",
@@ -101,6 +157,9 @@ def key2label(key):
         "sigma_v": r"$\sigma_v$",
         "eta_mean": r"$\mu_{\eta}$",
         "eta_std": r"$w_{\eta}$",
+        "m1": r"$m_1$",
+        "m2": r"$m_2$",
+        "a": r"$a$",
         }
 
     if key in x:
@@ -113,13 +172,14 @@ def key2label(key):
 ###############################################################################
 
 
-def generate_mock_data(injected_parameters, run_num, verbose=True,
-                       make_plots=True):
+def generate_mock_data(injected_parameters, mag_selection, run_num,
+                       verbose=True, make_plots=True):
     if verbose:
         print("Injected parameters:")
         print("--------------------")
         for key, value in injected_params.items():
             print(f"{key:15s}: {value:.6g}")
+        print(f"{'mag_selection':15s}: {mag_selection}")
         print()
 
     gen = np.random.default_rng(run_num)
@@ -136,8 +196,17 @@ def generate_mock_data(injected_parameters, run_num, verbose=True,
         injected_parameters["sigmaTFR"])
 
     # Distance from a truncated r^2 distribution and apparent magnitude
-    mag_obs, mag_true, dist = sample_mag_distance_mlim(
-        gen, M, injected_parameters["e_mag"], injected_parameters["mlim"])
+    if mag_selection == "mlim":
+        mag_obs, mag_true, dist = sample_mag_distance_mlim(
+            gen, M, injected_parameters["e_mag"], injected_parameters["mlim"])
+    elif mag_selection == "smooth":
+        mag_obs, mag_true, dist = sample_mag_distance_msmooth(
+            gen, M, injected_parameters["e_mag"],
+            injected_parameters["m1"], injected_parameters["m2"],
+            injected_parameters["a"], injected_parameters["dist_max_marg"])
+    else:
+        raise ValueError(f"Unknown magnitude selection: {mag_selection}")
+
     distmod = dist2distmod(dist)
 
     # Sky position and peculiar velocity
@@ -207,9 +276,77 @@ def generate_mock_data(injected_parameters, run_num, verbose=True,
         "zobs": zobs,
     }
 
-    model_data = (eta_obs, mag_obs, phi, theta, zobs)
+    if isinstance(injected_params["e_mag"], (int, float)):
+        e_mag = injected_params["e_mag"] * jnp.ones_like(M)
+    else:
+        e_mag = injected_params["e_mag"]
+
+    if isinstance(injected_params["e_eta"], (int, float)):
+        e_eta = injected_params["e_eta"] * jnp.ones_like(eta_obs)
+    else:
+        e_eta = injected_params["e_eta"]
+
+    model_data = (eta_obs, mag_obs, phi, theta, zobs, e_eta, e_mag)
 
     return model_data, all_data
+
+
+def read_data(name, make_plots=True, verbose=True):
+    if name == "2MTF":
+        fname = "/mnt/extraspace/rstiskalek/catalogs/PV_compilation.hdf5"
+
+        with File(fname, 'r') as f:
+            grp = f["2MTF"]
+            ra = grp["RA"][...]
+            dec = grp["DEC"][...]
+
+            zobs = grp["z_CMB"][...]
+            eta = grp["eta"][...]
+            e_eta = grp["e_eta"][...]
+            mag = grp["mag"][...]
+            e_mag = grp["e_mag"][...]
+
+        eta -= np.mean(eta)
+
+        theta = np.pi / 2 - np.radians(dec)
+        phi = np.radians(ra)
+    else:
+        raise ValueError(f"Unknown data set: {name}")
+
+    if make_plots:
+        plot_data = {
+            r"$\theta$": theta,
+            r"$\phi$": phi,
+            r"$z_{\rm obs}$": zobs,
+            r"$\eta_{\rm obs}$": eta,
+            r"$m_{\rm obs}$": mag,
+        }
+
+        num_plots = len(plot_data)
+        cols = 3
+        rows = ceil(num_plots / cols)
+
+        fig, axes = plt.subplots(rows, cols, figsize=(cols * 4, rows * 3))
+        axes = axes.flatten()
+
+        for i, (label, data) in enumerate(plot_data.items()):
+            ax = axes[i]
+            ax.hist(data, bins="auto", alpha=0.7, edgecolor='black',)
+            ax.set_xlabel(label)
+            ax.set_ylabel("Binned counts")
+
+        # Hide unused subplots (if any)
+        for j in range(i + 1, len(axes)):
+            fig.delaxes(axes[j])
+
+        fig.tight_layout()
+        fname = f"./plots/{name}_data.png"
+        if verbose:
+            print(f"Saving the mock data plot to `{fname}`.")
+        fig.savefig(fname, dpi=450)
+        plt.close()
+
+    return eta, mag, phi, theta, zobs, e_eta, e_mag
 
 
 ###############################################################################
@@ -217,29 +354,81 @@ def generate_mock_data(injected_parameters, run_num, verbose=True,
 ###############################################################################
 
 
-def sample_distance_mlim(M, mlim, ngal):
+def sample_distance_mlim(M, mlim):
     Rmax = 10**((mlim - M - 25) / 5)
-    with plate("plate_dist", ngal):
-        dist = sample("dist", Uniform(0, Rmax))
+    with plate("plate_dist", len(M)):
+        dist = sample("xtrue_dist", Uniform(0, Rmax))
     factor("ll_dist", jnp.log(3) - 3 * jnp.log(Rmax) + 2 * jnp.log(dist))
 
     return dist
 
 
+def interpolate_mag_smooth_norm(M, m1, m2, a, rmax, num_dist_steps_marg,
+                                num_absmag_steps_marg):
+    # Get a range of radial distances.
+    dist_xrange = jnp.linspace(0.001, rmax, num_dist_steps_marg)
+    distmod_xrange = dist2distmod(dist_xrange)
+    # Similarly, get a range of absolute magnitudes.
+    M_xrange = jnp.linspace(M.min(), M.max(), num_absmag_steps_marg)
+
+    # Compute the normalisation as a function of the absolute magnitude,
+    # initially the shape is `(num_absmag_steps_marg, num_dist_steps_marg)`
+    # but then we marginalise over the distance steps.
+    norm_per_M = ln_mag_selection(
+        M_xrange[:, None] + distmod_xrange[None, :],
+        m1, m2, a,
+        )
+    norm_per_M += 2 * jnp.log(dist_xrange)[None, :]
+    norm_per_M = ln_simpson(norm_per_M, x=dist_xrange[None, :], axis=-1)
+
+    # Interpolate the normalisation to the absolute magnitudes of the galaxies.
+    return jnp.interp(M, M_xrange, norm_per_M)
+
+
+def sample_distance_smooth(M, m1, m2, a, rmax, num_dist_steps_marg,
+                           num_absmag_steps_marg):
+    # Sample the distance for each galaxy uniformly, and only later compute the
+    # log-probablity of the distance given the absolute magnitude.
+    with plate("plate_dist", len(M)):
+        dist = sample("dist", Uniform(0, rmax))
+
+    distmod = dist2distmod(dist)
+
+    lp_r = ln_mag_selection(M + distmod, m1, m2, a) + 2 * jnp.log(dist)
+    lp_r -= interpolate_mag_smooth_norm(
+        M, m1, m2, a, rmax, num_dist_steps_marg, num_absmag_steps_marg)
+    factor("ll_mag", lp_r)
+
+    return dist, distmod
+
+
 def model_sample_dist(model_kind, obs_data, injected_params, sample_sigmaTFR,
-                      sample_sigma_v, sample_TFR):
-    eta_obs, mag_obs, phi, theta, zobs = obs_data
+                      sample_sigma_v, sample_TFR, mag_selection, data_kwargs):
+    eta_obs, mag_obs, phi, theta, zobs, e_eta, e_mag = obs_data
     ngal = len(eta_obs)
+    print(f"mag_obs = {mag_obs}")
+    print(f"eta_obs = {eta_obs}")
+    print(f"zobs = {zobs}")
 
-    eta_mean = injected_params["eta_mean"]
-    eta_std = injected_params["eta_std"]
+    if mag_selection == "smooth":
+        m2 = sample("m2", Uniform(12, 15))
+        m1 = sample("m1", Uniform(10, m2))
+        a = sample("a", Uniform(-0.5, 0.0))
+        m1 = injected_params["m1"]
+        m2 = injected_params["m2"]
+        a = injected_params["a"]
 
-    eta_mean_min = injected_params["eta_mean"] - 1
-    eta_mean_max = injected_params["eta_mean"] + 1
+    # The delta-prior models don't need these hyperpriors.
+    if "eta_delta" not in model_kind:
+        eta_mean = injected_params["eta_mean"]
+        eta_std = injected_params["eta_std"]
 
-    eta_mean = sample("eta_mean", Uniform(eta_mean_min, eta_mean_max))
-    eta_std = sample("eta_std", Uniform(0, 3 * injected_params["eta_std"]))
-    factor("ll_eta_std", -jnp.log(eta_std))
+        eta_mean_min = injected_params["eta_mean"] - 1
+        eta_mean_max = injected_params["eta_mean"] + 1
+
+        eta_mean = sample("eta_mean", Uniform(eta_mean_min, eta_mean_max))
+        eta_std = sample("eta_std", Uniform(0, 3 * injected_params["eta_std"]))
+        factor("ll_eta_std", -jnp.log(eta_std))
 
     if sample_sigmaTFR:
         sigmaTFR = sample(
@@ -261,55 +450,92 @@ def model_sample_dist(model_kind, obs_data, injected_params, sample_sigmaTFR,
 
     if model_kind in ["full", "M_marginalised"]:
         with plate("plate_eta", ngal):
-            eta_true = sample("eta_true", Normal(eta_mean, eta_std))
-        factor(
-            "ll_eta",
-            Normal(eta_true, injected_params["e_eta"]).log_prob(eta_obs)
-            )
+            eta_true = sample("xtrue_eta", Normal(eta_mean, eta_std))
+        factor("ll_eta", Normal(eta_true, e_eta).log_prob(eta_obs))
 
     if model_kind == "full":
         with plate("plate_M", ngal):
-            M = sample("M", Normal(aTFR + bTFR * eta_true, sigmaTFR))
+            M = sample("xtrue_M", Normal(aTFR + bTFR * eta_true, sigmaTFR))
 
-        dist = sample_distance_mlim(M, injected_params["mlim"], ngal)
+        if mag_selection == "mlim":
+            dist = sample_distance_mlim(M, injected_params["mlim"])
+            distmod = dist2distmod(dist)
+
+            with plate("plate_mag", ngal):
+                sample(
+                    "mag_obs", TruncatedNormal(
+                        M + distmod, e_mag, high=injected_params["mlim"]),
+                    obs=mag_obs)
+        elif mag_selection == "smooth":
+            dist, distmod = sample_distance_smooth(
+                M, m1, m2, a, data_kwargs["rmax"],
+                data_kwargs["num_dist_steps_marg"],
+                data_kwargs["num_absmag_steps_marg"])
+
+            with plate("plate_mag", ngal):
+                sample("mag_obs", Normal(M + distmod, e_mag), obs=mag_obs)
+        else:
+            raise ValueError(f"Unknown magnitude selection: {mag_selection}")
+
+    elif model_kind == "eta_delta":
+        sigma = jnp.sqrt(sigmaTFR**2 + (bTFR * e_eta)**2)
+
+        with plate("plate_M", ngal):
+            M = sample("M", Normal(aTFR + bTFR * eta_obs, sigma))
+
+        if mag_selection == "mlim":
+            dist = sample_distance_mlim(M, injected_params["mlim"])
+            distmod = dist2distmod(dist)
+
+            with plate("plate_mag", ngal):
+                sample(
+                    "mag_obs", TruncatedNormal(
+                        M + distmod, e_mag,
+                        high=injected_params["mlim"]), obs=mag_obs)
+        elif mag_selection == "smooth":
+            dist, distmod = sample_distance_smooth(
+                M, m1, m2,
+                a, data_kwargs["rmax"],
+                data_kwargs["num_dist_steps_marg"],
+                data_kwargs["num_absmag_steps_marg"])
+
+            with plate("plate_mag", ngal):
+                sample(
+                    "mag_obs", Normal(M + distmod, e_mag), obs=mag_obs)
+        else:
+            raise ValueError(f"Unknown magnitude selection: {mag_selection}")
+
+    elif model_kind == "eta_delta_M_delta":
+        # This should be set to some relatively large value with a uniform
+        # prior.
+        with plate("dist_plate", ngal):
+            dist = sample("dist", Uniform(0, data_kwargs["rmax"]))
+
         distmod = dist2distmod(dist)
+        M = mag_obs - distmod
 
-        with plate("plate_mag", ngal):
-            sample(
-                "mag_obs", TruncatedNormal(
-                    M + distmod, injected_params["e_mag"],
-                    high=injected_params["mlim"]), obs=mag_obs)
+        sigma = jnp.sqrt(sigmaTFR**2 + (bTFR * e_eta)**2 + e_mag**2)
 
-    elif model_kind == "M_marginalised":
-        raise NotImplementedError("M_marginalised not implemented yet.")
-        M = aTFR + bTFR * eta_true
-        sigma = jnp.sqrt(sigmaTFR**2 + injected_params["e_mag"]**2)
-        # with plate("plate_mag", ngal):
-        #     sample("mag_true", Normal(M + distmod, sigma), obs=mag_obs)
-        with plate("plate_mag", ngal):
-            sample(
-                "mag_obs", TruncatedNormal(
-                    M + distmod, sigma, low=0, high=injected_params["mlim"]),
-                obs=mag_obs)
+        factor("ll_TFR", Normal(aTFR + bTFR * eta_obs, sigma).log_prob(M))
 
-    elif model_kind == "M_eta_marginalised":
-        raise NotImplementedError("M_eta_marginalised not implemented yet.")
-        Sigma2 = sigmaTFR**2 + injected_params["e_mag"]**2
-        alpha = aTFR - mag_obs + distmod
-        eta_var = eta_std**2
+        if mag_selection == "mlim":
+            Rmax = 10**((injected_params["mlim"] - M - 25) / 5)
+            factor("ll_dist",
+                   jnp.log(3) - 3 * jnp.log(Rmax) + 2 * jnp.log(dist))
 
-        e2_eta = injected_params["e_eta"]**2
-
-        SigmaTot2 = (
-            Sigma2 * e2_eta + eta_var * (Sigma2 + bTFR**2 * e2_eta))
-
-        ll = - (
-            + eta_var * (alpha + bTFR * eta_obs)**2
-            + Sigma2 * (eta_obs - eta_mean)**2
-            + e2_eta * (alpha + bTFR * eta_mean)**2
-            ) / (2 * SigmaTot2)
-        ll -= 0.5 * jnp.log(SigmaTot2)
-        factor("ll_mag_true", ll)
+        elif mag_selection == "smooth":
+            ll_dist = ln_mag_selection(
+                M + distmod, m1, m2,
+                a) + 2 * jnp.log(dist)
+            ll_dist -= interpolate_mag_smooth_norm(
+                M, m1, m2,
+                a, data_kwargs["rmax"],
+                data_kwargs["num_dist_steps_marg"],
+                data_kwargs["num_absmag_steps_marg"])
+            factor("ll_dist", ll_dist)
+        else:
+            raise NotImplementedError(
+                "Smooth selection not implemented for `eta_delta_M_delta.")
     else:
         raise ValueError(f"Unknown model kind: {model_kind}")
 
@@ -339,7 +565,7 @@ def model_sample_dist(model_kind, obs_data, injected_params, sample_sigmaTFR,
 
 
 def model_marg_dist(model_kind, obs_data, injected_params, sample_sigmaTFR,
-                    sample_sigma_v, sample_TFR, num_dist_steps):
+                    sample_sigma_v, sample_TFR, num_dist_steps, ):
     eta_obs, mag_obs, phi, theta, zobs = obs_data
     ngal = len(eta_obs)
     raise NotImplementedError("model_marg_dist not implemented yet.")
@@ -376,7 +602,7 @@ def model_marg_dist(model_kind, obs_data, injected_params, sample_sigmaTFR,
     # generate the mock data. We add a small number to the minimum distance
     # to avoid log(0).
     dist_range = jnp.linspace(
-        1e-3, injected_params["dist_max"], num_dist_steps)
+        1e-3, injected_params["dist_max_marg"], num_dist_steps)
 
     distmod_range = dist2distmod(dist_range)
 
@@ -462,8 +688,11 @@ def plot_corner(mcmc_samples, injected_params, params_to_plot, run_num, kind,
                 sample_distance, verbose=True):
     params_to_plot = [p for p in params_to_plot if p in mcmc_samples]
     samples = np.array([mcmc_samples[param] for param in params_to_plot]).T
-    truths = [injected_params.get(param, None) for param in params_to_plot]
     labels = [key2label(param) for param in params_to_plot]
+    if injected_params is not None:
+        truths = [injected_params.get(param, None) for param in params_to_plot]
+    else:
+        truths = None
 
     # Generate the corner plot with truth values
     fig = corner(
@@ -490,9 +719,11 @@ if __name__ == "__main__":
 
     nwarm, nsamp = 1500, 4500
     # nwarm, nsamp = 500, 500
-    save_samples = True
+    save_samples = False
     sample_distance = True
+    mag_selection = "mlim"
     dist_spacing = 0.5
+    data_name = "2MTF"
     print(f"Running {nwarm} warmup and {nsamp} sampling steps.")
     if sample_distance:
         print("Sampling distances.")
@@ -502,8 +733,11 @@ if __name__ == "__main__":
 
     injected_params = {
         "ngal": 5000,
-        "dist_max": 300,
-        "mlim": 15,
+
+        "mlim": 11.25,
+        "m1": 10.92,
+        "m2": 13.47,
+        "a": -0.12,
 
         "aTFR": -20,
         "bTFR": -7,
@@ -519,13 +753,21 @@ if __name__ == "__main__":
         "e_eta": 0.025,
 
         "e_mag": 0.05,
+
+        "dist_max_marg": 750,
+    }
+
+    data_kwargs = {
+        "rmax": injected_params["dist_max_marg"],
+        "num_dist_steps_marg": 1000,
+        "num_absmag_steps_marg": 250,
     }
 
     kind = "full"
     sample_sigmaTFR = True
     sample_sigma_v = True
     sample_TFR = True
-    num_dist_steps = int(injected_params["dist_max"] / dist_spacing)
+    num_dist_steps = int(injected_params["dist_max_marg"] / dist_spacing)
 
     if not sample_distance:
         print(f"We have {num_dist_steps} distance steps.")
@@ -551,13 +793,18 @@ if __name__ == "__main__":
 
     params_plot = ["Vdip_mag", "Vdip_ra", "Vdip_cos_theta",
                    "sigma_v", "eta_mean", "eta_std", "sigmaTFR",
-                   "aTFR", "bTFR",]
+                   "aTFR", "bTFR", "m1", "m2", "a"]
 
-    model_data, all_data = generate_mock_data(injected_params, args.run_num)
+    if data_name is None:
+        model_data, all_data = generate_mock_data(
+            injected_params, mag_selection, args.run_num)
+    else:
+        model_data = read_data(data_name)
+        injected_params["ngal"] = len(model_data[0])
 
     rng_key = random.PRNGKey(args.run_num)
     model_args = (kind, model_data, injected_params, sample_sigmaTFR,
-                  sample_sigma_v, sample_TFR,)
+                  sample_sigma_v, sample_TFR, mag_selection, data_kwargs)
     if sample_distance:
         model = model_sample_dist
     else:
@@ -569,6 +816,7 @@ if __name__ == "__main__":
 
     print(f"Running the MCMC for the model `{kind}`.")
     mcmc.run(rng_key, *model_args)
+    mcmc.print_summary()
 
     mcmc_samples = mcmc.get_samples()
     print(f"Sampled parameters are: {list(mcmc_samples.keys())}")
@@ -579,15 +827,15 @@ if __name__ == "__main__":
         print(f"{key:20s}: {x.mean():.6g} ± {x.std():.6g}")
 
     plot_corner(mcmc_samples, injected_params, params_plot,
-                run_num=args.run_num, kind=kind,
-                sample_distance=sample_distance)
+                run_num=args.run_num if data_name is None else data_name,
+                kind=kind, sample_distance=sample_distance)
 
     plot_diff = {
         # r"$\Delta d / \sigma_d$": (mcmc_samples["dist"], all_data["dist"], True, 1),  # noqa
         # r"$\Delta d$": (mcmc_samples["dist"], all_data["dist"], False, None),
     }
 
-    if kind == "full":
+    if kind == "full" and data_name is None:
         if "M" in mcmc_samples:
             plot_diff[r"$\Delta M / \sigma_M$"] = (mcmc_samples["M"], all_data["M"], True, 1)  # noqa
 
