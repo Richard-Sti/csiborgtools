@@ -797,7 +797,6 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             if self.eta_selection_max is not None:
                 self.eta_selection_max -= self.eta_mu
 
-            self.eta_mu = 0.
             self.mean_e_eta = jnp.mean(self.e_eta)
 
             if self.name == "2MTF":
