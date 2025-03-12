@@ -190,7 +190,7 @@ class LogGrad_ComovingDistance2Distmod:
         Number of points in the interpolation grid.
     """
     def __init__(self, Om0=0.3, zmin_interp=1e-6, zmax_interp=0.5,
-                 npoints_interp=500):
+                 npoints_interp=1000):
         cosmo = FlatLambdaCDM(H0=H0, Om0=Om0)
         z_grid = np.logspace(np.log10(zmin_interp), np.log10(zmax_interp),
                              npoints_interp)
