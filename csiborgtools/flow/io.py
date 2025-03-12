@@ -288,8 +288,9 @@ class DataLoader:
                         arr[key] = f[key][:]
 
                 absmag_calibration = {
-                    "mu_calibration": f["mu_calibration"][...],
-                    "e_mu_calibration": f["e_mu_calibration"][...]}
+                    # "mu_calibration": f["mu_calibration"][...],
+                    # "e_mu_calibration": f["e_mu_calibration"][...],
+                    }
 
         elif "UPGLADE" in catalogue:
             with File(catalogue_fpath, 'r') as f:
@@ -551,9 +552,11 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, selection=None,
             # For the mock we only want to select objects with the '2M++'
             # volume.
             if not loader._is_no_field:
+                fprint("selecting only galaxies with r < 150 Mpc / h.")
                 mask &= loader.cat["r"] < 150
             # The mocks are generated without Malmquist.
-            fprint("disabling homogeneous and inhomogeneous Malmquist bias for the mock.")  # noqa
+            fprint("disabling inhomogeneous Malmquist bias "
+                   "for the mock.")
             with_homogeneous_malmquist = False
             with_inhomogeneous_malmquist &= False
         elif "IndranilVoidTFRMock" in kind:
@@ -566,33 +569,34 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, selection=None,
         calibration_params = {"mag": mag[mask], "eta": eta[mask],
                               "e_mag": e_mag[mask], "e_eta": e_eta[mask]}
 
-        # Append the calibration data
-        if "Carrick2MTFmock" in kind:
-            absmag_calibration = loader.absmag_calibration
+        # # Append the calibration data
+        # if "Carrick2MTFmock" in kind:
+        #     absmag_calibration = loader.absmag_calibration
 
-            # The shape of these is (`ncalibrators, nobjects`).
-            mu_calibration = absmag_calibration["mu_calibration"][:, mask]
-            e_mu_calibration = absmag_calibration["e_mu_calibration"][:, mask]
+        #     # The shape of these is (`ncalibrators, nobjects`).
+        #     mu_calibration = absmag_calibration["mu_calibration"][:, mask]
+        #     e_mu_calibration = absmag_calibration["e_mu_calibration"][:,
+        # mask]
 
-            m = np.any(np.isfinite(mu_calibration), axis=0)
-            print(f"Only {m.sum()} out of {len(m)} galaxies have at least "
-                  "one calibrator.")
+        #     m = np.any(np.isfinite(mu_calibration), axis=0)
+        #     print(f"Only {m.sum()} out of {len(m)} galaxies have at least "
+        #           "one calibrator.")
 
-            # print(f"Selecting only {m.sum()} out of {len(m)} calibrators.")
-            calibration_indxs = np.hstack(
-                [np.where(np.isfinite(mu_calibration[i]))[0]
-                 for i in range(len(mu_calibration))])
+        #     # print(f"Selecting only {m.sum()} out of {len(m)} calibrators.")
+        #     calibration_indxs = np.hstack(
+        #         [np.where(np.isfinite(mu_calibration[i]))[0]
+        #          for i in range(len(mu_calibration))])
 
-            mu_calibration = np.hstack(
-                [mu_calibration[i][np.isfinite(mu_calibration[i])]
-                 for i in range(len(mu_calibration))])
-            e_mu_calibration = np.hstack(
-                [e_mu_calibration[i][np.isfinite(e_mu_calibration[i])]
-                 for i in range(len(e_mu_calibration))])
+        #     mu_calibration = np.hstack(
+        #         [mu_calibration[i][np.isfinite(mu_calibration[i])]
+        #          for i in range(len(mu_calibration))])
+        #     e_mu_calibration = np.hstack(
+        #         [e_mu_calibration[i][np.isfinite(e_mu_calibration[i])]
+        #          for i in range(len(e_mu_calibration))])
 
-            calibration_params["mu_calibration"] = mu_calibration
-            calibration_params["e_mu_calibration"] = e_mu_calibration
-            calibration_params["calibration_indxs"] = calibration_indxs
+        #     calibration_params["mu_calibration"] = mu_calibration
+        #     calibration_params["e_mu_calibration"] = e_mu_calibration
+        #     calibration_params["calibration_indxs"] = calibration_indxs
 
         los_overdensity, los_velocity = mask_fields(
             los_overdensity, los_velocity, mask, void_kwargs is not None)
