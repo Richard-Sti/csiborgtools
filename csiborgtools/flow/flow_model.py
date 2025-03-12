@@ -783,6 +783,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
 
         if kind == "TFR":
             self.mag_min, self.mag_max = jnp.min(self.mag), jnp.max(self.mag)
+            # Keep track of the mean that was subtracted, don't change!
             self.eta_mu = jnp.mean(self.eta)
             fprint(f"setting the linewith mean to 0 instead of {self.eta_mu:.3f}.")  # noqa
             self.eta -= self.eta_mu
