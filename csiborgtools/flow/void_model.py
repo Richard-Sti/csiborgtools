@@ -31,7 +31,6 @@ from tqdm import tqdm
 
 from ..params import SPEED_OF_LIGHT
 from ..utils import fprint, galactic_to_radec, radec_to_cartesian
-from .mocks import interp_distmod2dist, interp_distmod2redshift
 
 ###############################################################################
 #                         Basic void computations                             #
