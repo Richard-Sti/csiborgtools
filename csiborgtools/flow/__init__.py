@@ -33,7 +33,6 @@ from .flow_model import (                                                       
 
 from .mocks import (                                                            # noqa
     mock_Carrick2MTF,                                                           # noqa
-    mock_Carrick2MTF_new,                                                       # noqa
     )
 
 from .selection import MagnitudeSelection                                    # noqa
