@@ -63,8 +63,6 @@ def sample_mag_distance_mlim(gen, M, e_mag, mlim, dM=0.2):
     Sample the distance and apparent magnitude for a given absolute magnitude
     and limiting apparent magnitude.
     """
-    Rmax = 10**((mlim - M.min() - 25 + dM) / 5)
-
     if isinstance(e_mag, (int, float)):
         e_mag = e_mag * jnp.ones_like(M)
 
@@ -75,6 +73,8 @@ def sample_mag_distance_mlim(gen, M, e_mag, mlim, dM=0.2):
 
     print("Sampling the distance and apparent magnitude.")
     for i, M_i in tqdm(enumerate(M), total=len(M), desc="Sampling"):
+        # Rmax = 10**((mlim - M_i - 25 + 1) / 5)
+        Rmax = 200
         n = 0
 
         while True:
@@ -96,52 +96,6 @@ def sample_mag_distance_mlim(gen, M, e_mag, mlim, dM=0.2):
 
     print(f"Finished sampling. Average number of attempts per draw "
           f"is {num_attempts_per_draw.mean():.2f}.")
-
-    return mobs, mtrue, r
-
-
-def ln_mag_selection(m, m1, m2, a):
-    return jnp.where(
-        m > m1,
-        (a * (m - m2)**2 - a * (m1 - m2)**2 - 0.6 * (m - m1)) * jnp.log(10),
-        0)
-
-
-def sample_mag_distance_msmooth(gen, M, e_mag, m1, m2, a, r_xrange_max=400,
-                                r_xrange_num_points=10_000):
-    """
-    Sample the distance and apparent magnitude for a given absolute magnitude
-    and limiting apparent magnitude, using a smooth selection function. Other
-    than the selection, assumes r^2 distribution for the distance.
-    """
-    mobs = np.zeros_like(M)
-    mtrue = np.zeros_like(M)
-    r = np.zeros_like(M)
-
-    if isinstance(e_mag, (int, float)):
-        e_mag = e_mag * jnp.ones_like(M)
-
-    r_xrange = np.linspace(0.001, r_xrange_max, r_xrange_num_points)
-    log_r_xrange = np.log(r_xrange)
-    mu_xrange = dist2distmod(r_xrange)
-
-    print("Sampling the distance and apparent magnitude.")
-    for i, M_i in tqdm(enumerate(M), total=len(M), desc="Sampling"):
-        ln_prob = ln_mag_selection(mu_xrange + M_i, m1, m2, a)
-        ln_prob += 2 * log_r_xrange
-        ln_prob -= ln_simpson(ln_prob, x=r_xrange)
-
-        if ln_prob[-1] > -8:
-            raise ValueError("Probability density of the last radial point "
-                             f"is too high: {jnp.exp(ln_prob[-1])}.")
-
-        cdf = cumulative_trapezoid(jnp.exp(ln_prob), x=r_xrange, initial=0)
-
-        u = gen.uniform(0, 1)
-        r[i] = jnp.interp(u, cdf, r_xrange)
-
-    mtrue = M + dist2distmod(r)
-    mobs = gen.normal(mtrue, e_mag)
 
     return mobs, mtrue, r
 
@@ -199,11 +153,6 @@ def generate_mock_data(injected_parameters, mag_selection, run_num,
     if mag_selection == "mlim":
         mag_obs, mag_true, dist = sample_mag_distance_mlim(
             gen, M, injected_parameters["e_mag"], injected_parameters["mlim"])
-    elif mag_selection == "smooth":
-        mag_obs, mag_true, dist = sample_mag_distance_msmooth(
-            gen, M, injected_parameters["e_mag"],
-            injected_parameters["m1"], injected_parameters["m2"],
-            injected_parameters["a"], injected_parameters["dist_max_marg"])
     else:
         raise ValueError(f"Unknown magnitude selection: {mag_selection}")
 
@@ -354,15 +303,6 @@ def read_data(name, make_plots=True, verbose=True):
 ###############################################################################
 
 
-def sample_distance_mlim(M, mlim):
-    Rmax = 10**((mlim - M - 25) / 5)
-    with plate("plate_dist", len(M)):
-        dist = sample("xtrue_dist", Uniform(0, Rmax))
-    factor("ll_dist", jnp.log(3) - 3 * jnp.log(Rmax) + 2 * jnp.log(dist))
-
-    return dist
-
-
 def interpolate_mag_smooth_norm(M, m1, m2, a, rmax, num_dist_steps_marg,
                                 num_absmag_steps_marg):
     # Get a range of radial distances.
@@ -406,169 +346,6 @@ def model_sample_dist(model_kind, obs_data, injected_params, sample_sigmaTFR,
                       sample_sigma_v, sample_TFR, mag_selection, data_kwargs):
     eta_obs, mag_obs, phi, theta, zobs, e_eta, e_mag = obs_data
     ngal = len(eta_obs)
-    print(f"mag_obs = {mag_obs}")
-    print(f"eta_obs = {eta_obs}")
-    print(f"zobs = {zobs}")
-
-    if mag_selection == "smooth":
-        m2 = sample("m2", Uniform(12, 15))
-        m1 = sample("m1", Uniform(10, m2))
-        a = sample("a", Uniform(-0.5, 0.0))
-        m1 = injected_params["m1"]
-        m2 = injected_params["m2"]
-        a = injected_params["a"]
-
-    # The delta-prior models don't need these hyperpriors.
-    if "eta_delta" not in model_kind:
-        eta_mean = injected_params["eta_mean"]
-        eta_std = injected_params["eta_std"]
-
-        eta_mean_min = injected_params["eta_mean"] - 1
-        eta_mean_max = injected_params["eta_mean"] + 1
-
-        eta_mean = sample("eta_mean", Uniform(eta_mean_min, eta_mean_max))
-        eta_std = sample("eta_std", Uniform(0, 3 * injected_params["eta_std"]))
-        factor("ll_eta_std", -jnp.log(eta_std))
-
-    if sample_sigmaTFR:
-        sigmaTFR = sample(
-            "sigmaTFR", Uniform(0, 5 * injected_params["sigmaTFR"]))
-        factor("ll_sigma_TFR", -jnp.log(sigmaTFR))
-    else:
-        sigmaTFR = injected_params["sigmaTFR"]
-
-    if sample_TFR:
-        aTFR_min = injected_params["aTFR"] - 3
-        aTFR_max = injected_params["aTFR"] + 3
-        aTFR = sample("aTFR", Uniform(aTFR_min, aTFR_max))
-
-        bTFR_min = injected_params["bTFR"] - 3
-        bTFR_max = injected_params["bTFR"] + 3
-        bTFR = sample("bTFR", Uniform(bTFR_min, bTFR_max))
-    else:
-        aTFR, bTFR = injected_params["aTFR"], injected_params["bTFR"]
-
-    if model_kind in ["full", "M_marginalised"]:
-        with plate("plate_eta", ngal):
-            eta_true = sample("xtrue_eta", Normal(eta_mean, eta_std))
-        factor("ll_eta", Normal(eta_true, e_eta).log_prob(eta_obs))
-
-    if model_kind == "full":
-        with plate("plate_M", ngal):
-            M = sample("xtrue_M", Normal(aTFR + bTFR * eta_true, sigmaTFR))
-
-        if mag_selection == "mlim":
-            dist = sample_distance_mlim(M, injected_params["mlim"])
-            distmod = dist2distmod(dist)
-
-            with plate("plate_mag", ngal):
-                sample(
-                    "mag_obs", TruncatedNormal(
-                        M + distmod, e_mag, high=injected_params["mlim"]),
-                    obs=mag_obs)
-        elif mag_selection == "smooth":
-            dist, distmod = sample_distance_smooth(
-                M, m1, m2, a, data_kwargs["rmax"],
-                data_kwargs["num_dist_steps_marg"],
-                data_kwargs["num_absmag_steps_marg"])
-
-            with plate("plate_mag", ngal):
-                sample("mag_obs", Normal(M + distmod, e_mag), obs=mag_obs)
-        else:
-            raise ValueError(f"Unknown magnitude selection: {mag_selection}")
-
-    elif model_kind == "eta_delta":
-        sigma = jnp.sqrt(sigmaTFR**2 + (bTFR * e_eta)**2)
-
-        with plate("plate_M", ngal):
-            M = sample("M", Normal(aTFR + bTFR * eta_obs, sigma))
-
-        if mag_selection == "mlim":
-            dist = sample_distance_mlim(M, injected_params["mlim"])
-            distmod = dist2distmod(dist)
-
-            with plate("plate_mag", ngal):
-                sample(
-                    "mag_obs", TruncatedNormal(
-                        M + distmod, e_mag,
-                        high=injected_params["mlim"]), obs=mag_obs)
-        elif mag_selection == "smooth":
-            dist, distmod = sample_distance_smooth(
-                M, m1, m2,
-                a, data_kwargs["rmax"],
-                data_kwargs["num_dist_steps_marg"],
-                data_kwargs["num_absmag_steps_marg"])
-
-            with plate("plate_mag", ngal):
-                sample(
-                    "mag_obs", Normal(M + distmod, e_mag), obs=mag_obs)
-        else:
-            raise ValueError(f"Unknown magnitude selection: {mag_selection}")
-
-    elif model_kind == "eta_delta_M_delta":
-        # This should be set to some relatively large value with a uniform
-        # prior.
-        with plate("dist_plate", ngal):
-            dist = sample("dist", Uniform(0, data_kwargs["rmax"]))
-
-        distmod = dist2distmod(dist)
-        M = mag_obs - distmod
-
-        sigma = jnp.sqrt(sigmaTFR**2 + (bTFR * e_eta)**2 + e_mag**2)
-
-        factor("ll_TFR", Normal(aTFR + bTFR * eta_obs, sigma).log_prob(M))
-
-        if mag_selection == "mlim":
-            Rmax = 10**((injected_params["mlim"] - M - 25) / 5)
-            factor("ll_dist",
-                   jnp.log(3) - 3 * jnp.log(Rmax) + 2 * jnp.log(dist))
-
-        elif mag_selection == "smooth":
-            ll_dist = ln_mag_selection(
-                M + distmod, m1, m2,
-                a) + 2 * jnp.log(dist)
-            ll_dist -= interpolate_mag_smooth_norm(
-                M, m1, m2,
-                a, data_kwargs["rmax"],
-                data_kwargs["num_dist_steps_marg"],
-                data_kwargs["num_absmag_steps_marg"])
-            factor("ll_dist", ll_dist)
-        else:
-            raise NotImplementedError(
-                "Smooth selection not implemented for `eta_delta_M_delta.")
-    else:
-        raise ValueError(f"Unknown model kind: {model_kind}")
-
-    Vdip_mag = sample("Vdip_mag", Uniform(0, 10 * injected_params["Vdip_mag"]))
-    Vdip_ra = sample("Vdip_ra", Uniform(0, 2 * np.pi))
-    Vdip_cos_theta = sample("Vdip_cos_theta", Uniform(-1, 1))
-    Vdip_theta = jnp.arccos(Vdip_cos_theta)
-
-    Vpec = Vdip_mag * (
-        + jnp.sin(Vdip_theta) * jnp.sin(theta) * jnp.cos(Vdip_ra - phi)
-        + jnp.cos(Vdip_theta) * jnp.cos(theta))
-
-    zpred = (1 + dist2redshift(dist)) * (1 + Vpec / SPEED_OF_LIGHT) - 1
-
-    if sample_sigma_v:
-        sigma_v = sample("sigma_v", Uniform(0, 5 * injected_params["sigma_v"]))
-        factor("ll_sigma_v", -jnp.log(sigma_v))
-    else:
-        sigma_v = injected_params["sigma_v"]
-
-    with plate("plate_zobs", ngal):
-        sample("zobs", Normal(zpred, sigma_v / SPEED_OF_LIGHT), obs=zobs)
-
-###############################################################################
-#                     Forward model including distance sampling               #
-###############################################################################
-
-
-def model_marg_dist(model_kind, obs_data, injected_params, sample_sigmaTFR,
-                    sample_sigma_v, sample_TFR, num_dist_steps, ):
-    eta_obs, mag_obs, phi, theta, zobs = obs_data
-    ngal = len(eta_obs)
-    raise NotImplementedError("model_marg_dist not implemented yet.")
 
     eta_mean = injected_params["eta_mean"]
     eta_std = injected_params["eta_std"]
@@ -598,59 +375,29 @@ def model_marg_dist(model_kind, obs_data, injected_params, sample_sigmaTFR,
     else:
         aTFR, bTFR = injected_params["aTFR"], injected_params["bTFR"]
 
-    # It is important that the prior range here matches the range used to
-    # generate the mock data. We add a small number to the minimum distance
-    # to avoid log(0).
-    dist_range = jnp.linspace(
-        1e-3, injected_params["dist_max_marg"], num_dist_steps)
+    with plate("plate_eta", ngal):
+        eta_true = sample("xtrue_eta", Normal(eta_mean, eta_std))
+        sample("ll_eta", Normal(eta_true, e_eta), obs=eta_obs)
 
-    distmod_range = dist2distmod(dist_range)
+    with plate("plate_M", ngal):
+        M = sample("xtrue_M", Normal(aTFR + bTFR * eta_true, sigmaTFR))
 
-    if model_kind in ["full", "M_marginalised"]:
-        with plate("plate_eta", ngal):
-            eta_true = sample("eta_true", Normal(eta_mean, eta_std))
-        factor(
-            "ll_eta",
-            Normal(eta_true, injected_params["e_eta"]).log_prob(eta_obs)
-            )
+    if mag_selection == "mlim":
+        Rmax = 200
+        with plate("plate_dist", len(M)):
+            dist = sample("xtrue_dist", Uniform(0, Rmax))
+        factor("ll_dist", 2 * jnp.log(dist))
 
-    if model_kind == "full":
-        with plate("plate_M", ngal):
-            M = sample("M", Normal(aTFR + bTFR * eta_true, sigmaTFR))
+        distmod = dist2distmod(dist)
 
-        # Log-likelihood of shape `(ngal, num_dist_steps)``
-        ll = Normal(
-            M[:, None] + distmod_range[None, :],
-            injected_params["e_mag"]).log_prob(mag_obs[:, None])
-    elif model_kind == "M_marginalised":
-        M = aTFR + bTFR * eta_true
-        sigma = jnp.sqrt(sigmaTFR**2 + injected_params["e_mag"]**2)
-
-        # Log-likelihood of shape `(ngal, num_dist_steps)``
-        ll = Normal(
-            M[:, None] + distmod_range[None, :],
-            sigma).log_prob(mag_obs[:, None])
-    elif model_kind == "M_eta_marginalised":
-        Sigma2 = sigmaTFR**2 + injected_params["e_mag"]**2
-        alpha = aTFR - mag_obs[:, None] + distmod_range[None, :]
-        eta_var = eta_std**2
-
-        e2_eta = injected_params["e_eta"]**2
-
-        SigmaTot2 = (
-            Sigma2 * e2_eta + eta_var * (Sigma2 + bTFR**2 * e2_eta))
-
-        ll = - (
-            + eta_var * (alpha + bTFR * eta_obs[:, None])**2
-            + Sigma2 * (eta_obs[:, None] - eta_mean)**2
-            + e2_eta * (alpha + bTFR * eta_mean)**2
-            ) / (2 * SigmaTot2)
-        ll -= 0.5 * jnp.log(SigmaTot2)
+        with plate("plate_mag", ngal):
+            sample(
+                "mag_obs", TruncatedNormal(
+                    M + distmod, e_mag, high=injected_params["mlim"]),
+                obs=mag_obs)
+            # sample("mag_obs", Normal(M + distmod, e_mag,), obs=mag_obs)
     else:
-        raise ValueError(f"Unknown model kind: {model_kind}")
-
-    # Malmquist bias
-    ll += 2 * jnp.log(dist_range)[None, :]
+        raise ValueError(f"Unknown magnitude selection: {mag_selection}")
 
     Vdip_mag = sample("Vdip_mag", Uniform(0, 10 * injected_params["Vdip_mag"]))
     Vdip_ra = sample("Vdip_ra", Uniform(0, 2 * np.pi))
@@ -661,8 +408,7 @@ def model_marg_dist(model_kind, obs_data, injected_params, sample_sigmaTFR,
         + jnp.sin(Vdip_theta) * jnp.sin(theta) * jnp.cos(Vdip_ra - phi)
         + jnp.cos(Vdip_theta) * jnp.cos(theta))
 
-    # Predicted redshift of shape `(ngal, num_dist_steps)`
-    zpred = (1 + dist2redshift(dist_range)[None, :]) * (1 + Vpec[:, None] / SPEED_OF_LIGHT) - 1  # noqa
+    zpred = (1 + dist2redshift(dist)) * (1 + Vpec / SPEED_OF_LIGHT) - 1
 
     if sample_sigma_v:
         sigma_v = sample("sigma_v", Uniform(0, 5 * injected_params["sigma_v"]))
@@ -670,13 +416,282 @@ def model_marg_dist(model_kind, obs_data, injected_params, sample_sigmaTFR,
     else:
         sigma_v = injected_params["sigma_v"]
 
-    # Add the log-likelihood of the observed redshifts, shape remains
-    # `(ngal, num_dist_steps)`
-    ll += Normal(zpred, sigma_v / SPEED_OF_LIGHT).log_prob(zobs[:, None])
+    with plate("plate_zobs", ngal):
+        sample("zobs", Normal(zpred, sigma_v / SPEED_OF_LIGHT), obs=zobs)
 
-    # Marginalise over the distance, shape `(ngal,)`
-    ll = ln_simpson(ll, x=dist_range[None, :], axis=-1)
-    factor("ll_zobs", ll)
+
+# def model_sample_dist(model_kind, obs_data, injected_params, sample_sigmaTFR,
+#                       sample_sigma_v, sample_TFR, mag_selection, data_kwargs):
+#     eta_obs, mag_obs, phi, theta, zobs, e_eta, e_mag = obs_data
+#     ngal = len(eta_obs)
+
+#     if mag_selection == "smooth":
+#         m2 = sample("m2", Uniform(12, 15))
+#         m1 = sample("m1", Uniform(10, m2))
+#         a = sample("a", Uniform(-0.5, 0.0))
+#         m1 = injected_params["m1"]
+#         m2 = injected_params["m2"]
+#         a = injected_params["a"]
+
+#     # The delta-prior models don't need these hyperpriors.
+#     if "eta_delta" not in model_kind:
+#         eta_mean = injected_params["eta_mean"]
+#         eta_std = injected_params["eta_std"]
+
+#         eta_mean_min = injected_params["eta_mean"] - 1
+#         eta_mean_max = injected_params["eta_mean"] + 1
+
+#         eta_mean = sample("eta_mean", Uniform(eta_mean_min, eta_mean_max))
+#         eta_std = sample("eta_std", Uniform(0, 3 * injected_params["eta_std"]))
+#         factor("ll_eta_std", -jnp.log(eta_std))
+
+#     if sample_sigmaTFR:
+#         sigmaTFR = sample(
+#             "sigmaTFR", Uniform(0, 5 * injected_params["sigmaTFR"]))
+#         factor("ll_sigma_TFR", -jnp.log(sigmaTFR))
+#     else:
+#         sigmaTFR = injected_params["sigmaTFR"]
+
+#     if sample_TFR:
+#         aTFR_min = injected_params["aTFR"] - 3
+#         aTFR_max = injected_params["aTFR"] + 3
+#         aTFR = sample("aTFR", Uniform(aTFR_min, aTFR_max))
+
+#         bTFR_min = injected_params["bTFR"] - 3
+#         bTFR_max = injected_params["bTFR"] + 3
+#         bTFR = sample("bTFR", Uniform(bTFR_min, bTFR_max))
+#     else:
+#         aTFR, bTFR = injected_params["aTFR"], injected_params["bTFR"]
+
+#     if model_kind in ["full", "M_marginalised"]:
+#         with plate("plate_eta", ngal):
+#             eta_true = sample("xtrue_eta", Normal(eta_mean, eta_std))
+#         factor("ll_eta", Normal(eta_true, e_eta).log_prob(eta_obs))
+
+#     if model_kind == "full":
+#         with plate("plate_M", ngal):
+#             M = sample("xtrue_M", Normal(aTFR + bTFR * eta_true, sigmaTFR))
+
+#         if mag_selection == "mlim":
+#             dist = sample_distance_mlim(M, injected_params["mlim"])
+#             distmod = dist2distmod(dist)
+
+#             with plate("plate_mag", ngal):
+#                 sample(
+#                     "mag_obs", TruncatedNormal(
+#                         M + distmod, e_mag, high=injected_params["mlim"]),
+#                     obs=mag_obs)
+#         elif mag_selection == "smooth":
+#             dist, distmod = sample_distance_smooth(
+#                 M, m1, m2, a, data_kwargs["rmax"],
+#                 data_kwargs["num_dist_steps_marg"],
+#                 data_kwargs["num_absmag_steps_marg"])
+
+#             with plate("plate_mag", ngal):
+#                 sample("mag_obs", Normal(M + distmod, e_mag), obs=mag_obs)
+#         else:
+#             raise ValueError(f"Unknown magnitude selection: {mag_selection}")
+
+#     elif model_kind == "eta_delta":
+#         sigma = jnp.sqrt(sigmaTFR**2 + (bTFR * e_eta)**2)
+
+#         with plate("plate_M", ngal):
+#             M = sample("M", Normal(aTFR + bTFR * eta_obs, sigma))
+
+#         if mag_selection == "mlim":
+#             dist = sample_distance_mlim(M, injected_params["mlim"])
+#             distmod = dist2distmod(dist)
+
+#             with plate("plate_mag", ngal):
+#                 sample(
+#                     "mag_obs", TruncatedNormal(
+#                         M + distmod, e_mag,
+#                         high=injected_params["mlim"]), obs=mag_obs)
+#         elif mag_selection == "smooth":
+#             dist, distmod = sample_distance_smooth(
+#                 M, m1, m2,
+#                 a, data_kwargs["rmax"],
+#                 data_kwargs["num_dist_steps_marg"],
+#                 data_kwargs["num_absmag_steps_marg"])
+
+#             with plate("plate_mag", ngal):
+#                 sample(
+#                     "mag_obs", Normal(M + distmod, e_mag), obs=mag_obs)
+#         else:
+#             raise ValueError(f"Unknown magnitude selection: {mag_selection}")
+
+#     elif model_kind == "eta_delta_M_delta":
+#         # This should be set to some relatively large value with a uniform
+#         # prior.
+#         with plate("dist_plate", ngal):
+#             dist = sample("dist", Uniform(0, data_kwargs["rmax"]))
+
+#         distmod = dist2distmod(dist)
+#         M = mag_obs - distmod
+
+#         sigma = jnp.sqrt(sigmaTFR**2 + (bTFR * e_eta)**2 + e_mag**2)
+
+#         factor("ll_TFR", Normal(aTFR + bTFR * eta_obs, sigma).log_prob(M))
+
+#         if mag_selection == "mlim":
+#             Rmax = 10**((injected_params["mlim"] - M - 25) / 5)
+#             factor("ll_dist",
+#                    jnp.log(3) - 3 * jnp.log(Rmax) + 2 * jnp.log(dist))
+
+#         elif mag_selection == "smooth":
+#             ll_dist = ln_mag_selection(
+#                 M + distmod, m1, m2,
+#                 a) + 2 * jnp.log(dist)
+#             ll_dist -= interpolate_mag_smooth_norm(
+#                 M, m1, m2,
+#                 a, data_kwargs["rmax"],
+#                 data_kwargs["num_dist_steps_marg"],
+#                 data_kwargs["num_absmag_steps_marg"])
+#             factor("ll_dist", ll_dist)
+#         else:
+#             raise NotImplementedError(
+#                 "Smooth selection not implemented for `eta_delta_M_delta.")
+#     else:
+#         raise ValueError(f"Unknown model kind: {model_kind}")
+
+#     Vdip_mag = sample("Vdip_mag", Uniform(0, 10 * injected_params["Vdip_mag"]))
+#     Vdip_ra = sample("Vdip_ra", Uniform(0, 2 * np.pi))
+#     Vdip_cos_theta = sample("Vdip_cos_theta", Uniform(-1, 1))
+#     Vdip_theta = jnp.arccos(Vdip_cos_theta)
+
+#     Vpec = Vdip_mag * (
+#         + jnp.sin(Vdip_theta) * jnp.sin(theta) * jnp.cos(Vdip_ra - phi)
+#         + jnp.cos(Vdip_theta) * jnp.cos(theta))
+
+#     zpred = (1 + dist2redshift(dist)) * (1 + Vpec / SPEED_OF_LIGHT) - 1
+
+#     if sample_sigma_v:
+#         sigma_v = sample("sigma_v", Uniform(0, 5 * injected_params["sigma_v"]))
+#         factor("ll_sigma_v", -jnp.log(sigma_v))
+#     else:
+#         sigma_v = injected_params["sigma_v"]
+
+#     with plate("plate_zobs", ngal):
+#         sample("zobs", Normal(zpred, sigma_v / SPEED_OF_LIGHT), obs=zobs)
+
+###############################################################################
+#                     Forward model including distance sampling               #
+###############################################################################
+
+
+# def model_marg_dist(model_kind, obs_data, injected_params, sample_sigmaTFR,
+#                     sample_sigma_v, sample_TFR, num_dist_steps, ):
+#     eta_obs, mag_obs, phi, theta, zobs = obs_data
+#     ngal = len(eta_obs)
+#     raise NotImplementedError("model_marg_dist not implemented yet.")
+
+#     eta_mean = injected_params["eta_mean"]
+#     eta_std = injected_params["eta_std"]
+
+#     eta_mean_min = injected_params["eta_mean"] - 1
+#     eta_mean_max = injected_params["eta_mean"] + 1
+
+#     eta_mean = sample("eta_mean", Uniform(eta_mean_min, eta_mean_max))
+#     eta_std = sample("eta_std", Uniform(0, 3 * injected_params["eta_std"]))
+#     factor("ll_eta_std", -jnp.log(eta_std))
+
+#     if sample_sigmaTFR:
+#         sigmaTFR = sample(
+#             "sigmaTFR", Uniform(0, 5 * injected_params["sigmaTFR"]))
+#         factor("ll_sigma_TFR", -jnp.log(sigmaTFR))
+#     else:
+#         sigmaTFR = injected_params["sigmaTFR"]
+
+#     if sample_TFR:
+#         aTFR_min = injected_params["aTFR"] - 3
+#         aTFR_max = injected_params["aTFR"] + 3
+#         aTFR = sample("aTFR", Uniform(aTFR_min, aTFR_max))
+
+#         bTFR_min = injected_params["bTFR"] - 3
+#         bTFR_max = injected_params["bTFR"] + 3
+#         bTFR = sample("bTFR", Uniform(bTFR_min, bTFR_max))
+#     else:
+#         aTFR, bTFR = injected_params["aTFR"], injected_params["bTFR"]
+
+#     # It is important that the prior range here matches the range used to
+#     # generate the mock data. We add a small number to the minimum distance
+#     # to avoid log(0).
+#     dist_range = jnp.linspace(
+#         1e-3, injected_params["dist_max_marg"], num_dist_steps)
+
+#     distmod_range = dist2distmod(dist_range)
+
+#     if model_kind in ["full", "M_marginalised"]:
+#         with plate("plate_eta", ngal):
+#             eta_true = sample("eta_true", Normal(eta_mean, eta_std))
+#         factor(
+#             "ll_eta",
+#             Normal(eta_true, injected_params["e_eta"]).log_prob(eta_obs)
+#             )
+
+#     if model_kind == "full":
+#         with plate("plate_M", ngal):
+#             M = sample("M", Normal(aTFR + bTFR * eta_true, sigmaTFR))
+
+#         # Log-likelihood of shape `(ngal, num_dist_steps)``
+#         ll = Normal(
+#             M[:, None] + distmod_range[None, :],
+#             injected_params["e_mag"]).log_prob(mag_obs[:, None])
+#     elif model_kind == "M_marginalised":
+#         M = aTFR + bTFR * eta_true
+#         sigma = jnp.sqrt(sigmaTFR**2 + injected_params["e_mag"]**2)
+
+#         # Log-likelihood of shape `(ngal, num_dist_steps)``
+#         ll = Normal(
+#             M[:, None] + distmod_range[None, :],
+#             sigma).log_prob(mag_obs[:, None])
+#     elif model_kind == "M_eta_marginalised":
+#         Sigma2 = sigmaTFR**2 + injected_params["e_mag"]**2
+#         alpha = aTFR - mag_obs[:, None] + distmod_range[None, :]
+#         eta_var = eta_std**2
+
+#         e2_eta = injected_params["e_eta"]**2
+
+#         SigmaTot2 = (
+#             Sigma2 * e2_eta + eta_var * (Sigma2 + bTFR**2 * e2_eta))
+
+#         ll = - (
+#             + eta_var * (alpha + bTFR * eta_obs[:, None])**2
+#             + Sigma2 * (eta_obs[:, None] - eta_mean)**2
+#             + e2_eta * (alpha + bTFR * eta_mean)**2
+#             ) / (2 * SigmaTot2)
+#         ll -= 0.5 * jnp.log(SigmaTot2)
+#     else:
+#         raise ValueError(f"Unknown model kind: {model_kind}")
+
+#     # Malmquist bias
+#     ll += 2 * jnp.log(dist_range)[None, :]
+
+#     Vdip_mag = sample("Vdip_mag", Uniform(0, 10 * injected_params["Vdip_mag"]))
+#     Vdip_ra = sample("Vdip_ra", Uniform(0, 2 * np.pi))
+#     Vdip_cos_theta = sample("Vdip_cos_theta", Uniform(-1, 1))
+#     Vdip_theta = jnp.arccos(Vdip_cos_theta)
+
+#     Vpec = Vdip_mag * (
+#         + jnp.sin(Vdip_theta) * jnp.sin(theta) * jnp.cos(Vdip_ra - phi)
+#         + jnp.cos(Vdip_theta) * jnp.cos(theta))
+
+#     # Predicted redshift of shape `(ngal, num_dist_steps)`
+#     zpred = (1 + dist2redshift(dist_range)[None, :]) * (1 + Vpec[:, None] / SPEED_OF_LIGHT) - 1  # noqa
+
+#     if sample_sigma_v:
+#         sigma_v = sample("sigma_v", Uniform(0, 5 * injected_params["sigma_v"]))
+#         factor("ll_sigma_v", -jnp.log(sigma_v))
+#     else:
+#         sigma_v = injected_params["sigma_v"]
+
+#     # Add the log-likelihood of the observed redshifts, shape remains
+#     # `(ngal, num_dist_steps)`
+#     ll += Normal(zpred, sigma_v / SPEED_OF_LIGHT).log_prob(zobs[:, None])
+
+#     # Marginalise over the distance, shape `(ngal,)`
+#     ll = ln_simpson(ll, x=dist_range[None, :], axis=-1)
+#     factor("ll_zobs", ll)
 
 
 ###############################################################################
@@ -723,7 +738,7 @@ if __name__ == "__main__":
     sample_distance = True
     mag_selection = "mlim"
     dist_spacing = 0.5
-    data_name = "2MTF"
+    data_name = None
     print(f"Running {nwarm} warmup and {nsamp} sampling steps.")
     if sample_distance:
         print("Sampling distances.")
@@ -732,9 +747,9 @@ if __name__ == "__main__":
               f"of {dist_spacing} Mpc / h.")
 
     injected_params = {
-        "ngal": 5000,
+        "ngal": 500,
 
-        "mlim": 11.25,
+        "mlim": 13.5,
         "m1": 10.92,
         "m2": 13.47,
         "a": -0.12,
@@ -810,6 +825,9 @@ if __name__ == "__main__":
     else:
         model_args += (num_dist_steps,)
         model = model_marg_dist
+
+    # print("Quitting...")
+    # quit()
 
     kernel = NUTS(model, init_strategy=init_to_median(num_samples=5))
     mcmc = MCMC(kernel, num_warmup=nwarm, num_samples=nsamp,)
