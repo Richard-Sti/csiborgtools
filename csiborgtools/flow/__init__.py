@@ -12,20 +12,47 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-from .cosmography import distmod2redshift, log_dA_to_distmod                    # noqa
-from .io import (DataLoader, get_model, read_absolute_calibration,              # noqa
-                 radial_velocity_los, read_dustmap)                             # noqa
-from .flow_model import (PV_LogLikelihood, PV_validation_model, dist2redshift,  # noqa
-                         Observed2CosmologicalRedshift, predict_zobs,           # noqa
-                         project_vector, stack_pzosmo_over_realizations,        # noqa
-                         PV_validation_model_log_density)                       # noqa
-from .mocks import mock_Carrick2MTF                                             # noqa
-from .selection import ToyMagnitudeSelection                                    # noqa
-from .void_model import (load_void_fiducial, load_void_size_variation,          # noqa
-                         interpolate_fiducial_void, interpolate_size_var_void,  # noqa
-                         select_void_h, mock_void, void_velocity_vector,        # noqa
-                         void_bulk_flow, void_monopole)                         # noqa
-from .growth_factor import (sigma8_nonlinear_to_linear_juszkiewicz,             # noqa
-                            make_nonlinear_to_linear_sigma8,                    # noqa
-                            find_linear_sigma8)                                 # noqa
+from .cosmography import (ComovingDistance2Distmod,                             # noqa
+                          ComovingDistance2Redshift,                            # noqa
+                          Distmod2Distance,                                     # noqa
+                          )
+
+from .io import (DataLoader,                                                    # noqa
+                 get_model,                                                     # noqa
+                 read_absolute_calibration,                                     # noqa
+                 radial_velocity_los,                                           # noqa
+                 read_dustmap,                                                  # noqa
+                 )
+
+from .flow_model import (                                                       # noqa
+    PV_LogLikelihood,                                                           # noqa
+    PV_validation_model,                                                        # noqa
+    Observed2CosmologicalRedshift,                                              # noqa
+    PV_validation_model_log_density                                             # noqa
+    )
+
+from .mocks import (                                                            # noqa
+    mock_Carrick2MTF,                                                           # noqa
+    )
+
+from .selection import MagnitudeSelection                                    # noqa
+
+from .void_model import (                                                       # noqa
+    load_void_fiducial,                                                         # noqa
+    load_void_size_variation,                                                   # noqa
+    interpolate_fiducial_void,                                                  # noqa
+    interpolate_size_var_void,                                                  # noqa
+    select_void_h,                                                              # noqa
+    mock_void,                                                                  # noqa
+    void_velocity_vector,                                                       # noqa
+    void_bulk_flow,                                                             # noqa
+    void_monopole,                                                              # noqa
+    )
+
+from .growth_factor import (                                                    # noqa
+    sigma8_nonlinear_to_linear_juszkiewicz,                                     # noqa
+    make_nonlinear_to_linear_sigma8,                                            # noqa
+    find_linear_sigma8,                                                         # noqa
+    )
+
 from .simpson import ln_simpson                                                 # noqa

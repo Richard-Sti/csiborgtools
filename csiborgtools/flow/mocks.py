@@ -14,70 +14,70 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """Mock data generators."""
 import numpy as np
-from astropy.cosmology import FlatLambdaCDM
+from jax import numpy as jnp
+from tqdm import trange
 
 from ..field.interp import evaluate_cartesian_regular
 from ..params import SPEED_OF_LIGHT
-from ..utils import (galactic_to_radec_cartesian, radec_to_cartesian,
+from ..utils import (fprint, galactic_to_radec_cartesian, radec_to_cartesian,
                      radec_to_galactic)
-
-###############################################################################
-#                        Mock Carrick observations                            #
-###############################################################################
+from .cosmography import ComovingDistance2Redshift, Distmod2Distance
+from .selection import log_magnitude_selection
 
 
-def interp_distmod2redshift(distmod, Om0=0.3, zmin_interp=1e-4,
-                            zmax_interp=0.5, npoints_interp=1000):
-    """
-    Convert distance modulus to redshift. Calls `astropy` to generate a grid
-    of redshifts and distance moduli and then interpolates between distance
-    modulus and log(redshift). Assumes `h = 1`.
+def reject_sample_TFR(gen, mean_eta, std_eta, mean_e_eta, a_TF, b_TF, c_TF,
+                      sigma_TF, mean_e_mag, m1, m2, a, mag_min, mag_max):
+    """Rejection sampling of the TFR linewidth and distance."""
+    num_attempts = 0
 
-    With the default settings, the mapping is accurate to better than 10 m / s
-    over the entire range.
-    """
-    cosmo = FlatLambdaCDM(H0=100, Om0=Om0)
-    z_grid = np.linspace(zmin_interp, zmax_interp, npoints_interp)
-    distmod_grid = cosmo.distmod(z_grid).value
+    # First sample the linewidth, from which to compute the absolute magnitude.
+    eta_true = gen.normal(mean_eta, std_eta)
+    eta_obs = gen.normal(eta_true, mean_e_eta)
 
-    return np.exp(np.interp(distmod, distmod_grid, np.log(z_grid),
-                            left=np.nan, right=np.nan))
+    absmag = a_TF + b_TF * eta_true
+    if eta_true > 0:
+        absmag += c_TF * eta_true**2
 
+    # Now rejection sample to obtain a reasonable apparent magnitude.
+    mag_xrange = jnp.linspace(mag_min, mag_max, 5000)
+    Sm = np.exp(log_magnitude_selection(mag_xrange, m1, m2, a))
 
-def interp_distmod2dist(distmod, Om0=0.3, zmin_interp=1e-4,
-                        zmax_interp=0.5, npoints_interp=1000):
-    """
-    Convert distance modulus to redshift. Calls `astropy` to generate a grid
-    of redshifts and distance moduli and then interpolates between distance
-    modulus and log(redshift). Assumes `h = 1`.
+    zmin = 10**(0.6 * mag_min)
+    zmax = 10**(0.6 * mag_max)
 
-    With the default settings, the mapping is accurate to better than 1 kpc / h
-    over the entire range.
-    """
-    cosmo = FlatLambdaCDM(H0=100, Om0=Om0)
-    z_grid = np.linspace(zmin_interp, zmax_interp, npoints_interp)
+    while True:
+        num_attempts += 1
 
-    distmod_grid = cosmo.distmod(z_grid).value
-    dist_grid = cosmo.comoving_distance(z_grid).value
+        mag_true = 5 / 3 * np.log10(zmin + gen.uniform(0, 1) * (zmax - zmin))
+        mag_obs = gen.normal(mag_true, mean_e_mag)
 
-    return np.exp(np.interp(distmod, distmod_grid, np.log(dist_grid)))
+        if np.interp(mag_obs, mag_xrange, Sm) > gen.uniform(0, 1):
+            break
+
+    mu_TFR = mag_true - absmag
+
+    # TODO: here add Malmquist
+    mu = gen.normal(mu_TFR, sigma_TF)
+
+    return eta_true, eta_obs, mag_true, mag_obs, mu, num_attempts
 
 
 def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
                      a_TF=-22.8, b_TF=-7.2, c_TF=0, sigma_TF=0.35, sigma_v=100,
                      Vext_mag=150, Vext_l=300, Vext_b=-4, h=1.0, beta=0.4,
                      mean_eta=0.069, std_eta=0.078, mean_e_eta=0.012,
-                     mean_mag=10.31, std_mag=0.83, mean_e_mag=0.044,
-                     add_calibration=False, sigma_calibration=0.05,
+                     mean_e_mag=0.044, m1_selection=11.206,
+                     m2_selection=13.203, a_selection=-0.152,
                      a_TF_dipole_mag=0, a_TF_dipole_l=140, a_TF_dipole_b=30,
-                     calibration_max_percentile=10,
-                     calibration_rand_fraction=0.5, nrepeat_calibration=1,
-                     seed=42, Om0=0.3, verbose=True, **kwargs):
+                     seed=42, Om0=0.3, Rmax_mask=150, mag_min=8, mag_max=18,
+                     **kwargs):
     """
     Mock TFR catalogue build against the Carrick velocity field and the
     2MTF sky distribution to avoid recomputing the LOS velocities.
     """
     nsamples = len(RA_2MTF)
+    distmod2distance = Distmod2Distance(Om0=Om0)
+    dist2redshift = ComovingDistance2Redshift(Om0=Om0)
 
     # Convert Vext from ICRS to Galactic coordinates.
     Vext = Vext_mag * galactic_to_radec_cartesian(Vext_l, Vext_b)
@@ -87,7 +87,7 @@ def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
     truths = {"a": a_TF, "b": b_TF, "c": c_TF, "e_mu": sigma_TF,
               "sigma_v": sigma_v, "Vext": Vext, "a_TF_dipole": a_TF_dipole,
               "mean_eta": mean_eta, "std_eta": std_eta,
-              "mean_mag": mean_mag, "std_mag": std_mag,
+              "mean_e_eta": mean_e_eta, "mean_e_mag": mean_e_mag,
               "h": h, "beta": beta,
               "Vmag": Vext_mag, "Vl": Vext_l, "Vb": Vext_b,
               "a_TF_dipole_mag": a_TF_dipole_mag,
@@ -101,42 +101,45 @@ def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
     gal_phi = np.deg2rad(l)
     gal_theta = np.pi / 2 - np.deg2rad(b)
 
-    # Sample the linewidth of each galaxy from a Gaussian distribution to mimic
-    # the MNR procedure.
-    eta_true = gen.normal(mean_eta, std_eta, nsamples)
-    eta_obs = gen.normal(eta_true, mean_e_eta)
-
-    # Subtract the mean of the observed linewidths, so that they are
-    # centered around zero. For consistency subtract from both observed
-    # and true values.
-    eta_mean_sampled = np.mean(eta_obs)
-    eta_true -= eta_mean_sampled
-    eta_obs -= eta_mean_sampled
-
-    # Sample the magnitude from some Gaussian distribution to replicate MNR.
-    mag_true = gen.normal(mean_mag, std_mag, nsamples)
-    mag_obs = gen.normal(mag_true, mean_e_mag)
-
-    # Calculate the 'true' distance modulus and redshift from the TFR distance.
+    # Adjust the TFR zero-point if there is a dipole in it.
     if a_TF_dipole_mag > 0:
         rhat = radec_to_cartesian(
             np.vstack([np.ones_like(RA_2MTF), RA_2MTF, DEC_2MTF]).T)
 
         a_TF_dipole = np.asarray(a_TF_dipole)
         a_TF = a_TF + np.sum(rhat * a_TF_dipole[None, :], axis=1)
+    else:
+        a_TF = np.full(nsamples, a_TF)
 
-    # If h != 1, then these distance modulii are in physical units.
-    absmag = a_TF + b_TF * eta_true
-    absmag = np.where(eta_true > 0, absmag + c_TF * eta_true**2, absmag)
-    mu_TFR = mag_true - absmag
-    mu_true = gen.normal(mu_TFR, sigma_TF)
-    # This is the distance modulus in units of little h.
-    mu_true_h = mu_true + 5 * np.log10(h)
+    eta_true = np.zeros_like(RA_2MTF)
+    eta_obs = np.zeros_like(RA_2MTF)
+    mag_true = np.zeros_like(RA_2MTF)
+    mag_obs = np.zeros_like(RA_2MTF)
+    mu = np.zeros_like(RA_2MTF)
+    num_attempts = np.zeros_like(RA_2MTF, dtype=int)
 
-    # Convert the true distance modulus to true distance and cosmological
-    # redshift. The distance is in Mpc/h because the box is in Mpc / h.
-    zcosmo = interp_distmod2redshift(mu_true_h, Om0)
-    r = interp_distmod2dist(mu_true_h, Om0)
+    fprint("starting rejection sampling.")
+    for n in trange(nsamples, desc="Rejection sampling"):
+        eta_true_, eta_obs_, mag_true_, mag_obs_, mu_, num_attempts_ = reject_sample_TFR(  # noqa
+            gen, mean_eta, std_eta, mean_e_eta, a_TF[n], b_TF, c_TF, sigma_TF,
+            mean_e_mag, m1_selection, m2_selection, a_selection, mag_min,
+            mag_max)
+
+        eta_true[n] = eta_true_
+        eta_obs[n] = eta_obs_
+        mag_true[n] = mag_true_
+        mag_obs[n] = mag_obs_
+        mu[n] = mu_
+        num_attempts[n] = num_attempts_
+
+    fprint("average number of attempts per draw is "
+           f"{num_attempts.mean():.2f}.")
+
+    if h != 1:
+        raise RuntimeError("Currently only h = 1 is supported.")
+
+    r = distmod2distance(mu)
+    zcosmo = dist2redshift(r)
 
     if not np.all(np.isfinite(r)) or not np.all(np.isfinite(zcosmo)):
         raise ValueError("Some distance moduli are outside the interpolation "
@@ -166,32 +169,11 @@ def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
     zCMB_true = (1 + zcosmo) * (1 + Vr / SPEED_OF_LIGHT) - 1
     zCMB_obs = gen.normal(zCMB_true, sigma_v / SPEED_OF_LIGHT)
 
-    # We make the cut in observed redshift, cutting in the true distance yields
-    # biases.
-    if add_calibration:
-        p = np.percentile(zCMB_obs, calibration_max_percentile)
-        ks = np.where(zCMB_obs < p)[0]
-        nsel = int(calibration_rand_fraction * len(ks))
-        if verbose:
-            print(f"Assigning calibration to {nsel}/{nsamples} galaxies.")
-
-        mu_calibration = np.full((nrepeat_calibration, nsamples), np.nan)
-        e_mu_calibration = np.full((nrepeat_calibration, nsamples), np.nan)
-
-        for n in range(nrepeat_calibration):
-            ks_n = gen.choice(ks, nsel, replace=False)
-
-            mu_calibration[n, ks_n] = gen.normal(mu_true[ks_n], sigma_calibration)  # noqa
-            e_mu_calibration[n, ks_n] = np.ones(len(ks_n)) * sigma_calibration
-    else:
-        mu_calibration = np.full((nrepeat_calibration, nsamples), np.nan)
-        e_mu_calibration = np.full((nrepeat_calibration, nsamples), np.nan)
-
     # These galaxies will be masked out when LOS is read it because they are
     # too far away.
-    distance_mask = r < 150
+    distance_mask = r < Rmax_mask
     truths["distance_mask"] = distance_mask
-    print(f"{np.sum(~distance_mask)} galaxies are above 150 Mpc/h.")
+    print(f"{np.sum(~distance_mask)} galaxies are above {Rmax_mask} Mpc/h.")
 
     sample = {"RA": RA_2MTF,
               "DEC": DEC_2MTF,
@@ -200,10 +182,6 @@ def mock_Carrick2MTF(velocity_field, boxsize, RA_2MTF, DEC_2MTF,
               "mag": mag_obs,
               "e_eta": np.ones(nsamples) * mean_e_eta,
               "e_mag": np.ones(nsamples) * mean_e_mag,
-              "mu_true": mu_true,
-              "mu_TFR": mu_TFR,
-              "mu_calibration": mu_calibration,
-              "e_mu_calibration": e_mu_calibration,
               "r": r,
               }
 

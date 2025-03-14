@@ -62,12 +62,12 @@ class DataLoader:
                  ksmooth=None, store_full_velocity=False, verbose=True):
         self._is_no_field = "no_field" in simname
 
-        fprint("reading the catalogue,", verbose)
+        fprint("reading the catalogue,", verbose=verbose)
         self._cat, self._absmag_calibration = self._read_catalogue(
             catalogue, catalogue_fpath)
         self._catname = catalogue
 
-        fprint("reading the interpolated field.", verbose)
+        fprint("reading the interpolated field.", verbose=verbose)
         self._field_rdist, self._los_density, self._los_velocity = self._read_field(  # noqa
             simname, ksim, catalogue, ksmooth, paths)
 
@@ -77,7 +77,7 @@ class DataLoader:
                     "The number of objects in the catalogue does not match "
                     "the number of objects in the field.")
 
-            fprint("calculating the radial velocity.", verbose)
+            fprint("calculating the radial velocity.", verbose=verbose)
             nobject = self._los_density.shape[1]
             dtype = self._los_density.dtype
             num_sims = len(self._los_density)
@@ -288,8 +288,9 @@ class DataLoader:
                         arr[key] = f[key][:]
 
                 absmag_calibration = {
-                    "mu_calibration": f["mu_calibration"][...],
-                    "e_mu_calibration": f["e_mu_calibration"][...]}
+                    # "mu_calibration": f["mu_calibration"][...],
+                    # "e_mu_calibration": f["e_mu_calibration"][...],
+                    }
 
         elif "UPGLADE" in catalogue:
             with File(catalogue_fpath, 'r') as f:
@@ -421,7 +422,7 @@ def mask_fields(density, velocity, mask, return_none):
     return density[:, mask], velocity[:, mask]
 
 
-def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
+def get_model(loader, zcmb_min=None, zcmb_max=None, selection=None,
               wo_num_dist_marginalisation=False, absolute_calibration=None,
               calibration_fpath=None, void_kwargs=None, dust_model=None,
               remove_CF4_outliers=None):
@@ -436,7 +437,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         Minimum observed redshift in the CMB frame to include.
     zcmb_max : float, optional
         Maximum observed redshift in the CMB frame to include.
-    mag_selection : dict, optional
+    selection : dict, optional
         Magnitude selection parameters.
     wo_num_dist_marginalisation : bool, optional
         Whether to directly sample the distance without numerical
@@ -509,7 +510,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         model = PV_LogLikelihood(
             los_overdensity, los_velocity,
             RA[mask], dec[mask], zCMB[mask], e_zCMB, calibration_params,
-            mag_selection, loader.rdist, loader._Omega_m, "SN",
+            selection, loader.rdist, loader._Omega_m, "SN",
             name=kind, void_kwargs=void_kwargs,
             with_inhomogeneous_malmquist=with_inhomogeneous_malmquist,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation)
@@ -538,7 +539,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         model = PV_LogLikelihood(
             los_overdensity, los_velocity,
             RA[mask], dec[mask], zCMB[mask], e_zCMB[mask], calibration_params,
-            mag_selection, loader.rdist, loader._Omega_m, "SN_calibrated",
+            selection, loader.rdist, loader._Omega_m, "SN_calibrated",
             name=kind, void_kwargs=void_kwargs,
             with_inhomogeneous_malmquist=with_inhomogeneous_malmquist,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation)
@@ -551,9 +552,11 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
             # For the mock we only want to select objects with the '2M++'
             # volume.
             if not loader._is_no_field:
+                fprint("selecting only galaxies with r < 150 Mpc / h.")
                 mask &= loader.cat["r"] < 150
             # The mocks are generated without Malmquist.
-            fprint("disabling homogeneous and inhomogeneous Malmquist bias for the mock.")  # noqa
+            fprint("disabling inhomogeneous Malmquist bias "
+                   "for the mock.")
             with_homogeneous_malmquist = False
             with_inhomogeneous_malmquist &= False
         elif "IndranilVoidTFRMock" in kind:
@@ -566,33 +569,34 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         calibration_params = {"mag": mag[mask], "eta": eta[mask],
                               "e_mag": e_mag[mask], "e_eta": e_eta[mask]}
 
-        # Append the calibration data
-        if "Carrick2MTFmock" in kind:
-            absmag_calibration = loader.absmag_calibration
+        # # Append the calibration data
+        # if "Carrick2MTFmock" in kind:
+        #     absmag_calibration = loader.absmag_calibration
 
-            # The shape of these is (`ncalibrators, nobjects`).
-            mu_calibration = absmag_calibration["mu_calibration"][:, mask]
-            e_mu_calibration = absmag_calibration["e_mu_calibration"][:, mask]
+        #     # The shape of these is (`ncalibrators, nobjects`).
+        #     mu_calibration = absmag_calibration["mu_calibration"][:, mask]
+        #     e_mu_calibration = absmag_calibration["e_mu_calibration"][:,
+        # mask]
 
-            m = np.any(np.isfinite(mu_calibration), axis=0)
-            print(f"Only {m.sum()} out of {len(m)} galaxies have at least "
-                  "one calibrator.")
+        #     m = np.any(np.isfinite(mu_calibration), axis=0)
+        #     print(f"Only {m.sum()} out of {len(m)} galaxies have at least "
+        #           "one calibrator.")
 
-            # print(f"Selecting only {m.sum()} out of {len(m)} calibrators.")
-            calibration_indxs = np.hstack(
-                [np.where(np.isfinite(mu_calibration[i]))[0]
-                 for i in range(len(mu_calibration))])
+        #     # print(f"Selecting only {m.sum()} out of {len(m)} calibrators.")
+        #     calibration_indxs = np.hstack(
+        #         [np.where(np.isfinite(mu_calibration[i]))[0]
+        #          for i in range(len(mu_calibration))])
 
-            mu_calibration = np.hstack(
-                [mu_calibration[i][np.isfinite(mu_calibration[i])]
-                 for i in range(len(mu_calibration))])
-            e_mu_calibration = np.hstack(
-                [e_mu_calibration[i][np.isfinite(e_mu_calibration[i])]
-                 for i in range(len(e_mu_calibration))])
+        #     mu_calibration = np.hstack(
+        #         [mu_calibration[i][np.isfinite(mu_calibration[i])]
+        #          for i in range(len(mu_calibration))])
+        #     e_mu_calibration = np.hstack(
+        #         [e_mu_calibration[i][np.isfinite(e_mu_calibration[i])]
+        #          for i in range(len(e_mu_calibration))])
 
-            calibration_params["mu_calibration"] = mu_calibration
-            calibration_params["e_mu_calibration"] = e_mu_calibration
-            calibration_params["calibration_indxs"] = calibration_indxs
+        #     calibration_params["mu_calibration"] = mu_calibration
+        #     calibration_params["e_mu_calibration"] = e_mu_calibration
+        #     calibration_params["calibration_indxs"] = calibration_indxs
 
         los_overdensity, los_velocity = mask_fields(
             los_overdensity, los_velocity, mask, void_kwargs is not None)
@@ -600,7 +604,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         model = PV_LogLikelihood(
             los_overdensity, los_velocity,
             RA[mask], dec[mask], zCMB[mask], None, calibration_params,
-            mag_selection, loader.rdist, loader._Omega_m, "TFR", name=kind,
+            selection, loader.rdist, loader._Omega_m, "TFR", name=kind,
             void_kwargs=void_kwargs,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation,
             with_homogeneous_malmquist=with_homogeneous_malmquist,
@@ -727,7 +731,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         model = PV_LogLikelihood(
             los_overdensity, los_velocity,
             RA[mask], dec[mask], z_obs[mask], None, calibration_params,
-            mag_selection, loader.rdist, loader._Omega_m, "TFR", name=kind,
+            selection, loader.rdist, loader._Omega_m, "TFR", name=kind,
             void_kwargs=void_kwargs,
             with_inhomogeneous_malmquist=with_inhomogeneous_malmquist,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation,
@@ -751,7 +755,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         model = PV_LogLikelihood(
             los_overdensity, los_velocity,
             RA[mask], dec[mask], zCMB[mask], None, calibration_params,
-            mag_selection,  loader.rdist, loader._Omega_m, "simple",
+            selection,  loader.rdist, loader._Omega_m, "simple",
             name=kind, void_kwargs=void_kwargs,
             with_inhomogeneous_malmquist=with_inhomogeneous_malmquist,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation)
@@ -811,7 +815,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, mag_selection=None,
         model = PV_LogLikelihood(
             los_overdensity, los_velocity,
             RA[mask], dec[mask], zCMB[mask], None, calibration_params,
-            mag_selection, loader.rdist, loader._Omega_m, "FP", name=kind,
+            selection, loader.rdist, loader._Omega_m, "FP", name=kind,
             void_kwargs=void_kwargs,
             with_inhomogeneous_malmquist=with_inhomogeneous_malmquist,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation)

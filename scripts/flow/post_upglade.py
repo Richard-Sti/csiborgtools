@@ -26,7 +26,7 @@ import numpy as np
 from csiborgtools import fprint
 from h5py import File
 from mpi4py import MPI
-from taskmaster import work_delegation  # noqa
+from taskmaster import work_delegation                                          # noqa
 from tqdm import tqdm
 
 SPEED_OF_LIGHT = 299792.458  # km / s
@@ -124,8 +124,12 @@ if __name__ == "__main__":
         catalogue_calibration, simname, ksmooth, sample_beta=True,
         verbose=rank == 0)
 
+    rdist = loader.rdist
+    dist2z = csiborgtools.flow.ComovingDistance2Redshift(loader._Omega_m)
+    zrange = dist2z(rdist)
+
     model = csiborgtools.flow.Observed2CosmologicalRedshift(
-        calibration_samples, loader.rdist, loader._Omega_m)
+        calibration_samples, zrange, loader._Omega_m)
 
     fprint(f"catalogue size is {loader.cat['zcmb'].size}.", verbose=rank == 0)
     fprint("loaded calibration samples and model.", verbose=rank == 0)

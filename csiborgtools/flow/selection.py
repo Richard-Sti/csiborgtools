@@ -19,7 +19,7 @@ from numpyro.distributions import Uniform
 from quadax import simpson
 
 
-class ToyMagnitudeSelection:
+class MagnitudeSelection:
     """
     Toy magnitude selection according to Boubel+2024 [1].
 
@@ -66,10 +66,10 @@ class ToyMagnitudeSelection:
             factor("ll", self.log_observed_pdf(mag, alpha, m1, m2, a))
 
 
-def toy_log_magnitude_selection(mag, m1, m2, a):
+def log_magnitude_selection(mag, m1, m2, a):
     """
-    JAX implementation of `ToyMagnitudeSelection` but natural logarithm,
-    whereas the one in `ToyMagnitudeSelection` is base 10.
+    JAX implementation of `MagnitudeSelection` but natural logarithm,
+    whereas the one in `MagnitudeSelection` is base 10.
     """
     return jnp.log(10) * jnp.where(
         mag <= m1,

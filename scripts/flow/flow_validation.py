@@ -91,7 +91,7 @@ import numpy as np                                                              
 from csiborgtools import fprint                                                 # noqa
 from h5py import File                                                           # noqa
 from interpax import Interpolator1D                                             # noqa
-from numpyro.infer import (MCMC, NUTS, init_to_median)                          # noqa
+from numpyro.infer import MCMC, NUTS, init_to_median                            # noqa
 
 
 def print_variables(names, variables):
@@ -100,7 +100,7 @@ def print_variables(names, variables):
     print(flush=True)
 
 
-def get_models(ksim, get_model_kwargs, mag_selection, void_kwargs,
+def get_models(ksim, get_model_kwargs, selection, void_kwargs,
                wo_num_dist_marginalisation, verbose=True):
     """Load the data and create the NumPyro models."""
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
@@ -148,7 +148,7 @@ def get_models(ksim, get_model_kwargs, mag_selection, void_kwargs,
                                               cat, fpath, paths,
                                               ksmooth=ARGS.ksmooth)
         models[i] = csiborgtools.flow.get_model(
-            loader, mag_selection=mag_selection[i], void_kwargs=void_kwargs,
+            loader, selection=selection[i], void_kwargs=void_kwargs,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation,
             **get_model_kwargs)
 
@@ -193,7 +193,7 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
         raise AttributeError("The models must have an attribute `ndata` "
                              "indicating the number of data points.") from e
 
-    nuts_kernel = NUTS(model, init_strategy=init_to_median(num_samples=500),)
+    nuts_kernel = NUTS(model, init_strategy=init_to_median(num_samples=100))
     mcmc = MCMC(nuts_kernel, num_warmup=nburn, num_samples=nsteps)
     rng_key = jax.random.PRNGKey(42)
 
@@ -278,23 +278,22 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
 #                        Command line interface                               #
 ###############################################################################
 
-def get_distmod_hyperparams(catalogue, sample_alpha, Rdust_fixed,
-                            sample_sigma_TFR_linear):
-    alpha_min = -10 if "IndranilVoid" in ARGS.simname else -1.0
-    alpha_max = 10.0
+def get_distmod_hyperparams(catalogue, sample_alpha, Rdust_fixed,):
+    alpha_mean = 1.0
+    alpha_std = 1.0
 
     if catalogue in ["LOSS", "Foundation"]:
         return {"e_mu_min": 0.005, "e_mu_max": 1.0,
                 "mag_cal_mean": -18.25, "mag_cal_std": 2.0,
                 "alpha_cal_mean": 0.148, "alpha_cal_std": 1.0,
                 "beta_cal_mean": 3.112, "beta_cal_std": 2.0,
-                "alpha_min": alpha_min, "alpha_max": alpha_max,
+                "alpha_mean": alpha_mean, "alpha_std": alpha_std,
                 "sample_alpha": sample_alpha,
                 }
     elif catalogue in ["Pantheon+", "Pantheon+_groups", "Pantheon+_zSN"]:
         return {"e_mu_min": 0.001, "e_mu_max": 1.0,
                 "mag_cal_mean": -18.5, "mag_cal_std": 2.0,
-                "alpha_mean": 1.0, "alpha_std": 0.5,
+                "alpha_mean": alpha_mean, "alpha_std": alpha_std,
                 "sample_alpha": sample_alpha,
                 }
     elif catalogue in ["SFI_gals", "2MTF"] or "CF4_TFR" in catalogue or "IndranilVoidTFRMock" in catalogue or "Carrick2MTFmock" in catalogue:  # noqa
@@ -302,18 +301,17 @@ def get_distmod_hyperparams(catalogue, sample_alpha, Rdust_fixed,
                 "a_mean": -22.0, "a_std": 5.0,
                 "b_mean": -7.0, "b_std": 5.0,
                 "c_mean": 10., "c_std": 20.0,
-                "alpha_min": alpha_min, "alpha_max": alpha_max,
+                "alpha_mean": alpha_mean, "alpha_std": alpha_std,
                 "sample_alpha": sample_alpha,
-                "sample_curvature": True,
+                "sample_curvature": True if "2MTF" not in catalogue else False,
                 "Rdust_min": 0,
                 "Rdust_max": 1.0,
                 "Rdust_fixed": Rdust_fixed,
-                "sample_sigma_TFR_linear": sample_sigma_TFR_linear,
                 }
     elif catalogue in ["CF4_GroupAll"]:
         return {"e_mu_min": 0.005, "e_mu_max": 1.0,
                 "dmu_min": -3.0, "dmu_max": 3.0,
-                "alpha_min": alpha_min, "alpha_max": alpha_max,
+                "alpha_mean": alpha_mean, "alpha_std": alpha_std,
                 "sample_alpha": sample_alpha,
                 }
     elif catalogue in ["SDSS-FP"]:
@@ -321,14 +319,14 @@ def get_distmod_hyperparams(catalogue, sample_alpha, Rdust_fixed,
                 "a_mean": 0.0, "a_std": 2.0,
                 "b_mean": 0.0, "b_std": 2.0,
                 "c_mean": 0.0, "c_std": 2.0,
-                "alpha_min": alpha_min, "alpha_max": alpha_max,
+                "alpha_mean": alpha_mean, "alpha_std": alpha_std,
                 "sample_alpha": sample_alpha,
                 }
     else:
         raise ValueError(f"Unsupported catalogue: `{ARGS.catalogue}`.")
 
 
-def get_toy_selection(catalogue):
+def get_selection(catalogue):
     """Toy magnitude selection coefficients."""
     if catalogue == "SFI_gals":
         mag_kind = "soft"
@@ -354,11 +352,21 @@ def get_toy_selection(catalogue):
     elif catalogue == "2MTF":
         mag_kind = "hard"
         mag_coeffs = 11.25
-        eta_coeffs = [-0.1, 0.2]
         eta_kind = "hard"
+        eta_coeffs = [-0.09859945625066757, 0.2007037103176117]
+    elif "Carrick2MTFmock" in catalogue:
+        mag_kind = "soft"
+        # Make sure these match what was used to generate the mock.
+        mag_coeffs = [11.8, 13.4, -0.19]
+        eta_kind = None
+        eta_coeffs = [None, None]
     else:
-        fprint(f"found no selection coefficients for {catalogue}.")
+        print(f"found no selection coefficients for `{catalogue}`.")
         return None
+
+    print(f"{catalogue}: mag_kind={mag_kind}, "
+          f"mag_coeffs={mag_coeffs}, eta_kind={eta_kind}, "
+          f"eta_coeffs={eta_coeffs}")
 
     return {"mag_kind": mag_kind,
             "mag_coeffs": mag_coeffs,
@@ -378,17 +386,14 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 15_000
+    nsteps = 500
     nburn = 1500
     zcmb_min = None
-    # zcmb_max = 0.05
-    zcmb_max = 0.0500021
-    # zcmb_max = 0.055001
+    zcmb_max = 0.05
 
     nchains_harmonic = 10
     num_epochs = 50
     inference_method = "mike"
-    mag_selection = None
     sample_alpha = False if ("no_field" in ARGS.simname or "IndranilVoid" in ARGS.simname) else True  # noqa
     sample_beta = None
     sample_h_e_int = False
@@ -397,7 +402,6 @@ if __name__ == "__main__":
     sample_Vmono = False
     sample_mag_dipole = False
     mag_dipole_prior_kind = "fixed"  # Defaults to `None` if not sampled.
-    sample_sigma_TFR_linear = False
     dust_model = None
     Rdust_fixed = None  # Default for W1 is 0.186 and for W2 = 0.123
     wo_num_dist_marginalisation = False
@@ -457,7 +461,6 @@ if __name__ == "__main__":
                     "nsim": ARGS.ksim,
                     "zcmb_min": zcmb_min,
                     "zcmb_max": zcmb_max,
-                    "mag_selection": mag_selection,
                     "sample_alpha": sample_alpha,
                     "sample_beta": sample_beta,
                     "no_Vext": no_Vext,
@@ -471,13 +474,11 @@ if __name__ == "__main__":
                     "Vext_prior_kind": Vext_prior_kind,
                     "mag_dipole_prior_kind": mag_dipole_prior_kind,
                     "remove_CF4_outliers": remove_CF4_outliers,
-                    "sample_sigma_TFR_linear": sample_sigma_TFR_linear,
                     }
 
     main_params = {"nsteps": nsteps, "nburn": nburn,
                    "zcmb_min": zcmb_min,
                    "zcmb_max": zcmb_max,
-                   "mag_selection": mag_selection,
                    "calculate_harmonic": calculate_harmonic,
                    "calculate_laplace": calculate_laplace,
                    "nchains_harmonic": nchains_harmonic,
@@ -494,9 +495,6 @@ if __name__ == "__main__":
 
     if sample_beta is None:
         sample_beta = ARGS.simname == "Carrick2015"
-
-    if mag_selection and inference_method != "bayes":
-        raise ValueError("Magnitude selection is only supported with `bayes` inference.")   # noqa
 
     if "IndranilVoid" in ARGS.simname:
         if ARGS.ksim is not None:
@@ -552,10 +550,9 @@ if __name__ == "__main__":
         void_kwargs = None
         void_size_min, void_size_max = None, None
 
-    if inference_method != "bayes":
-        mag_selection = [None] * len(ARGS.catalogue)
-    elif mag_selection is None or mag_selection:
-        mag_selection = [get_toy_selection(cat) for cat in ARGS.catalogue]
+    print("Selection:")
+    selection = [get_selection(cat) for cat in ARGS.catalogue]
+    print()
 
     if nsteps % nchains_harmonic != 0:
         raise ValueError(
@@ -568,7 +565,7 @@ if __name__ == "__main__":
                                "Vmono_min": -1000, "Vmono_max": 1000,
                                "e_mu_h_min": 0.001, "e_mu_h_max": 1.0,
                                "beta_min": -10.0, "beta_max": 10.0,
-                               "sigma_v_min": 10., "sigma_v_max": 750.,
+                               "sigma_v_min": 10., "sigma_v_max": 5000.,
                                "h_min": 0.25, "h_max": 5.,
                                "no_Vext": False if no_Vext is None else no_Vext,  # noqa
                                "sample_Vmono": sample_Vmono,
@@ -592,8 +589,7 @@ if __name__ == "__main__":
 
     distmod_hyperparams_per_catalogue = []
     for cat in ARGS.catalogue:
-        x = get_distmod_hyperparams(cat, sample_alpha, Rdust_fixed,
-                                    sample_sigma_TFR_linear)
+        x = get_distmod_hyperparams(cat, sample_alpha, Rdust_fixed,)
         print(f"\n{cat} hyperparameters:")
         print_variables(x.keys(), x.values())
         distmod_hyperparams_per_catalogue.append(x)
@@ -623,7 +619,7 @@ if __name__ == "__main__":
             print(f"{'Current simulation:':<20} {i + 1} ({ksim}) out of {len(ksim_iterator)}.")  # noqa
 
         fname_kwargs["nsim"] = ksim
-        models = get_models(ksim, get_model_kwargs, mag_selection, void_kwargs,
+        models = get_models(ksim, get_model_kwargs, selection, void_kwargs,
                             wo_num_dist_marginalisation)
         model_kwargs = {
             "models": models,

@@ -42,7 +42,7 @@ else
 fi
 
 
-aux_name="sample_mag_dipole"
+aux_name="none"
 aux_type="str"
 
 # Redshift of about 0.1 is ~ 300 Mpc / h
@@ -55,7 +55,10 @@ aux_type="str"
 # for simname in "IndranilVoid_exp"; do
 # for simname in "no_field_400"; do
 # for simname in "no_field_400"; do
-for simname in "Carrick2015"; do
+# for simname in "Carrick2015"; do
+# for simname in "Carrick2015"; do
+for simname in "no_field_300"; do
+# for simname in "Carrick2015"; do
 # for simname in "IndranilVoidSizeVar_exp" "IndranilVoidSizeVar_gauss"; do
 # for simname in "manticore_2MPP_MULTIBIN_N256_DES_V2"; do
 # for simname in "CF4" "manticore_2MPP_MULTIBIN_N256_DES_V2"; do
@@ -68,7 +71,9 @@ for simname in "Carrick2015"; do
     # for i in $(seq 0 1 100); do
     #     catalogue="Carrick2MTFmock_$i"
 
-    for catalogue in "SFI_gals" "2MTF" "CF4_TFR_w1" "CF4_TFR_w2"; do
+    # for catalogue in "SFI_gals" "2MTF" "CF4_TFR_w1" "CF4_TFR_w2"; do
+    for catalogue in "Carrick2MTFmock_0"; do
+    # for catalogue in "2MTF"; do
     # for catalogue in "CF4_TFR_w1"; do
     # for catalogue in "CF4_TFR_w1"; do
         for ksim in "none"; do
@@ -77,7 +82,7 @@ for simname in "Carrick2015"; do
         # for ksim in {0..500}; do
             for ksmooth in 0; do
             # for ksmooth in $(seq 0 1 33); do
-                for aux_arg in "0" "1"; do
+                for aux_arg in "0"; do
                     pythoncm="$env $file --catalogue $catalogue --simname $simname --ksim $ksim --ksmooth $ksmooth --ndevice $ndevice --device $device --aux_name $aux_name --aux_arg $aux_arg --aux_type $aux_type"
 
                     if [ "$on_login" == "1" ]; then
