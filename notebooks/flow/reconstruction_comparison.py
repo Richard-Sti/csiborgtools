@@ -379,12 +379,25 @@ def get_bulkflow(fname, simname, convert_to_galactic=True, downsample=1,
 
         sigma_v = grp["sigma_v"][...]
 
-    # Read in the bulk flow
-    f = np.load(f"/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_shells/enclosed_mass_{simname}.npz")  # noqa
-    r = f["distances"]
+    if simname == "manticore_stuart":
+        fname = "/mnt/users/rstiskalek/csiborgtools/profiles_manticore.hdf5"
+        with File(fname, 'r') as f:
+            nmax = 50
+            for n in range(nmax):
+                grp = f[f"mcmc_{n}"]
+                vel_ = grp["mean_vel_xyz_cumulative"][...]
+                if n == 0:
+                    r = grp["r_vel"][...]
+                    vel = np.full((nmax, *vel_.shape), np.nan)
+                vel[n] = vel_
+        Bx, By, Bz = vel[..., 0], vel[..., 1], vel[..., 2]
+    else:
+        # Read in the bulk flow
+        f = np.load(f"/mnt/extraspace/rstiskalek/csiborg_postprocessing/field_shells/enclosed_mass_{simname}.npz")  # noqa
+        r = f["distances"]
 
-    # Shape of B_i is (nsims, nradial)
-    Bx, By, Bz = (f["cumulative_velocity"][..., i] for i in range(3))
+        # Shape of B_i is (nsims, nradial)
+        Bx, By, Bz = (f["cumulative_velocity"][..., i] for i in range(3))
 
     # Mask out the unconstrained large scales
     Rmax = Rmax  # Mpc/h
