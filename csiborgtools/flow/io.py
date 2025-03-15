@@ -544,7 +544,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, selection=None,
             with_inhomogeneous_malmquist=with_inhomogeneous_malmquist,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation)
     elif kind in ["SFI_gals", "2MTF", "SFI_gals_masked"] or "IndranilVoidTFRMock" in kind or "Carrick2MTFmock" in kind:  # noqa
-        keys = ["RA", "DEC", "z_CMB", "mag", "eta", "e_mag", "e_eta"]
+        keys = ["RA", "DEC", "z_CMB", "mag", "eta", "e_mag", "e_eta",]
         RA, dec, zCMB, mag, eta, e_mag, e_eta = (loader.cat[k] for k in keys)
 
         mask = (zCMB < zcmb_max) & (zCMB > zcmb_min)
@@ -621,8 +621,12 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, selection=None,
             loader.cat[k] for k in keys)
         l, b = radec_to_galactic(RA, dec)
 
-        # Fiducial values set after asking Rhsan Kourkchi.
+        # Fiducial values set after asking Ehsan Kourkchi.
+        fprint("setting the magnitute error to a fiducial value of 0.05.")
         e_mag = 0.05 * np.ones_like(mag)
+
+        fprint("setting the redshift error to a fiducial value of 50 km/s.")
+        e_z = 50 / SPEED_OF_LIGHT * np.ones_like(z_obs)
 
         z_obs /= SPEED_OF_LIGHT
         eta -= 2.5
@@ -730,7 +734,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, selection=None,
 
         model = PV_LogLikelihood(
             los_overdensity, los_velocity,
-            RA[mask], dec[mask], z_obs[mask], None, calibration_params,
+            RA[mask], dec[mask], z_obs[mask], e_z[mask], calibration_params,
             selection, loader.rdist, loader._Omega_m, "TFR", name=kind,
             void_kwargs=void_kwargs,
             with_inhomogeneous_malmquist=with_inhomogeneous_malmquist,
