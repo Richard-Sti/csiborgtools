@@ -41,6 +41,8 @@ from h5py import File
 
 from utils import ln_simpson
 from jax.debug import print as jprint
+import numpyro.distributions as dist
+from numpyro.distributions.util import validate_sample
 
 SPEED_OF_LIGHT = 299_792.458
 
@@ -56,6 +58,40 @@ def dist2redshift(dist):
 
 def distmod2dist(distmod):
     return 10**((distmod - 25) / 5)
+
+
+
+
+###############################################################################
+#                           x^2 distribution                                  #
+###############################################################################
+
+
+class SquaredLikeDistribution(dist.Distribution):
+    """A distribution where the PDF is proportional to `x^2`."""
+    reparametrized_params = ["xmin", "xmax"]
+    support = dist.constraints.positive
+
+    def __init__(self, xmin, xmax, validate_args=None):
+        batch_shape, event_shape = (), ()
+        self.xmin, self.xmax = xmin, xmax
+
+        self.log_norm_const = jnp.log(3) - jnp.log(self.xmax**3 - self.xmin**3)
+        super().__init__(batch_shape, event_shape, validate_args=validate_args)
+
+    def sample(self, key, sample_shape=()):
+        u = random.uniform(key, shape=sample_shape)
+
+        return jnp.cbrt(self.xmin**3 + u * (self.xmax**3 - self.xmin**3))
+
+    @validate_sample
+    def log_prob(self, value):
+        """Compute log-probability, ensuring truncation."""
+        return jnp.where(
+            (value >= self.xmin) & (value <= self.xmax),
+            2 * jnp.log(value) + self.log_norm_const,
+            -jnp.inf)
+
 
 
 def sample_mag_distance_mlim(gen, M, e_mag, mlim, dM=0.2):
@@ -355,12 +391,12 @@ def model_sample_dist(model_kind, obs_data, injected_params, sample_sigmaTFR,
 
     eta_mean = sample("eta_mean", Uniform(eta_mean_min, eta_mean_max))
     eta_std = sample("eta_std", Uniform(0, 3 * injected_params["eta_std"]))
-    factor("ll_eta_std", -jnp.log(eta_std))
+    # factor("ll_eta_std", -jnp.log(eta_std))
 
     if sample_sigmaTFR:
         sigmaTFR = sample(
-            "sigmaTFR", Uniform(0, 5 * injected_params["sigmaTFR"]))
-        factor("ll_sigma_TFR", -jnp.log(sigmaTFR))
+            "sigmaTFR", Uniform(0.1, 5 * injected_params["sigmaTFR"]))
+        # factor("ll_sigma_TFR", -jnp.log(sigmaTFR))
     else:
         sigmaTFR = injected_params["sigmaTFR"]
 
@@ -384,9 +420,11 @@ def model_sample_dist(model_kind, obs_data, injected_params, sample_sigmaTFR,
 
     if mag_selection == "mlim":
         Rmax = 200
+        # with plate("plate_dist", len(M)):
+        #     dist = sample("xtrue_dist", Uniform(0, Rmax))
+        # factor("ll_dist", 2 * jnp.log(dist))
         with plate("plate_dist", len(M)):
-            dist = sample("xtrue_dist", Uniform(0, Rmax))
-        factor("ll_dist", 2 * jnp.log(dist))
+            dist = sample("xtrue_dist", SquaredLikeDistribution(0, 200))
 
         distmod = dist2distmod(dist)
 
@@ -412,7 +450,7 @@ def model_sample_dist(model_kind, obs_data, injected_params, sample_sigmaTFR,
 
     if sample_sigma_v:
         sigma_v = sample("sigma_v", Uniform(0, 5 * injected_params["sigma_v"]))
-        factor("ll_sigma_v", -jnp.log(sigma_v))
+        # factor("ll_sigma_v", -jnp.log(sigma_v))
     else:
         sigma_v = injected_params["sigma_v"]
 
