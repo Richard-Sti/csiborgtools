@@ -148,7 +148,7 @@ def predict_czobs(zcosmo, los_velocity, Vext_rad, Vmono, beta):
 ###############################################################################
 
 
-def interpolate_los(r, los, rgrid, method="cubic"):
+def interpolate_los(r, los, rgrid, method="linear", which=None):
     """
     Interpolate the LOS field at a given radial distance.
 
@@ -158,10 +158,10 @@ def interpolate_los(r, los, rgrid, method="cubic"):
         Radial distances at which to interpolate the LOS field.
     los : 3-dimensional array of shape `(n_sims, n_gal, n_steps)`
         LOS field.
-    rmin, rmax : float
-        Minimum and maximum radial distances in the data.
-    order : int, optional
-        The order of the interpolation. Default is 1, can be 0.
+    rgrid : 1-dimensional array of shape `(n_steps, )`
+        Radial distances at which the LOS field was interpolated.
+    method : str, optional
+        Interpolation method. Default is "linear".
 
     Returns
     -------
@@ -169,7 +169,14 @@ def interpolate_los(r, los, rgrid, method="cubic"):
     """
     # Vectorize over the inner loop (ngal) first, then the outer loop (nsim)
     def f(rn, los_row):
-        return interp1d(rn, rgrid, los_row, method=method)
+        if which == "radial_velocity":
+            extrap = (los_row[0], los_row[-1] * jnp.sqrt((rgrid[-1] / rn)))
+        elif which == "log_density":
+            extrap = 0
+        else:
+            extrap = False
+
+        return interp1d(rn, rgrid, los_row, method=method, extrap=extrap,)
 
     return vmap(vmap(f, in_axes=(0, 0)), in_axes=(None, 0))(r, los)
 
@@ -314,10 +321,12 @@ class BaseFlowValidationModel(ABC):
         return self._los_velocity
 
     def log_los_density_at_r(self, r):
-        return interpolate_los(r, self.log_los_density(), self.r_xrange, )
+        return interpolate_los(
+            r, self.log_los_density(), self.r_xrange, which="log_density")
 
     def los_velocity_at_r(self, r):
-        return interpolate_los(r, self.los_velocity(), self.r_xrange, )
+        return interpolate_los(
+            r, self.los_velocity(), self.r_xrange, which="radial_velocity")
 
     @abstractmethod
     def __call__(self, **kwargs):
@@ -680,16 +689,18 @@ class PV_LogLikelihood(BaseFlowValidationModel):
 
         if e_zobs is not None:
             e2_cz_obs = jnp.asarray((SPEED_OF_LIGHT * e_zobs)**2)
+            e_cz_obs = jnp.asarray((SPEED_OF_LIGHT * e_zobs))
         else:
             e2_cz_obs = jnp.zeros_like(z_obs)
+            e_cz_obs = jnp.zeros_like(z_obs)
 
         self.is_void_data = void_kwargs is not None
 
         # Convert RA/dec to radians.
         RA, dec = np.deg2rad(RA), np.deg2rad(dec)
 
-        names = ["RA", "dec", "z_obs", "e2_cz_obs"]
-        values = [RA, dec, z_obs, e2_cz_obs]
+        names = ["RA", "dec", "z_obs", "e2_cz_obs", "e_cz_obs"]
+        values = [RA, dec, z_obs, e2_cz_obs, e_cz_obs]
 
         # If ever start running out of memory, may be better not to store
         # both the density and log_density
@@ -760,10 +771,12 @@ class PV_LogLikelihood(BaseFlowValidationModel):
 
             if self.mag_selection_kind == "hard":
                 self.mag_selection_max = selection["mag_coeffs"]
-                fprint(f"catalogue {name} with magnitude selection m_max = {self.mag_selection_max}.")               # noqa
+                fprint(f"catalogue {name} with magnitude selection "
+                       f"m_max = {self.mag_selection_max}.")               # noqa
             elif self.mag_selection_kind == "soft":
                 self.m1, self.m2, self.a = selection["mag_coeffs"]
-                fprint(f"catalogue {name} with magnitude selection m1 = {self.m1}, m2 = {self.m2}, a = {self.a}.")  # noqa
+                fprint(f"catalogue {name} with magnitude selection "
+                       f"m1 = {self.m1}, m2 = {self.m2}, a = {self.a}.")
                 self.log_Fm = log_magnitude_selection(
                     self.mag, self.m1, self.m2, self.a)
 
@@ -776,7 +789,19 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                 raise ValueError("Must select a valid eta selection kind "
                                  f"({allowed_sel})")
 
-            fprint(f"catalogue {name} with linewidth selection eta_min = {self.eta_selection_min}, eta_max = {self.eta_selection_max}.")  # noqa
+            fprint(f"catalogue {name} with linewidth selection "
+                   f"eta_min = {self.eta_selection_min}, "
+                   f"eta_max = {self.eta_selection_max}.")
+
+            self.zcmb_max = selection["zcmb_max"]
+            if self.zcmb_max is not None and np.all(self.e_cz_obs > 0):
+                fprint(f"catalogue {name} with zcmb_max = {self.zcmb_max}. "
+                       "Switching to the truncated redshift distribution.")
+                self.czcmb_max = selection["zcmb_max"] * SPEED_OF_LIGHT
+                self._use_truncated_zobs_dist = True
+            else:
+                self._use_truncated_zobs_dist = False
+
         else:
             self.mag_selection_kind = None
             self.eta_selection_kind = None
@@ -784,6 +809,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         if kind == "TFR":
             self.mag_min, self.mag_max = jnp.min(self.mag), jnp.max(self.mag)
             # Keep track of the mean that was subtracted, don't change!
+            self.eta_mu = 0
             self.eta_mu = jnp.mean(self.eta)
             fprint(f"setting the linewith mean to 0 instead of {self.eta_mu:.3f}.")  # noqa
             self.eta -= self.eta_mu
@@ -803,7 +829,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             if self.name == "2MTF":
                 fprint("offsetting the linewidth selection thresholds "
                        "by 10 per cent of the mean error.")
-                self.eta_selection_min -= 0.1 * self.mean_e_eta,
+                self.eta_selection_min -= 0.1 * self.mean_e_eta
                 self.eta_selection_max += 0.1 * self.mean_e_eta
 
         elif kind == "SN":
@@ -1183,7 +1209,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                 ll = 0.
 
             # Calculate z_obs at the true distance, `(nsims, ndata)``
-            czobs = predict_czobs(
+            czpred = predict_czobs(
                 z_true[None, :],
                 los_velocity,
                 Vext_rad[None, :],
@@ -1191,7 +1217,23 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                 field_calibration_params["beta"])
 
             # Log-likelihood of observed redshifts, `(nsims, ndata)`
-            ll += Normal(czobs, e_cz[None, :]).log_prob(self.cz_obs[None, :])
+            # if self._use_truncated_zobs_dist:
+            if False:
+                # raise NotImplementedError(
+                #     "Truncated redshift distribution not implemented yet.")
+
+                with plate("plate_ztrue", self.ndata):
+                    cztrue = SPEED_OF_LIGHT * sample(
+                        f"xtrue_ztrue_{self.name}",
+                        Uniform(0, 1.5 * self.zcmb_max))
+
+                ll += Normal(czpred, sigma_v, ).log_prob(cztrue[None, :])
+                ll += TruncatedNormal(
+                    cztrue, self.e_cz_obs, high=self.czcmb_max).log_prob(
+                        self.cz_obs)[None, :]
+            else:
+                ll += Normal(czpred, e_cz[None, :]).log_prob(
+                    self.cz_obs[None, :])
             ll_per_galaxy = logsumexp(ll, axis=0) + self.norm
 
         factor(f"ll_per_galaxy_{self.name}", ll_per_galaxy)
