@@ -321,18 +321,26 @@ def find_index_of_first_nan(y):
     return None
 
 
-def replace_nan_with_last_finite(x, y, apply_decay):
+def replace_nan_with_value(x, y, value):
     n = find_index_of_first_nan(y)
 
     if n is None:
         return y, x[-1]
 
-    y[n:] = y[n-1]
+    y[n:] = value
     rmax = x[n-1]
 
-    if apply_decay:
-        # Optionally aply 1 / r decay
-        y[n:] *= rmax / x[n:]
+    return y, rmax
+
+
+def replace_nan_with_decay(x, y):
+    n = find_index_of_first_nan(y)
+
+    if n is None:
+        return y, x[-1]
+
+    y[n:] = y[n-1] * np.sqrt(x[n-1] / x[n:])
+    rmax = x[n-1]
 
     return y, rmax
 
@@ -382,7 +390,8 @@ def interpolate_field(pos, simname, nsim, MAS, grid, dump_folder, r,
     rmax_density = np.full((len(pos), len(smooth_scales)), np.nan)
     for i in range(len(pos)):
         for j in range(len(smooth_scales)):
-            y, current_rmax = replace_nan_with_last_finite(rdist, finterp[i, :, j], False)  # noqa
+            y, current_rmax = replace_nan_with_value(
+                rdist, finterp[i, :, j], 1.)
             finterp[i, :, j] = y
             if current_rmax is not None:
                 rmax_density[i, j] = current_rmax
@@ -409,7 +418,8 @@ def interpolate_field(pos, simname, nsim, MAS, grid, dump_folder, r,
     for k in range(3):
         for i in range(len(pos)):
             for j in range(len(smooth_scales)):
-                y, current_rmax = replace_nan_with_last_finite(rdist, finterp[k][i, :, j], True)  # noqa
+                y, current_rmax = replace_nan_with_decay(
+                    rdist, finterp[k][i, :, j])
                 finterp[k][i, :, j] = y
                 if current_rmax is not None:
                     rmax_velocity[k, i, j] = current_rmax
@@ -439,7 +449,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     Om0 = csiborgtools.simname2Omega_m(args.simname)
-    r = np.arange(0, 200, 0.25)
+    r = np.arange(0, 250, 0.25)
 
     sigma_original = csiborgtools.simname2icresolution(args.simname)
     sigma_target = 8
