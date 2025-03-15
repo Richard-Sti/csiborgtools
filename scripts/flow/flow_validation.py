@@ -152,7 +152,9 @@ def get_models(ksim, get_model_kwargs, selection, void_kwargs,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation,
             **get_model_kwargs)
 
-    fprint(f"num. radial steps is {len(loader.rdist)}")
+    fprint(f"num. radial steps is {len(loader.rdist)} from {loader.rdist[0]} "
+           f"to {loader.rdist[-1]} Mpc / h.")
+
     return models
 
 
@@ -326,7 +328,7 @@ def get_distmod_hyperparams(catalogue, sample_alpha, Rdust_fixed,):
         raise ValueError(f"Unsupported catalogue: `{ARGS.catalogue}`.")
 
 
-def get_selection(catalogue):
+def get_selection(catalogue, zcmb_max):
     """Toy magnitude selection coefficients."""
     if catalogue == "SFI_gals":
         mag_kind = "soft"
@@ -366,12 +368,15 @@ def get_selection(catalogue):
 
     print(f"{catalogue}: mag_kind={mag_kind}, "
           f"mag_coeffs={mag_coeffs}, eta_kind={eta_kind}, "
-          f"eta_coeffs={eta_coeffs}")
+          f"eta_coeffs={eta_coeffs}, "
+          f"zcmb_max={zcmb_max}."
+          )
 
     return {"mag_kind": mag_kind,
             "mag_coeffs": mag_coeffs,
             "eta_kind": eta_kind,
             "eta_coeffs": eta_coeffs,
+            "zcmb_max": zcmb_max,
             }
 
 
@@ -386,8 +391,8 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 500
-    nburn = 1500
+    nsteps = 2500
+    nburn = 1000
     zcmb_min = None
     zcmb_max = 0.05
 
@@ -551,7 +556,7 @@ if __name__ == "__main__":
         void_size_min, void_size_max = None, None
 
     print("Selection:")
-    selection = [get_selection(cat) for cat in ARGS.catalogue]
+    selection = [get_selection(cat, zcmb_max) for cat in ARGS.catalogue]
     print()
 
     if nsteps % nchains_harmonic != 0:
