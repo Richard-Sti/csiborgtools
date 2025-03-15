@@ -37,7 +37,7 @@ class ComovingDistance2Redshift:
         Number of points in the interpolation grid.
     """
     def __init__(self, Om0=0.3, zmin_interp=0, zmax_interp=0.5,
-                 npoints_interp=250):
+                 npoints_interp=1000):
         cosmo = FlatLambdaCDM(H0=H0, Om0=Om0)
         z_grid = np.linspace(zmin_interp, zmax_interp, npoints_interp)
         r_grid = cosmo.comoving_distance(z_grid).value
@@ -63,7 +63,7 @@ class ComovingDistance2Distmod:
         Number of points in the interpolation grid.
     """
     def __init__(self, Om0=0.3, zmin_interp=1e-6, zmax_interp=0.5,
-                 npoints_interp=500):
+                 npoints_interp=1000):
         cosmo = FlatLambdaCDM(H0=H0, Om0=Om0)
         z_grid = np.logspace(np.log10(zmin_interp), np.log10(zmax_interp),
                              npoints_interp)
@@ -91,7 +91,7 @@ class Distmod2Distance:
         Number of points in the interpolation grid.
     """
     def __init__(self, Om0=0.3, zmin_interp=1e-6, zmax_interp=0.5,
-                 npoints_interp=250):
+                 npoints_interp=1000):
         cosmo = FlatLambdaCDM(H0=H0, Om0=Om0)
         z_grid = np.linspace(zmin_interp, zmax_interp, npoints_interp)
         r_grid = cosmo.comoving_distance(z_grid).value
@@ -121,7 +121,7 @@ class Distmod2Redshift:
         Number of points in the interpolation grid.
     """
     def __init__(self, Om0=0.3, zmin_interp=1e-6, zmax_interp=0.5,
-                 npoints_interp=250):
+                 npoints_interp=1000):
         cosmo = FlatLambdaCDM(H0=H0, Om0=Om0)
         z_grid = np.linspace(zmin_interp, zmax_interp, npoints_interp)
         mu_grid = cosmo.distmod(z_grid).value
@@ -157,7 +157,7 @@ class LogGrad_Distmod2ComovingDistance:
         Number of points in the interpolation grid.
     """
     def __init__(self, Om0=0.3, zmin_interp=1e-6, zmax_interp=0.5,
-                 npoints_interp=500):
+                 npoints_interp=1000):
         cosmo = FlatLambdaCDM(H0=H0, Om0=Om0)
         z_grid = np.logspace(np.log10(zmin_interp), np.log10(zmax_interp),
                              npoints_interp)
@@ -221,7 +221,7 @@ class Grad_Redshift2ComovingDistance:
         Number of points in the interpolation grid.
     """
     def __init__(self, Om0=0.3, zmin_interp=1e-6, zmax_interp=0.5,
-                 npoints_interp=500):
+                 npoints_interp=1000):
         cosmo = FlatLambdaCDM(H0=H0, Om0=Om0)
         z_grid = np.linspace(zmin_interp, zmax_interp, npoints_interp)
         r_grid = cosmo.comoving_distance(z_grid).value
