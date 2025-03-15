@@ -57,7 +57,7 @@ aux_type="str"
 # for simname in "no_field_400"; do
 # for simname in "Carrick2015"; do
 # for simname in "Carrick2015"; do
-for simname in "no_field_300"; do
+for simname in "Carrick2015"; do
 # for simname in "Carrick2015"; do
 # for simname in "IndranilVoidSizeVar_exp" "IndranilVoidSizeVar_gauss"; do
 # for simname in "manticore_2MPP_MULTIBIN_N256_DES_V2"; do
@@ -67,12 +67,12 @@ for simname in "no_field_300"; do
     # for catalogue in "LOSS" "Foundation" "2MTF" "SFI_gals" "CF4_TFR_i" "CF4_TFR_w1"; do
     # for catalogue in "2MTF"; do
 
-    # for catalogue in "Carrick2MTFmock_50"; do
+    for catalogue in "2MTF"; do
     # for i in $(seq 0 1 100); do
     #     catalogue="Carrick2MTFmock_$i"
 
     # for catalogue in "SFI_gals" "2MTF" "CF4_TFR_w1" "CF4_TFR_w2"; do
-    for catalogue in "Carrick2MTFmock_0"; do
+    # for catalogue in "2MTF"; do
     # for catalogue in "2MTF"; do
     # for catalogue in "CF4_TFR_w1"; do
     # for catalogue in "CF4_TFR_w1"; do
