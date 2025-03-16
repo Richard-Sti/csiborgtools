@@ -312,8 +312,8 @@ def evaluate_los(*fields, sky_pos, boxsize, rdist, smooth_scales=None,
 ###############################################################################
 
 
-def make_sky(field, angpos, rmax, dr, boxsize, interpolation_method="cic",
-             return_full=False, verbose=True):
+def make_sky(field, angpos, rmin, rmax, dr, boxsize,
+             interpolation_method="cic", return_full=False, verbose=True):
     r"""
     Make a sky map of a scalar field. The observer is in the centre of the
     box the field is evaluated along directions `angpos` (RA [0, 360) deg,
@@ -326,8 +326,8 @@ def make_sky(field, angpos, rmax, dr, boxsize, interpolation_method="cic",
         Field to be interpolated
     angpos : 2-dimensional arrays of shape `(ndir, 2)`
         Directions to evaluate the field.
-    rmax : float
-        Maximum radial distance in `Mpc / h`.
+    rmin, rmax : float
+        Minimum and maximum radial distance in `Mpc / h`.
     dr : float
         Radial distance step in `Mpc / h`.
     boxsize : float
@@ -345,8 +345,11 @@ def make_sky(field, angpos, rmax, dr, boxsize, interpolation_method="cic",
     -------
     interp_field : 1-dimensional array of shape `(n_pos, )`
     """
+    field = force_single_precision(field)
+    rgrid = np.arange(rmin, rmax + dr, dr)
+
     rdist, finterp = evaluate_los(
-        field, sky_pos=angpos, boxsize=boxsize, rmax=rmax, dr=dr,
+        field, sky_pos=angpos, boxsize=boxsize, rdist=rgrid,
         smooth_scales=None, verbose=verbose,
         interpolation_method=interpolation_method)
 
