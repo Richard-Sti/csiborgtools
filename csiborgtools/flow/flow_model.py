@@ -398,10 +398,9 @@ def sample_SN_calibrated(e_mu_min, e_mu_max, mag_cal_mean, mag_cal_std,
 #                          Tully-Fisher parameters sampling                   #
 ###############################################################################
 
-def distmod_TFR(mag, eta, a, b, c, eta_mean):
+def distmod_TFR(mag, eta, a, b, c):
     """Distance modulus of a TFR calibration."""
-    absmag = a + b * eta
-    return mag - jnp.where(eta + eta_mean > 0, absmag + c * eta**2, absmag)
+    return mag - (a + b * eta + jnp.where(eta > 0, c, 0) * eta**2)
 
 
 def e2_distmod_TFR(e2_mag, e2_eta, eta, b, c, e_mu_intrinsic):
@@ -409,7 +408,10 @@ def e2_distmod_TFR(e2_mag, e2_eta, eta, b, c, e_mu_intrinsic):
     Squared error on the TFR distance modulus with linearly propagated
     magnitude and linewidth uncertainties.
     """
-    return e2_mag + (b + 2 * c * eta)**2 * e2_eta + e_mu_intrinsic**2
+    return (+ e2_mag
+            + (b + 2 * jnp.where(eta > 0, c, 0) * eta)**2 * e2_eta
+            + e_mu_intrinsic**2
+            )
 
 
 def sample_TFR(e_mu_min, e_mu_max, a_mean, a_std, b_mean, b_std,
@@ -795,12 +797,8 @@ class PV_LogLikelihood(BaseFlowValidationModel):
 
             self.zcmb_max = selection["zcmb_max"]
             if self.zcmb_max is not None and np.all(self.e_cz_obs > 0):
-                fprint(f"catalogue {name} with zcmb_max = {self.zcmb_max}. "
-                       "Switching to the truncated redshift distribution.")
+                fprint(f"catalogue {name} with zcmb_max = {self.zcmb_max}")
                 self.czcmb_max = selection["zcmb_max"] * SPEED_OF_LIGHT
-                self._use_truncated_zobs_dist = True
-            else:
-                self._use_truncated_zobs_dist = False
 
         else:
             self.mag_selection_kind = None
@@ -808,22 +806,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
 
         if kind == "TFR":
             self.mag_min, self.mag_max = jnp.min(self.mag), jnp.max(self.mag)
-            # Keep track of the mean that was subtracted, don't change!
-            self.eta_mu = 0
-            self.eta_mu = jnp.mean(self.eta)
-            fprint(f"setting the linewith mean to 0 instead of {self.eta_mu:.3f}.")  # noqa
-            self.eta -= self.eta_mu
             self.eta_min, self.eta_max = jnp.min(self.eta), jnp.max(self.eta)
-
-            # If specified move also the selection thresholds since we
-            # subtracted the mean of the linewidth for the purpose of the
-            # inference.
-            if self.eta_selection_min is not None:
-                self.eta_selection_min -= self.eta_mu
-
-            if self.eta_selection_max is not None:
-                self.eta_selection_max -= self.eta_mu
-
             self.mean_e_eta = jnp.mean(self.e_eta)
 
             if self.name == "2MTF":
@@ -1056,7 +1039,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                 e2_mu = e2_distmod_TFR(
                     self.e2_mag, self.e2_eta, eta_true, b, c, e_mu)
 
-            mu = distmod_TFR(mag_true, eta_true, a, b, c, self.eta_mu)
+            mu = distmod_TFR(mag_true, eta_true, a, b, c)
         else:
             raise ValueError(f"Unknown kind: `{self.kind}`.")
 
