@@ -56,7 +56,7 @@ def angular_distance_from_void_axis(rhat, Vext):
     `(ngal, 3)` from the void axis which is opposite to `Vext` of shape `(3,)`.
     """
     # Fiducial Vext direction, pointing towards (l, b) = (297, -4) in degrees.
-    # Vext = jnp.asarray([-0.4035093, 0.01363162, -0.91487399]) but here we
+    # Vext = jnp.asarray([-0.4035093, 0.01363162, -0.91487399])  # but here we
     # want to infer it!
     cos_phi = -jnp.sum(rhat * Vext[None, :], axis=1) / jnp.linalg.norm(Vext)
     cos_phi = jnp.clip(cos_phi, -1, 1,)
