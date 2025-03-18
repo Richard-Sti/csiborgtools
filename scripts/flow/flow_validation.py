@@ -83,7 +83,7 @@ set_platform(ARGS.device)                                                       
 set_host_device_count(ARGS.ndevice)                                             # noqa
 
 import sys                                                                      # noqa
-from os.path import join                                                        # noqa
+from os.path import exists, join                                                # noqa
 
 import csiborgtools                                                             # noqa
 import jax                                                                      # noqa
@@ -182,12 +182,16 @@ def get_laplace_evidence(samples, log_posterior):
 
 def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
               calculate_harmonic, calculate_laplace, nchains_harmonic,
-              epoch_num, kwargs_print, fname_kwargs):
+              epoch_num, kwargs_print, fname_kwargs, skip_if_exists=False):
     """Run the NumPyro model and save output to a file."""
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 
     fname = paths.flow_validation(out_folder, ARGS.simname, ARGS.catalogue,
                                   **fname_kwargs)
+
+    if skip_if_exists and exists(fname):
+        print(f"Quitting as `{fname}` already exists.")
+        quit()
 
     try:
         ndata = sum(model.ndata for model in model_kwargs["models"])
@@ -391,10 +395,12 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 2500
-    nburn = 1000
+    nsteps = 15_000
+    nburn = 1500
     zcmb_min = None
-    zcmb_max = 0.05
+    zcmb_max = 0.065
+    fdir_subfolder = "void"
+    skip_if_exists = True
 
     nchains_harmonic = 10
     num_epochs = 50
@@ -412,7 +418,7 @@ if __name__ == "__main__":
     wo_num_dist_marginalisation = False
     absolute_calibration = None
     which_void_size_run = "zoom"
-    remove_CF4_outliers = False
+    remove_CF4_outliers = True
 
     if ARGS.aux_name != "none":
         if ARGS.aux_type == "int":
@@ -461,7 +467,8 @@ if __name__ == "__main__":
         if "Carrick2MTFmock" in catalogue:
             sample_alpha = False
 
-    fname_kwargs = {"inference_method": inference_method,
+    fname_kwargs = {"fdir_subfolder": fdir_subfolder,
+                    "inference_method": inference_method,
                     "smooth": ARGS.ksmooth,
                     "nsim": ARGS.ksim,
                     "zcmb_min": zcmb_min,
@@ -484,6 +491,7 @@ if __name__ == "__main__":
     main_params = {"nsteps": nsteps, "nburn": nburn,
                    "zcmb_min": zcmb_min,
                    "zcmb_max": zcmb_max,
+                   "skip_if_exists": skip_if_exists,
                    "calculate_harmonic": calculate_harmonic,
                    "calculate_laplace": calculate_laplace,
                    "nchains_harmonic": nchains_harmonic,
@@ -531,7 +539,7 @@ if __name__ == "__main__":
         # Check if the mapping is in H0 or h and sizes in percent
         void_size_to_h_void = Interpolator1D(
             void_size / 100, h_void, method="linear",
-            extrap=(h_void[0], h_void[-1]))
+            extrap=(float(h_void[0]), float(h_void[-1])))
 
         is_fiducial = "IndranilVoidSizeVar" not in ARGS.simname
 
@@ -637,4 +645,5 @@ if __name__ == "__main__":
 
         run_model(model, nsteps, nburn, model_kwargs, out_folder,
                   calculate_harmonic, calculate_laplace, nchains_harmonic,
-                  num_epochs, kwargs_print, fname_kwargs)
+                  num_epochs, kwargs_print, fname_kwargs,
+                  skip_if_exists=skip_if_exists)
