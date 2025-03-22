@@ -24,9 +24,11 @@ import numpy as np
 from astropy.io import fits
 from h5py import File
 
+from ..field import radial_velocity
 from ..params import paths_glamdring, simname2boxsize, simname2Omega_m
 from .paths import Paths
 from .util import find_boxed
+from ..utils import fprint
 
 ###############################################################################
 #                          Base snapshot class                                #
@@ -1181,7 +1183,8 @@ class Carrick2015Field(BaseField):
         return field
 
     def radial_velocity_field(self, **kwargs):
-        raise RuntimeError("The radial velocity field is not available.")
+        fprint("computing the radial velocity field.")
+        return radial_velocity(self.velocity_field(), [0, 0, 0])
 
 
 class Lilow2024Field(BaseField):
