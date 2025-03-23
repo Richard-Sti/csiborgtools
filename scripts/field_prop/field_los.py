@@ -107,6 +107,15 @@ def get_los(catalogue_name, simname, comm):
             with File(fname, 'r') as f:
                 RA = f["RA"][:] * 360 / 24  # Convert to degrees from hours.
                 dec = f["DE"][:]
+        elif catalogue_name == "CF4_HQ_Federico":
+            fname = "/mnt/extraspace/rstiskalek/catalogs/CF4HQ.txt"
+
+            with open(fname, "r") as f:
+                cols = f.readline().split()
+
+            data = np.genfromtxt(fname, skip_header=1)
+            RA = data[:, cols.index("RA") + 1]
+            dec = data[:, cols.index("Dec") + 1]
         elif catalogue_name == "SDSS-FP":
             fname = "/mnt/extraspace/rstiskalek/catalogs/PV/CF4/SDSS-FP-LOWZ.hdf5"  # noqa
 
