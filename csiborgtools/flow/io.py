@@ -301,6 +301,23 @@ class DataLoader:
                         continue
 
                     arr[key] = f[key][:]
+        elif catalogue == "CF4_HQ_Federico":
+            with open(catalogue_fpath, "r") as f:
+                cols = f.readline().split()
+
+            data = np.genfromtxt(catalogue_fpath, skip_header=1)
+            RA = data[:, cols.index("RA") + 1]
+            DEC = data[:, cols.index("Dec") + 1]
+            Vcmb = data[:, cols.index("Vcmb") + 1]
+            zcmb = Vcmb / SPEED_OF_LIGHT
+
+            dtype = [("RA", np.float32), ("DEC", np.float32),
+                     ("Vcmb", np.float32), ("z_CMB", np.float32)]
+            arr = np.empty(len(RA), dtype=dtype)
+            arr["RA"] = RA
+            arr["DEC"] = DEC
+            arr["Vcmb"] = Vcmb
+            arr["z_CMB"] = zcmb
         elif catalogue in ["CF4_GroupAll"] or "CF4_TFR" in catalogue:
             with File(catalogue_fpath, 'r') as f:
                 dtype = [(key, np.float32) for key in f.keys()]
