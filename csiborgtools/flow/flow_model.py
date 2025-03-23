@@ -44,6 +44,7 @@ from tqdm import trange
 from ..params import SPEED_OF_LIGHT
 from ..utils import fprint, radec_to_cartesian
 from .cosmography import (Distmod2Distance, Distmod2Redshift,
+                          ComovingDistance2Redshift,
                           Grad_Redshift2ComovingDistance,
                           LogGrad_Distmod2ComovingDistance,
                           LogGrad_ComovingDistance2Distmod)
@@ -1328,20 +1329,19 @@ def PV_validation_model_log_density(samples, model, model_kwargs,
 
 
 def _posterior_element(zcosmo, beta, Vext_radial, los_velocity, czobs,
-                       sigma_v, alpha, dVdOmega, los_density):
+                       sigma_v, alpha, prior_zcosmo, los_density):
     """
     Helper function function to compute the unnormalized posterior in
     `Observed2CosmologicalRedshift`.
     """
     czobs_pred = predict_czobs(zcosmo, los_velocity, Vext_radial, 0, beta)
 
-    # Likelihood term
+    # p(z_obs | zcosmo, theta)
     dcz = czobs - czobs_pred
     posterior = jnp.exp(-0.5 * dcz**2 / sigma_v**2)
     posterior /= jnp.sqrt(2 * jnp.pi * sigma_v**2)
-
-    # Prior term
-    posterior *= dVdOmega * los_density**alpha
+    # p(zcosmo | theta)
+    posterior *= prior_zcosmo * los_density**alpha
 
     return posterior
 
@@ -1370,13 +1370,11 @@ class BaseObserved2CosmologicalRedshift(ABC):
             calibration_samples[key] = jnp.asarray(x)
 
         if "alpha" not in calibration_samples:
-            print("No `alpha` calibration sample found. Setting it to 1.",
-                  flush=True)
+            fprint("no `alpha` calibration sample found. Setting it to 1.")
             calibration_samples["alpha"] = jnp.ones(ncalibratrion)
 
         if "beta" not in calibration_samples:
-            print("No `beta` calibration sample found. Setting it to 1.",
-                  flush=True)
+            fprint("No `beta` calibration sample found. Setting it to 1.")
             calibration_samples["beta"] = jnp.ones(ncalibratrion)
 
         self._calibration_samples = calibration_samples
@@ -1419,21 +1417,27 @@ class Observed2CosmologicalRedshift(BaseObserved2CosmologicalRedshift):
     Omega_m : float
         Matter density parameter.
     """
-    def __init__(self, calibration_samples, zrange, Omega_m):
+    def __init__(self, calibration_samples, r, Omega_m):
         super().__init__(calibration_samples, )
-        cosmo = FlatLambdaCDM(H0=H0, Om0=Omega_m)
 
-        self._zcos_xrange = zrange
-        self._r_xrange = jnp.asarray(
-            cosmo.comoving_distance(zrange), dtype=jnp.float32)
-        self._Omega_m = Omega_m
+        zrange = ComovingDistance2Redshift(Omega_m)(r)
+        drdz = Grad_Redshift2ComovingDistance(Omega_m)(zrange)
 
-        grad_redshift2dist = Grad_Redshift2ComovingDistance(Omega_m)
+        if not np.isfinite(drdz[0]):
+            fprint("the gradient of comoving distance with respect to "
+                   "redshift is undefined for the first step. Setting it to "
+                   "the value of the second step since this point is at "
+                   "the origin.")
+            drdz = drdz.at[0].set(drdz[1])
 
-        # Comoving volume element with some arbitrary normalization.
-        dVdOmega = jnp.abs(grad_redshift2dist(self._zcos_xrange))
-        dVdOmega *= self._r_xrange**2
-        self._dVdOmega = dVdOmega / jnp.mean(dVdOmega)
+        self.zcos_xrange = zrange
+        self.nsteps = len(zrange)
+
+        self._drdz = drdz
+        # p(zcosmo | theta) = p(r | theta) * |dr/dz|. We add the inhomegenous
+        # Malmquist later.
+        self._prior_zcosmo = jnp.abs(drdz) * r**2
+        self._prior_zcosmo /= jnp.mean(self._prior_zcosmo)
 
     def posterior_mean_std(self, x, px):
         """
@@ -1453,7 +1457,7 @@ class Observed2CosmologicalRedshift(BaseObserved2CosmologicalRedshift):
         zobs : float
             Observed redshift.
         RA, dec : float
-            Right ascension and declination in radians.
+            Right ascension and declination in degrees.
         los_density : 1-dimensional array
             LOS density field.
         los_velocity : 1-dimensional array
@@ -1470,8 +1474,12 @@ class Observed2CosmologicalRedshift(BaseObserved2CosmologicalRedshift):
         posterior : 1-dimensional array
             Posterior PDF.
         """
+        RA_rad = np.deg2rad(RA)
+        dec_rad = np.deg2rad(dec)
+
         Vext = self.get_calibration_samples("Vext")
-        Vext_radial = project_vector(*[Vext[:, i] for i in range(3)], RA, dec)
+        Vext_radial = project_vector(
+            *[Vext[:, i] for i in range(3)], RA_rad, dec_rad)
 
         alpha = self.get_calibration_samples("alpha")
         beta = self.get_calibration_samples("beta")
@@ -1482,19 +1490,19 @@ class Observed2CosmologicalRedshift(BaseObserved2CosmologicalRedshift):
         if extra_sigma_v is not None:
             sigma_v = jnp.sqrt(sigma_v**2 + extra_sigma_v**2)
 
-        posterior = np.zeros((self.ncalibration_samples, len(self._r_xrange)),
-                             dtype=np.float32)
+        posterior = np.zeros(
+            (self.ncalibration_samples, self.nsteps), dtype=np.float32)
         for i in trange(self.ncalibration_samples, desc="Marginalizing",
                         disable=not verbose):
             posterior[i] = self._jit_posterior_element(
-                self._zcos_xrange, beta[i], Vext_radial[i], los_velocity,
-                czobs, sigma_v[i], alpha[i], self._dVdOmega, los_density)
+                self.zcos_xrange, beta[i], Vext_radial[i], los_velocity,
+                czobs, sigma_v[i], alpha[i], self._prior_zcosmo, los_density)
 
-        # # Normalize the posterior for each flow sample and then stack them.
-        posterior /= simpson(posterior, x=self._zcos_xrange, axis=-1)[:, None]
+        # Normalize the posterior for each flow sample and then stack them.
+        posterior /= simpson(posterior, x=self.zcos_xrange, axis=-1)[:, None]
         posterior = jnp.nanmean(posterior, axis=0)
 
-        return self._zcos_xrange, posterior
+        return self.zcos_xrange, posterior
 
 
 def stack_pzosmo_over_realizations(n, obs2cosmo_models, loaders, zobs_catname,
