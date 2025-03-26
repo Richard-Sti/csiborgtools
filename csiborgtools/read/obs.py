@@ -26,7 +26,7 @@ from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from scipy import constants
 
-from ..utils import fprint, radec_to_cartesian
+from ..utils import radec_to_cartesian
 
 ###############################################################################
 #                           Text survey base class                            #
@@ -761,52 +761,6 @@ class ObservedCluster(BaseSingleObservation):
         self.name = name
         self.spherical_pos = [dist, RA, dec]
         self.mass = mass
-
-
-###############################################################################
-#                           Pantheon+ data                                    #
-###############################################################################
-
-
-def read_pantheonplus_covariance(fname, ww, ):
-    """Read in a Pantheon+ covariance matrix."""
-    origlen = len(ww)
-    # Pantheon+SH0ES routine to read in the covariance matrix
-    with open(fname) as f:
-        # Keep this line, otherwise will fail
-        line = f.readline()  # noqa
-        n = int(np.sum(ww))
-        C = np.zeros((n, n))
-        ii = -1
-        jj = -1
-        for i in range(origlen):
-            jj = -1
-            if ww[i]:
-                ii += 1
-            for j in range(origlen):
-                if ww[j]:
-                    jj += 1
-                val = float(f.readline())
-                if ww[i]:
-                    if ww[j]:
-                        C[ii, jj] = val
-
-    return C
-
-
-def read_pantheonplus_data(fname_data, fname_covmat_statsys, fname_covmat_vpec,
-                           verbose=True):
-    """Read in the Pantheon+ covariance matrix."""
-    fprint("reading the Pantheon+ data.", verbose)
-    data = np.genfromtxt(fname_data, names=True, dtype=None, encoding=None)
-    ww = np.ones(len(data), dtype=bool)
-
-    fprint("reading the Pantheon+ STAT+SYS covariance matrix.", verbose)
-    C = read_pantheonplus_covariance(fname_covmat_statsys, ww)
-
-    fprint("reading the Pantheon+ VPEC systematic covariance matrix.", verbose)
-    C_vpec = read_pantheonplus_covariance(fname_covmat_vpec, ww)
-    return data, C, C_vpec
 
 
 ###############################################################################
