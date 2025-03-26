@@ -13,9 +13,11 @@ then
 fi
 
 
-for profile in "exp" "gauss" "mb"; do
+# for profile in "exp" "gauss" "mb"; do
+for profile in "mb"; do
     # fname="/mnt/extraspace/rstiskalek/csiborg_postprocessing/peculiar_velocity/void/samples_IndranilVoid_${profile}_CF4_TFR_i_CF4_TFR_notSDSS_w1_bayes_zcmb_max_0.065_remove_CF4_outliers.hdf5"
-    fname="/mnt/extraspace/rstiskalek/csiborg_postprocessing/peculiar_velocity/void/samples_IndranilVoidSizeVar_${profile}_CF4_TFR_i_CF4_TFR_notSDSS_w1_bayes_zcmb_max_0.065_which_void_size_run_zoom_remove_CF4_outliers.hdf5"
+    # fname="/mnt/extraspace/rstiskalek/csiborg_postprocessing/peculiar_velocity/void/samples_IndranilVoidSizeVar_${profile}_CF4_TFR_i_CF4_TFR_notSDSS_w1_bayes_zcmb_max_0.065_which_void_size_run_zoom_remove_CF4_outliers.hdf5"
+    fname="/mnt/extraspace/rstiskalek/csiborg_postprocessing/peculiar_velocity/void/samples_IndranilVoidSizeVar_gauss_CF4_TFR_i_CF4_TFR_notSDSS_w1_bayes_zcmb_max_0.065_which_void_size_run_zoom_remove_CF4_outliers.hdf5"
 
     pythoncm="$env $file $fname --njobs $nthreads"
     if [ $on_login -eq 1 ]; then
