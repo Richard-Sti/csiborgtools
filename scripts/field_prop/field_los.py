@@ -71,13 +71,9 @@ def get_los(catalogue_name, simname, comm):
                 RA = grp["RA"][:]
                 dec = grp["DEC"][:]
         elif catalogue_name == "Pantheon+":
-            fdir = join(folder, "PV")
-            fname = join(fdir, "Pantheon+SH0ES.dat")
-            fname_cov = join(fdir, "Pantheon+SH0ES_STAT+SYS.cov")
-            fname_cov_vel = join(fdir, "Pantheon+SH0ES_122221_VPEC.cov")
-
-            data = csiborgtools.read.read_pantheonplus_data(
-                fname, fname_cov, fname_cov_vel)[0]
+            data = np.genfromtxt(
+                join(folder, "PV", "Pantheon+SH0ES_zsel.dat"),
+                names=True, dtype=None, encoding=None)
             RA = data["RA"]
             dec = data["DEC"]
 
