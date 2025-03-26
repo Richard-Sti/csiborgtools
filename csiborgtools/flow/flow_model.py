@@ -666,6 +666,8 @@ class PV_LogLikelihood(BaseFlowValidationModel):
         Name of the catalogue.
     void_kwargs : dict, optional
         Void data parameters. If `None` the data is not void data.
+    void_calibration : dict, optional
+        Void absolute distance calibration parameters.
     wo_num_dist_marginalisation : bool, optional
         Whether to directly sample the distance without numerical
         marginalisation. in which case the tracers can be coupled by a
@@ -681,7 +683,8 @@ class PV_LogLikelihood(BaseFlowValidationModel):
 
     def __init__(self, los_density, los_velocity, RA, dec, z_obs, e_zobs,
                  calibration_params, selection, r_xrange, Omega_m, kind,
-                 name, void_kwargs=None, wo_num_dist_marginalisation=False,
+                 name, void_kwargs=None, void_calibration=None,
+                 wo_num_dist_marginalisation=False,
                  with_homogeneous_malmquist=True,
                  with_inhomogeneous_malmquist=True, dust_model=None):
         # Initialise the interpolators
@@ -753,6 +756,12 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                 self._h_void = float(self._void_size_to_h_void(rel_size))
                 fprint(f"for the size index {size_indx}, converting it to {rel_size} and setting the void h to {self._h_void}.")  # noqa
 
+        if void_calibration is not None:
+            self.with_void_calibration = True
+            self._set_calibration_params(void_calibration)
+        else:
+            self.with_void_calibration = False
+
         self.kind = kind
         self.name = name
         self.Omega_m = Omega_m
@@ -821,7 +830,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             self.x1_min, self.x1_max = jnp.min(self.x1), jnp.max(self.x1)
             self.c_min, self.c_max = jnp.min(self.c), jnp.max(self.c)
         elif kind == "SN_calibrated":
-            pass
+            self.mag_min, self.mag_max = jnp.min(self.mag), jnp.max(self.mag)
         elif kind == "FP":
             # TODO: implement this when adding MNR for FP.
             pass
@@ -835,8 +844,8 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                              "the selection threshold.")
 
         # Set some other potentially useful variables..
-        self.mag_true_min = self.mag_min - 5 * self.e_mag
-        self.mag_true_max = self.mag_max + 5 * self.e_mag
+        self.mag_true_min = self.mag_min - 10 * self.e_mag
+        self.mag_true_max = self.mag_max + 10 * self.e_mag
         self.mean_e_mag = jnp.mean(self.e_mag)
 
     def get_void_los(self, field_calibration_params):
@@ -939,13 +948,20 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             mag_cal = distmod_params["mag_cal"]
 
             if inference_method == "bayes":
-                raise NotImplementedError("`bayes` method is not supported "
-                                          "for the `SN_calibrated` kind.")
+                with plate(f"plate_mag_true_{self.name}", self.ndata):
+                    mag_true = sample(
+                        f"xtrue_mag_{self.name}", MagnitudeDistribution(
+                                self.mag_true_min, self.mag_true_max,
+                                self.mag, self.e_mag))
+
+                factor(
+                    f"ll_magobs_{self.name}",
+                    MultivariateNormal(
+                        mag_true, self.mag_covmat).log_prob(self.mag))
             else:
-                mag_true = sample(
-                    f"dmag_{self.name}",
-                    MultivariateNormal(self.mag, self.mag_covmat)
-                    )
+                raise NotImplementedError(
+                    "`mike` inference method is not implemented for "
+                    "`SN_calibrated` because of covariance matrix sampling.")
 
             mu = mag_true - mag_cal
             e2_mu = jnp.ones_like(mag_true) * e_mu**2
@@ -1090,6 +1106,33 @@ class PV_LogLikelihood(BaseFlowValidationModel):
                     log_ptilde + self._log_grad_dist2distmod_xrange[None, :],
                     x=self.r_xrange[None, None, :], axis=-1)
 
+            # Void absolute distance calibration
+            if self.is_void_data and self.with_void_calibration:
+                if field_calibration_params["sample_h"]:
+                    raise ValueError(
+                        "Cannot sample 'h' with void calibration.")
+
+                if self._is_fiducial_void:
+                    h_void = self._h_void
+                else:
+                    h_void = self._void_size_to_h_void(
+                        field_calibration_params["void_size"])
+
+                # DM_void_calibrator is a physical distance, so convert it to
+                # Mpc / h since the distance modulus grid is in Mpc / h.
+                DM = self.DM_void_calibrator + 5 * jnp.log10(h_void)
+                e_DM = self.e_DM_void_calibrator
+
+                # Calculate the calibration likelihood, shape is
+                # `(ndata, nxrange)`.
+                ll_void_calibration = Normal(
+                    self.mu_xrange[None, :], e_DM[:, None]).log_prob(DM[:, None])  # noqa
+
+                # Make sure the shape is compatible
+                ll_void_calibration = ll_void_calibration[None, ...]
+            else:
+                ll_void_calibration = 0.
+
             czobs = predict_czobs(
                 self.z_xrange[None, None, :],
                 los_velocity,
@@ -1100,6 +1143,7 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             # Shape remains (nsims, ndata, nxrange)
             log_ptilde += Normal(czobs, e_cz[None, :, None]).log_prob(
                 self.cz_obs[None, :, None])
+            log_ptilde += ll_void_calibration
 
             # Integrate over the radial distance. Shape: (nsims, ndata)
             ll = ln_simpson(
