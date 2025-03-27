@@ -24,8 +24,15 @@ from .utils import (center_of_mass, delta2ncells, number_counts,                
                     heliocentric_to_cmb, calculate_acl, harmonic_evidence,      # noqa
                     laplace_evidence, dict_samples_to_array,                    # noqa
                     galactic_to_radec, galactic_to_radec_cartesian)             # noqa
-from .params import (paths_glamdring, simname2boxsize, simname2Omega_m,         # noqa
-                     snap2redshift, simname2icresolution, simname2observerpos)  # noqa
+from .params import (                                                           # noqa
+    paths_glamdring,                                                            # noqa
+    paths_rusty,                                                                # noqa
+    simname2boxsize,                                                            # noqa
+    simname2Omega_m,                                                            # noqa
+    snap2redshift,                                                              # noqa
+    simname2icresolution,                                                       # noqa
+    simname2observerpos,                                                        # noqa
+    )
 
 
 ###############################################################################
