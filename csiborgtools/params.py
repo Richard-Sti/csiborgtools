@@ -71,6 +71,7 @@ def simname2boxsize(simname):
          "csiborg2_varysmall": 676.6,
          "csiborg2_random": 676.6,
          "csiborg2X": 681.1,
+         "csiborg3": 681.1,
          "manticore_2MPP_N128_DES_V1": 681.1,
          "manticore_2MPP_MULTIBIN_N128_DES_V1": 512,
          "manticore_2MPP_MULTIBIN_N128_DES_V2": 681,
@@ -101,6 +102,7 @@ def simname2Omega_m(simname):
          "csiborg2_random": 0.3111,
          "csiborg2_varysmall": 0.3111,
          "csiborg2X": 0.306,
+         "csiborg3": 0.306,
          "manticore_2MPP_N128_DES_V1": 0.306,
          "manticore_2MPP_MULTIBIN_N128_DES_V1": 0.306,
          "manticore_2MPP_MULTIBIN_N128_DES_V2": 0.306,
@@ -136,6 +138,7 @@ def simname2icresolution(simname):
          "csiborg2_varysmall": 676.6 / 256,
          "csiborg2_random": 676.6 / 256,
          "csiborg2X": 681.1 / 128,
+         "csiborg3": 681.1 / 256,
          "manticore_2MPP_N128_DES_V1": 681.1 / 128,
          "manticore_2MPP_MULTIBIN_N128_DES_V1": 512 / 128,
          "manticore_2MPP_MULTIBIN_N128_DES_V2": 681 / 128,
@@ -174,6 +177,8 @@ paths_glamdring = {
     "csiborg2_main_srcdir": "/mnt/extraspace/rstiskalek/csiborg2_main",
     "csiborg2_varysmall_srcdir": "/mnt/extraspace/rstiskalek/csiborg2_varysmall",   # noqa
     "csiborg2_random_srcdir": "/mnt/extraspace/rstiskalek/csiborg2_random",
+    "csiborg3_srcdir": None,
+    "manticore_dir": "/mnt/extraspace/rstiskalek/MANTICORE",
     "postdir": "/mnt/extraspace/rstiskalek/csiborg_postprocessing/",
     "quijote_dir": "/mnt/extraspace/rstiskalek/quijote",
     "borg1_dir": "/mnt/users/hdesmond/BORG_final",
@@ -181,5 +186,21 @@ paths_glamdring = {
     "tng300_1_dir": "/mnt/extraspace/rstiskalek/TNG300-1/",
     "aux_cat_dir": "/mnt/extraspace/rstiskalek/catalogs",
     "CF4_dir": "/mnt/extraspace/rstiskalek/catalogs/CF4/CF4gp_23avr24_256-z008_test_100_realizations",  # noqa
-    "manticore_dir": "/mnt/extraspace/rstiskalek/MANTICORE",
+    }
+
+
+paths_rusty = {
+    "csiborg1_srcdir": None,
+    "csiborg2_main_srcdir": None,
+    "csiborg2_varysmall_srcdir": None,
+    "csiborg2_random_srcdir": None,
+    "csiborg3_srcdir": "/mnt/home/rstiskalek/ceph/CSiBORG/2MPP_MULTIBIN_N256_DES_V2/resimulations",  # noqa
+    "manticore_dir": None,
+    "postdir": None,
+    "quijote_dir": None,
+    "borg1_dir": None,
+    "borg2_dir": None,
+    "tng300_1_dir": None,
+    "aux_cat_dir": None,
+    "CF4_dir": None,
     }
