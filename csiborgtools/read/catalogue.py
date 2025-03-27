@@ -1217,6 +1217,7 @@ class CSiBORG3Catalogue(BaseCatalogue):
         if len(files) == 0:
             raise FileNotFoundError(
                 f"No files found for snapshot {self.nsnap}.")
+        files = sorted(files, key=lambda x: int(x.split(".")[-2]))
 
         fprint(f"opening {len(files)} blocks for snapshot `{self.nsnap}`.")
         for i, fpath in enumerate(tqdm(files, desc="Reading blocks")):
@@ -1262,6 +1263,8 @@ class CSiBORG3Catalogue(BaseCatalogue):
 
     @property
     def lagpatch_coordinates(self):
+        raise RuntimeError("Lagrangian patch information is not available for "
+                           "CSiBORG3 haloes.")
         if self.nsnap != 99:
             raise RuntimeError("Lagrangian patch information is only "
                                "available for haloes defined at the final "
@@ -1277,6 +1280,8 @@ class CSiBORG3Catalogue(BaseCatalogue):
 
     @property
     def lagpatch_radius(self):
+        raise RuntimeError("Lagrangian patch information is not available for "
+                           "CSiBORG3 haloes.")
         if self.nsnap != 99:
             raise RuntimeError("Lagrangian patch information is only "
                                "available for haloes defined at the final "

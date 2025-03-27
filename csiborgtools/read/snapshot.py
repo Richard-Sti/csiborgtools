@@ -646,6 +646,7 @@ class CSiBORG3Snapshot(BaseSnapshot):
         if len(files) == 0:
             raise FileNotFoundError(
                 f"No files found for snapshot {self.nsnap}.")
+        files = sorted(files, key=lambda x: int(x.split(".")[-2]))
 
         fprint(f"opening {len(files)} blocks for snapshot `{self.nsnap}`.")
         for n, file in enumerate(tqdm(files, desc="Reading block")):
