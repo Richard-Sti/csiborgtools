@@ -19,9 +19,7 @@ corrrections necessary when performing the fast Fourier transform.
 """
 from abc import ABC
 
-import MAS_library as MASL
 import numpy
-import Pk_library as PKL
 from numba import jit
 from tqdm import trange
 
@@ -118,6 +116,12 @@ class DensityField(BaseField):
         [2] https://github.com/franciscovillaescusa/Pylians3/blob/master
             /library/MAS_library/MAS_library.pyx
         """
+        try:
+            import MAS_library as MASL
+        except ImportError as e:
+            raise ImportError("MAS_library is required for this function. "
+                              "Must install `Pylians`.") from e
+
         rho = numpy.zeros((grid, grid, grid), dtype=numpy.float32)
 
         nparts = pos.shape[0]
@@ -229,6 +233,12 @@ class VelocityField(BaseField):
         [2] https://github.com/franciscovillaescusa/Pylians3/blob/master
             /library/MAS_library/MAS_library.pyx
         """
+        try:
+            import MAS_library as MASL
+        except ImportError as e:
+            raise ImportError("MAS_library is required for this function. "
+                              "Must install `Pylians`.") from e
+
         rho_vel = [numpy.zeros((grid, grid, grid), dtype=numpy.float32),
                    numpy.zeros((grid, grid, grid), dtype=numpy.float32),
                    numpy.zeros((grid, grid, grid), dtype=numpy.float32),
@@ -348,6 +358,12 @@ class PotentialField(BaseField):
         -------
         3-dimensional array of shape `(grid, grid, grid)`.
         """
+        try:
+            import MAS_library as MASL
+        except ImportError as e:
+            raise ImportError("MAS_library is required for this function. "
+                              "Must install `Pylians`.") from e
+
         return MASL.potential(overdensity_field, omega_m, aexp, self.MAS)
 
 
@@ -421,9 +437,9 @@ class TidalTensorField(BaseField):
         overdensity_field : 3-dimensional array of shape `(grid, grid, grid)`
             The overdensity field.
         omega_m : float
-            TODO
+            Matter density parameter.
         aexp : float
-            TODO
+            Simulation scale factor
 
         Returns
         -------
@@ -431,6 +447,12 @@ class TidalTensorField(BaseField):
             Tidal tensor object, whose attributes `tidal_tensor.Tij` contain
             the relevant tensor components.
         """
+        try:
+            import MAS_library as MASL
+        except ImportError as e:
+            raise ImportError("MAS_library is required for this function. "
+                              "Must install `Pylians`.") from e
+
         return MASL.tidal_tensor(overdensity_field, omega_m, aexp, self.MAS)
 
 
@@ -542,6 +564,13 @@ def power_spectrum(delta, boxsize, MAS, threads=1, verbose=True):
     """
     # Axis along which compute the quadrupole and hexadecapole, is not used
     # for the monopole that we calculat here.
+
+    try:
+        import Pk_library as PKL
+    except ImportError as e:
+        raise ImportError("Pk_library is required for this function. "
+                          "Must install `Pylians`.") from e
+
     axis = 2
     Pk = PKL.Pk(delta, boxsize, axis, MAS, threads, verbose)
     return Pk.k3D, Pk.Pk[:, 0]
