@@ -1220,7 +1220,6 @@ class CSiBORG3Catalogue(BaseCatalogue):
 
         fprint(f"opening {len(files)} blocks for snapshot `{self.nsnap}`.")
         for i, fpath in enumerate(tqdm(files, desc="Reading blocks")):
-            print(fpath)
             with File(fpath, 'r') as f:
                 grp = f["Group"]
                 if kind not in grp.keys():
