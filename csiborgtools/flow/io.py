@@ -13,17 +13,17 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
+from warnings import warn
+
 import numpy as np
+import pandas as pd
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
 from h5py import File
-from warnings import warn
 
 from ..params import SPEED_OF_LIGHT, simname2Omega_m
 from ..utils import fprint, radec_to_galactic, radec_to_supergalactic
 from .flow_model import PV_LogLikelihood
-# from .void_model import load_void_size_variation, mock_void, select_void_h
-from ..read import read_pantheonplus_data
 
 H0 = 100  # km / s / Mpc
 
@@ -63,7 +63,7 @@ class DataLoader:
         self._is_no_field = "no_field" in simname
 
         fprint("reading the catalogue,", verbose=verbose)
-        self._cat, self._absmag_calibration = self._read_catalogue(
+        self._cat, self._absmag_calibration, self._covmat = self._read_catalogue(    # noqa
             catalogue, catalogue_fpath)
         self._catname = catalogue
 
@@ -239,6 +239,7 @@ class DataLoader:
 
     def _read_catalogue(self, catalogue, catalogue_fpath):
         absmag_calibration = None
+        covmat = None
 
         if catalogue == "A2":
             with File(catalogue_fpath, 'r') as f:
@@ -256,15 +257,13 @@ class DataLoader:
                 for key in grp.keys():
                     arr[key] = grp[key][:]
         elif "Pantheon+" in catalogue:
-            fname_covmat = catalogue_fpath.replace(".dat", "_STAT+SYS.cov")
-            fname_pecvel_covmat = catalogue_fpath.replace(".dat", "_122221_VPEC.cov")  # noqa
-
-            arr, C, Csysvpec = read_pantheonplus_data(
-                catalogue_fpath, fname_covmat, fname_pecvel_covmat)
-
-            self._covmat = C
-            self._covmat_sysvpec = Csysvpec
-
+            arr = np.genfromtxt(
+                catalogue_fpath, names=True, dtype=None, encoding=None)
+            covmat = pd.read_csv(
+                catalogue_fpath.replace(".dat", "_STAT+SYS_noPV.cov"),
+                header=None)
+            size = int(covmat[0][0])
+            covmat = np.reshape(covmat.values[1:], (size, size))
         elif "CB2_" in catalogue:
             with File(catalogue_fpath, 'r') as f:
                 dtype = [(key, np.float32) for key in f.keys()]
@@ -301,6 +300,23 @@ class DataLoader:
                         continue
 
                     arr[key] = f[key][:]
+        elif catalogue == "CF4_HQ_Federico":
+            with open(catalogue_fpath, "r") as f:
+                cols = f.readline().split()
+
+            data = np.genfromtxt(catalogue_fpath, skip_header=1)
+            RA = data[:, cols.index("RA") + 1]
+            DEC = data[:, cols.index("Dec") + 1]
+            Vcmb = data[:, cols.index("Vcmb") + 1]
+            zcmb = Vcmb / SPEED_OF_LIGHT
+
+            dtype = [("RA", np.float32), ("DEC", np.float32),
+                     ("Vcmb", np.float32), ("z_CMB", np.float32)]
+            arr = np.empty(len(RA), dtype=dtype)
+            arr["RA"] = RA
+            arr["DEC"] = DEC
+            arr["Vcmb"] = Vcmb
+            arr["z_CMB"] = zcmb
         elif catalogue in ["CF4_GroupAll"] or "CF4_TFR" in catalogue:
             with File(catalogue_fpath, 'r') as f:
                 dtype = [(key, np.float32) for key in f.keys()]
@@ -335,7 +351,7 @@ class DataLoader:
         else:
             raise ValueError(f"Unknown catalogue: `{catalogue}`.")
 
-        return arr, absmag_calibration
+        return arr, absmag_calibration, covmat
 
 
 ###############################################################################
@@ -424,7 +440,8 @@ def mask_fields(density, velocity, mask, return_none):
 
 def get_model(loader, zcmb_min=None, zcmb_max=None, selection=None,
               wo_num_dist_marginalisation=False, absolute_calibration=None,
-              calibration_fpath=None, void_kwargs=None, dust_model=None,
+              calibration_fpath=None, void_kwargs=None,
+              load_CPRL_for_void=False, dust_model=None,
               remove_CF4_outliers=None):
     """
     Get a model and extract the relevant data from the loader.
@@ -449,6 +466,9 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, selection=None,
         Path to the file containing the absolute calibration of CF4 TFR.
     void_kwargs : dict, optional
         Keyword arguments for the void model.
+    load_CPRL_for_void : bool, optional
+        Whether to load the CPRL data for the void model to get absolute
+        calibration.
     dust_model : str, optional
         Choice of a dust model, currently only supported for CF4 TFR WISE
         bands. Can provide comma-separeted dust maps, in which case they dust
@@ -519,20 +539,21 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, selection=None,
 
         RA, dec, zCMB, e_zCMB, m_b = (loader.cat[k] for k in keys)
 
-        covmat = loader._covmat - loader._covmat_sysvpec
+        fprint("setting the magnitude error to a fiducial value of 0.05.")
+        e_mag = 0.05 * np.ones_like(m_b)
+
+        covmat = loader._covmat
 
         mask = np.ones(len(RA), dtype=bool)
         mask &= (zCMB < zcmb_max) & (zCMB > zcmb_min)
         covmat = covmat[mask][:, mask]
 
-        dmu = find_covmat_regul(covmat)
-        fprint(f"regularising the covariance matrix with `{dmu}`.")
-        covmat += dmu * np.eye(covmat.shape[0])
-
         if not np.all(np.linalg.eigvals(covmat) > 0):
             raise ValueError("The covariance matrix is not positive definite.")
 
-        calibration_params = {"mag": m_b[mask], "mag_covmat": covmat}
+        calibration_params = {"mag": m_b[mask],
+                              "e_mag": e_mag[mask],
+                              "mag_covmat": covmat}
         los_overdensity, los_velocity = mask_fields(
             los_overdensity, los_velocity, mask, void_kwargs is not None)
 
@@ -729,6 +750,42 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, selection=None,
             calibration_params["counts_calibrators"] = np.sum(m, axis=0)
             calibration_params["any_calibrator"] = np.any(m, axis=0)
 
+        if load_CPRL_for_void:
+            warn("Using local paths to retrieve the calibration files.",
+                 RuntimeWarning)
+            fname = "/mnt/extraspace/rstiskalek/catalogs/PV/CF4/CF4_cepheids_processed.npy"  # noqa
+            CF4_cepheids = np.load(fname, )
+            DM_cepheids = np.full_like(mag, np.nan)
+            e_DM_cepheids = np.full_like(mag, np.nan)
+            for i, pgc_i in enumerate(pgc):
+                if pgc_i in CF4_cepheids["pgc"]:
+                    j = np.where(CF4_cepheids["pgc"] == pgc_i)[0][0]
+                    DM_cepheids[i] = CF4_cepheids["DM21"][j]
+                    e_DM_cepheids[i] = CF4_cepheids["e_DM"][j]
+            fprint("as an initial attempt matched by the 1PGC number "
+                   f"{np.sum(np.isfinite(DM_cepheids))} cepheids to the CF4 "
+                   "TFR samples")
+
+            DM_cepheids = DM_cepheids[mask]
+            e_DM_cepheids = e_DM_cepheids[mask]
+
+            is_void_calibrator = np.isfinite(DM_cepheids)
+            fprint(f"finally, only {np.sum(is_void_calibrator)} cepheids "
+                   "were matched to the selected CF4 TFR subsample.")
+
+            # Set the uncertanties very large to avoid having to do masking.
+            DM_cepheids[~is_void_calibrator] = 30.
+            e_DM_cepheids[~is_void_calibrator] = 1000
+
+            assert np.all(np.isfinite(DM_cepheids))
+
+            void_calibration = {
+                "DM_void_calibrator": DM_cepheids,
+                "e_DM_void_calibrator": e_DM_cepheids,
+                "is_void_calibrator": is_void_calibrator}
+        else:
+            void_calibration = None
+
         los_overdensity, los_velocity = mask_fields(
             los_overdensity, los_velocity, mask, void_kwargs is not None)
 
@@ -737,6 +794,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, selection=None,
             RA[mask], dec[mask], z_obs[mask], e_z[mask], calibration_params,
             selection, loader.rdist, loader._Omega_m, "TFR", name=kind,
             void_kwargs=void_kwargs,
+            void_calibration=void_calibration,
             with_inhomogeneous_malmquist=with_inhomogeneous_malmquist,
             wo_num_dist_marginalisation=wo_num_dist_marginalisation,
             dust_model=dust_model)
@@ -863,32 +921,3 @@ def read_dustmap(RA, dec, model):
         raise ValueError(f"Unsupported model: `{model}`.")
 
     return np.asarray(query(coords), dtype=np.float32)
-
-
-###############################################################################
-#                         Supplementary functions                             #
-###############################################################################
-
-
-def find_covmat_regul(C, dx_init=0, dx_step=0.001, dx_max=0.15, verbose=True):
-    """
-    Find a regularisation term for a covariance matrix `C` (so that all
-    eigenvalues are positive) by adding a constant diagonal term.
-    """
-    dx = dx_init
-
-    if verbose:
-        print(f"Finding a regularisation term for C with shape {C.shape}...")
-
-    while True:
-        eigval = np.linalg.eigvals(C + np.diag([dx] * C.shape[0]))
-
-        if np.all(eigval.real > 0):
-            break
-        else:
-            dx += dx_step
-
-        if dx > dx_max:
-            raise ValueError("No valid solution found.")
-
-    return dx

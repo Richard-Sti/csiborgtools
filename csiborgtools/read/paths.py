@@ -739,6 +739,7 @@ class Paths:
         return join(fdir, f"los_{catalogue}_{simname}.hdf5")
 
     def flow_validation(self, fdir, simname, catalogue, inference_method,
+                        fdir_subfolder,
                         smooth=None, nsim=None, zcmb_min=None, zcmb_max=None,
                         sample_alpha=False, sample_beta=False, no_Vext=None,
                         sample_Vmono=False, sample_mag_dipole=False,
@@ -756,6 +757,10 @@ class Paths:
 
         if smooth == 0:
             smooth = None
+
+        if fdir_subfolder is not None:
+            fdir = join(fdir, fdir_subfolder)
+            try_create_directory(fdir)
 
         fname = f"samples_{simname}_{catalogue}_{inference_method}_"
 

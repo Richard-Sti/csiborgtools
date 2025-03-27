@@ -83,7 +83,7 @@ set_platform(ARGS.device)                                                       
 set_host_device_count(ARGS.ndevice)                                             # noqa
 
 import sys                                                                      # noqa
-from os.path import join                                                        # noqa
+from os.path import exists, join                                                # noqa
 
 import csiborgtools                                                             # noqa
 import jax                                                                      # noqa
@@ -128,7 +128,7 @@ def get_models(ksim, get_model_kwargs, selection, void_kwargs,
                      "SFI_gals_masked"]:
             fpath = join(folder, "PV_compilation.hdf5")
         elif "Pantheon+" in cat:
-            fpath = join(folder, "PV", "Pantheon+SH0ES.dat")
+            fpath = join(folder, "PV", "Pantheon+SH0ES_zsel.dat")
         elif "Carrick2MTFmock" in cat:
             ki = cat.split("_")[-1]
             fpath =f"/mnt/extraspace/rstiskalek/csiborg_postprocessing/flow_mock/Carrick2MTFmock_seed{ki}.hdf5"  # noqa
@@ -182,12 +182,16 @@ def get_laplace_evidence(samples, log_posterior):
 
 def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
               calculate_harmonic, calculate_laplace, nchains_harmonic,
-              epoch_num, kwargs_print, fname_kwargs):
+              epoch_num, kwargs_print, fname_kwargs, skip_if_exists=False):
     """Run the NumPyro model and save output to a file."""
     paths = csiborgtools.read.Paths(**csiborgtools.paths_glamdring)
 
     fname = paths.flow_validation(out_folder, ARGS.simname, ARGS.catalogue,
                                   **fname_kwargs)
+
+    if skip_if_exists and exists(fname):
+        print(f"Quitting as `{fname}` already exists.")
+        quit()
 
     try:
         ndata = sum(model.ndata for model in model_kwargs["models"])
@@ -391,16 +395,18 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 2500
-    nburn = 1000
+    nsteps = 10_000
+    nburn = 1500
     zcmb_min = None
-    zcmb_max = 0.05
+    zcmb_max = 0.065
+    fdir_subfolder = "void_calibrated"
+    skip_if_exists = False
 
     nchains_harmonic = 10
     num_epochs = 50
     inference_method = "mike"
     sample_alpha = False if ("no_field" in ARGS.simname or "IndranilVoid" in ARGS.simname) else True  # noqa
-    sample_beta = None
+    sample_beta = True
     sample_h_e_int = False
     no_Vext = None
     Vext_prior_kind = None
@@ -411,8 +417,9 @@ if __name__ == "__main__":
     Rdust_fixed = None  # Default for W1 is 0.186 and for W2 = 0.123
     wo_num_dist_marginalisation = False
     absolute_calibration = None
-    which_void_size_run = "zoom"
-    remove_CF4_outliers = False
+    which_void_size_run = "coarse"
+    remove_CF4_outliers = True
+    load_CPRL_for_void = True
 
     if ARGS.aux_name != "none":
         if ARGS.aux_type == "int":
@@ -433,6 +440,10 @@ if __name__ == "__main__":
     calculate_harmonic = (False if (inference_method == "bayes") else True) and (not wo_num_dist_marginalisation)  # noqa
     calculate_laplace = calculate_harmonic
     sample_h = True if absolute_calibration is not None else False
+
+    if load_CPRL_for_void and not any("CF4_TFR" in c for c in ARGS.catalogue):
+        raise ValueError("The CPRL calibration can only be loaded for the CF4 "
+                         "catalogue.")
 
     if not sample_mag_dipole:
         mag_dipole_prior_kind = None
@@ -461,7 +472,8 @@ if __name__ == "__main__":
         if "Carrick2MTFmock" in catalogue:
             sample_alpha = False
 
-    fname_kwargs = {"inference_method": inference_method,
+    fname_kwargs = {"fdir_subfolder": fdir_subfolder,
+                    "inference_method": inference_method,
                     "smooth": ARGS.ksmooth,
                     "nsim": ARGS.ksim,
                     "zcmb_min": zcmb_min,
@@ -484,6 +496,7 @@ if __name__ == "__main__":
     main_params = {"nsteps": nsteps, "nburn": nburn,
                    "zcmb_min": zcmb_min,
                    "zcmb_max": zcmb_max,
+                   "skip_if_exists": skip_if_exists,
                    "calculate_harmonic": calculate_harmonic,
                    "calculate_laplace": calculate_laplace,
                    "nchains_harmonic": nchains_harmonic,
@@ -495,6 +508,8 @@ if __name__ == "__main__":
                    "sample_h": sample_h,
                    "dust_model": dust_model,
                    "Rdust_fixed": Rdust_fixed,
+                   "remove_CF4_outliers": remove_CF4_outliers,
+                   "load_CPRL_for_void": load_CPRL_for_void,
                    }
     print_variables(main_params.keys(), main_params.values())
 
@@ -521,8 +536,12 @@ if __name__ == "__main__":
 
         # This is the radial distance over which to intergrate along the LOS.
         # 250 Mpc / h should be sufficient (plus the grid only extends to
-        # 400 Mpc)
-        rdist = np.arange(0, 250, 0.5)
+        # 400 Mpc). The grid is finer near the origin in case of calibration.
+        rdist = np.hstack([
+            np.arange(0, 10, 0.05),
+            np.arange(10, 30, 0.1),
+            np.arange(30, 250, 0.5)])
+        rdist = np.unique(rdist)  # Force remove duplicates
 
         # Create the interpolator of void size to void Hubble parameter
         void_size, h_void = csiborgtools.flow.select_void_h(
@@ -531,7 +550,7 @@ if __name__ == "__main__":
         # Check if the mapping is in H0 or h and sizes in percent
         void_size_to_h_void = Interpolator1D(
             void_size / 100, h_void, method="linear",
-            extrap=(h_void[0], h_void[-1]))
+            extrap=(float(h_void[0]), float(h_void[-1])))
 
         is_fiducial = "IndranilVoidSizeVar" not in ARGS.simname
 
@@ -611,6 +630,7 @@ if __name__ == "__main__":
         "calibration_fpath": "/mnt/extraspace/rstiskalek/catalogs/PV/CF4/CF4_TF_calibration.hdf5",  # noqa
         "dust_model": dust_model,
         "remove_CF4_outliers": remove_CF4_outliers,
+        "load_CPRL_for_void": load_CPRL_for_void,
         }
 
     # In case we want to run multiple simulations independently.
@@ -637,4 +657,5 @@ if __name__ == "__main__":
 
         run_model(model, nsteps, nburn, model_kwargs, out_folder,
                   calculate_harmonic, calculate_laplace, nchains_harmonic,
-                  num_epochs, kwargs_print, fname_kwargs)
+                  num_epochs, kwargs_print, fname_kwargs,
+                  skip_if_exists=skip_if_exists)

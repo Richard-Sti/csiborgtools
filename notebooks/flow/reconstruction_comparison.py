@@ -305,6 +305,12 @@ def get_some_samples(fname, labels):
     with File(fname, 'r') as f:
         grp = f["samples"]
 
+        if "Vext_cartesian" in labels:
+            samples["Vext"] = csiborgtools.radec_to_cartesian(np.asarray([
+                grp["Vext_mag"][...],
+                grp["Vext_phi"][...],
+                np.rad2deg(np.pi / 2 - np.arccos(grp["Vext_cos_theta"][...]))]).T)  # noqa
+
         if "Vext" in labels:
             samples["Vmag"] = grp["Vext_mag"][...]
 

@@ -23,5 +23,5 @@ from .snapshot import (CSiBORG1Snapshot, CSiBORG2Snapshot, CSiBORG2XSnapshot,   
                        CLONESField, CF4Field)                                   # noqa
 from .obs import (SDSS, MCXCClusters, PlanckClusters, TwoMPPGalaxies,           # noqa
                   TwoMPPGroups, ObservedCluster, match_array_to_no_masking,     # noqa
-                  cols_to_structured, read_pantheonplus_data)                   # noqa
+                  cols_to_structured)                                           # noqa
 from .paths import Paths                                                        # noqa
