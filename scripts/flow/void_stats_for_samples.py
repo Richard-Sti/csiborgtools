@@ -48,10 +48,15 @@ def read_void_info(fname):
         else:
             void_size = np.ones_like(rLG)
 
-    return void_size, rLG, Vext
+        if "beta" in grp:
+            beta = grp["beta"][...]
+        else:
+            beta = np.ones_like(rLG)
+
+    return void_size, rLG, Vext, beta
 
 
-def stats_per_sample(void_size, rLG, Vext, void_data):
+def stats_per_sample(void_size, rLG, Vext, beta, void_data):
     is_negative_Roffset = rLG < 0
 
     i = np.argmin(np.abs(void_size - void_data["sizes"]))
@@ -70,7 +75,7 @@ def stats_per_sample(void_size, rLG, Vext, void_data):
         void_data["ngrid"], void_data["r_grid"], void_data["phi_grid"],
         Vext, is_negative_Roffset, verbose=False)
 
-    return rho, vmono, vbulk
+    return rho, beta * vmono, beta * vbulk
 
 
 def main(fname, profile, njobs=1):
@@ -98,7 +103,7 @@ def main(fname, profile, njobs=1):
                  "r_grid": r_grid, "phi_grid": phi_grid, "r": r,
                  "ngrid": ngrid}
 
-    void_size, rLG, Vext = read_void_info(fname)
+    void_size, rLG, Vext, beta = read_void_info(fname)
 
     # Allocate arrays
     rho = np.full((len(rLG), len(r)), np.nan)
@@ -112,7 +117,7 @@ def main(fname, profile, njobs=1):
     print(f"Computing with {njobs} jobs.")
     results = Parallel(n_jobs=args.njobs)(
         delayed(stats_per_sample)(
-            void_size[i], rLG[i], Vext[i], void_data)
+            void_size[i], rLG[i], Vext[i], beta[i], void_data)
         for i in trange(len(rLG), total=len(rLG), desc="Samples",
                         unit="sample"))
 
