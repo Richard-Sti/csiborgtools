@@ -50,6 +50,8 @@ class Paths:
         Path to the CSiBORG2 random simulation directory.
     csiborg2_varysmall_srcdir : str
         Path to the CSiBORG2 varysmall simulation directory.
+    csiborg3_srcdir : str
+        Path to the CSiBORG3 simulation directory.
     manticore_srcdir : str
         Path to the MANTICORE simulation directory.
     postdir : str
@@ -72,6 +74,7 @@ class Paths:
                  csiborg2_main_srcdir,
                  csiborg2_random_srcdir,
                  csiborg2_varysmall_srcdir,
+                 csiborg3_srcdir,
                  manticore_dir,
                  postdir,
                  quijote_dir,
@@ -85,6 +88,7 @@ class Paths:
         self.csiborg2_main_srcdir = csiborg2_main_srcdir
         self.csiborg2_random_srcdir = csiborg2_random_srcdir
         self.csiborg2_varysmall_srcdir = csiborg2_varysmall_srcdir
+        self.csiborg3_srcdir = csiborg3_srcdir
         self.manticore_dir = manticore_dir
         self.quijote_dir = quijote_dir
         self.borg1_dir = borg1_dir
@@ -194,6 +198,12 @@ class Paths:
             snaps = sorted(snaps)
         elif simname == "csiborg2X":
             raise ValueError("Snapshots not available for CSiBORG2X.")
+        elif simname == "csiborg3":
+            snaps = glob(join(self.csiborg3_srcdir,
+                              f"mcmc_{nsim}", "output", "snapdir_*"))
+            snaps = [int(search(r'snapdir_(\d+)', f).group(1))
+                     for f in snaps]
+            snaps = sorted(snaps)
         elif "manticore" in simname:
             raise ValueError("Snapshots not available for MANTICORE.")
         elif simname == "quijote":
@@ -227,6 +237,11 @@ class Paths:
         elif simname == "csiborg2X":
             raise ValueError("Snapshots not available for CSiBORG2X based on "
                              "Stephen's ICs.")
+        elif simname == "csiborg3":
+            fpath = join(self.csiborg3_srcdir, f"mcmc_{nsim}", "output",
+                         f"snapdir_{str(nsnap).zfill(3)}",
+                         f"snapshot_{str(nsnap).zfill(3)}.hdf5")
+
         elif "manticore" in simname:
             fdir = self.manticore_dir
             if simname == "manticore_2MPP_N128_DES_V1":
@@ -272,6 +287,10 @@ class Paths:
         elif simname == "csiborg2_varysmall":
             return join(self.csiborg2_varysmall_srcdir,
                         f"chain_16417_{str(nsim).zfill(3)}", "output",
+                        f"fof_subhalo_tab_{str(nsnap).zfill(3)}.hdf5")
+        elif simname == "csiborg3":
+            return join(self.csiborg3_srcdir, f"mcmc_{nsim}", "output",
+                        f"groups_{str(nsnap).zfill(3)}",
                         f"fof_subhalo_tab_{str(nsnap).zfill(3)}.hdf5")
         elif simname == "csiborg2X":
             raise ValueError("Snapshots not available for CSiBORG2X.")
