@@ -23,6 +23,9 @@ from os.path import join
 import numpy as np
 from astropy.io import fits
 from h5py import File
+from glob import glob
+from gc import collect
+from tqdm import tqdm
 
 from ..field import radial_velocity
 from ..params import paths_glamdring, simname2boxsize, simname2Omega_m
@@ -605,8 +608,174 @@ class CSiBORG2XSnapshot(BaseSnapshot):
         raise NotImplementedError("Recovering halo offsets is not implemented"
                                   "for CSiBORG2X.")
 
+
 ###############################################################################
-#                          CSiBORG2 snapshot class                            #
+#                         CSiBORG3 snapshot class                            #
+###############################################################################
+
+
+class CSiBORG3Snapshot(BaseSnapshot):
+    """
+    CSiBORG3 snapshot from Gadget4 resimulations of the Manticore ICs, version
+    2MPP_MULTIBIN_N128_DES_V2.
+
+    Parameters
+    ----------
+    nsim : int
+        Simulation index.
+    nsnap : int
+        Snapshot index.
+    paths : Paths, optional
+        Paths object.
+    keep_snapshot_open : bool, optional
+        Whether to keep the snapshot file open when reading halo particles.
+        This is useful for repeated access to the snapshot.
+    """
+    def __init__(self, nsim, nsnap, paths=None, keep_snapshot_open=False):
+        flip_xz = True
+        super().__init__(nsim, nsnap, paths, keep_snapshot_open, flip_xz)
+        simname = "csiborg3"
+
+        fpath = self.paths.snapshot(self.nsnap, self.nsim, simname)
+
+        self._snapshot_path = fpath
+        self._simname = simname
+
+    def _get_particles(self, kind, high_resolution_only=False):
+        files = glob(self._snapshot_path.replace(".hdf5", ".*.hdf5"))
+        if len(files) == 0:
+            raise FileNotFoundError(
+                f"No files found for snapshot {self.nsnap}.")
+
+        fprint(f"opening {len(files)} blocks for snapshot `{self.nsnap}`.")
+        for n, file in enumerate(tqdm(files, desc="Reading block")):
+            with File(file, "r") as f:
+                if kind == "Masses":
+                    npart = f["Header"].attrs["NumPart_ThisFile"][1]
+                    x = np.ones(npart, dtype=np.float32)
+                    x *= f["Header"].attrs["MassTable"][1]
+                else:
+                    x = f[f"PartType1/{kind}"][...]
+
+                if not high_resolution_only:
+                    if x.ndim == 1:
+                        x = np.hstack([x, f[f"PartType5/{kind}"][...]])
+                    else:
+                        x = np.vstack([x, f[f"PartType5/{kind}"][...]])
+
+                if n == 0:
+                    xs = np.copy(x)
+                else:
+                    if x.ndim == 1:
+                        xs = np.hstack([xs, x])
+                    else:
+                        xs = np.vstack([xs, x])
+
+                del x
+                collect()
+
+        if self.flip_xz and kind in ["Coordinates", "Velocities"]:
+            xs[:, [0, 2]] = xs[:, [2, 0]]
+
+        return xs
+
+    def coordinates(self, high_resolution_only=False):
+        return self._get_particles("Coordinates", high_resolution_only)
+
+    def velocities(self, high_resolution_only=False):
+        return self._get_particles("Velocities", high_resolution_only)
+
+    def masses(self, high_resolution_only=False):
+        return self._get_particles("Masses", high_resolution_only) * 1e10
+
+    def particle_ids(self, high_resolution_only=False):
+        return self._get_particles("ParticleIDs", high_resolution_only)
+
+    def _get_halo_particles(self, halo_id, kind, is_group):
+        raise NotImplementedError("Must add support for multiple blocks.")
+        if not is_group:
+            raise RuntimeError("While the CSiBORG2 subhalo catalogue exists, it is not currently implemented.")  # noqa
+
+        f = self.open_snapshot()
+        i1, j1 = self.hid2offset["type1"].get(halo_id, (None, None))
+        i5, j5 = self.hid2offset["type5"].get(halo_id, (None, None))
+
+        # Check if this is a valid halo
+        if i1 is None and i5 is None:
+            raise ValueError(f"Halo `{halo_id}` not found.")
+        if j1 - i1 == 0 and j5 - i5 == 0:
+            raise ValueError(f"Halo `{halo_id}` has no particles.")
+
+        if i1 is not None and j1 - i1 > 0:
+            if kind == "Masses":
+                x1 = np.ones(j1 - i1, dtype=np.float32)
+                x1 *= f["Header"].attrs["MassTable"][1]
+            else:
+                x1 = f[f"PartType1/{kind}"][i1:j1]
+
+                # Flipping of x- and z-axes
+                if self.flip_xz:
+                    x1[:, [0, 2]] = x1[:, [2, 0]]
+
+        if i5 is not None and j5 - i5 > 0:
+            x5 = f[f"PartType5/{kind}"][i5:j5]
+
+            # Flipping of x- and z-axes
+            if self.flip_xz and kind in ["Coordinates", "Velocities"]:
+                x5[:, [0, 2]] = x5[:, [2, 0]]
+
+        # Close the snapshot file if we don't want to keep it open
+        if not self.keep_snapshot_open:
+            self.close_snapshot()
+
+        # Are we stacking high-resolution and low-resolution particles?
+        if i5 is None or j5 - i5 == 0:
+            return x1
+
+        if i1 is None or j1 - i1 == 0:
+            return x5
+
+        if x1.ndim > 1:
+            x1 = np.vstack([x1, x5])
+        else:
+            x1 = np.hstack([x1, x5])
+
+        return x1
+
+    def halo_coordinates(self, halo_id, is_group=True):
+        return self._get_halo_particles(halo_id, "Coordinates", is_group)
+
+    def halo_velocities(self, halo_id, is_group=True):
+        return self._get_halo_particles(halo_id, "Velocities", is_group)
+
+    def halo_masses(self, halo_id, is_group=True):
+        return self._get_halo_particles(halo_id, "Masses", is_group) * 1e10
+
+    def _make_hid2offset(self):
+        raise NotImplementedError("Must add support for multiple blocks.")
+
+        catalogue_path = self.paths.snapshot_catalogue(
+            self.nsnap, self.nsim, "csiborg3")
+
+        with File(catalogue_path, "r") as f:
+
+            offset = f["Group/GroupOffsetType"][:, 1]
+            lenghts = f["Group/GroupLenType"][:, 1]
+            hid2offset_type1 = {i: (offset[i], offset[i] + lenghts[i])
+                                for i in range(len(offset))}
+
+            offset = f["Group/GroupOffsetType"][:, 5]
+            lenghts = f["Group/GroupLenType"][:, 5]
+            hid2offset_type5 = {i: (offset[i], offset[i] + lenghts[i])
+                                for i in range(len(offset))}
+
+        self._hid2offset = {"type1": hid2offset_type1,
+                            "type5": hid2offset_type5,
+                            }
+
+
+###############################################################################
+#                           Quijote snapshot class                            #
 ###############################################################################
 
 
