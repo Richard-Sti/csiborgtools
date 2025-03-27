@@ -42,23 +42,25 @@ else
 fi
 
 
-aux_name="none"
+aux_name="inference_method"
 aux_type="str"
 
 # Redshift of about 0.1 is ~ 300 Mpc / h
 
-# for simname in "IndranilVoid_exp" "IndranilVoid_gauss"; do
+# for simname in "no_field_300"; do
 # for simname in "manticore_2MPP_MULTIBIN_N256_DES_V2"; do
+
+
+# for simname in "IndranilVoid_gauss" "IndranilVoid_mb" "IndranilVoid_exp" "IndranilVoidSizeVar_exp" "IndranilVoidSizeVar_gauss" "IndranilVoidSizeVar_mb"; do
+for simname in "IndranilVoidSizeVar_exp" "IndranilVoidSizeVar_gauss" "IndranilVoidSizeVar_mb"; do
+# for simname in "IndranilVoidSizeVar_mb"; do
 # for simname in "IndranilVoidSizeVar_gauss"; do
-# for simname in "IndranilVoidSizeVar_exp" "IndranilVoidSizeVar_gauss"; do
-# for simname in "IndranilVoidSizeVar_exp"; do
+# for simname in "IndranilVoid_gauss" "IndranilVoid_mb" "IndranilVoid_exp"; do
+# for simname in "IndranilVoidSizeVar_exp" "IndranilVoidSizeVar_gauss" "IndranilVoidSizeVar_mb"; do
 # for simname in "IndranilVoid_exp"; do
 # for simname in "no_field_400"; do
 # for simname in "no_field_400"; do
-# for simname in "Carrick2015"; do
-# for simname in "Carrick2015"; do
-for simname in "Carrick2015"; do
-# for simname in "Carrick2015"; do
+# for simname in "no_field_300"; do
 # for simname in "IndranilVoidSizeVar_exp" "IndranilVoidSizeVar_gauss"; do
 # for simname in "manticore_2MPP_MULTIBIN_N256_DES_V2"; do
 # for simname in "CF4" "manticore_2MPP_MULTIBIN_N256_DES_V2"; do
@@ -67,7 +69,9 @@ for simname in "Carrick2015"; do
     # for catalogue in "LOSS" "Foundation" "2MTF" "SFI_gals" "CF4_TFR_i" "CF4_TFR_w1"; do
     # for catalogue in "2MTF"; do
 
-    for catalogue in "2MTF"; do
+    # for catalogue in "CF4_TFR_i,CF4_TFR_notSDSS_w1"; do
+    for catalogue in "CF4_TFR_w1"; do
+    # for catalogue in "Pantheon+"; do
     # for i in $(seq 0 1 100); do
     #     catalogue="Carrick2MTFmock_$i"
 
@@ -82,7 +86,8 @@ for simname in "Carrick2015"; do
         # for ksim in {0..500}; do
             for ksmooth in 0; do
             # for ksmooth in $(seq 0 1 33); do
-                for aux_arg in "0"; do
+                for aux_arg in "mike" "bayes"; do
+                # for aux_arg in "none"; do
                     pythoncm="$env $file --catalogue $catalogue --simname $simname --ksim $ksim --ksmooth $ksmooth --ndevice $ndevice --device $device --aux_name $aux_name --aux_arg $aux_arg --aux_type $aux_type"
 
                     if [ "$on_login" == "1" ]; then
