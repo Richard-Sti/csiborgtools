@@ -200,7 +200,7 @@ class Paths:
             raise ValueError("Snapshots not available for CSiBORG2X.")
         elif simname == "csiborg3":
             snaps = glob(join(self.csiborg3_srcdir,
-                              f"mcmc_{nsim}", "output", "snapdir_*"))
+                              f"step_{nsim}", "output", "snapdir_*"))
             snaps = [int(search(r'snapdir_(\d+)', f).group(1))
                      for f in snaps]
             snaps = sorted(snaps)
@@ -238,7 +238,7 @@ class Paths:
             raise ValueError("Snapshots not available for CSiBORG2X based on "
                              "Stephen's ICs.")
         elif simname == "csiborg3":
-            fpath = join(self.csiborg3_srcdir, f"mcmc_{nsim}", "output",
+            fpath = join(self.csiborg3_srcdir, f"step_{nsim}", "output",
                          f"snapdir_{str(nsnap).zfill(3)}",
                          f"snapshot_{str(nsnap).zfill(3)}.hdf5")
 
@@ -289,7 +289,7 @@ class Paths:
                         f"chain_16417_{str(nsim).zfill(3)}", "output",
                         f"fof_subhalo_tab_{str(nsnap).zfill(3)}.hdf5")
         elif simname == "csiborg3":
-            return join(self.csiborg3_srcdir, f"mcmc_{nsim}", "output",
+            return join(self.csiborg3_srcdir, f"step_{nsim}", "output",
                         f"groups_{str(nsnap).zfill(3)}",
                         f"fof_subhalo_tab_{str(nsnap).zfill(3)}.hdf5")
         elif simname == "csiborg2X":
