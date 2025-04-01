@@ -630,13 +630,19 @@ class CSiBORG3Snapshot(BaseSnapshot):
     keep_snapshot_open : bool, optional
         Whether to keep the snapshot file open when reading halo particles.
         This is useful for repeated access to the snapshot.
+    fpath_override : str, optional
+        Override the snapshot file path with a custom path, if provided.
     """
-    def __init__(self, nsim, nsnap, paths=None, keep_snapshot_open=False):
+    def __init__(self, nsim, nsnap, paths=None, keep_snapshot_open=False,
+                 fpath_override=None):
         flip_xz = True
         super().__init__(nsim, nsnap, paths, keep_snapshot_open, flip_xz)
         simname = "csiborg3"
 
-        fpath = self.paths.snapshot(self.nsnap, self.nsim, simname)
+        if fpath_override is None:
+            fpath = self.paths.snapshot(self.nsnap, self.nsim, simname)
+        else:
+            fpath = fpath_override
 
         self._snapshot_path = fpath
         self._simname = simname
@@ -658,7 +664,7 @@ class CSiBORG3Snapshot(BaseSnapshot):
                 else:
                     x = f[f"PartType1/{kind}"][...]
 
-                if not high_resolution_only:
+                if not high_resolution_only and "PartType5" in f:
                     if x.ndim == 1:
                         x = np.hstack([x, f[f"PartType5/{kind}"][...]])
                     else:
