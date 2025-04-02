@@ -12,15 +12,35 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-from .catalogue import (CSiBORG1Catalogue, CSiBORG2Catalogue,                   # noqa
-                        CSiBORG2SUBFINDCatalogue,                               # noqa
-                        CSiBORG2MergerTreeReader, QuijoteCatalogue,             # noqa
-                        MDPL2Catalogue, fiducial_observers)                     # noqa
-from .snapshot import (CSiBORG1Snapshot, CSiBORG2Snapshot, CSiBORG2XSnapshot,   # noqa
-                       QuijoteSnapshot, CSiBORG1Field, CSiBORG2Field,           # noqa
-                       CSiBORG2XField, QuijoteField, BORG2Field, BORG1Field,    # noqa
-                       TNG300_1Field, Carrick2015Field, Lilow2024Field,         # noqa
-                       CLONESField, CF4Field)                                   # noqa
+from .catalogue import (                                                        # noqa
+    CSiBORG1Catalogue,                                                          # noqa
+    CSiBORG2Catalogue,                                                          # noqa
+    CSiBORG2SUBFINDCatalogue,                                                   # noqa
+    CSiBORG2MergerTreeReader,                                                   # noqa
+    CSiBORG3Catalogue,                                                          # noqa
+    QuijoteCatalogue,                                                           # noqa
+    MDPL2Catalogue,                                                             # noqa
+    fiducial_observers,                                                         # noqa
+    ReaderRockstar,                                                             # noqa
+    )
+from .snapshot import (                                                         # noqa
+    CSiBORG1Snapshot,                                                           # noqa
+    CSiBORG2Snapshot,                                                           # noqa
+    CSiBORG2XSnapshot,                                                          # noqa
+    CSiBORG3Snapshot,                                                           # noqa
+    QuijoteSnapshot,                                                            # noqa
+    CSiBORG1Field,                                                              # noqa
+    CSiBORG2Field,                                                              # noqa
+    CSiBORG2XField,                                                             # noqa
+    QuijoteField,                                                               # noqa
+    BORG2Field,                                                                 # noqa
+    BORG1Field,                                                                 # noqa
+    TNG300_1Field,                                                              # noqa
+    Carrick2015Field,                                                           # noqa
+    Lilow2024Field,                                                             # noqa
+    CLONESField,                                                                # noqa
+    CF4Field,                                                                   # noqa
+    )
 from .obs import (SDSS, MCXCClusters, PlanckClusters, TwoMPPGalaxies,           # noqa
                   TwoMPPGroups, ObservedCluster, match_array_to_no_masking,     # noqa
                   cols_to_structured)                                           # noqa

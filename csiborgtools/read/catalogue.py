@@ -17,24 +17,27 @@ Unified interface for simulation catalogues. Currently supports CSiBORG1,
 CSiBORG2 and Quijote. For specific implementation always check the relevant
 classes in this module.
 """
+import re
 from abc import ABC, abstractmethod
 from collections import OrderedDict
-from functools import lru_cache
+from functools import cached_property, lru_cache
 from gc import collect
+from glob import glob
 from math import floor
-from astropy.cosmology import FlatLambdaCDM
+from os.path import dirname, exists, isdir, join
 
-import numpy
+import numpy as np
+from astropy.cosmology import FlatLambdaCDM
 from h5py import File
 from sklearn.neighbors import NearestNeighbors
+from tqdm import tqdm
 
 from ..params import paths_glamdring
-from ..utils import (cartesian_to_radec, great_circle_distance, number_counts,
-                     periodic_distance_two_points, real2redshift,
-                     radec_to_galactic)
+from ..utils import (cartesian_to_radec, fprint, great_circle_distance,
+                     number_counts, periodic_distance_two_points,
+                     radec_to_galactic, real2redshift)
 from .paths import Paths
 from .snapshot import is_instance_of_base_snapshot_subclass
-
 
 ###############################################################################
 #                           Base catalogue                                    #
@@ -123,7 +126,7 @@ class BaseCatalogue(ABC):
 
     @nsim.setter
     def nsim(self, nsim):
-        if not isinstance(nsim, (int, numpy.integer)):
+        if not isinstance(nsim, (int, np.integer)):
             raise TypeError("`nsim` must be an integer.")
         self._nsim = int(nsim)
 
@@ -136,7 +139,7 @@ class BaseCatalogue(ABC):
 
     @nsnap.setter
     def nsnap(self, nsnap):
-        if not isinstance(nsnap, (int, numpy.integer)):
+        if not isinstance(nsnap, (int, np.integer)):
             raise TypeError("`nsnap` must be an integer.")
         self._nsnap = int(nsnap)
 
@@ -269,8 +272,8 @@ class BaseCatalogue(ABC):
 
     @observer_location.setter
     def observer_location(self, obs_pos):
-        assert isinstance(obs_pos, (list, tuple, numpy.ndarray))
-        obs_pos = numpy.asanyarray(obs_pos)
+        assert isinstance(obs_pos, (list, tuple, np.ndarray))
+        obs_pos = np.asanyarray(obs_pos)
         assert obs_pos.shape == (3,)
         self._observer_location = obs_pos
 
@@ -286,8 +289,8 @@ class BaseCatalogue(ABC):
             self._observer_velocity = None
             return
 
-        assert isinstance(obs_vel, (list, tuple, numpy.ndarray))
-        obs_vel = numpy.asanyarray(obs_vel)
+        assert isinstance(obs_vel, (list, tuple, np.ndarray))
+        obs_vel = np.asanyarray(obs_vel)
         assert obs_vel.shape == (3,)
         self._observer_velocity = obs_vel
 
@@ -314,12 +317,12 @@ class BaseCatalogue(ABC):
 
         counts = number_counts(self[mass_key], bin_edges)
 
-        bin_edges = numpy.log10(bin_edges)
+        bin_edges = np.log10(bin_edges)
         bin_width = bin_edges[1:] - bin_edges[:-1]
 
         x = (bin_edges[1:] + bin_edges[:-1]) / 2
         y = counts / bin_width / volume
-        yerr = numpy.sqrt(counts) / bin_width / volume
+        yerr = np.sqrt(counts) / bin_width / volume
 
         return x, y, yerr
 
@@ -427,7 +430,7 @@ class BaseCatalogue(ABC):
             radial_query = X[:, 0]
 
             for i in range(X.shape[0]):
-                rad_sep = numpy.abs(radial_dist[indxs[i]] - radial_query[i])
+                rad_sep = np.abs(radial_dist[indxs[i]] - radial_query[i])
                 mask = rad_sep < radial_tolerance
                 dist[i], indxs[i] = dist[i][mask], indxs[i][mask]
 
@@ -440,7 +443,7 @@ class BaseCatalogue(ABC):
         self._load_filtered = False
 
         self._catalogue_length = None
-        mask = numpy.ones(len(self), dtype=bool)
+        mask = np.ones(len(self), dtype=bool)
         self._catalogue_length = None  # Don't cache the length
 
         for key, lims in bounds.items():
@@ -512,7 +515,7 @@ class BaseCatalogue(ABC):
                 out = self["__spherical_pos"]
                 out[:, 1], out[:, 2] = radec_to_galactic(out[:, 1], out[:, 2])
             elif key == "dist":
-                out = numpy.linalg.norm(
+                out = np.linalg.norm(
                     self["__cartesian_pos"] - self.observer_location, axis=1)
             elif key == "cartesian_vel":
                 return self.velocities
@@ -526,7 +529,7 @@ class BaseCatalogue(ABC):
                     self["__cartesian_redshift_pos"] - self.observer_location)
             elif key == "redshift_dist":
                 out = self["__cartesian_redshift_pos"]
-                out = numpy.linalg.norm(out - self.observer_location, axis=1)
+                out = np.linalg.norm(out - self.observer_location, axis=1)
             elif key == "lagpatch_radius":
                 out = self.lagpatch_radius
             elif key == "lagpatch_coordinates":
@@ -542,7 +545,7 @@ class BaseCatalogue(ABC):
             else:
                 raise KeyError(f"Key '{key}' is not available.")
 
-        if self._load_filtered and not is_internal and isinstance(out, numpy.ndarray):  # noqa
+        if self._load_filtered and not is_internal and isinstance(out, np.ndarray):  # noqa
             out = out[self._filter_mask]
 
         if not is_internal:
@@ -624,9 +627,9 @@ class CSiBORG1Catalogue(BaseCatalogue):
         x, y, z = [self._read_fof_catalogue(key) for key in ["x", "y", "z"]]
 
         if self.flip_xz:
-            return numpy.vstack([z, y, x]).T
+            return np.vstack([z, y, x]).T
         else:
-            return numpy.vstack([x, y, z]).T
+            return np.vstack([x, y, z]).T
 
     @property
     def velocities(self):
@@ -648,17 +651,17 @@ class CSiBORG1Catalogue(BaseCatalogue):
     @property
     def lagpatch_coordinates(self):
         fpath = self.paths.initial_lagpatch(self.nsim, self.simname)
-        data = numpy.load(fpath)
+        data = np.load(fpath)
 
         if self.flip_xz:
-            return numpy.vstack([data["z"], data["y"], data["x"]]).T
+            return np.vstack([data["z"], data["y"], data["x"]]).T
         else:
-            return numpy.vstack([data["x"], data["y"], data["z"]]).T
+            return np.vstack([data["x"], data["y"], data["z"]]).T
 
     @property
     def lagpatch_radius(self):
         fpath = self.paths.initial_lagpatch(self.nsim, self.simname)
-        return numpy.load(fpath)["lagpatch_size"]
+        return np.load(fpath)["lagpatch_size"]
 
 
 ###############################################################################
@@ -752,7 +755,7 @@ class CSiBORG2Catalogue(BaseCatalogue):
     def index(self):
         # To grab the size, read some example column.
         nhalo = self._read_fof_catalogue("GroupMass").size
-        return numpy.arange(nhalo, dtype=numpy.int32)
+        return np.arange(nhalo, dtype=np.int32)
 
     @property
     def lagpatch_coordinates(self):
@@ -762,12 +765,12 @@ class CSiBORG2Catalogue(BaseCatalogue):
                                f"snapshot (indexed 99). Chosen {self.nsnap}.")
 
         fpath = self.paths.initial_lagpatch(self.nsim, self.simname)
-        data = numpy.load(fpath)
+        data = np.load(fpath)
 
         if self.flip_xz:
-            return numpy.vstack([data["z"], data["y"], data["x"]]).T
+            return np.vstack([data["z"], data["y"], data["x"]]).T
         else:
-            return numpy.vstack([data["x"], data["y"], data["z"]]).T
+            return np.vstack([data["x"], data["y"], data["z"]]).T
 
     @property
     def lagpatch_radius(self):
@@ -777,7 +780,7 @@ class CSiBORG2Catalogue(BaseCatalogue):
                                f"snapshot (indexed 99). Chosen {self.nsnap}.")
 
         fpath = self.paths.initial_lagpatch(self.nsim, self.simname)
-        return numpy.load(fpath)["lagpatch_size"]
+        return np.load(fpath)["lagpatch_size"]
 
     @property
     def GroupFirstSub(self):
@@ -851,7 +854,7 @@ class CSiBORG2MergerTreeReader:
 
     @nsim.setter
     def nsim(self, nsim):
-        if not isinstance(nsim, (int, numpy.integer)):
+        if not isinstance(nsim, (int, np.integer)):
             raise TypeError("`nsim` must be an integer.")
         self._nsim = int(nsim)
 
@@ -953,7 +956,7 @@ class CSiBORG2MergerTreeReader:
         group_mask = tree["GroupNr"][fsnap_mask] == group_nr
         first_fof = tree["TreeFirstHaloInFOFgroup"][fsnap_mask][group_mask]
 
-        if not numpy.all(first_fof == first_fof[0]):
+        if not np.all(first_fof == first_fof[0]):
             raise RuntimeError("We get non-unique first FOF group.")
 
         return first_fof[0]
@@ -1020,15 +1023,15 @@ class CSiBORG2MergerTreeReader:
         # For calculating age of the Universe at each redshift.
         cosmo = FlatLambdaCDM(H0=67.66, Om0=0.3111)
 
-        return {"SnapNum": numpy.array(snap_num, dtype=numpy.int32),
-                "Age": numpy.array(cosmo.age(redshift).value),
-                "Redshift": numpy.array(redshift),
-                "Group_M_Crit200": numpy.array(group_m200c) * 1e10,
-                "MainProgenitorMass": numpy.array(main_progenitor_mass) * 1e10,
-                "MainProgenitorVmax": numpy.array(main_progenitor_vmax),
-                "MainProgenitorSpin": numpy.array(main_progenitor_spin),
-                "MainProgenitorVmaxRad": numpy.array(main_progenitor_vmaxrad),
-                "MainProgenitorHalfmassRad": numpy.array(main_progenitor_halfmassrad),      # noqa
+        return {"SnapNum": np.array(snap_num, dtype=np.int32),
+                "Age": np.array(cosmo.age(redshift).value),
+                "Redshift": np.array(redshift),
+                "Group_M_Crit200": np.array(group_m200c) * 1e10,
+                "MainProgenitorMass": np.array(main_progenitor_mass) * 1e10,
+                "MainProgenitorVmax": np.array(main_progenitor_vmax),
+                "MainProgenitorSpin": np.array(main_progenitor_spin),
+                "MainProgenitorVmaxRad": np.array(main_progenitor_vmaxrad),
+                "MainProgenitorHalfmassRad": np.array(main_progenitor_halfmassrad),      # noqa
                 }
 
 
@@ -1118,7 +1121,7 @@ class CSiBORG2SUBFINDCatalogue(BaseCatalogue):
 
     @property
     def index(self):
-        return numpy.arange(self.totmass.size, dtype=numpy.int32)
+        return np.arange(self.totmass.size, dtype=np.int32)
 
     @property
     def lagpatch_coordinates(self):
@@ -1164,6 +1167,145 @@ class CSiBORG2SUBFINDCatalogue(BaseCatalogue):
         group_nr = self._read_subfind_catalogue("SubhaloGroupNr")
         fof_mass = self._read_fof_catalogue("GroupMass") * 1e10
         return fof_mass[group_nr]
+
+###############################################################################
+#                          CSiBORG3 catalogues                                #
+###############################################################################
+
+
+class CSiBORG3Catalogue(BaseCatalogue):
+    r"""
+    CSiBORG3 FoF halo catalogue.
+
+    Parameters
+    ----------
+    nsim : int
+        IC realisation index.
+    nsnap : int
+        Snapshot index.
+    paths : py:class`csiborgtools.read.Paths`, optional
+        Paths object.
+    snapshot : subclass of py:class:`BaseSnapshot`, optional
+        Snapshot object corresponding to the catalogue.
+    bounds : dict, optional
+        Parameter bounds; keys as parameter names, values as (min, max) or
+        a boolean.
+    observer_velocity : 1-dimensional array, optional
+        Observer's velocity in :math:`\mathrm{km} / \mathrm{s}`.
+    flip_xz : bool, optional
+        Whether to flip the x- and z-coordinates to undo the MUSIC bug to match
+        observations.
+    cache_maxsize : int, optional
+        Maximum number of cached arrays.
+    """
+    def __init__(self, nsim, nsnap, paths=None, snapshot=None,
+                 bounds=None, observer_velocity=None, flip_xz=True,
+                 cache_maxsize=64):
+        super().__init__()
+        super().init_with_snapshot(
+            "csiborg3", nsim, nsnap, paths, snapshot, bounds,
+            681.1, [340.55, 340.55, 340.55], observer_velocity, flip_xz,
+            cache_maxsize)
+
+        self._custom_keys = ["GroupFirstSub", "GroupContamination",
+                             "GroupNsubs", "Group_M_Crit200"]
+
+    def _read_fof_catalogue(self, kind):
+        fpath = self.paths.snapshot_catalogue(self.nsnap, self.nsim,
+                                              self._simname)
+        files = glob(fpath.replace(".hdf5", ".*.hdf5"))
+        if len(files) == 0:
+            raise FileNotFoundError(
+                f"No files found for snapshot {self.nsnap}.")
+        files = sorted(files, key=lambda x: int(x.split(".")[-2]))
+
+        fprint(f"opening {len(files)} blocks for snapshot `{self.nsnap}`.")
+        for i, fpath in enumerate(tqdm(files, desc="Reading blocks")):
+            with File(fpath, 'r') as f:
+                grp = f["Group"]
+                if kind not in grp.keys():
+                    raise ValueError(f"Group catalogue key '{kind}' not available. Available keys are: {list(grp.keys())}")  # noqa
+                out = grp[kind][...]
+
+            if i == 0:
+                out_all = np.copy(out)
+            else:
+                out_all = np.concatenate([out_all, out])
+        return out_all
+
+    @property
+    def coordinates(self):
+        out = self._read_fof_catalogue("GroupPos")
+        if self.flip_xz:
+            out[:, [0, 2]] = out[:, [2, 0]]
+        return out
+
+    @property
+    def velocities(self):
+        out = self._read_fof_catalogue("GroupVel")
+        if self.flip_xz:
+            out[:, [0, 2]] = out[:, [2, 0]]
+        return out
+
+    @property
+    def npart(self):
+        return self._read_fof_catalogue("GroupLen")
+
+    @property
+    def totmass(self):
+        return self._read_fof_catalogue("GroupMass") * 1e10
+
+    @property
+    def index(self):
+        # To grab the size, read some example column.
+        nhalo = self._read_fof_catalogue("GroupMass").size
+        return np.arange(nhalo, dtype=np.int32)
+
+    @property
+    def lagpatch_coordinates(self):
+        raise RuntimeError("Lagrangian patch information is not available for "
+                           "CSiBORG3 haloes.")
+        if self.nsnap != 99:
+            raise RuntimeError("Lagrangian patch information is only "
+                               "available for haloes defined at the final "
+                               f"snapshot (indexed 99). Chosen {self.nsnap}.")
+
+        fpath = self.paths.initial_lagpatch(self.nsim, self.simname)
+        data = np.load(fpath)
+
+        if self.flip_xz:
+            return np.vstack([data["z"], data["y"], data["x"]]).T
+        else:
+            return np.vstack([data["x"], data["y"], data["z"]]).T
+
+    @property
+    def lagpatch_radius(self):
+        raise RuntimeError("Lagrangian patch information is not available for "
+                           "CSiBORG3 haloes.")
+        if self.nsnap != 99:
+            raise RuntimeError("Lagrangian patch information is only "
+                               "available for haloes defined at the final "
+                               f"snapshot (indexed 99). Chosen {self.nsnap}.")
+
+        fpath = self.paths.initial_lagpatch(self.nsim, self.simname)
+        return np.load(fpath)["lagpatch_size"]
+
+    @property
+    def GroupFirstSub(self):
+        return self._read_fof_catalogue("GroupFirstSub")
+
+    @property
+    def GroupNsubs(self):
+        return self._read_fof_catalogue("GroupNsubs")
+
+    @property
+    def Group_M_Crit200(self):
+        return self._read_fof_catalogue("Group_M_Crit200")
+
+    @property
+    def GroupContamination(self):
+        mass_type = self._read_fof_catalogue("GroupMassType")
+        return mass_type[:, 5] / (mass_type[:, 1] + mass_type[:, 5])
 
 
 ###############################################################################
@@ -1213,13 +1355,13 @@ class QuijoteCatalogue(BaseCatalogue):
 
     @property
     def coordinates(self):
-        return numpy.vstack([self._read_fof_catalogue(key)
-                             for key in ["x", "y", "z"]]).T
+        return np.vstack([self._read_fof_catalogue(key)
+                          for key in ["x", "y", "z"]]).T
 
     @property
     def velocities(self):
-        return numpy.vstack([self._read_fof_catalogue(key)
-                             for key in ["vx", "vy", "vz"]]).T
+        return np.vstack([self._read_fof_catalogue(key)
+                          for key in ["vx", "vy", "vz"]]).T
 
     @property
     def npart(self):
@@ -1237,13 +1379,13 @@ class QuijoteCatalogue(BaseCatalogue):
     @property
     def lagpatch_coordinates(self):
         fpath = self.paths.initial_lagpatch(self.nsim, self.simname)
-        data = numpy.load(fpath)
-        return numpy.vstack([data["x"], data["y"], data["z"]]).T
+        data = np.load(fpath)
+        return np.vstack([data["x"], data["y"], data["z"]]).T
 
     @property
     def lagpatch_radius(self):
         fpath = self.paths.initial_lagpatch(self.nsim, self.simname)
-        return numpy.load(fpath)["lagpatch_size"]
+        return np.load(fpath)["lagpatch_size"]
 
 
 ###############################################################################
@@ -1281,7 +1423,7 @@ class MDPL2Catalogue(BaseCatalogue):
 
         with File(fpath, 'r') as f:
             if kind == "index":
-                return numpy.arange(len(f["x"]))
+                return np.arange(len(f["x"]))
 
             if kind not in f.keys():
                 raise ValueError(f"FoF catalogue key '{kind}' not available. Available keys are: {list(f.keys())}")  # noqa
@@ -1290,12 +1432,12 @@ class MDPL2Catalogue(BaseCatalogue):
 
     @property
     def coordinates(self):
-        return numpy.vstack(
+        return np.vstack(
             [self._read_fof_catalogue(key) for key in ["x", "y", "z"]]).T
 
     @property
     def velocities(self):
-        return numpy.vstack(
+        return np.vstack(
             [self._read_fof_catalogue(key) for key in ["vx", "vy", "vz"]]).T
 
     @property
@@ -1352,3 +1494,320 @@ def fiducial_observers(boxwidth, radius):
                 obs.append([x, y, z])
 
     return obs
+
+
+###############################################################################
+#                           Rockstar halo catalogues                          #
+###############################################################################
+
+class BaseRockstar(ABC):
+    """Base reader class for simulation data."""
+
+    def __init__(self, basepath, nsnap, use_cache, verbose):
+        self.basepath = basepath
+        self.nsnap = nsnap
+        self.use_cache = use_cache
+        self.verbose = verbose
+
+        self._cache = {}
+
+    @property
+    def basepath(self):
+        if self._basepath is None:
+            raise ValueError("Basepath for this catalogue is not set. Likely "
+                             "because this is a scaled catalogue.")
+        return self._basepath
+
+    @basepath.setter
+    def basepath(self, x):
+        if x is None:
+            self._basepath = None
+            return
+
+        if not (isinstance(x, str) and exists(x) and isdir(x)):
+            raise TypeError(f"Basepath must be a directory. Received: `{x}`")
+        self._basepath = x
+
+    @property
+    def nsnap(self):
+        if self._nsnap is None:
+            raise ValueError("Snapshot number for this catalogue is not set. "
+                             "Likely because this is a scaled catalogue.")
+        return self._nsnap
+
+    @nsnap.setter
+    def nsnap(self, x):
+        if x is None:
+            self._nsnap = None
+            return
+
+        if not isinstance(x, int):
+            raise TypeError(f"Snapshot number must be an integer. Received: `{x}`")  # noqa
+        self._nsnap = x
+
+    @property
+    def use_cache(self):
+        return self._use_cache
+
+    @use_cache.setter
+    def use_cache(self, x):
+        if not isinstance(x, bool):
+            raise TypeError(f"Use cache must be a boolean. Received: `{x}`")
+        self._use_cache = x
+
+    @property
+    def verbose(self):
+        return self._verbose
+
+    @verbose.setter
+    def verbose(self, x):
+        if not isinstance(x, bool):
+            raise TypeError(f"Verbose must be a boolean. Received: `{x}`")
+        self._verbose = x
+
+
+class ReaderRockstar(BaseRockstar):
+    """
+    Reader for Rockstar halo catalogs  that reads the ASCII files because of
+    which it first reads in all possible keys.
+
+    Parameters
+    ----------
+    basepath : str
+        Path to the simulation's Rockstar output folder.
+    nsnap : int
+        Snapshot number.
+    use_cache : bool, optional
+        Whether to cache the data in memory.
+    keep_in_memory : bool, optional
+        Whether to keep the entire halo catalogue in memory or not.
+    min_Mvir : float, optional
+        Minimum virial mass to consider to keep in the halo catalogue.
+    verbose : bool, optional
+        Verbosity flag.
+    """
+
+    def __init__(self, basepath, nsnap, use_cache=True,
+                 keep_in_memory=True, min_Mvir=None, verbose=True):
+        super().__init__(basepath, nsnap, use_cache, verbose)
+
+        if not isinstance(keep_in_memory, bool):
+            raise TypeError("Keep in memory must be a boolean. "
+                            f"Received: `{keep_in_memory}`")
+        self.keep_in_memory = keep_in_memory
+
+        self._data = None
+        self._hid2index = None
+        self._time_steps = None
+        self._boxsize = None
+        self._min_Mvir = min_Mvir
+        self._Om = None
+        self._Ol = None
+        self._particle_mass = None
+
+    @cached_property
+    def time_steps(self):
+        """Simulation time steps loaded from `time_steps.dat`."""
+        if self.is_scaled:
+            raise ValueError("Cannot read time steps for a scaled catalogue.")
+
+        if self._time_steps is None:
+            fname = join(
+                dirname(dirname(self.basepath.rstrip("/"))),
+                "write_outputs.dat")
+            self._time_steps = np.genfromtxt(fname)
+
+        return self._time_steps
+
+    @cached_property
+    def time_steps_redshift(self):
+        """Redshifts corresponding to simulation time steps."""
+        return 1 / self.time_steps - 1
+
+    @cached_property
+    def scale_factor(self):
+        """Scale factor of the snapshot."""
+        if self.is_scaled:
+            return self._scale_factor
+
+        return self.time_steps[self.nsnap]
+
+    @cached_property
+    def redshift(self):
+        """Redshift of the snapshot."""
+        return 1 / self.scale_factor - 1
+
+    @cached_property
+    def boxsize(self):
+        """Box size of the simulation in `cMpc/h`."""
+        if self._boxsize is None:
+            fname = join(self.basepath, f"out_{self.nsnap}.list")
+            with open(fname, 'r') as file:
+                for line in file:
+                    if "Box size:" in line:
+                        boxsize = float(line.split(":")[1].strip().split()[0])
+                        break
+
+            self._boxsize = boxsize
+
+        if self._boxsize is None:
+            raise ValueError(f"Box size not found in Rockstar file: {fname}")
+
+        return self._boxsize
+
+    @cached_property
+    def Om(self):
+        if self._Om is None:
+            self._Om = self._extract_cosmology("Om")
+
+        return self._Om
+
+    def Om_z(self, z):
+        return self.cosmology.omega_m_z(z)
+
+    @cached_property
+    def Ol(self):
+        if self._Ol is None:
+            self._Ol = self._extract_cosmology("Ol")
+
+        return self._Ol
+
+    def particle_mass(self):
+        """Dark matter particle mass in `Msun / h`."""
+        fname = join(self.basepath, f"out_{self.nsnap}.list")
+        if self._particle_mass is None:
+            particle_mass = None
+            with open(fname, "r") as f:
+                for i, line in enumerate(f):
+                    match = re.search(r"#Particle mass:\s*([\d.eE+-]+)", line)
+                    if match:
+                        particle_mass = float(match.group(1))
+                        break
+
+                    if i > 100 and particle_mass is None:
+                        raise ValueError("Particle mass not found in "
+                                         f"Rockstar file: {fname}")
+            self._particle_mass = particle_mass
+
+        return self._particle_mass
+
+    def _extract_cosmology(self, key):
+        fname = join(self.basepath, f"out_{self.nsnap}.list")
+        with open(fname, 'r') as file:
+            for line in file:
+                if f"{key} =" in line:
+                    match = re.search(rf"{key}\s*=\s*([\d\.]+)", line)
+                    if match:
+                        value = float(match.group(1))
+                        return value
+
+        raise ValueError(f"Key `{key}` not found in Rockstar file: {fname}")
+
+    def _read_catalog(self, nsnap):
+        fname = join(self.basepath, f"out_{nsnap}.list")
+        if self.verbose:
+            print(f"Reading a Rockstar catalogue from `{fname}`.")
+
+        line_start = None
+
+        with open(fname, 'r') as f:
+            keys = f.readline().strip("#").strip().split()
+
+            for line_number, line in enumerate(f, start=1):
+                if not line.lstrip().startswith("#"):
+                    line_start = line_number
+                    break
+
+        if line_start is None:
+            raise ValueError(f"Invalid Rockstar file: {fname}")
+
+        dtype = [(key, 'int32' if key in ['ID', 'DescID', 'Np'] else 'float32')
+                 for key in keys]
+
+        self._data = np.genfromtxt(
+            fname, skip_header=line_start, dtype=dtype, names=keys)
+
+        if self._min_Mvir is not None:
+            self._data = self._data[self._data["Mvir"] > self._min_Mvir]
+
+    @property
+    def data(self):
+        if self._data is None:
+            self._read_catalog(self.nsnap)
+        return self._data
+
+    def _read_key(self, key):
+        custom_keys = ("pos", "vel", "c_klypin", "c_profile",
+                       "vel_mag", )
+        log_keys = ("M200c", "Mvir", "Spin", "c_klypin", "rs_klypin",
+                    "vel_mag", )
+
+        if key == "pos":
+            return np.vstack(
+                [self.data["X"], self.data["Y"], self.data["Z"]]).T
+        if key == "vel":
+            return np.vstack(
+                [self.data["VX"], self.data["VY"], self.data["VZ"]]).T
+        elif key == "c_klypin":
+            return self["Rvir"] / self["rs_klypin"]
+        elif key == "c_profile":
+            return self["Rvir"] / self["Rs"]
+        elif key == "Mvir_simple":
+            return self["Mvir"]
+        elif key == "vel_mag":
+            return np.linalg.norm(self["vel"], axis=1)
+        elif key in self.keys:
+            return self.data[key]
+        elif "log_" in key and key.replace("log_", "") in log_keys:
+            return np.log10(self[key.replace("log_", "")])
+        else:
+            nsnap = self._nsnap if self._nsnap is not None else "NotFound"
+
+            raise KeyError(f"Key `{key}` not found in Rockstar catalog for "
+                           f"snapshot `{nsnap}`. Available keys are "
+                           f"`{self.keys}` or `{custom_keys}`")
+
+    def hid2index(self, hid):
+        """Convert a halo ID `hid` to its index in the catalogue."""
+        if self._hid2index is None:
+            hid_ = self["ID"]
+            self._hid2index = {int(hid_[i]): i for i in range(len(hid_))}
+
+        if hid not in self._hid2index:
+            raise KeyError(f"Halo ID `{hid}` not found in catalogue.")
+
+        return self._hid2index[hid]
+
+    def read_by_hid(self, hid, key):
+        """
+        Read `key` for a halo with a given halo ID `hid` or a list of halo IDs.
+        """
+        if isinstance(hid, int):
+            hid = [hid]
+        elif not isinstance(hid, (list, np.ndarray, tuple)):
+            raise TypeError(f"Halo ID must be an integer, list or array. "
+                            f"Received: `{hid}`")
+
+        ks = np.asarray([self.hid2index(hid_i) for hid_i in hid])
+        return self[key][ks]
+
+    @cached_property
+    def keys(self):
+        if isinstance(self.data, dict):
+            return list(self.data.keys())
+        return self.data.dtype.names
+
+    def __len__(self):
+        if isinstance(self.data, dict):
+            return len(self.data[self.keys[0]])
+        return len(self.data)
+
+    def __getitem__(self, key):
+        if key in self._cache:
+            return self._cache[key]
+
+        x = self._read_key(key)
+        if self.use_cache:
+            self._cache[key] = x
+
+        return x

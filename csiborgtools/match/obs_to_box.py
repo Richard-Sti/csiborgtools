@@ -237,7 +237,7 @@ class MatchingProbability(BaseMatchingProbability):
         if len(matches) == 0:
             return None, None
 
-        if verbose and len(matches) > 1:
+        if verbose or len(matches) > 1:
             print(f"Found {len(matches)} plausible matches in catalogue {catalogue_index}.")  # noqa
             for i, k in enumerate(matches):
                 j = indxs[k]

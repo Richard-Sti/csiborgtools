@@ -15,9 +15,7 @@
 """
 Tools for interpolating 3D fields at arbitrary positions.
 """
-import MAS_library as MASL
 import numpy as np
-import smoothing_library as SL
 from numba import jit
 from scipy.interpolate import RegularGridInterpolator
 from astropy.coordinates import SkyCoord, Supergalactic, Galactic, ICRS
@@ -52,6 +50,12 @@ def evaluate_cartesian_cic(*fields, pos, smooth_scales=None, verbose=False):
     -------
     (list of) 2-dimensional array of shape `(n_samples, len(smooth_scales))`
     """
+    try:
+        import MAS_library as MASL
+    except ImportError as e:
+        raise ImportError("MAS_library is required for CIC interpolation. "
+                          "Must install `Pylians`.") from e
+
     pos = force_single_precision(pos)
 
     if isinstance(smooth_scales, (int, float)):
@@ -526,6 +530,12 @@ def field2rsp(field, radvel_field, box, MAS, init_value=0.):
     -------
     3-dimensional array of shape `(grid, grid, grid)`
     """
+    try:
+        import MAS_library as MASL
+    except ImportError as e:
+        raise ImportError("MAS_library is required. "
+                          "Must install `Pylians`.") from e
+
     grid = field.shape[0]
     H0_inv = 1. / 100 / box.box2mpc(1.)
 
@@ -581,6 +591,12 @@ def smoothen_field(field, smooth_scale, boxsize, threads=1, make_copy=False):
     """
     Smooth a field with a Gaussian filter.
     """
+    try:
+        import smoothing_library as SL
+    except ImportError as e:
+        raise ImportError("smoothing_library is required. "
+                          "Must install `Pylians`.") from e
+
     W_k = SL.FT_filter(boxsize, smooth_scale, field.shape[0], "Gaussian",
                        threads)
 
