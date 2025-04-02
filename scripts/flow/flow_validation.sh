@@ -22,8 +22,8 @@ fi
 if [ "$queue" == "gpulong" ]
 then
     device="gpu"
-    # gputype="rtx2080with12gb"
-    gputype="rtx3070with8gb"
+    gputype="rtx2080with12gb"
+    # gputype="rtx3070with8gb"
     # gputype="rtxa6000with48gb"
     env="/mnt/users/rstiskalek/csiborgtools/venv_gpu_csiborgtools/bin/python"
 elif [ "$queue" == "cmbgpu" ]
@@ -42,7 +42,7 @@ else
 fi
 
 
-aux_name="inference_method"
+aux_name="none"
 aux_type="str"
 
 # Redshift of about 0.1 is ~ 300 Mpc / h
@@ -52,7 +52,7 @@ aux_type="str"
 
 
 # for simname in "IndranilVoid_gauss" "IndranilVoid_mb" "IndranilVoid_exp" "IndranilVoidSizeVar_exp" "IndranilVoidSizeVar_gauss" "IndranilVoidSizeVar_mb"; do
-for simname in "IndranilVoidSizeVar_exp" "IndranilVoidSizeVar_gauss" "IndranilVoidSizeVar_mb"; do
+for simname in "IndranilVoidSizeVar_mb"; do
 # for simname in "IndranilVoidSizeVar_mb"; do
 # for simname in "IndranilVoidSizeVar_gauss"; do
 # for simname in "IndranilVoid_gauss" "IndranilVoid_mb" "IndranilVoid_exp"; do
@@ -69,8 +69,8 @@ for simname in "IndranilVoidSizeVar_exp" "IndranilVoidSizeVar_gauss" "IndranilVo
     # for catalogue in "LOSS" "Foundation" "2MTF" "SFI_gals" "CF4_TFR_i" "CF4_TFR_w1"; do
     # for catalogue in "2MTF"; do
 
-    # for catalogue in "CF4_TFR_i,CF4_TFR_notSDSS_w1"; do
-    for catalogue in "CF4_TFR_w1"; do
+    for catalogue in "CF4_TFR_i,CF4_TFR_notSDSS_w1"; do
+    # for catalogue in "CF4_TFR_w1"; do
     # for catalogue in "Pantheon+"; do
     # for i in $(seq 0 1 100); do
     #     catalogue="Carrick2MTFmock_$i"
@@ -86,7 +86,7 @@ for simname in "IndranilVoidSizeVar_exp" "IndranilVoidSizeVar_gauss" "IndranilVo
         # for ksim in {0..500}; do
             for ksmooth in 0; do
             # for ksmooth in $(seq 0 1 33); do
-                for aux_arg in "mike" "bayes"; do
+                for aux_arg in "none"; do
                 # for aux_arg in "none"; do
                     pythoncm="$env $file --catalogue $catalogue --simname $simname --ksim $ksim --ksmooth $ksmooth --ndevice $ndevice --device $device --aux_name $aux_name --aux_arg $aux_arg --aux_type $aux_type"
 
@@ -122,7 +122,7 @@ done
 # catalogue="CF4_TFR_i,CF4_TFR_notSDSS_w1"
 # ksmooth=0
 
-# for kind in "exp" "gauss"; do
+# for kind in "mb"; do
 #     for i in {20..300..10}; do
 #     # for i in {1..20..1}; do
 #         simname="IndranilVoid${i}_${kind}"

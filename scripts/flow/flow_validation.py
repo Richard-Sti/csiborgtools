@@ -201,7 +201,7 @@ def run_model(model, nsteps, nburn,  model_kwargs, out_folder,
 
     nuts_kernel = NUTS(model, init_strategy=init_to_median(num_samples=100))
     mcmc = MCMC(nuts_kernel, num_warmup=nburn, num_samples=nsteps)
-    rng_key = jax.random.PRNGKey(42)
+    rng_key = jax.random.PRNGKey(44)
 
     mcmc.run(rng_key, extra_fields=("potential_energy",), **model_kwargs)
     samples = mcmc.get_samples()
@@ -395,18 +395,18 @@ if __name__ == "__main__":
     ###########################################################################
 
     # `None` means default behaviour
-    nsteps = 10_000
-    nburn = 1500
+    nsteps = 7500
+    nburn = 2500
     zcmb_min = None
-    zcmb_max = 0.065
-    fdir_subfolder = "void_calibrated"
+    zcmb_max = 0.05
+    fdir_subfolder = "void"
     skip_if_exists = False
 
     nchains_harmonic = 10
     num_epochs = 50
     inference_method = "mike"
     sample_alpha = False if ("no_field" in ARGS.simname or "IndranilVoid" in ARGS.simname) else True  # noqa
-    sample_beta = True
+    sample_beta = None
     sample_h_e_int = False
     no_Vext = None
     Vext_prior_kind = None
@@ -417,9 +417,9 @@ if __name__ == "__main__":
     Rdust_fixed = None  # Default for W1 is 0.186 and for W2 = 0.123
     wo_num_dist_marginalisation = False
     absolute_calibration = None
-    which_void_size_run = "coarse"
+    which_void_size_run = "zoom"
     remove_CF4_outliers = True
-    load_CPRL_for_void = True
+    load_CPRL_for_void = False
 
     if ARGS.aux_name != "none":
         if ARGS.aux_type == "int":
