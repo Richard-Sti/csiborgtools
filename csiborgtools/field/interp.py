@@ -587,7 +587,8 @@ def fill_outside(field, fill_value, rmax, boxsize):
     return field
 
 
-def smoothen_field(field, smooth_scale, boxsize, threads=1, make_copy=False):
+def smoothen_field(field, smooth_scale, boxsize, threads=1, make_copy=False,
+                   ndim=3):
     """
     Smooth a field with a Gaussian filter.
     """
@@ -597,10 +598,19 @@ def smoothen_field(field, smooth_scale, boxsize, threads=1, make_copy=False):
         raise ImportError("smoothing_library is required. "
                           "Must install `Pylians`.") from e
 
-    W_k = SL.FT_filter(boxsize, smooth_scale, field.shape[0], "Gaussian",
-                       threads)
+    if ndim not in [2, 3]:
+        raise ValueError("`ndim` must be 2 or 3.")
 
+    if ndim == 3:
+        W_k = SL.FT_filter(boxsize, smooth_scale, field.shape[0], "Gaussian",
+                           threads)
+    else:
+        W_k = SL.FT_filter_2D(
+            boxsize, smooth_scale, field.shape[0], "Gaussian", threads)
     if make_copy:
         field = np.copy(field)
 
-    return SL.field_smoothing(field, W_k, threads)
+    if ndim == 3:
+        return SL.field_smoothing(field, W_k, threads)
+    else:
+        return SL.field_smoothing_2D(field, W_k, threads)
