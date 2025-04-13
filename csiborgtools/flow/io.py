@@ -753,18 +753,29 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, selection=None,
         if load_CPRL_for_void:
             warn("Using local paths to retrieve the calibration files.",
                  RuntimeWarning)
-            fname = "/mnt/extraspace/rstiskalek/catalogs/PV/CF4/CF4_cepheids_processed.npy"  # noqa
-            CF4_cepheids = np.load(fname, )
+            fname = "/mnt/extraspace/rstiskalek/catalogs/PV/CF4_SH0ES_calibration.hdf5"  # noqa
+            with File(fname, 'r') as f:
+                SH0ES_calibration = {key: f[key][...] for key in f.keys()}
+
+            pgc_SH0ES = SH0ES_calibration["pgc"]
             DM_cepheids = np.full_like(mag, np.nan)
             e_DM_cepheids = np.full_like(mag, np.nan)
+            covmat_indxs = []
             for i, pgc_i in enumerate(pgc):
-                if pgc_i in CF4_cepheids["pgc"]:
-                    j = np.where(CF4_cepheids["pgc"] == pgc_i)[0][0]
-                    DM_cepheids[i] = CF4_cepheids["DM21"][j]
-                    e_DM_cepheids[i] = CF4_cepheids["e_DM"][j]
+                if pgc_i in pgc_SH0ES:
+                    j = np.where(pgc_SH0ES == pgc_i)[0][0]
+                    DM_cepheids[i] = SH0ES_calibration["distmod_mean"][...][j]
+                    e_DM_cepheids[i] = SH0ES_calibration["distmod_covariance"][...][j, j]**0.5  # noqa
+
+                    if mask[i]:
+                        covmat_indxs.append(j)
+
             fprint("as an initial attempt matched by the 1PGC number "
                    f"{np.sum(np.isfinite(DM_cepheids))} cepheids to the CF4 "
                    "TFR samples")
+
+            covmat_cepheids = SH0ES_calibration["distmod_covariance"][...]
+            covmat_cepheids = covmat_cepheids[covmat_indxs][:, covmat_indxs]
 
             DM_cepheids = DM_cepheids[mask]
             e_DM_cepheids = e_DM_cepheids[mask]
@@ -772,8 +783,10 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, selection=None,
             is_void_calibrator = np.isfinite(DM_cepheids)
             fprint(f"finally, only {np.sum(is_void_calibrator)} cepheids "
                    "were matched to the selected CF4 TFR subsample.")
+            # exit()
 
             # Set the uncertanties very large to avoid having to do masking.
+            # TODO remove this eventually.
             DM_cepheids[~is_void_calibrator] = 30.
             e_DM_cepheids[~is_void_calibrator] = 1000
 
@@ -782,7 +795,10 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, selection=None,
             void_calibration = {
                 "DM_void_calibrator": DM_cepheids,
                 "e_DM_void_calibrator": e_DM_cepheids,
-                "is_void_calibrator": is_void_calibrator}
+                "covmat_DM_void_calibrator": covmat_cepheids,
+                "is_void_calibrator": is_void_calibrator,
+                "DM_covmat": covmat_cepheids,
+                }
         else:
             void_calibration = None
 
