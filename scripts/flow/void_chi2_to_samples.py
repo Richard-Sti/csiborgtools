@@ -31,23 +31,28 @@ def load_interpolator(kind):
 
     kind = kind.upper()
 
-    fpath = f"/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/ChiSq2D_{kind}profileresolution_3501x601.dat"  # noqa
+    fpath = f"/mnt/extraspace/rstiskalek/catalogs/IndranilVoid/chi2grids_April2025/ChiSq2D_{kind}profile_voidsize6.dat"  # noqa
     print(f"Reading the chi2 grid from `{fpath}`.")
 
     data = np.genfromtxt(fpath)
+    print(f"Data shape: {data.shape}")
     nx, ny = data.shape
     xdata = np.arange(0, nx)
-    ydata = np.arange(0, ny)
+    ydata = np.arange(-150, 151)
+    print(f"xdata shape: {xdata.shape}")
+    print(f"ydata shape: {ydata.shape}")
 
+    # y corresponds to the observer offset
     if kind in ["EXP", "GAUSS"]:
-        ymin = 0
+        ymin = -50
         ymax = 100
     else:
-        ymin = 100
-        ymax = 250
+        ymin = -150
+        ymax = 150
 
-    xmin = 100
-    xmax = len(xdata)
+    xmin = 0
+    # xmax = len(xdata)
+    xmax = 1500
 
     print(f"Selecting only the region where R_LG < {ymax} Mpc to avoid some "
           "unexpected behavior.")
