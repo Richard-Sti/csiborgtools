@@ -36,7 +36,7 @@ class ComovingDistance2Redshift:
     npoints_interp : int
         Number of points in the interpolation grid.
     """
-    def __init__(self, Om0=0.3, zmin_interp=0, zmax_interp=0.5,
+    def __init__(self, Om0=0.3, H0=100, zmin_interp=0, zmax_interp=0.5,
                  npoints_interp=1000):
         cosmo = FlatLambdaCDM(H0=H0, Om0=Om0)
         z_grid = np.linspace(zmin_interp, zmax_interp, npoints_interp)
