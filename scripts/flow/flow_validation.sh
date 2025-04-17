@@ -43,7 +43,7 @@ fi
 
 
 aux_name="none"
-aux_type="str"
+aux_type="bool"
 
 # Redshift of about 0.1 is ~ 300 Mpc / h
 
@@ -51,9 +51,10 @@ aux_type="str"
 # for simname in "manticore_2MPP_MULTIBIN_N256_DES_V2"; do
 
 
-# for simname in "IndranilVoid_gauss" "IndranilVoid_mb" "IndranilVoid_exp" "IndranilVoidSizeVar_exp" "IndranilVoidSizeVar_gauss" "IndranilVoidSizeVar_mb"; do
+# for simname in "IndranilVoid_gauss" "IndranilVoid_mb" "IndranilVoid_exp"; do
 for simname in "IndranilVoidSizeVar_mb"; do
-# for simname in "IndranilVoidSizeVar_mb"; do
+# for simname in "no_field_300"; do
+# for simname in "IndranilVoidSizeVar_gauss" "IndranilVoidSizeVar_exp" "IndranilVoidSizeVar_mb"; do
 # for simname in "IndranilVoidSizeVar_gauss"; do
 # for simname in "IndranilVoid_gauss" "IndranilVoid_mb" "IndranilVoid_exp"; do
 # for simname in "IndranilVoidSizeVar_exp" "IndranilVoidSizeVar_gauss" "IndranilVoidSizeVar_mb"; do
@@ -69,7 +70,9 @@ for simname in "IndranilVoidSizeVar_mb"; do
     # for catalogue in "LOSS" "Foundation" "2MTF" "SFI_gals" "CF4_TFR_i" "CF4_TFR_w1"; do
     # for catalogue in "2MTF"; do
 
-    for catalogue in "CF4_TFR_i,CF4_TFR_notSDSS_w1"; do
+    # for catalogue in "CF4_TFR_i,CF4_TFR_notSDSS_w1"; do
+    for catalogue in "Pantheon+"; do
+    # for catalogue in "CF4_TFR_w1"; do
     # for catalogue in "CF4_TFR_w1"; do
     # for catalogue in "Pantheon+"; do
     # for i in $(seq 0 1 100); do
@@ -86,7 +89,7 @@ for simname in "IndranilVoidSizeVar_mb"; do
         # for ksim in {0..500}; do
             for ksmooth in 0; do
             # for ksmooth in $(seq 0 1 33); do
-                for aux_arg in "none"; do
+                for aux_arg in "1"; do
                 # for aux_arg in "none"; do
                     pythoncm="$env $file --catalogue $catalogue --simname $simname --ksim $ksim --ksmooth $ksmooth --ndevice $ndevice --device $device --aux_name $aux_name --aux_arg $aux_arg --aux_type $aux_type"
 
@@ -122,9 +125,8 @@ done
 # catalogue="CF4_TFR_i,CF4_TFR_notSDSS_w1"
 # ksmooth=0
 
-# for kind in "mb"; do
-#     for i in {20..300..10}; do
-#     # for i in {1..20..1}; do
+# for kind in "gauss"; do
+#     for i in {1..20} {20..300..10}; do
 #         simname="IndranilVoid${i}_${kind}"
 #         echo "$simname"
 
