@@ -54,6 +54,8 @@ from .simpson import ln_simpson
 from .void_model import (interpolate_fiducial_void, interpolate_size_var_void,
                          load_void_fiducial, load_void_size_variation)
 
+from jax.debug import print as jprint                                           # noqa
+
 H0 = 100  # km / s / Mpc
 ARCSEC2RAD = 4.84813681109536e-06
 
@@ -321,13 +323,15 @@ class BaseFlowValidationModel(ABC):
 
         return self._los_velocity
 
-    def log_los_density_at_r(self, r):
+    def log_los_density_at_r(self, r, **kwargs):
         return interpolate_los(
-            r, self.log_los_density(), self.r_xrange, which="log_density")
+            r, self.log_los_density(**kwargs), self.r_xrange,
+            which="log_density")
 
-    def los_velocity_at_r(self, r):
+    def los_velocity_at_r(self, r, **kwargs):
         return interpolate_los(
-            r, self.los_velocity(), self.r_xrange, which="radial_velocity")
+            r, self.los_velocity(**kwargs), self.r_xrange,
+            which="radial_velocity")
 
     @abstractmethod
     def __call__(self, **kwargs):
@@ -866,6 +870,27 @@ class PV_LogLikelihood(BaseFlowValidationModel):
 
         return log_los_density, los_velocity
 
+    def get_void_los_r(self, r, field_calibration_params):
+        """
+        Get the log-los density and velocity of the void at some radial
+        distance.
+        """
+        rLG = field_calibration_params["rLG"]
+        void_size = field_calibration_params["void_size"]
+        Vext = field_calibration_params["Vext"]
+
+        if self._is_fiducial_void:
+            h_void = self._h_void
+        else:
+            h_void = self._void_size_to_h_void(void_size)
+
+        log_los_density = self.log_los_density_at_r(
+            r=r, void_size=void_size, rLG=rLG, h_void=h_void, Vext=Vext)
+        los_velocity = self.los_velocity_at_r(
+            r=r, void_size=void_size, rLG=rLG, h_void=h_void, Vext=Vext)
+
+        return log_los_density, los_velocity
+
     def forward_distance_method(self, field_calibration_params, distmod_params,
                                 inference_method):
         sigma_v = field_calibration_params["sigma_v"]
@@ -1185,8 +1210,10 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             z_true = self.distmod2redshift(mu_true_h)
 
             if self.is_void_data:
-                raise NotImplementedError(
-                    "Void data not implemented yet for distance sampling.")
+                log_los_density_grid = self.get_void_los(
+                    field_calibration_params)[0]
+                log_density, los_velocity = self.get_void_los_r(
+                    r_true, field_calibration_params)
             else:
                 # Grid log(density), shape is `(n_sims, n_data, n_rad)`
                 log_los_density_grid = self.log_los_density()
@@ -1236,6 +1263,28 @@ class PV_LogLikelihood(BaseFlowValidationModel):
             else:
                 ll = 0.
 
+            if self.is_void_data and self.with_void_calibration:
+                if field_calibration_params["sample_h"]:
+                    raise ValueError(
+                        "Cannot sample 'h' with void calibration.")
+
+                if self._is_fiducial_void:
+                    h_void = self._h_void
+                else:
+                    h_void = self._void_size_to_h_void(
+                        field_calibration_params["void_size"])
+
+                # DM_void_calibrator is a physical distance, so convert it to
+                # Mpc / h since the distance modulus grid is in Mpc / h.
+                DM = self.DM_void_calibrator + 5 * jnp.log10(h_void)
+                DM = DM[self.is_void_calibrator]
+                DM_covmat = self.DM_covmat
+
+                mu_calibration = mu_true_h[self.is_void_calibrator]
+                factor(
+                    f"ll_void_calibration_{self.name}",
+                    MultivariateNormal(mu_calibration, DM_covmat).log_prob(DM))
+
             # Calculate z_obs at the true distance, `(nsims, ndata)``
             czpred = predict_czobs(
                 z_true[None, :],
@@ -1246,22 +1295,8 @@ class PV_LogLikelihood(BaseFlowValidationModel):
 
             # Log-likelihood of observed redshifts, `(nsims, ndata)`
             # if self._use_truncated_zobs_dist:
-            if False:
-                # raise NotImplementedError(
-                #     "Truncated redshift distribution not implemented yet.")
-
-                with plate("plate_ztrue", self.ndata):
-                    cztrue = SPEED_OF_LIGHT * sample(
-                        f"xtrue_ztrue_{self.name}",
-                        Uniform(0, 1.5 * self.zcmb_max))
-
-                ll += Normal(czpred, sigma_v, ).log_prob(cztrue[None, :])
-                ll += TruncatedNormal(
-                    cztrue, self.e_cz_obs, high=self.czcmb_max).log_prob(
-                        self.cz_obs)[None, :]
-            else:
-                ll += Normal(czpred, e_cz[None, :]).log_prob(
-                    self.cz_obs[None, :])
+            ll += Normal(czpred, e_cz[None, :]).log_prob(
+                self.cz_obs[None, :])
             ll_per_galaxy = logsumexp(ll, axis=0) + self.norm
 
         factor(f"ll_per_galaxy_{self.name}", ll_per_galaxy)
