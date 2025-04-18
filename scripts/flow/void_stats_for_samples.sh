@@ -19,7 +19,12 @@ for profile in "exp" "mb" "gauss"; do
     # fname="/mnt/extraspace/rstiskalek/csiborg_postprocessing/peculiar_velocity/void/samples_IndranilVoidSizeVar_${profile}_CF4_TFR_i_CF4_TFR_notSDSS_w1_bayes_zcmb_max_0.065_which_void_size_run_zoom_remove_CF4_outliers.hdf5"
     # fname="/mnt/extraspace/rstiskalek/csiborg_postprocessing/peculiar_velocity/void/samples_IndranilVoid_exp_CF4_TFR_w1_bayes_zcmb_max_0.065_remove_CF4_outliers.hdf5"
     # fname="/mnt/extraspace/rstiskalek/csiborg_postprocessing/peculiar_velocity/void/samples_IndranilVoid_${profile}_CF4_TFR_w1_bayes_zcmb_max_0.065_remove_CF4_outliers.hdf5"
-    fname="/mnt/extraspace/rstiskalek/csiborg_postprocessing/peculiar_velocity/void_SH0ES_calibrated/samples_IndranilVoidSizeVar_${profile}_CF4_TFR_i_CF4_TFR_notSDSS_w1_mike_zcmb_max_0.065_sample_beta_which_void_size_run_zoom_remove_CF4_outliers.hdf5"
+
+    # fname="/mnt/extraspace/rstiskalek/csiborg_postprocessing/peculiar_velocity/void_SH0ES_calibrated/samples_IndranilVoidSizeVar_${profile}_CF4_TFR_i_CF4_TFR_notSDSS_w1_mike_zcmb_max_0.065_sample_beta_which_void_size_run_zoom_remove_CF4_outliers.hdf5"
+
+    fname="/mnt/extraspace/rstiskalek/csiborg_postprocessing/peculiar_velocity/void_SH0ES_calibrated/samples_IndranilVoid_${profile}_CF4_TFR_i_CF4_TFR_notSDSS_w1_mike_zcmb_max_0.065_remove_CF4_outliers.hdf5"
+
+
 
     pythoncm="$env $file $fname --njobs $nthreads"
     if [ $on_login -eq 1 ]; then
