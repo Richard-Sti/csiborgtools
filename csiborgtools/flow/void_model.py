@@ -615,11 +615,10 @@ def void_velocity_vector(X_cartesian, vx_grid, vy_grid, r_grid, phi_grid,
         raise ValueError("`vx_grid` and `vy_grid` must be 2-dimensional.")
 
     if Vext is None:
-        # Unit vector pointing towards (l, b) = (117, 4) in degrees.
-        n_hat = -np.asarray([0.4035093, -0.01363162, 0.91487399])
-    else:
-        # Note the negative sign, the void axis is opposite to Vext.
-        n_hat = -Vext / np.linalg.norm(Vext)
+        Vext = np.asarray([-0.4035093, 0.01363162, -0.91487399])
+
+    # Note the negative sign, the void axis is opposite to Vext.
+    n_hat = -Vext / np.linalg.norm(Vext)
 
     # Unit vector pointing towards each galaxy.
     r = np.linalg.norm(X_cartesian, axis=1)
