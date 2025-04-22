@@ -1197,18 +1197,24 @@ class CSiBORG3Catalogue(BaseCatalogue):
         observations.
     fpath_override : str, optional
         Path to the catalogue file. If not provided, the default path is used.
+    boxsize : float, optional
+        Box size in :math:`\mathrm{cMpc} / h` (or units of positions).
     cache_maxsize : int, optional
         Maximum number of cached arrays.
+    verbose : bool, optional
+        Verbosity flag for reading inputs.
     """
     def __init__(self, nsim, nsnap, paths=None, snapshot=None,
                  bounds=None, observer_velocity=None, flip_xz=True,
-                 fpath_override=None, boxsize=681.1, cache_maxsize=64):
+                 fpath_override=None, boxsize=681.1, cache_maxsize=64,
+                 verbose=True):
         super().__init__()
         super().init_with_snapshot(
             "csiborg3", nsim, nsnap, paths, snapshot, bounds,
             boxsize, [boxsize / 2, boxsize / 2, boxsize / 2],
             observer_velocity, flip_xz, cache_maxsize)
         self.fpath_override = fpath_override
+        self._verbose = verbose
 
         self._custom_keys = ["GroupFirstSub", "GroupContamination",
                              "GroupNsubs", "Group_M_Crit200"]
@@ -1226,8 +1232,10 @@ class CSiBORG3Catalogue(BaseCatalogue):
                 f"No files found for snapshot {self.nsnap}.")
         files = sorted(files, key=lambda x: int(x.split(".")[-2]))
 
-        fprint(f"opening {len(files)} blocks for snapshot `{self.nsnap}`.")
-        for i, fpath in enumerate(tqdm(files, desc="Reading blocks")):
+        fprint(f"opening {len(files)} blocks for snapshot `{self.nsnap}`.",
+               verbose=self._verbose)
+        for i, fpath in enumerate(tqdm(files, desc="Reading blocks",
+                                       disable=not self._verbose)):
             with File(fpath, 'r') as f:
                 try:
                     grp = f["Group"]
