@@ -10,7 +10,7 @@
 #SBATCH -J get_mah
 #SBATCH -o run_get_mah.o%j
 #SBATCH -e run_get_mah.e%j
-#SBATCH --array=0-2
+#### #SBATCH --array=40-49%5
 
 # Load modules
 module --force purge
@@ -19,11 +19,17 @@ module load slurm
 module load python/3.11.7
 
 # Define the current step from the SLURM array task ID
-nstep=$SLURM_ARRAY_TASK_ID
+# nstep=$SLURM_ARRAY_TASK_ID
+nstep=0
 
 # Define input and output file paths
-input_file="/mnt/home/rstiskalek/ceph/CSiBORG/RANDOM_N512_L300/step_${nstep}/output/treedata/trees.0.hdf5"
-output_file="/mnt/home/rstiskalek/ceph/CSiBORG/postprocessing/MAH/RANDOM_N512_L300/step_${nstep}.hdf5"
+# input_file="/mnt/home/rstiskalek/ceph/CSiBORG/2MPP_MULTIBIN_N256_DES_V2/resimulations/step_${nstep}/output/treedata/trees.0.hdf5"
+# output_file="/mnt/home/rstiskalek/ceph/CSiBORG/postprocessing/MAH/2MPP_MULTIBIN_N256_DES_V2/step_${nstep}.hdf5"
+
+input_file="/mnt/home/rstiskalek/ceph/CSiBORG/RANDOM_N1024_L1000/step_${nstep}/output/treedata/trees.0.hdf5"
+output_file="/mnt/home/rstiskalek/ceph/CSiBORG/postprocessing/MAH/RANDOM_N1024_L1000/step_${nstep}.hdf5"
+
+
 
 # Threading control
 export OMP_NUM_THREADS=1
@@ -32,4 +38,4 @@ export NUMEXPR_NUM_THREADS=1
 
 # Python environment and script execution
 python_exec="/mnt/home/rstiskalek/csiborgtools/venv_csiborg/bin/python"
-$python_exec mah_extract.py "$input_file" "$output_file"
+$python_exec mah_extract.py --input_file $input_file --output_file $output_file

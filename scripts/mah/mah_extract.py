@@ -57,11 +57,12 @@ def extract_mass_assembly_histories(trees, ks, mass_def, unit_scale, nsteps):
     return redshifts, masses
 
 
-def save_to_hdf5(output_path, redshifts, masses):
+def save_to_hdf5(output_path, redshifts, masses, root_pos):
     """Save redshift and mass data to an HDF5 file."""
     with h5py.File(output_path, "w") as f:
         f.create_dataset("redshift", data=redshifts)
         f.create_dataset("mass", data=masses)
+        f.create_dataset("root_pos", data=root_pos)
     print(f"Saved MAH data to: {output_path}")
 
 
@@ -88,4 +89,6 @@ if __name__ == "__main__":
         trees, args.mass_def, args.mass_threshold, args.unit_scale)
     redshifts, masses = extract_mass_assembly_histories(
         trees, ks, args.mass_def, args.unit_scale, args.nsteps)
-    save_to_hdf5(args.output_file, redshifts, masses)
+
+    root_pos = np.vstack([trees[k]["position"].value for k in ks])
+    save_to_hdf5(args.output_file, redshifts, masses, root_pos)
