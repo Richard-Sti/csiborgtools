@@ -88,14 +88,15 @@ class DensityField(BaseField):
         self.boxsize = boxsize
         self.MAS = MAS
 
-    def density_2d(self, pos, mass, axis, grid, verbose=True):
+    def density_2d(self, pos, mass, axis, grid, rho=None, verbose=True):
         try:
             import MAS_library as MASL
         except ImportError as e:
             raise ImportError("MAS_library is required for this function. "
                               "Must install `Pylians`.") from e
 
-        rho = np.zeros((grid, grid), dtype=np.float32)
+        if rho is None:
+            rho = np.zeros((grid, grid), dtype=np.float32)
         ks = [i for i in range(3) if i != axis]
 
         pos_2d = force_single_precision(pos[:, ks])
