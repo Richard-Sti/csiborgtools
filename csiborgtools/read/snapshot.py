@@ -657,18 +657,35 @@ class CSiBORG3Snapshot(BaseSnapshot):
         fprint(f"opening {len(files)} blocks for snapshot `{self.nsnap}`.")
         for n, file in enumerate(tqdm(files, desc="Reading block")):
             with File(file, "r") as f:
-                if kind == "Masses":
-                    npart = f["Header"].attrs["NumPart_ThisFile"][1]
-                    x = np.ones(npart, dtype=np.float32)
-                    x *= f["Header"].attrs["MassTable"][1]
+                if "PartType1" in f:
+                    if kind == "Masses":
+                        npart = f["Header"].attrs["NumPart_ThisFile"][1]
+                        x_high = np.ones(npart, dtype=np.float32)
+                        x_high *= f["Header"].attrs["MassTable"][1]
+                    else:
+                        x_high = f[f"PartType1/{kind}"][...]
                 else:
-                    x = f[f"PartType1/{kind}"][...]
+                    x_high = None
 
                 if not high_resolution_only and "PartType5" in f:
-                    if x.ndim == 1:
-                        x = np.hstack([x, f[f"PartType5/{kind}"][...]])
+                    if kind == "Masses" and "Masses" not in f["PartType5"]:
+                        npart = f["Header"].attrs["NumPart_ThisFile"][5]
+                        x_low = np.ones(npart, dtype=np.float32)
+                        x_low *= f["Header"].attrs["MassTable"][5]
                     else:
-                        x = np.vstack([x, f[f"PartType5/{kind}"][...]])
+                        x_low = f[f"PartType5/{kind}"][...]
+                else:
+                    x_low = None
+
+                if x_high is not None and x_low is None:
+                    x = x_high
+                elif x_high is None and x_low is not None:
+                    x = x_low
+                else:
+                    if x_high.ndim == 1:
+                        x = np.hstack([x_high, x_low])
+                    else:
+                        x = np.vstack([x_high, x_low])
 
                 if n == 0:
                     xs = np.copy(x)
@@ -678,7 +695,7 @@ class CSiBORG3Snapshot(BaseSnapshot):
                     else:
                         xs = np.vstack([xs, x])
 
-                del x
+                del x_high, x_low
                 collect()
 
         if self.flip_xz and kind in ["Coordinates", "Velocities"]:
