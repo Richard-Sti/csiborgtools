@@ -441,7 +441,7 @@ def mask_fields(density, velocity, mask, return_none):
 def get_model(loader, zcmb_min=None, zcmb_max=None, selection=None,
               wo_num_dist_marginalisation=False, absolute_calibration=None,
               calibration_fpath=None, void_kwargs=None,
-              load_CPRL_for_void=False, dust_model=None,
+              load_CPLR=False, dust_model=None,
               remove_CF4_outliers=None):
     """
     Get a model and extract the relevant data from the loader.
@@ -466,7 +466,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, selection=None,
         Path to the file containing the absolute calibration of CF4 TFR.
     void_kwargs : dict, optional
         Keyword arguments for the void model.
-    load_CPRL_for_void : bool, optional
+    load_CPLR : bool, optional
         Whether to load the CPRL data for the void model to get absolute
         calibration.
     dust_model : str, optional
@@ -589,6 +589,15 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, selection=None,
 
         calibration_params = {"mag": mag[mask], "eta": eta[mask],
                               "e_mag": e_mag[mask], "e_eta": e_eta[mask]}
+
+        if "IndranilVoidTFRMock" in kind:
+            fprint(f"loading the void calibration")
+
+            calibration_params["mu_calibration"] = loader.cat["mu_calibration"]
+            calibration_params["e_mu_calibration"] = loader.cat["e_mu_calibration"]  # noqa
+            calibration_params["is_finite_calibrator"] = loader.cat["mu_calibration"] != 30  # noqa
+
+            
 
         # # Append the calibration data
         # if "Carrick2MTFmock" in kind:
@@ -729,6 +738,8 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, selection=None,
 
         # Read the absolute calibration
         if absolute_calibration is not None:
+            raise NotImplementedError("Absolute calibration is not supported "
+                                      "at the moment.")
             mu_calibration, e_mu_calibration = read_absolute_calibration(
                 absolute_calibration, len(RA), calibration_fpath)
 
@@ -750,7 +761,7 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, selection=None,
             calibration_params["counts_calibrators"] = np.sum(m, axis=0)
             calibration_params["any_calibrator"] = np.any(m, axis=0)
 
-        if load_CPRL_for_void:
+        if load_CPLR:
             warn("Using local paths to retrieve the calibration files.",
                  RuntimeWarning)
             fname = "/mnt/extraspace/rstiskalek/catalogs/PV/CF4_SH0ES_calibration.hdf5"  # noqa
@@ -760,12 +771,15 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, selection=None,
             pgc_SH0ES = SH0ES_calibration["pgc"]
             DM_cepheids = np.full_like(mag, np.nan)
             e_DM_cepheids = np.full_like(mag, np.nan)
+
             covmat_indxs = []
             for i, pgc_i in enumerate(pgc):
                 if pgc_i in pgc_SH0ES:
                     j = np.where(pgc_SH0ES == pgc_i)[0][0]
                     DM_cepheids[i] = SH0ES_calibration["distmod_mean"][...][j]
                     e_DM_cepheids[i] = SH0ES_calibration["distmod_covariance"][...][j, j]**0.5  # noqa
+                    # DM_cepheids[i] = SH0ES_calibration["distmod_mean_CF4"][...][j]  # noqa
+                    # e_DM_cepheids[i] = SH0ES_calibration["e_distmod_CF4"][...][j]   # noqa
 
                     if mask[i]:
                         covmat_indxs.append(j)
@@ -780,30 +794,34 @@ def get_model(loader, zcmb_min=None, zcmb_max=None, selection=None,
             DM_cepheids = DM_cepheids[mask]
             e_DM_cepheids = e_DM_cepheids[mask]
 
-            is_void_calibrator = np.isfinite(DM_cepheids)
-            fprint(f"finally, only {np.sum(is_void_calibrator)} cepheids "
+            is_calibrator = np.isfinite(DM_cepheids)
+            fprint(f"finally, only {np.sum(is_calibrator)} cepheids "
                    "were matched to the selected CF4 TFR subsample.")
             # exit()
 
             # Set the uncertanties very large to avoid having to do masking.
             # TODO remove this eventually.
-            DM_cepheids[~is_void_calibrator] = 30.
-            e_DM_cepheids[~is_void_calibrator] = 1000
+            DM_cepheids[~is_calibrator] = 30.
+            e_DM_cepheids[~is_calibrator] = 1000
 
             assert np.all(np.isfinite(DM_cepheids))
 
             void_calibration = {
-                "DM_void_calibrator": DM_cepheids,
-                "e_DM_void_calibrator": e_DM_cepheids,
-                "covmat_DM_void_calibrator": covmat_cepheids,
-                "is_void_calibrator": is_void_calibrator,
+                "DM_calibrator": DM_cepheids,
+                "e_DM_calibrator": e_DM_cepheids,
+                "covmat_DM_calibrator": covmat_cepheids,
+                "is_calibrator": is_calibrator,
                 "DM_covmat": covmat_cepheids,
                 }
+
+            fprint("selecting the following PGC as calibrators: "
+                   f"{list(pgc[mask][is_calibrator].astype(int))}")
         else:
             void_calibration = None
 
         los_overdensity, los_velocity = mask_fields(
             los_overdensity, los_velocity, mask, void_kwargs is not None)
+
 
         model = PV_LogLikelihood(
             los_overdensity, los_velocity,
