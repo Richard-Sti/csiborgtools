@@ -120,7 +120,7 @@ class Distmod2Redshift:
     npoints_interp : int
         Number of points in the interpolation grid.
     """
-    def __init__(self, Om0=0.3, zmin_interp=1e-6, zmax_interp=0.5,
+    def __init__(self, Om0=0.3, H0=100, zmin_interp=1e-6, zmax_interp=0.5,
                  npoints_interp=1000):
         cosmo = FlatLambdaCDM(H0=H0, Om0=Om0)
         z_grid = np.linspace(zmin_interp, zmax_interp, npoints_interp)
@@ -133,6 +133,31 @@ class Distmod2Redshift:
             return self._f(r)
 
         return jnp.exp(self._f(r))
+
+
+class Redshift2Distmod:
+    """
+    Class to build an interpolator to convert redshift to distance modulus.
+
+    Parameters
+    ----------
+    Om0 : float
+        Matter density parameter.
+    zmin_interp, zmax_interp : float
+        Minimum and maximum redshift for the interpolation grid.
+    npoints_interp : int
+        Number of points in the interpolation grid.
+    """
+    def __init__(self, Om0=0.3, H0=100, zmin_interp=1e-6, zmax_interp=0.5,
+                 npoints_interp=1000):
+        cosmo = FlatLambdaCDM(H0=H0, Om0=Om0)
+        z_grid = np.linspace(zmin_interp, zmax_interp, npoints_interp)
+        mu_grid = cosmo.distmod(z_grid).value
+
+        self._f = Interpolator1D(jnp.log(z_grid), mu_grid, extrap=False)
+
+    def __call__(self, z):
+        return self._f(jnp.log(z))
 
 
 ###############################################################################
