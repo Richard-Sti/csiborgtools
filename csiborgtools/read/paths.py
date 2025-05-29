@@ -763,10 +763,11 @@ class Paths:
                         sample_alpha=False, sample_beta=False, no_Vext=None,
                         sample_Vmono=False, sample_mag_dipole=False,
                         sample_curvature=False, absolute_calibration=None,
-                        sample_h_e_int=False, which_void_size_run=None,
+                        which_void_size_run=None,
                         dust_model=None, Rdust_fixed=None,
                         Vext_prior_kind=None, mag_dipole_prior_kind=None,
-                        remove_CF4_outliers=False, verbose_print=True):
+                        remove_CF4_outliers=False,
+                        sample_h_tilde=False, verbose_print=True):
         """Flow validation file path."""
         if isinstance(catalogue, list) and len(catalogue) == 1:
             catalogue = catalogue[0]
@@ -786,18 +787,18 @@ class Paths:
         keys = ["smooth", "nsim", "zcmb_min", "zcmb_max",
                 "sample_alpha", "sample_beta", "no_Vext", "sample_Vmono",
                 "sample_mag_dipole", "sample_curvature",
-                "absolute_calibration", "sample_h_e_int",
+                "absolute_calibration",
                 "which_void_size_run", "dust_model", "Rdust_fixed",
                 "Vext_prior_kind", "mag_dipole_prior_kind",
-                "remove_CF4_outliers",]
+                "remove_CF4_outliers", "sample_h_tilde"]
         values = [smooth, nsim, zcmb_min, zcmb_max,
                   sample_alpha, sample_beta, no_Vext, sample_Vmono,
                   sample_mag_dipole, sample_curvature, absolute_calibration,
-                  sample_h_e_int, which_void_size_run, dust_model, Rdust_fixed,
-                  Vext_prior_kind, mag_dipole_prior_kind, remove_CF4_outliers,]
+                  which_void_size_run, dust_model, Rdust_fixed,
+                  Vext_prior_kind, mag_dipole_prior_kind, remove_CF4_outliers,
+                  sample_h_tilde]
 
         for key, value in zip(keys, values):
-
             if isinstance(value, bool):
                 if value:
                     fname += f"{key}_"
