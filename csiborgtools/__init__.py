@@ -23,7 +23,8 @@ from .utils import (center_of_mass, delta2ncells, number_counts,                
                     thin_samples_by_acl, BIC_AIC, radec_to_galactic,            # noqa
                     heliocentric_to_cmb, calculate_acl, harmonic_evidence,      # noqa
                     laplace_evidence, dict_samples_to_array,                    # noqa
-                    galactic_to_radec, galactic_to_radec_cartesian)             # noqa
+                    galactic_to_radec, galactic_to_radec_cartesian,             # noqa
+                    radec_to_supergalactic,)                                    # noqa
 from .params import (                                                           # noqa
     paths_glamdring,                                                            # noqa
     paths_rusty,                                                                # noqa
