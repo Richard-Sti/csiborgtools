@@ -19,7 +19,7 @@ corrrections necessary when performing the fast Fourier transform.
 """
 from abc import ABC
 
-import numpy
+import numpy as np
 from numba import jit
 from tqdm import trange
 
@@ -52,7 +52,8 @@ class BaseField(ABC):
     @MAS.setter
     def MAS(self, MAS):
         if MAS == "SPH":
-            raise ValueError("`SPH` is not supported. Use `cosmotool` scripts to calculate the density field with SPH.")  # noqa
+            raise ValueError("`SPH` is not supported. Use `cosmotool` scripts "
+                             "to calculate the density field with SPH.")
 
         if MAS not in ["NGP", "CIC", "TSC", "PCS"]:
             raise ValueError(f"Invalid `MAS` value: {MAS}")
@@ -86,6 +87,29 @@ class DensityField(BaseField):
     def __init__(self, boxsize, MAS):
         self.boxsize = boxsize
         self.MAS = MAS
+
+    def density_2d(self, pos, mass, axis, grid, rho=None, verbose=True):
+        try:
+            import MAS_library as MASL
+        except ImportError as e:
+            raise ImportError("MAS_library is required for this function. "
+                              "Must install `Pylians`.") from e
+
+        if rho is None:
+            rho = np.zeros((grid, grid), dtype=np.float32)
+        ks = [i for i in range(3) if i != axis]
+
+        pos_2d = force_single_precision(pos[:, ks])
+        mass = force_single_precision(mass)
+
+        MASL.MA(pos_2d, rho, self.boxsize, self.MAS, W=mass, verbose=verbose)
+        # MASL.MA(pos_2d, rho, self.boxsize, self.MAS, verbose=verbose)
+
+        # Voxel length in `kpc / h``
+        dx = self.boxsize / grid * 1e3
+        rho /= dx**2 * self.boxsize * 1e3
+
+        return rho
 
     def __call__(self, pos, mass, grid, nbatch=30, verbose=True):
         """
@@ -122,7 +146,7 @@ class DensityField(BaseField):
             raise ImportError("MAS_library is required for this function. "
                               "Must install `Pylians`.") from e
 
-        rho = numpy.zeros((grid, grid, grid), dtype=numpy.float32)
+        rho = np.zeros((grid, grid, grid), dtype=np.float32)
 
         nparts = pos.shape[0]
         batch_size = nparts // nbatch
@@ -167,7 +191,7 @@ def overdensity_field(delta, make_copy=True):
     3-dimensional array of shape `(grid, grid, grid)`.
     """
     if make_copy:
-        delta = numpy.copy(delta)
+        delta = np.copy(delta)
 
     delta /= delta.mean()
     delta -= 1
@@ -239,11 +263,11 @@ class VelocityField(BaseField):
             raise ImportError("MAS_library is required for this function. "
                               "Must install `Pylians`.") from e
 
-        rho_vel = [numpy.zeros((grid, grid, grid), dtype=numpy.float32),
-                   numpy.zeros((grid, grid, grid), dtype=numpy.float32),
-                   numpy.zeros((grid, grid, grid), dtype=numpy.float32),
+        rho_vel = [np.zeros((grid, grid, grid), dtype=np.float32),
+                   np.zeros((grid, grid, grid), dtype=np.float32),
+                   np.zeros((grid, grid, grid), dtype=np.float32),
                    ]
-        cellcounts = numpy.zeros((grid, grid, grid), dtype=numpy.float32)
+        cellcounts = np.zeros((grid, grid, grid), dtype=np.float32)
 
         nparts = pos.shape[0]
         batch_size = nparts // nbatch
@@ -276,7 +300,7 @@ class VelocityField(BaseField):
         for i in range(3):
             divide_nonzero(rho_vel[i], cellcounts)
 
-        return numpy.stack(rho_vel)
+        return np.stack(rho_vel)
 
 
 @jit(nopython=True)
@@ -297,7 +321,7 @@ def radial_velocity(rho_vel, observer_velocity):
     3-dimensional array of shape `(grid, grid, grid)`.
     """
     grid = rho_vel.shape[1]
-    radvel = numpy.zeros((grid, grid, grid), dtype=numpy.float32)
+    radvel = np.zeros((grid, grid, grid), dtype=np.float32)
     vx0, vy0, vz0 = observer_velocity
 
     for i in range(grid):
@@ -472,9 +496,9 @@ def tidal_tensor_to_eigenvalues(T00, T01, T02, T11, T12, T22):
     3-dimensional array of shape `(grid, grid, grid)`
     """
     grid = T00.shape[0]
-    eigvals = numpy.full((grid, grid, grid, 3), numpy.nan, dtype=numpy.float32)
-    dummy_vector = numpy.full(3, numpy.nan, dtype=numpy.float32)
-    dummy_tensor = numpy.full((3, 3), numpy.nan, dtype=numpy.float32)
+    eigvals = np.full((grid, grid, grid, 3), np.nan, dtype=np.float32)
+    dummy_vector = np.full(3, np.nan, dtype=np.float32)
+    dummy_tensor = np.full((3, 3), np.nan, dtype=np.float32)
 
     for i in range(grid):
         for j in range(grid):
@@ -491,10 +515,10 @@ def tidal_tensor_to_eigenvalues(T00, T01, T02, T11, T12, T22):
 
                 dummy_tensor[1, 2] = T12[i, j, k]
                 dummy_tensor[2, 1] = T12[i, j, k]
-                dummy_vector[:] = numpy.linalg.eigvalsh(dummy_tensor)
+                dummy_vector[:] = np.linalg.eigvalsh(dummy_tensor)
 
                 eigvals[i, j, k, :] = dummy_vector[
-                    numpy.argsort(numpy.abs(dummy_vector))][::-1]
+                    np.argsort(np.abs(dummy_vector))][::-1]
     return eigvals
 
 
@@ -515,7 +539,7 @@ def eigenvalues_to_environment(eigvals, th):
     -------
     3-dimensional array of shape `(grid, grid, grid)`
     """
-    env = numpy.full(eigvals.shape[:-1], numpy.nan, dtype=numpy.float32)
+    env = np.full(eigvals.shape[:-1], np.nan, dtype=np.float32)
 
     grid = eigvals.shape[0]
     for i in range(grid):

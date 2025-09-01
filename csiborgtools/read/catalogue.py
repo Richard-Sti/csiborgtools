@@ -35,7 +35,7 @@ from tqdm import tqdm
 from ..params import paths_glamdring
 from ..utils import (cartesian_to_radec, fprint, great_circle_distance,
                      number_counts, periodic_distance_two_points,
-                     radec_to_galactic, real2redshift)
+                     radec_to_galactic, real2redshift, radec_to_supergalactic)
 from .paths import Paths
 from .snapshot import is_instance_of_base_snapshot_subclass
 
@@ -514,6 +514,10 @@ class BaseCatalogue(ABC):
             elif key == "galactic_pos":
                 out = self["__spherical_pos"]
                 out[:, 1], out[:, 2] = radec_to_galactic(out[:, 1], out[:, 2])
+            elif key == "supergalactic_pos":
+                out = self["__spherical_pos"]
+                out[:, 1], out[:, 2] = radec_to_supergalactic(
+                    out[:, 1], out[:, 2])
             elif key == "dist":
                 out = np.linalg.norm(
                     self["__cartesian_pos"] - self.observer_location, axis=1)
@@ -1195,34 +1199,53 @@ class CSiBORG3Catalogue(BaseCatalogue):
     flip_xz : bool, optional
         Whether to flip the x- and z-coordinates to undo the MUSIC bug to match
         observations.
+    fpath_override : str, optional
+        Path to the catalogue file. If not provided, the default path is used.
+    boxsize : float, optional
+        Box size in :math:`\mathrm{cMpc} / h` (or units of positions).
     cache_maxsize : int, optional
         Maximum number of cached arrays.
+    verbose : bool, optional
+        Verbosity flag for reading inputs.
     """
     def __init__(self, nsim, nsnap, paths=None, snapshot=None,
                  bounds=None, observer_velocity=None, flip_xz=True,
-                 cache_maxsize=64):
+                 fpath_override=None, boxsize=681.1, cache_maxsize=64,
+                 verbose=True):
         super().__init__()
         super().init_with_snapshot(
             "csiborg3", nsim, nsnap, paths, snapshot, bounds,
-            681.1, [340.55, 340.55, 340.55], observer_velocity, flip_xz,
-            cache_maxsize)
+            boxsize, [boxsize / 2, boxsize / 2, boxsize / 2],
+            observer_velocity, flip_xz, cache_maxsize)
+        self.fpath_override = fpath_override
+        self._verbose = verbose
 
         self._custom_keys = ["GroupFirstSub", "GroupContamination",
                              "GroupNsubs", "Group_M_Crit200"]
 
     def _read_fof_catalogue(self, kind):
-        fpath = self.paths.snapshot_catalogue(self.nsnap, self.nsim,
-                                              self._simname)
+        if self.fpath_override is None:
+            fpath = self.paths.snapshot_catalogue(
+                self.nsnap, self.nsim, self._simname)
+        else:
+            fpath = self.fpath_override
+
         files = glob(fpath.replace(".hdf5", ".*.hdf5"))
         if len(files) == 0:
             raise FileNotFoundError(
                 f"No files found for snapshot {self.nsnap}.")
         files = sorted(files, key=lambda x: int(x.split(".")[-2]))
 
-        fprint(f"opening {len(files)} blocks for snapshot `{self.nsnap}`.")
-        for i, fpath in enumerate(tqdm(files, desc="Reading blocks")):
+        fprint(f"opening {len(files)} blocks for snapshot `{self.nsnap}`.",
+               verbose=self._verbose)
+        for i, fpath in enumerate(tqdm(files, desc="Reading blocks",
+                                       disable=not self._verbose)):
             with File(fpath, 'r') as f:
-                grp = f["Group"]
+                try:
+                    grp = f["Group"]
+                except KeyError:
+                    continue
+
                 if kind not in grp.keys():
                     raise ValueError(f"Group catalogue key '{kind}' not available. Available keys are: {list(grp.keys())}")  # noqa
                 out = grp[kind][...]

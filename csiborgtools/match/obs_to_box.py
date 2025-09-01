@@ -101,7 +101,7 @@ class MatchingProbability(BaseMatchingProbability):
         cosmology.addCosmology("myCosmo", **cosmo_params)
         cosmology.setCosmology("myCosmo")
 
-        x = np.logspace(10, 16, 10000)
+        x = np.logspace(8, 16, 10000)
         y = mass_function.massFunction(
             x, 0.0, mdef=mdef, model="angulo12", q_out="dndlnM") * np.log(10)
         self._hmf = interp1d(np.log10(x), y, kind="cubic")

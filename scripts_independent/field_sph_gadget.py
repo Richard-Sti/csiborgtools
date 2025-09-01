@@ -19,13 +19,14 @@ The SPH filter is implemented in the cosmotool package.
 import subprocess
 from argparse import ArgumentParser
 from datetime import datetime
+from glob import glob
 from os import remove
 from os.path import exists, join
 
-import hdf5plugin  # noqa
-import readgadget
+import hdf5plugin                                                               # noqa
 import numpy as np
 from h5py import File
+from tqdm import tqdm
 
 
 def now():
@@ -64,29 +65,71 @@ def prepare_gadget(snapshot_path, temporary_output_path):
     Prepare a GADGET snapshot for the SPH filter. Assumes there is only a
     single file per snapshot.
     """
-    with File(snapshot_path, 'r') as source, File(temporary_output_path, 'w') as target:  # noqa
-        boxsize = source["Header"].attrs["BoxSize"]
+    if exists(snapshot_path):
+        snapshot_paths = [snapshot_path]
+    else:
+        snapshot_paths = glob(snapshot_path.replace(".hdf5", ".*.hdf5"))
+        if not snapshot_paths:
+            raise RuntimeError(
+                f"Snapshot path `{snapshot_path}` does not exist.")
+        print(f"Found {len(snapshot_paths)} snapshot files.", flush=True)
 
-        npart = sum(source["Header"].attrs["NumPart_Total"])
-        nhighres = source["Header"].attrs["NumPart_Total"][1]
+    with File(temporary_output_path, 'w') as target:
+        # Open just to get the total particle number.
+        with File(snapshot_paths[0], 'r') as source:
+            npart_tot_all = sum(source["Header"].attrs["NumPart_Total"])
 
-        dset = target.create_dataset("particles", (npart, 7), dtype=np.float32)
+        # Create the dataset to which to write the particles.
+        dset = target.create_dataset(
+            "particles", (npart_tot_all, 7), dtype=np.float32)
+        npart_written = 0
 
-        # Copy to this dataset the high-resolution particles.
-        dset[:nhighres, :3] = source["PartType1/Coordinates"][:]
-        dset[:nhighres, 3:6] = source["PartType1/Velocities"][:]
-        dset[:nhighres, 6] = np.ones(nhighres, dtype=np.float32) * source["Header"].attrs["MassTable"][1]  # noqa
+        for snapshot_path_i in tqdm(snapshot_paths,
+                                    desc="Reading snapshot files",
+                                    unit="file"):
+            with File(snapshot_path_i, 'r') as source:
+                header = source["Header"].attrs
+                boxsize = header["BoxSize"]
 
-        # Now copy the low-resolution particles.
-        dset[nhighres:, :3] = source["PartType5/Coordinates"][:]
-        dset[nhighres:, 3:6] = source["PartType5/Velocities"][:]
-        dset[nhighres:, 6] = source["PartType5/Masses"][:]
+                npart_high = header["NumPart_ThisFile"][1]
+                npart_low = header["NumPart_ThisFile"][5]
+                npart_tot = npart_high + npart_low
+                mpart_high = header["MassTable"][1]
+
+                if sum(header["NumPart_ThisFile"]) != npart_tot:
+                    raise ValueError(
+                        "Found inconsistent number of particles in the "
+                        "snapshot, likely some other particle types than "
+                        "1 or 5.")
+
+                # Copy to this dataset the high-resolution particles.
+                i, j = npart_written, npart_written + npart_high
+                dset[i:j, :3] = source["PartType1/Coordinates"][...]
+                dset[i:j, 3:6] = source["PartType1/Velocities"][...]
+                dset[i:j, 6] = mpart_high
+                npart_written += npart_high
+
+                # Copy to this dataset the low-resolution particles.
+                i, j = npart_written, npart_written + npart_low
+                dset[i:j, :3] = source["PartType5/Coordinates"][...]
+                dset[i:j, 3:6] = source["PartType5/Velocities"][...]
+                dset[i:j, 6] = source["PartType5/Masses"][...]
+                npart_written += npart_low
+
+    if npart_written != npart_tot_all:
+        raise ValueError("Wrote an inconsistent number of particles to the "
+                         "dataset.")
 
     return boxsize
 
 
 def prepara_gadget2(snapshot_path, temporary_output_path):
     ptype = [1]
+    try:
+        import readgadget
+    except ImportError as e:
+        raise ImportError(
+            "Please install the `readgadget` package to use this function.") from e  # noqa
     header = readgadget.header(snapshot_path)
 
     boxsize = header.boxsize / 1000
@@ -245,12 +288,11 @@ def main(snapshot_path, output_path, resolution, scratch_space, SPH_executable,
                    SPH_executable)
 
     # Remove the temporary snapshot file if it was created.
-    if snapshot_kind == "gadget4":
-        print(f"{now()}: removing the temporary snapshot file.", flush=True)
-        try:
-            remove(temporary_output_path)
-        except FileNotFoundError:
-            pass
+    print(f"{now()}: removing the temporary snapshot file.", flush=True)
+    try:
+        remove(temporary_output_path)
+    except FileNotFoundError:
+        pass
 
 
 if __name__ == "__main__":
