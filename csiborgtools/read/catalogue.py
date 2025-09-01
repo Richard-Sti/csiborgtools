@@ -35,7 +35,7 @@ from tqdm import tqdm
 from ..params import paths_glamdring
 from ..utils import (cartesian_to_radec, fprint, great_circle_distance,
                      number_counts, periodic_distance_two_points,
-                     radec_to_galactic, real2redshift)
+                     radec_to_galactic, real2redshift, radec_to_supergalactic)
 from .paths import Paths
 from .snapshot import is_instance_of_base_snapshot_subclass
 
@@ -514,6 +514,10 @@ class BaseCatalogue(ABC):
             elif key == "galactic_pos":
                 out = self["__spherical_pos"]
                 out[:, 1], out[:, 2] = radec_to_galactic(out[:, 1], out[:, 2])
+            elif key == "supergalactic_pos":
+                out = self["__spherical_pos"]
+                out[:, 1], out[:, 2] = radec_to_supergalactic(
+                    out[:, 1], out[:, 2])
             elif key == "dist":
                 out = np.linalg.norm(
                     self["__cartesian_pos"] - self.observer_location, axis=1)
