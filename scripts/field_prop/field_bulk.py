@@ -216,10 +216,10 @@ def main_from_field(args, folder):
     cumulative_vel_z = np.zeros_like(cumulative_vel_x)
     for i, nsim in enumerate(tqdm(nsims, desc="Simulations")):
         if args.simname == "csiborg2X":
-            reader = csiborgtools.read.CSiBORG2XField(nsim, paths)
+            reader = csiborgtools.read.CSiBORGField(nsim, paths)
             kwargs = {}
         elif args.simname == "manticore_2MPP_MULTIBIN_N256_DES_V2":
-            reader = csiborgtools.read.CSiBORG2XField(
+            reader = csiborgtools.read.CSiBORGField(
                 nsim, version=4, paths=paths)
             kwargs = {"MAS": "SPH", "grid": 1024}
         elif args.simname == "CF4":

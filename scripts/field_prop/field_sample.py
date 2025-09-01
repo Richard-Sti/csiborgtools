@@ -196,7 +196,7 @@ def main(nsim, parser_args, pos, edist, boxsize, r_grid, verbose):
         kind = parser_args.simname.split("_")[-1]
         freader = csiborgtools.read.CSiBORG2Field(nsim, kind)
     elif "manticore_2MPP_N128_DES_V1" == parser_args.simname:
-        freader = csiborgtools.read.CSiBORG2XField(nsim, 1)
+        freader = csiborgtools.read.CSiBORGField(nsim, 1)
     elif parser_args.simname == "TNG300-1":
         freader = csiborgtools.read.TNG300_1Field()
     else:

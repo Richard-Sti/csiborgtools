@@ -34,7 +34,7 @@ def get_field(simname, nsim, field_kind, MAS, grid):
         kind = simname.split("_")[-1]
         reader = csiborgtools.read.CSiBORG2Field(nsim, kind)
     elif simname == "csiborg2X":
-        reader = csiborgtools.read.CSiBORG2XField(nsim)
+        reader = csiborgtools.read.CSiBORGField(nsim)
     elif "quijote" in simname:
         reader = csiborgtools.read.QuijoteField(nsim)
     else:

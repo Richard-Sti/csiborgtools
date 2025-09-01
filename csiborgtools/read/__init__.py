@@ -13,37 +13,17 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 from .catalogue import (                                                        # noqa
-    CSiBORG1Catalogue,                                                          # noqa
-    CSiBORG2Catalogue,                                                          # noqa
-    CSiBORG2SUBFINDCatalogue,                                                   # noqa
-    CSiBORG2MergerTreeReader,                                                   # noqa
-    CSiBORG3Catalogue,                                                          # noqa
+    CSiBORGCatalogue,                                                          # noqa
     QuijoteCatalogue,                                                           # noqa
-    MDPL2Catalogue,                                                             # noqa
     fiducial_observers,                                                         # noqa
     ReaderRockstar,                                                             # noqa
     )
 from .snapshot import (                                                         # noqa
-    CSiBORG1Snapshot,                                                           # noqa
-    CSiBORG2Snapshot,                                                           # noqa
-    CSiBORG2XSnapshot,                                                          # noqa
-    CSiBORG3Snapshot,                                                           # noqa
+    CSiBORGSnapshot,                                                            # noqa
     QuijoteSnapshot,                                                            # noqa
-    CSiBORG1Field,                                                              # noqa
-    CSiBORG2Field,                                                              # noqa
-    CSiBORG2XField,                                                             # noqa
+    CSiBORGField,                                                               # noqa
     QuijoteField,                                                               # noqa
-    BORG2Field,                                                                 # noqa
-    BORG1Field,                                                                 # noqa
-    TNG300_1Field,                                                              # noqa
-    Carrick2015Field,                                                           # noqa
-    Lilow2024Field,                                                             # noqa
-    CLONESField,                                                                # noqa
-    CF4Field,                                                                   # noqa
     )
-from .obs import (SDSS, MCXCClusters, PlanckClusters, TwoMPPGalaxies,           # noqa
-                  TwoMPPGroups, ObservedCluster, match_array_to_no_masking,     # noqa
-                  cols_to_structured)                                           # noqa
 from .paths import Paths                                                        # noqa
 
 from .util import find_boxed                                                    # noqa

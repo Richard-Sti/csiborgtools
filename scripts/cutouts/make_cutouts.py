@@ -15,7 +15,7 @@ os.environ["PATH"] = os.path.expanduser("~/texlive/bin/x86_64-linux") + ":" + os
 def find_particles(step, x0, mask_width, boxsize, which_simulation, paths):
     print(f"[step {step}] Finding particles in mask...")
     if which_simulation == "csiborg3":
-        reader = csiborgtools.read.CSiBORG3Snapshot(step, 130, paths)
+        reader = csiborgtools.read.CSiBORGSnapshot(step, 130, paths)
     else:
         raise ValueError("Invalid simulation name.")
 

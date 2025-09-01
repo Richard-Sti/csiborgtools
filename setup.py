@@ -10,12 +10,8 @@ INSTALL_REQ += [
     "joblib",
     "mpi4py",
     "numba",
-    "numpyro",
-    "interpax",
-    "quadax",
     "scikit-learn",
     "tqdm",
-    "pandas",
     "matplotlib",
 ]
 
