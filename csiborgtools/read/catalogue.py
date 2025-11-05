@@ -709,7 +709,9 @@ class CSiBORG2Catalogue(BaseCatalogue):
             cache_maxsize)
 
         self._custom_keys = ["GroupFirstSub", "GroupContamination",
-                             "GroupNsubs", "Group_M_Crit200"]
+                             "GroupNsubs", "Group_M_Crit200",
+                             "Group_M_Crit500", "Group_R_Crit200",
+                             "Group_R_Crit500"]
 
     @property
     def kind(self):
@@ -797,6 +799,18 @@ class CSiBORG2Catalogue(BaseCatalogue):
     @property
     def Group_M_Crit200(self):
         return self._read_fof_catalogue("Group_M_Crit200")
+
+    @property
+    def Group_M_Crit500(self):
+        return self._read_fof_catalogue("Group_M_Crit500")
+
+    @property
+    def Group_R_Crit200(self):
+        return self._read_fof_catalogue("Group_R_Crit200")
+
+    @property
+    def Group_R_Crit500(self):
+        return self._read_fof_catalogue("Group_R_Crit500")
 
     @property
     def GroupContamination(self):
