@@ -87,7 +87,8 @@ def periodic_distance(points, reference_point, boxsize):
 
 def euclidean_distance(points, reference_point):
     """
-    Compute the 3D Euclidean distance between multiple points and a reference point.
+    Compute the 3D Euclidean distance between multiple points and a
+    reference point.
     """
     return np.linalg.norm(points - reference_point, axis=1)
 
