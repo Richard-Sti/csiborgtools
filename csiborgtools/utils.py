@@ -55,6 +55,21 @@ def center_of_mass(particle_positions, particles_mass, boxsize):
 
 
 @jit(nopython=True, fastmath=True, boundscheck=False)
+def center_of_mass_euclidean(points, mass):
+    """
+    Compute the center of mass for a set of points without periodic boundary
+    conditions.
+    """
+    cm = np.zeros(3, dtype=points.dtype)
+    total_mass = 0.0
+    for i in range(len(mass)):
+        total_mass += mass[i]
+        for j in range(3):
+            cm[j] += points[i, j] * mass[i]
+    return cm / total_mass
+
+
+@jit(nopython=True, fastmath=True, boundscheck=False)
 def periodic_distance(points, reference_point, boxsize):
     """
     Compute the 3D distance between multiple points and a reference point
@@ -68,6 +83,13 @@ def periodic_distance(points, reference_point, boxsize):
             points[i], reference_point, boxsize)
 
     return dist
+
+
+def euclidean_distance(points, reference_point):
+    """
+    Compute the 3D Euclidean distance between multiple points and a reference point.
+    """
+    return np.linalg.norm(points - reference_point, axis=1)
 
 
 @jit(nopython=True, fastmath=True, boundscheck=False)
