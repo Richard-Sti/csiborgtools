@@ -64,9 +64,13 @@ if __name__ == "__main__":
         if rank == 0:
             print(f"Processing {len(selected_idx)} halos with mass > "
                   f"{mass_threshold:.0e} Msun/h")
+            np.random.shuffle(selected_idx)
 
+        selected_idx = comm.bcast(selected_idx, root=0)
         my_halos = np.array_split(selected_idx, size)[rank]
         n_my_halos = len(my_halos)
+
+        print(f"Rank {rank}/{size}: processing {n_my_halos} halos")
 
         m200c_vals = np.full(n_my_halos, np.nan, dtype=np.float32)
         r200c_vals = np.full(n_my_halos, np.nan, dtype=np.float32)
@@ -74,7 +78,7 @@ if __name__ == "__main__":
         total_mass = np.full(n_my_halos, np.nan, dtype=np.float32)
         fof_pos = np.full((n_my_halos, 3), np.nan, dtype=np.float32)
 
-        for i in trange(n_my_halos, disable=rank != 0):
+        for i in trange(n_my_halos, disable=size > 1):
             hid = halocat.index[my_halos[i]]
 
             pos = snapcat.halo_coordinates(hid)
@@ -104,6 +108,14 @@ if __name__ == "__main__":
             centers = np.vstack(all_centers)
             total_mass = np.concatenate(all_total_mass)
             fof_pos = np.vstack(all_fof_pos)
+
+            # Sort by total mass descending
+            sort_idx = np.argsort(total_mass)[::-1]
+            m200c_vals = m200c_vals[sort_idx]
+            r200c_vals = r200c_vals[sort_idx]
+            centers = centers[sort_idx]
+            total_mass = total_mass[sort_idx]
+            fof_pos = fof_pos[sort_idx]
 
             print(f"Saving results to {fname_out}")
 
