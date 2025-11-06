@@ -135,24 +135,13 @@ class Halo:
         rho_ratio = rho / rho_target
 
         if rho_ratio[1] > 1:
-            idx = np.where(rho_ratio < 1)[0]
+            if rho_ratio[-1] >= 1:
+                return np.nan, np.nan
+            r = np.interp(1.0, rho_ratio[::-1], dist_sorted[::-1])
         else:
-            idx = np.where(rho_ratio > 1)[0]
-
-        if len(idx) == 0:
-            return np.nan, np.nan
-
-        j = idx[0]
-        i = j - 1
-
-        if not ((rho_ratio[i] > 1 and rho_ratio[j] < 1)
-                or (rho_ratio[i] < 1 and rho_ratio[j] > 1)):
-            return np.nan, np.nan
-
-        # Linear interpolation
-        r = (dist_sorted[j] - dist_sorted[i]) * (1 - rho_ratio[i])
-        r /= (rho_ratio[j] - rho_ratio[i])
-        r += dist_sorted[i]
+            if rho_ratio[-1] <= 1:
+                return np.nan, np.nan
+            r = np.interp(1.0, rho_ratio, dist_sorted)
 
         mass = 4/3 * np.pi * rho_target * r**3
 
