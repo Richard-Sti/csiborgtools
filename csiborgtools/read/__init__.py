@@ -36,10 +36,6 @@ from .snapshot import (                                                         
     BORG2Field,                                                                 # noqa
     BORG1Field,                                                                 # noqa
     TNG300_1Field,                                                              # noqa
-    Carrick2015Field,                                                           # noqa
-    Lilow2024Field,                                                             # noqa
-    CLONESField,                                                                # noqa
-    CF4Field,                                                                   # noqa
     )
 from .obs import (SDSS, MCXCClusters, PlanckClusters, TwoMPPGalaxies,           # noqa
                   TwoMPPGroups, ObservedCluster, match_array_to_no_masking,     # noqa
