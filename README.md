@@ -66,7 +66,3 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 ## Contributors
 - Richard Stiskalek (University of Oxford)
 - Harry Desmond (University of Portsmouth)
-
-
-## Examples
-...
