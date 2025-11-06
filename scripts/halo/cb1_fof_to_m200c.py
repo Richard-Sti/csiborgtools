@@ -44,12 +44,13 @@ if __name__ == "__main__":
         print(f"Processing {len(simulations)} simulations using {size} "
               f"MPI processes per simulation")
 
-    for nsim in simulations:
+    for i, nsim in enumerate(simulations):
         fname_out = f"{output_dir}/{fname_stem}_{nsim}.hdf5"
 
         if rank == 0:
             print(f"\n{'='*60}")
-            print(f"Processing simulation {nsim}")
+            print(f"Processing simulation {nsim} ({i+1}/{len(simulations)}, "
+                  f"{len(simulations) - i - 1} remaining)")
             print(f"{'='*60}")
 
         halocat = csiborgtools.read.CSiBORG1Catalogue(nsim, paths=paths)
