@@ -70,7 +70,7 @@ if __name__ == "__main__":
         my_halos = np.array_split(selected_idx, size)[rank]
         n_my_halos = len(my_halos)
 
-        print(f"Rank {rank}/{size}: processing {n_my_halos} halos")
+        print(f"Rank {1 + rank}/{size}: processing {n_my_halos} halos")
 
         m200c_vals = np.full(n_my_halos, np.nan, dtype=np.float32)
         r200c_vals = np.full(n_my_halos, np.nan, dtype=np.float32)
