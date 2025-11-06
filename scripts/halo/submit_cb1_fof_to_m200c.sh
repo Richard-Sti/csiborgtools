@@ -1,18 +1,13 @@
 #!/bin/bash
-nthreads=1
-memory=16
+nthreads=16
+memory=4
 on_login=${1}
 queue="berg"
 env="/mnt/zfsusers/rstiskalek/csiborgtools/venv_csiborg/bin/python"
-file="quijote_pecvel_covmat.py"
-
-
-if [ "$on_login" != "1" ] && [ "$on_login" != "0" ]; then
-  echo "Invalid input: 'on_login' (1). Please provide 1 or 0."
-  exit 1
-fi
+file="cb1_fof_to_m200c.py"
 
 pythoncm="$env $file"
+
 if [ $on_login -eq 1 ]; then
     echo $pythoncm
     $pythoncm

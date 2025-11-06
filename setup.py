@@ -11,11 +11,8 @@ INSTALL_REQ += [
     "mpi4py",
     "numba",
     "numpyro",
-    "interpax",
-    "quadax",
     "scikit-learn",
     "tqdm",
-    "pandas",
     "matplotlib",
 ]
 

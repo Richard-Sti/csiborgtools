@@ -15,10 +15,9 @@
 """
 CSiBORG paths manager.
 """
-import datetime
 from glob import glob
 from os import listdir, makedirs
-from os.path import exists, getmtime, isdir, join
+from os.path import isdir, join
 from re import search
 from warnings import warn
 
@@ -756,65 +755,6 @@ class Paths:
         fdir = join(self.postdir, "field_los")
         try_create_directory(fdir)
         return join(fdir, f"los_{catalogue}_{simname}.hdf5")
-
-    def flow_validation(self, fdir, simname, catalogue, inference_method,
-                        fdir_subfolder,
-                        smooth=None, nsim=None, zcmb_min=None, zcmb_max=None,
-                        sample_alpha=False, sample_beta=False, no_Vext=None,
-                        sample_Vmono=False, sample_mag_dipole=False,
-                        sample_curvature=False, absolute_calibration=None,
-                        sample_h_e_int=False, which_void_size_run=None,
-                        dust_model=None, Rdust_fixed=None,
-                        Vext_prior_kind=None, mag_dipole_prior_kind=None,
-                        remove_CF4_outliers=False, verbose_print=True):
-        """Flow validation file path."""
-        if isinstance(catalogue, list) and len(catalogue) == 1:
-            catalogue = catalogue[0]
-
-        if isinstance(catalogue, list):
-            catalogue = "_".join(catalogue)
-
-        if smooth == 0:
-            smooth = None
-
-        if fdir_subfolder is not None:
-            fdir = join(fdir, fdir_subfolder)
-            try_create_directory(fdir)
-
-        fname = f"samples_{simname}_{catalogue}_{inference_method}_"
-
-        keys = ["smooth", "nsim", "zcmb_min", "zcmb_max",
-                "sample_alpha", "sample_beta", "no_Vext", "sample_Vmono",
-                "sample_mag_dipole", "sample_curvature",
-                "absolute_calibration", "sample_h_e_int",
-                "which_void_size_run", "dust_model", "Rdust_fixed",
-                "Vext_prior_kind", "mag_dipole_prior_kind",
-                "remove_CF4_outliers",]
-        values = [smooth, nsim, zcmb_min, zcmb_max,
-                  sample_alpha, sample_beta, no_Vext, sample_Vmono,
-                  sample_mag_dipole, sample_curvature, absolute_calibration,
-                  sample_h_e_int, which_void_size_run, dust_model, Rdust_fixed,
-                  Vext_prior_kind, mag_dipole_prior_kind, remove_CF4_outliers,]
-
-        for key, value in zip(keys, values):
-
-            if isinstance(value, bool):
-                if value:
-                    fname += f"{key}_"
-            elif value is not None:
-                fname += f"{key}_{value}_"
-
-        fname = fname.strip("_")
-        fname = join(fdir, f"{fname}.hdf5")
-        # Print the last modified time of the file if it exists.
-        if verbose_print and exists(fname):
-            mtime = getmtime(fname)
-            mtime = datetime.datetime.fromtimestamp(mtime)
-            mtime = mtime.strftime("%d/%m/%Y %H:%M:%S")
-            print(f"File:          {fname}")
-            print(f"Last modified: {mtime}")
-
-        return fname
 
     def field_projected(self, simname, kind):
         """

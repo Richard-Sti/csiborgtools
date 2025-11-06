@@ -21,13 +21,11 @@ from abc import ABC, abstractmethod
 from os.path import join
 
 import numpy as np
-from astropy.io import fits
 from h5py import File
 from glob import glob
 from gc import collect
 from tqdm import tqdm
 
-from ..field import radial_velocity
 from ..params import paths_glamdring, simname2boxsize, simname2Omega_m
 from .paths import Paths
 from .util import find_boxed
@@ -1150,55 +1148,6 @@ class CSiBORG2XField(BaseField):
 
 
 ###############################################################################
-#                             CLONES field                                    #
-###############################################################################
-
-class CLONESField(BaseField):
-    """
-    CLONES `z = 0` field class in supergalactic Cartesian coordinates.
-
-    Parameters
-    ----------
-    nsim : int
-        Simulation index.
-    paths : Paths, optional
-        Paths object. By default, the paths are set to the `glamdring` paths.
-    """
-    def __init__(self, nsim, paths=None):
-        super().__init__(nsim, paths, flip_xz=False)
-
-    def density_field(self, MAS, grid):
-        fpath = self.paths.field("density", MAS, grid, self.nsim, "CLONES")
-
-        if MAS == "SPH":
-            with File(fpath, "r") as f:
-                field = f["density"][:]
-            field /= (500 * 1e3 / grid)**3  # Convert to h^2 Msun / kpc^3
-        else:
-            field = np.load(fpath)
-
-        return field
-
-    def velocity_field(self, MAS, grid):
-        fpath = self.paths.field("velocity", MAS, grid, self.nsim, "CLONES")
-
-        if MAS == "SPH":
-            with File(fpath, "r") as f:
-                density = f["density"][:]
-                v0 = f["p0"][:] / density
-                v1 = f["p1"][:] / density
-                v2 = f["p2"][:] / density
-            field = np.array([v0, v1, v2])
-        else:
-            field = np.load(fpath)
-
-        return field
-
-    def radial_velocity_field(self, MAS, grid):
-        raise RuntimeError("The radial velocity field is not available.")
-
-
-###############################################################################
 #                           BORG1 field class                                 #
 ###############################################################################
 
@@ -1332,132 +1281,6 @@ class QuijoteField(CSiBORG1Field):
     def __init__(self, nsim, paths):
         super().__init__(nsim, paths, flip_xz=False)
         self._simname = "quijote"
-
-
-class Carrick2015Field(BaseField):
-    """
-    Carrick+2015 `z = 0` field class. The field is in galactic coordinates.
-
-    Parameters
-    ----------
-    paths : Paths, optional
-        Paths object. By default, the paths are set to the `glamdring` paths.
-    """
-    def __init__(self, paths=None):
-        super().__init__(0, paths, False)
-
-    def overdensity_field(self, **kwargs):
-        fpath = self.paths.field(
-            "overdensity", None, None, self.nsim, "Carrick2015")
-        return np.load(fpath)
-
-    def density_field(self, **kwargs):
-        field = self.overdensity_field()
-        omega0 = simname2Omega_m("Carrick2015")
-        rho_mean = omega0 * 277.53662724583074  # Msun / kpc^3
-        field += 1
-        field *= rho_mean
-        return field
-
-    def velocity_field(self, **kwargs):
-        fpath = self.paths.field(
-            "velocity", None, None, self.nsim, "Carrick2015")
-        field = np.load(fpath)
-        # Because the Carrick+2015 data is in the following form:
-        # "The velocities are predicted peculiar velocities in the CMB
-        # frame in Galactic Cartesian coordinates, generated from the
-        # \(\delta_g^*\) field with \(\beta^* = 0.43\) and an external
-        # dipole \(V_\mathrm{ext} = [89,-131,17]\) (Carrick et al Table 3)
-        # has already been added.""
-        field[0] -= 89
-        field[1] -= -131
-        field[2] -= 17
-        field /= 0.43
-        return field
-
-    def radial_velocity_field(self, **kwargs):
-        fprint("computing the radial velocity field.")
-        return radial_velocity(self.velocity_field(), [0, 0, 0])
-
-
-class Lilow2024Field(BaseField):
-    """
-    Lilow+2024 `z = 0` field class. The field is in galactic coordinates.
-
-    Parameters
-    ----------
-    paths : Paths, optional
-        Paths object. By default, the paths are set to the `glamdring` paths.
-    """
-    def __init__(self, paths=None):
-        super().__init__(0, paths, False)
-
-    def overdensity_field(self, **kwargs):
-        fpath = self.paths.field(
-            "overdensity", None, None, self.nsim, "Lilow2024")
-        return np.load(fpath) - 1
-
-    def density_field(self, **kwargs):
-        field = self.overdensity_field()
-        omega0 = simname2Omega_m("Lilow2024")
-        rho_mean = omega0 * 277.53662724583074  # Msun / kpc^3
-        field += 1
-        field *= rho_mean
-        return field
-
-    def velocity_field(self, **kwargs):
-        fpath = self.paths.field(
-            "velocity", None, None, self.nsim, "Lilow2024")
-
-        vx = np.load(fpath)
-        vy = np.load(fpath.replace("xVelocity", "yVelocity"))
-        vz = np.load(fpath.replace("xVelocity", "zVelocity"))
-
-        return np.stack([vx, vy, vz])
-
-    def radial_velocity_field(self, **kwargs):
-        raise RuntimeError("The radial velocity field is not available.")
-
-
-class CF4Field(BaseField):
-    """
-    CF4 Courtois+2023 `z = 0` field class. The field is in supergalactic
-    coordinates.
-
-    Parameters
-    ----------
-    nsim : int
-        Simulation index.
-    paths : Paths, optional
-        Paths object. By default, the paths are set to the `glamdring` paths.
-    """
-    def __init__(self, nsim, paths=None):
-        super().__init__(nsim, paths, False)
-
-    def overdensity_field(self, **kwargs):
-        fpath = self.paths.field(
-            "overdensity", None, None, self.nsim, "CF4")
-        return fits.open(fpath)[0].data.astype(np.float32)
-
-    def density_field(self, **kwargs):
-        field = self.overdensity_field()
-        omega0 = simname2Omega_m("CF4")
-        rho_mean = omega0 * 277.53662724583074  # Msun / kpc^3
-        field += 1
-        field *= rho_mean
-        return field
-
-    def velocity_field(self, **kwargs):
-        fpath = self.paths.field(
-            "velocity", None, None, self.nsim, "CF4")
-
-        field = fits.open(fpath)[0].data
-        # https://projets.ip2i.in2p3.fr//cosmicflows/ says to multiply by 52
-        field *= 52
-        return field.astype(np.float32)
-
-    def radial_velocity_field(self, **kwargs):
-        raise RuntimeError("The radial velocity field is not available.")
 
 
 ###############################################################################
