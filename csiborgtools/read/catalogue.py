@@ -1235,7 +1235,9 @@ class CSiBORG3Catalogue(BaseCatalogue):
         self._verbose = verbose
 
         self._custom_keys = ["GroupFirstSub", "GroupContamination",
-                             "GroupNsubs", "Group_M_Crit200"]
+                             "GroupNsubs", "Group_M_Crit200",
+                             "Group_M_Crit500", "Group_R_Crit200",
+                             "Group_R_Crit500"]
 
     def _read_fof_catalogue(self, kind):
         if self.fpath_override is None:
@@ -1338,6 +1340,18 @@ class CSiBORG3Catalogue(BaseCatalogue):
     @property
     def Group_M_Crit200(self):
         return self._read_fof_catalogue("Group_M_Crit200")
+
+    @property
+    def Group_M_Crit500(self):
+        return self._read_fof_catalogue("Group_M_Crit500")
+
+    @property
+    def Group_R_Crit200(self):
+        return self._read_fof_catalogue("Group_R_Crit200")
+
+    @property
+    def Group_R_Crit500(self):
+        return self._read_fof_catalogue("Group_R_Crit500")
 
     @property
     def GroupContamination(self):
