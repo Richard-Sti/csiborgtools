@@ -18,7 +18,7 @@ should be implemented things such as flipping x- and z-axes, to make sure that
 observed RA-dec can be mapped into the simulation box.
 """
 from abc import ABC, abstractmethod
-from os.path import join
+from os.path import join, dirname, basename
 
 import numpy as np
 from h5py import File
@@ -632,7 +632,7 @@ class CSiBORG3Snapshot(BaseSnapshot):
         Override the snapshot file path with a custom path, if provided.
     """
     def __init__(self, nsim, nsnap, paths=None, keep_snapshot_open=False,
-                 fpath_override=None):
+                 fpath_override=None, catalogue_fpath_override=None):
         flip_xz = True
         super().__init__(nsim, nsnap, paths, keep_snapshot_open, flip_xz)
         simname = "csiborg3"
@@ -644,6 +644,20 @@ class CSiBORG3Snapshot(BaseSnapshot):
 
         self._snapshot_path = fpath
         self._simname = simname
+
+        if fpath_override is not None and catalogue_fpath_override is None:
+            # Construct the base path for the catalogue files
+            # e.g. from ".../snapdir_004/snapshot_004.23.hdf5"
+            # to ".../groups_004/fof_subhalo_tab_004.hdf5"
+            snapshot_dir = dirname(self._snapshot_path)
+            snapshot_basename = basename(self._snapshot_path)
+            groups_dir = snapshot_dir.replace("snapdir", "groups")
+            snapshot_file_root = snapshot_basename.split('.')[0]
+            catalogue_basename = snapshot_file_root.replace(
+                "snapshot", "fof_subhalo_tab") + ".hdf5"
+            self._catalogue_path = join(groups_dir, catalogue_basename)
+        else:
+            self._catalogue_path = catalogue_fpath_override
 
     def _get_particles(self, kind, high_resolution_only=False):
         files = glob(self._snapshot_path.replace(".hdf5", ".*.hdf5"))
@@ -714,55 +728,119 @@ class CSiBORG3Snapshot(BaseSnapshot):
         return self._get_particles("ParticleIDs", high_resolution_only)
 
     def _get_halo_particles(self, halo_id, kind, is_group):
-        raise NotImplementedError("Must add support for multiple blocks.")
         if not is_group:
-            raise RuntimeError("While the CSiBORG2 subhalo catalogue exists, it is not currently implemented.")  # noqa
+            raise RuntimeError("While the CSiBORG3 subhalo catalogue exists, "
+                               "it is not currently implemented.")
 
-        f = self.open_snapshot()
+        # Get global offsets for this halo
         i1, j1 = self.hid2offset["type1"].get(halo_id, (None, None))
         i5, j5 = self.hid2offset["type5"].get(halo_id, (None, None))
 
         # Check if this is a valid halo
         if i1 is None and i5 is None:
             raise ValueError(f"Halo `{halo_id}` not found.")
-        if j1 - i1 == 0 and j5 - i5 == 0:
+        if (i1 is None or j1 - i1 == 0) and (i5 is None or j5 - i5 == 0):
             raise ValueError(f"Halo `{halo_id}` has no particles.")
 
-        if i1 is not None and j1 - i1 > 0:
-            if kind == "Masses":
-                x1 = np.ones(j1 - i1, dtype=np.float32)
-                x1 *= f["Header"].attrs["MassTable"][1]
+        # Get snapshot files
+        files = glob(self._snapshot_path.replace(".hdf5", ".*.hdf5"))
+        if len(files) == 0:
+            raise FileNotFoundError(
+                f"No files found for snapshot {self.nsnap}.")
+        files = sorted(files, key=lambda x: int(x.split(".")[-2]))
+
+        x1_parts = []
+        x5_parts = []
+
+        # Track cumulative particle counts across blocks
+        cumsum_type1 = 0
+        cumsum_type5 = 0
+
+        for file in files:
+            with File(file, "r") as f:
+                npart_type1 = f["Header"].attrs["NumPart_ThisFile"][1]
+                npart_type5 = f["Header"].attrs["NumPart_ThisFile"][5]
+
+                # Check if Type1 particles for this halo are in this block
+                if i1 is not None and j1 - i1 > 0:
+                    block_start = cumsum_type1
+                    block_end = cumsum_type1 + npart_type1
+
+                    # Check for overlap with halo particle range
+                    if block_start < j1 and block_end > i1:
+                        local_start = max(0, i1 - block_start)
+                        local_end = min(npart_type1, j1 - block_start)
+
+                        if kind == "Masses":
+                            x_temp = np.ones(local_end - local_start,
+                                             dtype=np.float32)
+                            x_temp *= f["Header"].attrs["MassTable"][1]
+                        else:
+                            x_temp = f[f"PartType1/{kind}"][
+                                local_start:local_end]
+
+                            if self.flip_xz and kind in ["Coordinates",
+                                                         "Velocities"]:
+                                x_temp[:, [0, 2]] = x_temp[:, [2, 0]]
+
+                        x1_parts.append(x_temp)
+
+                # Check if Type5 particles for this halo are in this block
+                if i5 is not None and j5 - i5 > 0:
+                    block_start = cumsum_type5
+                    block_end = cumsum_type5 + npart_type5
+
+                    # Check for overlap with halo particle range
+                    if block_start < j5 and block_end > i5:
+                        local_start = max(0, i5 - block_start)
+                        local_end = min(npart_type5, j5 - block_start)
+
+                        if kind == "Masses":
+                            x_temp = np.ones(local_end - local_start,
+                                             dtype=np.float32)
+                            x_temp *= f["Header"].attrs["MassTable"][5]
+                        else:
+                            x_temp = f[f"PartType5/{kind}"][
+                                local_start:local_end]
+
+                            if self.flip_xz and kind in ["Coordinates",
+                                                         "Velocities"]:
+                                x_temp[:, [0, 2]] = x_temp[:, [2, 0]]
+
+                        x5_parts.append(x_temp)
+
+                cumsum_type1 += npart_type1
+                cumsum_type5 += npart_type5
+
+        # Combine particles from all blocks
+        if len(x1_parts) > 0:
+            if x1_parts[0].ndim == 1:
+                x1 = np.hstack(x1_parts)
             else:
-                x1 = f[f"PartType1/{kind}"][i1:j1]
-
-                # Flipping of x- and z-axes
-                if self.flip_xz:
-                    x1[:, [0, 2]] = x1[:, [2, 0]]
-
-        if i5 is not None and j5 - i5 > 0:
-            x5 = f[f"PartType5/{kind}"][i5:j5]
-
-            # Flipping of x- and z-axes
-            if self.flip_xz and kind in ["Coordinates", "Velocities"]:
-                x5[:, [0, 2]] = x5[:, [2, 0]]
-
-        # Close the snapshot file if we don't want to keep it open
-        if not self.keep_snapshot_open:
-            self.close_snapshot()
-
-        # Are we stacking high-resolution and low-resolution particles?
-        if i5 is None or j5 - i5 == 0:
-            return x1
-
-        if i1 is None or j1 - i1 == 0:
-            return x5
-
-        if x1.ndim > 1:
-            x1 = np.vstack([x1, x5])
+                x1 = np.vstack(x1_parts)
         else:
-            x1 = np.hstack([x1, x5])
+            x1 = None
 
-        return x1
+        if len(x5_parts) > 0:
+            if x5_parts[0].ndim == 1:
+                x5 = np.hstack(x5_parts)
+            else:
+                x5 = np.vstack(x5_parts)
+        else:
+            x5 = None
+
+        # Stack high-resolution and low-resolution particles
+        if x1 is None and x5 is None:
+            raise ValueError(f"No particles found for halo {halo_id}")
+        elif x5 is None:
+            return x1
+        elif x1 is None:
+            return x5
+        else:
+            if x1.ndim > 1:
+                return np.vstack([x1, x5])
+            else:
+                return np.hstack([x1, x5])
 
     def halo_coordinates(self, halo_id, is_group=True):
         return self._get_halo_particles(halo_id, "Coordinates", is_group)
@@ -774,22 +852,29 @@ class CSiBORG3Snapshot(BaseSnapshot):
         return self._get_halo_particles(halo_id, "Masses", is_group) * 1e10
 
     def _make_hid2offset(self):
-        raise NotImplementedError("Must add support for multiple blocks.")
+        # Import here to avoid circular imports
+        from .catalogue import CSiBORG3Catalogue
 
-        catalogue_path = self.paths.snapshot_catalogue(
-            self.nsnap, self.nsim, "csiborg3")
+        catalogue = CSiBORG3Catalogue(
+            nsim=self.nsim,
+            nsnap=self.nsnap,
+            paths=self.paths,
+            fpath_override=self._catalogue_path,
+            verbose=False
+        )
 
-        with File(catalogue_path, "r") as f:
+        offset_type = catalogue._read_fof_catalogue("GroupOffsetType")
+        len_type = catalogue._read_fof_catalogue("GroupLenType")
 
-            offset = f["Group/GroupOffsetType"][:, 1]
-            lenghts = f["Group/GroupLenType"][:, 1]
-            hid2offset_type1 = {i: (offset[i], offset[i] + lenghts[i])
-                                for i in range(len(offset))}
+        offset = offset_type[:, 1]
+        lengths = len_type[:, 1]
+        hid2offset_type1 = {i: (offset[i], offset[i] + lengths[i])
+                            for i in range(len(offset))}
 
-            offset = f["Group/GroupOffsetType"][:, 5]
-            lenghts = f["Group/GroupLenType"][:, 5]
-            hid2offset_type5 = {i: (offset[i], offset[i] + lenghts[i])
-                                for i in range(len(offset))}
+        offset = offset_type[:, 5]
+        lengths = len_type[:, 5]
+        hid2offset_type5 = {i: (offset[i], offset[i] + lengths[i])
+                            for i in range(len(offset))}
 
         self._hid2offset = {"type1": hid2offset_type1,
                             "type5": hid2offset_type5,
@@ -1281,16 +1366,3 @@ class QuijoteField(CSiBORG1Field):
     def __init__(self, nsim, paths):
         super().__init__(nsim, paths, flip_xz=False)
         self._simname = "quijote"
-
-
-###############################################################################
-#                        Supplementary functions                              #
-###############################################################################
-
-
-def is_instance_of_base_snapshot_subclass(obj):
-    """
-    Check if `obj` is an instance of a subclass of `BaseSnapshot`.
-    """
-    return isinstance(obj, BaseSnapshot) and any(
-        issubclass(cls, BaseSnapshot) for cls in obj.__class__.__bases__)

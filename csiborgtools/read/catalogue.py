@@ -37,7 +37,7 @@ from ..utils import (cartesian_to_radec, fprint, great_circle_distance,
                      number_counts, periodic_distance_two_points,
                      radec_to_galactic, real2redshift, radec_to_supergalactic)
 from .paths import Paths
-from .snapshot import is_instance_of_base_snapshot_subclass
+from .snapshot import BaseSnapshot
 
 ###############################################################################
 #                           Base catalogue                                    #
@@ -163,8 +163,9 @@ class BaseCatalogue(ABC):
             self._snapshot = None
             return
 
-        if not is_instance_of_base_snapshot_subclass(snapshot):
-            raise TypeError("`snapshot` must be a subclass of `BaseSnapshot`.")
+        if not isinstance(snapshot, BaseSnapshot):
+            raise TypeError(
+                "`snapshot` must be an instance of a `BaseSnapshot` subclass.")
 
         self._snapshot = snapshot
 
@@ -1246,10 +1247,11 @@ class CSiBORG3Catalogue(BaseCatalogue):
         else:
             fpath = self.fpath_override
 
-        files = glob(fpath.replace(".hdf5", ".*.hdf5"))
+        fpath_search = fpath.replace(".hdf5", ".*.hdf5")
+        files = glob(fpath_search)
         if len(files) == 0:
             raise FileNotFoundError(
-                f"No files found for snapshot {self.nsnap}.")
+                f"No files found for snapshot {self.nsnap} at {fpath_search}.")
         files = sorted(files, key=lambda x: int(x.split(".")[-2]))
 
         fprint(f"opening {len(files)} blocks for snapshot `{self.nsnap}`.",
@@ -1339,11 +1341,11 @@ class CSiBORG3Catalogue(BaseCatalogue):
 
     @property
     def Group_M_Crit200(self):
-        return self._read_fof_catalogue("Group_M_Crit200")
+        return self._read_fof_catalogue("Group_M_Crit200") * 1e10
 
     @property
     def Group_M_Crit500(self):
-        return self._read_fof_catalogue("Group_M_Crit500")
+        return self._read_fof_catalogue("Group_M_Crit500") * 1e10
 
     @property
     def Group_R_Crit200(self):
