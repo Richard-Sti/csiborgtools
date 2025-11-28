@@ -28,17 +28,29 @@ parser.add_argument('--steps', type=int, nargs='+',
                     help='Simulation step numbers (0-49), can specify multiple')  # noqa
 parser.add_argument('--unbound-only', action='store_true',
                     help='Only track particles that are unbound at a=1')
+parser.add_argument('--snap-initial', type=int, default=1,
+                    help='Initial snapshot group number (default: 1)')
+parser.add_argument('--snap-final', type=int, default=6,
+                    help='Final snapshot group number (default: 6)')
 args = parser.parse_args()
 
 # Configuration
 steps = args.steps
+snap_initial = args.snap_initial
+snap_final = args.snap_final
 radii = [5.0, 7.5, 10, 15, 20, 30]  # cMpc/h - fixed radii
 boxsize = 681.0  # cMpc/h
 box_center = np.array([boxsize / 2, boxsize / 2, boxsize / 2])
 
+# Snapshot index mapping for CSiBORG3 reader
+# Maps snapshot group number to nsnap index used by reader
+snapshot_map = {1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 4}
+nsnap_initial = snapshot_map.get(snap_initial, snap_initial)
+nsnap_final = snapshot_map.get(snap_final, snap_final)
+
 # Base path pattern
 base_path = ("/mnt/home/rstiskalek/ceph/CSiBORG/"
-             "2MPP_MULTIBIN_N256_DES_V2/N256_far_future")
+             "2MPP_MULTIBIN_N256_DES_V2/N256_future")
 
 # Initialize paths object
 paths = csiborgtools.read.Paths(**csiborgtools.paths_rusty)
@@ -51,6 +63,8 @@ os.makedirs(cache_dir, exist_ok=True)
 print(f"Processing {len(steps)} step(s): {steps}")
 print(f"Radii: {radii} cMpc/h")
 print(f"Unbound particles only at a=1: {args.unbound_only}")
+print(f"Initial snapshot: {snap_initial:03d} (nsnap={nsnap_initial})")
+print(f"Final snapshot: {snap_final:03d} (nsnap={nsnap_final})")
 print(f"Box center: {box_center} cMpc/h")
 print("=" * 80)
 
@@ -67,43 +81,45 @@ for step in steps:
     print(f"PROCESSING STEP {step}")
     print(f"{'=' * 80}")
 
-    # Step 1: Load a=1 snapshot and identify particles near box center
-    print("\n1. Loading a=1 snapshot (group 001)...")
-    snap_a1_path = (f"{base_path}/step_{step}/output/snapdir_001/"
-                    f"snapshot_001.0.hdf5")
+    # Step 1: Load initial snapshot and identify particles near box center
+    print(f"\n1. Loading initial snapshot (group {snap_initial:03d})...")
+    snap_initial_path = (
+        f"{base_path}/step_{step}/output/snapdir_{snap_initial:03d}/"
+        f"snapshot_{snap_initial:03d}.0.hdf5")
 
-    snap_a1 = csiborgtools.read.CSiBORG3Snapshot(
-        0, 1, paths, fpath_override=snap_a1_path)
+    snap_initial_snap = csiborgtools.read.CSiBORG3Snapshot(
+        0, nsnap_initial, paths, fpath_override=snap_initial_path)
 
     print("   Reading particle coordinates and IDs...")
-    coords_a1 = snap_a1.coordinates()
-    pids_a1 = snap_a1.particle_ids()
+    coords_initial = snap_initial_snap.coordinates()
+    pids_initial = snap_initial_snap.particle_ids()
 
-    print(f"   Total particles at a=1: {len(pids_a1):,}")
+    print(f"   Total particles at initial: {len(pids_initial):,}")
 
     # Filter for unbound particles only if requested
     if args.unbound_only:
-        print("   Identifying unbound particles at a=1...")
-        cat_a1_path = (f"{base_path}/step_{step}/output/groups_001/"
-                       f"fof_subhalo_tab_001.hdf5")
-        cat_a1 = csiborgtools.read.CSiBORG3Catalogue(
-            nsim=0, nsnap=1, paths=paths, fpath_override=cat_a1_path,
-            verbose=False)
+        print("   Identifying unbound particles at initial snapshot...")
+        cat_initial_path = (
+            f"{base_path}/step_{step}/output/groups_{snap_initial:03d}/"
+            f"fof_subhalo_tab_{snap_initial:03d}.hdf5")
+        cat_initial = csiborgtools.read.CSiBORG3Catalogue(
+            nsim=0, nsnap=nsnap_initial, paths=paths,
+            fpath_override=cat_initial_path, verbose=False)
 
-        # Get halo IDs for all particles at a=1
-        hids_a1 = snap_a1.particle_halo_ids(False)
+        # Get halo IDs for all particles at initial snapshot
+        hids_initial = snap_initial_snap.particle_halo_ids(False)
 
         # Keep only unbound particles (halo_id == -1)
-        unbound_mask = hids_a1 == -1
-        coords_a1 = coords_a1[unbound_mask]
-        pids_a1 = pids_a1[unbound_mask]
+        unbound_mask = hids_initial == -1
+        coords_initial = coords_initial[unbound_mask]
+        pids_initial = pids_initial[unbound_mask]
 
-        print(f"   Unbound particles at a=1: {len(pids_a1):,} "
-              f"({100 * len(pids_a1) / len(hids_a1):.1f}%)")
+        print(f"   Unbound particles at initial: {len(pids_initial):,} "
+              f"({100 * len(pids_initial) / len(hids_initial):.1f}%)")
 
     # Compute distances from box center
     print("   Computing distances from box center...")
-    distances = np.sqrt(np.sum((coords_a1 - box_center)**2, axis=1))
+    distances = np.sqrt(np.sum((coords_initial - box_center)**2, axis=1))
 
     # Identify particles within each radius
     tracked_pids_dict = {}
@@ -111,33 +127,35 @@ for step in steps:
     print("\n   Identifying particles within each radius:")
     for radius in radii:
         mask_center = distances < radius
-        tracked_pids_dict[radius] = pids_a1[mask_center]
+        tracked_pids_dict[radius] = pids_initial[mask_center]
         print(f"   Radius {radius:6.1f} cMpc/h "
               f"→ {len(tracked_pids_dict[radius]):,} particles")
 
     # Clean up coordinates
-    del coords_a1
+    del coords_initial
 
-    # Step 2: Load a=10 snapshot
-    print("\n2. Loading a=100 snapshot (group 006)...")
-    snap_a10_path = (f"{base_path}/step_{step}/output/snapdir_006/"
-                     f"snapshot_006.0.hdf5")
+    # Step 2: Load final snapshot
+    print(f"\n2. Loading final snapshot (group {snap_final:03d})...")
+    snap_final_path = (
+        f"{base_path}/step_{step}/output/snapdir_{snap_final:03d}/"
+        f"snapshot_{snap_final:03d}.0.hdf5")
 
-    snap_a10 = csiborgtools.read.CSiBORG3Snapshot(
-        0, 4, paths, fpath_override=snap_a10_path)
+    snap_final_snap = csiborgtools.read.CSiBORG3Snapshot(
+        0, nsnap_final, paths, fpath_override=snap_final_path)
 
-    print("   Reading particle IDs at a=10...")
-    pids_a10 = snap_a10.particle_ids()
-    print(f"   Total particles at a=10: {len(pids_a10):,}")
+    print("   Reading particle IDs at final snapshot...")
+    pids_final = snap_final_snap.particle_ids()
+    print(f"   Total particles at final: {len(pids_final):,}")
 
     # Step 3: Read FoF catalogue to get particle-to-halo mapping
-    print("\n3. Reading FoF catalogue at a=10...")
-    fof_path = (f"{base_path}/step_{step}/output/groups_006/"
-                f"fof_subhalo_tab_006.hdf5")
+    print("\n3. Reading FoF catalogue at final snapshot...")
+    fof_path = (f"{base_path}/step_{step}/output/groups_{snap_final:03d}/"
+                f"fof_subhalo_tab_{snap_final:03d}.hdf5")
 
     # Use CSiBORG3Catalogue to read the catalogue
     catalogue = csiborgtools.read.CSiBORG3Catalogue(
-        nsim=0, nsnap=4, paths=paths, fpath_override=fof_path, verbose=False)
+        nsim=0, nsnap=nsnap_final, paths=paths, fpath_override=fof_path,
+        verbose=False)
 
     # Read group information using the catalogue class
     group_len = catalogue.npart
@@ -162,17 +180,17 @@ for step in steps:
     print("\n4. Creating particle-to-halo mapping...")
 
     # Use the new particle_halo_ids method to get halo IDs for all particles
-    hids_all = snap_a10.particle_halo_ids(False)
+    hids_final = snap_final_snap.particle_halo_ids(False)
 
     # Create dictionary mapping particle ID to halo ID
     # Only include particles that are in halos (hid != -1)
     pid_to_halo = {
-        pid: hid for pid, hid in zip(pids_a10, hids_all) if hid != -1}
+        pid: hid for pid, hid in zip(pids_final, hids_final) if hid != -1}
 
     print(f"   Mapped {len(pid_to_halo):,} particles to halos")
 
     # Step 5: Match tracked particles to halos for each radius
-    print("\n5. Matching tracked particles to halos at a=10...")
+    print("\n5. Matching tracked particles to halos at final snapshot...")
     results = {}
 
     for radius in radii:
