@@ -15,10 +15,11 @@
 """
 Track particles from the box center at a=1 to their halos at a=10.
 """
-import numpy as np
-import csiborgtools
 import argparse
 import os
+
+import csiborgtools
+import numpy as np
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(
