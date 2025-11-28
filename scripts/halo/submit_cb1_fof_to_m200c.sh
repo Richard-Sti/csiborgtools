@@ -1,5 +1,5 @@
 #!/bin/bash
-nthreads=16
+nthreads=20
 memory=4
 on_login=${1}
 queue="berg"
