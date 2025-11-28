@@ -274,7 +274,7 @@ print(f"\nResults table saved to: {txt_file}")
 
 # Save results to numpy file
 output_file = os.path.join(
-    cache_dir,
+    results_dir,
     f"halo_finder_l{target_l:.0f}_b{target_b:.0f}_d{target_dist:.0f}.npz"
 )
 
