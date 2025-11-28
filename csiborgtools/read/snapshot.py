@@ -660,10 +660,21 @@ class CSiBORG3Snapshot(BaseSnapshot):
             self._catalogue_path = catalogue_fpath_override
 
     def _get_particles(self, kind, high_resolution_only=False):
-        files = glob(self._snapshot_path.replace(".hdf5", ".*.hdf5"))
+        # Handle both "snapshot_001.hdf5" and "snapshot_001.0.hdf5" formats
+        # Split from the right to check if path has a block number
+        parts = self._snapshot_path.rsplit('.', 2)
+        if len(parts) == 3 and parts[-2].isdigit() and parts[-1] == 'hdf5':
+            # Path has a block number like "snapshot_001.0.hdf5"
+            # Reconstruct pattern as "snapshot_001.*.hdf5"
+            pattern = f"{parts[0]}.*.hdf5"
+        else:
+            # Path is like "snapshot_001.hdf5", just add wildcard
+            pattern = self._snapshot_path.replace(".hdf5", ".*.hdf5")
+
+        files = glob(pattern)
         if len(files) == 0:
             raise FileNotFoundError(
-                f"No files found for snapshot {self.nsnap}.")
+                f"No files found for snapshot {self.nsnap} with pattern {pattern}.")
         files = sorted(files, key=lambda x: int(x.split(".")[-2]))
 
         fprint(f"opening {len(files)} blocks for snapshot `{self.nsnap}`.")
@@ -743,10 +754,19 @@ class CSiBORG3Snapshot(BaseSnapshot):
             raise ValueError(f"Halo `{halo_id}` has no particles.")
 
         # Get snapshot files
-        files = glob(self._snapshot_path.replace(".hdf5", ".*.hdf5"))
+        # Handle both "snapshot_001.hdf5" and "snapshot_001.0.hdf5" formats
+        parts = self._snapshot_path.rsplit('.', 2)
+        if len(parts) == 3 and parts[-2].isdigit() and parts[-1] == 'hdf5':
+            # Path has a block number like "snapshot_001.0.hdf5"
+            pattern = f"{parts[0]}.*.hdf5"
+        else:
+            # Path is like "snapshot_001.hdf5", just add wildcard
+            pattern = self._snapshot_path.replace(".hdf5", ".*.hdf5")
+
+        files = glob(pattern)
         if len(files) == 0:
             raise FileNotFoundError(
-                f"No files found for snapshot {self.nsnap}.")
+                f"No files found for snapshot {self.nsnap} with pattern {pattern}.")
         files = sorted(files, key=lambda x: int(x.split(".")[-2]))
 
         x1_parts = []
@@ -850,6 +870,65 @@ class CSiBORG3Snapshot(BaseSnapshot):
 
     def halo_masses(self, halo_id, is_group=True):
         return self._get_halo_particles(halo_id, "Masses", is_group) * 1e10
+
+    def halo_particle_ids(self, halo_id, is_group=True):
+        return self._get_halo_particles(halo_id, "ParticleIDs", is_group)
+
+    def particle_halo_ids(self, high_resolution_only=False):
+        """
+        Create an array mapping particle index to halo ID.
+
+        For each particle, returns the halo index it belongs to. Particles
+        not in any halo are assigned -1.
+
+        Parameters
+        ----------
+        high_resolution_only : bool, optional
+            Whether to include only high-resolution particles (Type 1).
+
+        Returns
+        -------
+        halo_ids : 1-dimensional array of integers
+            Array where halo_ids[i] gives the halo ID for particle i.
+            Value is -1 if particle is not in any halo.
+        """
+        # Get the total number of particles from the first file
+        files = glob(self._snapshot_path.replace(".hdf5", ".*.hdf5"))
+        if len(files) == 0:
+            # Handle single file or path with block number
+            parts = self._snapshot_path.rsplit('.', 2)
+            if len(parts) == 3 and parts[-2].isdigit() and parts[-1] == 'hdf5':
+                pattern = f"{parts[0]}.*.hdf5"
+            else:
+                pattern = self._snapshot_path.replace(".hdf5", ".*.hdf5")
+            files = glob(pattern)
+
+        # Count total particles
+        npart_type1 = 0
+        npart_type5 = 0
+        for file in files:
+            with File(file, "r") as f:
+                npart_type1 += f["Header"].attrs["NumPart_ThisFile"][1]
+                if not high_resolution_only:
+                    npart_type5 += f["Header"].attrs["NumPart_ThisFile"][5]
+
+        # Create array initialized to -1 (no halo)
+        total_npart = npart_type1 + npart_type5
+        halo_ids = np.full(total_npart, -1, dtype=np.int32)
+
+        # Fill in halo IDs using offsets
+        # Type 1 particles are at indices [0:npart_type1]
+        for halo_id, (start, end) in self.hid2offset["type1"].items():
+            if end > start:
+                halo_ids[start:end] = halo_id
+
+        # Type 5 particles are at indices [npart_type1:npart_type1+npart_type5]
+        if not high_resolution_only:
+            for halo_id, (start, end) in self.hid2offset["type5"].items():
+                if end > start:
+                    halo_ids[npart_type1 + start:npart_type1 + end] = halo_id
+
+        return halo_ids
 
     def _make_hid2offset(self):
         # Import here to avoid circular imports
