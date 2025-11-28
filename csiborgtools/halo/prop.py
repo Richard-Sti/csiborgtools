@@ -181,3 +181,59 @@ class Halo:
 
         return self.spherical_overdensity_mass(center, rho_200c, boxsize,
                                                periodic)
+
+    def compute_r500c(self, center, h, boxsize=None, periodic=False):
+        """
+        Compute M500c and R500c for the halo.
+
+        M500c is the mass within R500c, where R500c is the radius within
+        which the mean density is 500 times the critical density of the
+        universe at z=0.
+
+        Parameters
+        ----------
+        center : np.ndarray
+            Center position (3D).
+        h : float
+            Hubble parameter in units of 100 km/s/Mpc.
+        boxsize : float, optional
+            Box size for periodic boundary conditions.
+        periodic : bool, optional
+            Whether to use periodic boundary conditions.
+
+        Returns
+        -------
+        m500c : float
+            Mass within R500c [Msun/h].
+        r500c : float
+            R500c radius [Mpc/h].
+        """
+        rho_crit0 = 2.77536627e11 * h**2  # Msun / Mpc^3
+        rho_500c = 500 * rho_crit0
+
+        return self.spherical_overdensity_mass(center, rho_500c, boxsize,
+                                               periodic)
+
+    def mean_velocity(self):
+        """
+        Compute the mass-weighted average velocity of the particles.
+
+        Returns
+        -------
+        np.ndarray
+            Mass-weighted average velocity (3D vector).
+        """
+        if self.vel is None:
+            raise ValueError("Velocity data (self.vel) is not available.")
+
+        # Calculate the sum of (mass * velocity) for each component
+        weighted_velocity_sum = np.sum(self.mass[:, np.newaxis] * self.vel,
+                                       axis=0)
+
+        # Calculate the total mass
+        total_mass = np.sum(self.mass)
+
+        # Compute the mass-weighted average velocity
+        mean_vel = weighted_velocity_sum / total_mass
+
+        return mean_vel

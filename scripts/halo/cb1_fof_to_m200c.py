@@ -13,7 +13,8 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
-Compute M200c and R200c for CSiBORG1 FOF halos using shrinking sphere.
+Compute M200c, R200c, M500c, and R500c for CSiBORG1 FOF halos using
+shrinking sphere.
 """
 import csiborgtools
 import hdf5plugin  # noqa
@@ -75,57 +76,77 @@ if __name__ == "__main__":
 
         m200c_vals = np.full(n_my_halos, np.nan, dtype=np.float32)
         r200c_vals = np.full(n_my_halos, np.nan, dtype=np.float32)
+        m500c_vals = np.full(n_my_halos, np.nan, dtype=np.float32)
+        r500c_vals = np.full(n_my_halos, np.nan, dtype=np.float32)
         centers = np.full((n_my_halos, 3), np.nan, dtype=np.float32)
         total_mass = np.full(n_my_halos, np.nan, dtype=np.float32)
         fof_pos = np.full((n_my_halos, 3), np.nan, dtype=np.float32)
+        velocities = np.full((n_my_halos, 3), np.nan, dtype=np.float32)
 
         for i in trange(n_my_halos, disable=size > 1):
             hid = halocat.index[my_halos[i]]
 
             pos = snapcat.halo_coordinates(hid)
             mass = snapcat.halo_masses(hid)
+            vel = snapcat.halo_velocities(hid)
 
-            halo = csiborgtools.halo.Halo(pos, mass)
+            halo = csiborgtools.halo.Halo(pos, mass, vel)
             cm = halo.compute_center(
                 boxsize, periodic=False, shrink_factor=0.95,
                 npart_min=50)
             M200c, R200c = halo.compute_r200c(cm, h=h, boxsize=boxsize)
+            M500c, R500c = halo.compute_r500c(cm, h=h, boxsize=boxsize)
+            velocities[i] = halo.mean_velocity()
 
             m200c_vals[i] = M200c
             r200c_vals[i] = R200c
+            m500c_vals[i] = M500c
+            r500c_vals[i] = R500c
             centers[i] = cm
             total_mass[i] = mass.sum()
             fof_pos[i] = halocat["cartesian_pos"][my_halos[i]]
 
         all_m200c = comm.gather(m200c_vals, root=0)
         all_r200c = comm.gather(r200c_vals, root=0)
+        all_m500c = comm.gather(m500c_vals, root=0)
+        all_r500c = comm.gather(r500c_vals, root=0)
         all_centers = comm.gather(centers, root=0)
         all_total_mass = comm.gather(total_mass, root=0)
         all_fof_pos = comm.gather(fof_pos, root=0)
+        all_velocities = comm.gather(velocities, root=0)
 
         if rank == 0:
             m200c_vals = np.concatenate(all_m200c)
             r200c_vals = np.concatenate(all_r200c)
+            m500c_vals = np.concatenate(all_m500c)
+            r500c_vals = np.concatenate(all_r500c)
             centers = np.vstack(all_centers)
             total_mass = np.concatenate(all_total_mass)
             fof_pos = np.vstack(all_fof_pos)
+            velocities = np.vstack(all_velocities)
 
             # Sort by total mass descending
             sort_idx = np.argsort(total_mass)[::-1]
             m200c_vals = m200c_vals[sort_idx]
             r200c_vals = r200c_vals[sort_idx]
+            m500c_vals = m500c_vals[sort_idx]
+            r500c_vals = r500c_vals[sort_idx]
             centers = centers[sort_idx]
             total_mass = total_mass[sort_idx]
             fof_pos = fof_pos[sort_idx]
+            velocities = velocities[sort_idx]
 
             print(f"Saving results to {fname_out}")
 
             with File(fname_out, 'w') as f:
                 f.create_dataset("M200c", data=m200c_vals)
                 f.create_dataset("R200c", data=r200c_vals)
+                f.create_dataset("M500c", data=m500c_vals)
+                f.create_dataset("R500c", data=r500c_vals)
                 f.create_dataset("Position", data=centers)
                 f.create_dataset("TotalMass", data=total_mass)
                 f.create_dataset("FOFPosition", data=fof_pos)
+                f.create_dataset("Velocity", data=velocities)
                 f.attrs["nsim"] = nsim
                 f.attrs["boxsize"] = boxsize
                 f.attrs["h"] = h
