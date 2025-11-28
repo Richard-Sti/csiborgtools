@@ -674,7 +674,8 @@ class CSiBORG3Snapshot(BaseSnapshot):
         files = glob(pattern)
         if len(files) == 0:
             raise FileNotFoundError(
-                f"No files found for snapshot {self.nsnap} with pattern {pattern}.")
+                f"No files found for snapshot {self.nsnap} "
+                f"with pattern {pattern}.")
         files = sorted(files, key=lambda x: int(x.split(".")[-2]))
 
         fprint(f"opening {len(files)} blocks for snapshot `{self.nsnap}`.")
@@ -766,7 +767,8 @@ class CSiBORG3Snapshot(BaseSnapshot):
         files = glob(pattern)
         if len(files) == 0:
             raise FileNotFoundError(
-                f"No files found for snapshot {self.nsnap} with pattern {pattern}.")
+                f"No files found for snapshot {self.nsnap} "
+                f"with pattern {pattern}.")
         files = sorted(files, key=lambda x: int(x.split(".")[-2]))
 
         x1_parts = []
