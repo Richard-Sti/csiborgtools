@@ -1247,7 +1247,16 @@ class CSiBORG3Catalogue(BaseCatalogue):
         else:
             fpath = self.fpath_override
 
-        fpath_search = fpath.replace(".hdf5", ".*.hdf5")
+        # Handle both "fof_subhalo_tab_001.hdf5" and
+        # "fof_subhalo_tab_001.0.hdf5" formats
+        parts = fpath.rsplit('.', 2)
+        if len(parts) == 3 and parts[-2].isdigit() and parts[-1] == 'hdf5':
+            # Path has a block number like "fof_subhalo_tab_001.0.hdf5"
+            fpath_search = f"{parts[0]}.*.hdf5"
+        else:
+            # Path is like "fof_subhalo_tab_001.hdf5", just add wildcard
+            fpath_search = fpath.replace(".hdf5", ".*.hdf5")
+
         files = glob(fpath_search)
         if len(files) == 0:
             raise FileNotFoundError(
